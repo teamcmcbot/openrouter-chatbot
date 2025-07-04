@@ -14,7 +14,7 @@ interface MessageListProps {
   isLoading: boolean;
 }
 
-export default function MessageList({ messages, isLoading }: MessageListProps) {
+export default function MessageList({ messages, isLoading }: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
