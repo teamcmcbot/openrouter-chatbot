@@ -18,7 +18,7 @@
 
 **YOU OWN these exact paths** (full write access):
 ```
-/app/api/**/*           # All API routes and backend logic
+/src/app/api/**/*       # All API routes and backend logic
 /lib/utils/**/*         # Utility functions and helpers  
 /lib/types/**/*         # TypeScript type definitions
 /.env.example           # Environment variable documentation
@@ -27,7 +27,7 @@
 
 **You can READ** (for integration):
 - `/components/**/*` (Frontend components from Copilot)
-- `/app/(app)/**/*` (UI pages from Copilot)
+- `/src/app/(app)/**/*` (UI pages from Copilot)
 
 ---
 
@@ -43,12 +43,12 @@
 
 ### Task 2: Chat API Endpoint  
 **Priority**: High
-- Implement `POST /app/api/chat/route.ts`
+- Implement `POST /src/app/api/chat/route.ts`
 - Accept user messages and forward to OpenRouter
 - Handle streaming responses (if supported)
 - Return formatted AI responses with error handling
 - Add comprehensive logging for debugging
-- **Files**: `app/api/chat/route.ts`
+- **Files**: `src/app/api/chat/route.ts`
 
 ### Task 3: Type Definitions & Contracts
 **Priority**: High

@@ -18,14 +18,14 @@
 
 **YOU OWN these exact paths** (full write access):
 ```
-/app/(app)/**/*          # All UI pages and layouts
+/src/app/(app)/**/*      # All UI pages and layouts
 /components/**/*         # All React components  
 /styles/**/*             # Custom styles (if needed)
 /hooks/**/*              # Custom React hooks
 ```
 
 **You can READ** (for integration):
-- `/app/api/**/*` (API contracts from Gemini CLI)
+- `/src/app/api/**/*` (API contracts from Gemini CLI)
 - `/lib/types/**/*` (Type definitions from Gemini CLI)
 - `/.env.example` (Environment variables)
 
@@ -35,19 +35,19 @@
 
 ### Task 1: Landing Page Setup
 **Priority**: High
-- Create modern landing page at `/app/(app)/page.tsx`
+- Create modern landing page at `/src/app/(app)/page.tsx`
 - Hero section with clear app description
 - Call-to-action button leading to chat interface
 - Clean navigation and footer
-- **Files**: `app/(app)/page.tsx`, `app/(app)/layout.tsx`
+- **Files**: `src/app/(app)/page.tsx`, `src/app/(app)/layout.tsx`
 
 ### Task 2: Chat Interface Core
 **Priority**: High  
-- Chat page at `/app/(app)/chat/page.tsx`
+- Chat page at `/src/app/(app)/chat/page.tsx`
 - Message input component with send button
 - Message display area with proper styling
 - Typing indicators and loading states
-- **Files**: `app/(app)/chat/page.tsx`, `components/chat/ChatInterface.tsx`, `components/chat/MessageInput.tsx`, `components/chat/MessageList.tsx`
+- **Files**: `src/app/(app)/chat/page.tsx`, `components/chat/ChatInterface.tsx`, `components/chat/MessageInput.tsx`, `components/chat/MessageList.tsx`
 
 ### Task 3: UI Components Library
 **Priority**: Medium
