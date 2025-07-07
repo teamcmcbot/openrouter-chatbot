@@ -5,7 +5,7 @@ export default function HomePage() {
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] px-4">
       {/* Hero Section */}
       <div className="max-w-4xl mx-auto text-center">
-        <div className="mb-8">
+        <div className="mb-8 mt-8">
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
             Chat with AI{" "}
             <span className="text-emerald-600 dark:text-emerald-400 block">
@@ -93,7 +93,7 @@ export default function HomePage() {
         </div>
 
         {/* Additional CTA */}
-        <div className="mt-16 p-8 bg-gradient-to-r from-emerald-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl">
+        <div className="mt-10 p-8 bg-gradient-to-r from-emerald-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-4">
             Ready to get started?
           </h2>

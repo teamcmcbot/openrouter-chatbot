@@ -43,7 +43,7 @@ export default function RootLayout({
                     href="/chat"
                     className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
                   >
-                    Start Chat
+                    Sign In
                   </Link>
                 </div>
               </div>
