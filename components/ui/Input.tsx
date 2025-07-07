@@ -13,7 +13,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     
     const inputClasses = `
       w-full px-3 py-2 border rounded-lg 
-      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+      focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent
       disabled:bg-gray-100 disabled:cursor-not-allowed
       dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 dark:disabled:bg-gray-800
       ${error 

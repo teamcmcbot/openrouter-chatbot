@@ -35,10 +35,10 @@ export default function ErrorDisplay({
       text: "text-yellow-700 dark:text-yellow-400"
     },
     info: {
-      container: "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800",
-      icon: "text-blue-600 dark:text-blue-400",
-      title: "text-blue-800 dark:text-blue-300",
-      text: "text-blue-700 dark:text-blue-400"
+      container: "bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800",
+      icon: "text-emerald-600 dark:text-emerald-400",
+      title: "text-emerald-800 dark:text-emerald-300",
+      text: "text-emerald-700 dark:text-emerald-400"
     }
   };
 

@@ -19,7 +19,7 @@ export default function Loading({
     return (
       <div className="flex flex-col items-center justify-center space-y-2">
         <svg 
-          className={`${sizeClasses[size]} animate-spin text-blue-600`} 
+          className={`${sizeClasses[size]} animate-spin text-emerald-600`} 
           fill="none" 
           stroke="currentColor" 
           viewBox="0 0 24 24"
@@ -44,9 +44,9 @@ export default function Loading({
     return (
       <div className="flex flex-col items-center justify-center space-y-2">
         <div className="flex space-x-1">
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+          <div className="w-2 h-2 bg-emerald-600 rounded-full animate-bounce"></div>
+          <div className="w-2 h-2 bg-emerald-600 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+          <div className="w-2 h-2 bg-emerald-600 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
         </div>
         {text && (
           <p className="text-sm text-gray-600 dark:text-gray-400">

@@ -53,11 +53,11 @@ body {
 
 /* Better text selection */
 ::selection {
-  @apply bg-blue-100 text-blue-900;
+  @apply bg-emerald-100 text-emerald-900;
 }
 
 ::-moz-selection {
-  @apply bg-blue-100 text-blue-900;
+  @apply bg-emerald-100 text-emerald-900;
 }
 
 /* Mobile-friendly tap highlights */

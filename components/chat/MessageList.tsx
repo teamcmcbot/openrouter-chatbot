@@ -67,7 +67,7 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
               {/* Avatar */}
               <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                 message.role === "user" 
-                  ? "bg-blue-600 text-white ml-3" 
+                  ? "bg-emerald-600 text-white ml-3" 
                   : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 mr-3"
               }`}>
                 {message.role === "user" ? "U" : "AI"}
@@ -76,13 +76,13 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
               {/* Message Content */}
               <div className={`rounded-lg px-4 py-2 ${
                 message.role === "user"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-emerald-600 text-white"
                   : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               }`}>
                 <p className="whitespace-pre-wrap">{message.content}</p>
                 <p className={`text-xs mt-1 ${
                   message.role === "user" 
-                    ? "text-blue-100" 
+                    ? "text-emerald-100" 
                     : "text-gray-500 dark:text-gray-400"
                 }`}>
                   {formatTime(message.timestamp)}{" "}
