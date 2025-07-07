@@ -47,7 +47,7 @@ export default function ModelDropdown({ models, selectedModel, onModelSelect }: 
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
-        <span className="text-gray-700 dark:text-gray-300 font-normal text-xs leading-tight">
+        <span className="text-gray-700 dark:text-violet-300 font-normal text-xs leading-tight">
           {displayName(selectedModel) || "Select Model"}
         </span>
         <svg
