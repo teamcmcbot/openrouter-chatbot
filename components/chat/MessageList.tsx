@@ -85,7 +85,12 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
                     ? "text-blue-100" 
                     : "text-gray-500 dark:text-gray-400"
                 }`}>
-                  {formatTime(message.timestamp)}
+                  {formatTime(message.timestamp)}{" "}
+                  {message.elapsed_time && (
+                    <span className="text-gray-400 dark:text-gray-500">
+                      (Took {message.elapsed_time} seconds, {message.total_tokens} tokens)
+                    </span>
+                  )}
                 </p>
               </div>
             </div>

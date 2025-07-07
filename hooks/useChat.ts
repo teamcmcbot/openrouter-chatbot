@@ -8,6 +8,8 @@ interface ChatMessage {
   content: string;
   role: "user" | "assistant";
   timestamp: Date;
+  elapsed_time?: number; // Optional, assuming it might be part of the response
+  total_tokens?: number; // Optional, assuming it might be part of the response
 }
 
 interface ChatResponse {
@@ -71,6 +73,8 @@ export function useChat(): UseChatReturn {
         content: data.response,
         role: "assistant",
         timestamp: new Date(),
+        elapsed_time: data.elapsed_time ?? 0, // Assuming elapsed_time is part of the response
+        total_tokens: data.usage?.total_tokens ?? 0, // Assuming usage is part of the response
       };
 
       setMessages(prev => [...prev, assistantMessage]);
