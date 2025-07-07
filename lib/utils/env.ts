@@ -22,9 +22,21 @@ export function validateEnvVars() {
     'OPENROUTER_MAX_TOKENS',
   ];
 
+  // Optional environment variables (will use defaults if not provided)
+  const optionalEnvVars = [
+    'OPENROUTER_MODELS_LIST', // Comma-separated list of available models
+  ];
+
   const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
   if (missingVars.length > 0) {
     throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
   }
+
+  // Log info about optional variables
+  optionalEnvVars.forEach(varName => {
+    if (!process.env[varName]) {
+      console.info(`Optional environment variable ${varName} not set, using defaults`);
+    }
+  });
 }
