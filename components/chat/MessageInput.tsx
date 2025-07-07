@@ -26,7 +26,7 @@ export default function MessageInput({ onSendMessage, disabled = false }: Readon
 
   return (
     <div className="px-6 py-4">
-      <div className="flex items-end space-x-4">
+      <div className="flex items-start space-x-4">
         <div className="flex-1">
           <textarea
             value={message}
@@ -50,7 +50,7 @@ export default function MessageInput({ onSendMessage, disabled = false }: Readon
         <button
           onClick={handleSend}
           disabled={!message.trim() || disabled}
-          className="flex-shrink-0 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
+          className="flex-shrink-0 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200 h-12"
           aria-label="Send message"
         >
           {disabled ? (
