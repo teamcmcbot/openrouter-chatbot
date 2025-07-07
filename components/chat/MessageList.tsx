@@ -7,6 +7,8 @@ interface ChatMessage {
   content: string;
   role: "user" | "assistant";
   timestamp: Date;
+  elapsed_time?: number;
+  total_tokens?: number;
 }
 
 interface MessageListProps {
