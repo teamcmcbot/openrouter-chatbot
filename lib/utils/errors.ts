@@ -40,12 +40,22 @@ const errorStatusMap: Record<ErrorCode, number> = {
 export class ApiErrorResponse extends Error {
   public readonly code: ErrorCode;
   public readonly details?: string;
+  public readonly retryAfter?: number;
+  public readonly suggestions?: string[];
 
-  constructor(message: string, code: ErrorCode, details?: string) {
+  constructor(
+    message: string, 
+    code: ErrorCode, 
+    details?: string, 
+    retryAfter?: number, 
+    suggestions?: string[]
+  ) {
     super(message);
     this.name = 'ApiErrorResponse';
     this.code = code;
     this.details = details;
+    this.retryAfter = retryAfter;
+    this.suggestions = suggestions;
   }
 }
 
@@ -61,6 +71,8 @@ export function handleError(error: unknown): NextResponse<ApiError> {
       code: error.code,
       details: error.details,
       timestamp: new Date().toISOString(),
+      retryAfter: error.retryAfter,
+      suggestions: error.suggestions,
     };
     status = errorStatusMap[error.code];
   } else {

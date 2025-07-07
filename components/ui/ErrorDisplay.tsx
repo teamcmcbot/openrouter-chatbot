@@ -6,6 +6,9 @@ interface ErrorDisplayProps {
   type?: "error" | "warning" | "info";
   actionButton?: ReactNode;
   onRetry?: () => void;
+  suggestions?: string[];
+  retryAfter?: number; // Seconds until retry is recommended
+  code?: string; // Error code for specific handling
 }
 
 export default function ErrorDisplay({ 
@@ -13,7 +16,10 @@ export default function ErrorDisplay({
   message, 
   type = "error",
   actionButton,
-  onRetry
+  onRetry,
+  suggestions,
+  retryAfter,
+  code
 }: Readonly<ErrorDisplayProps>) {
   const typeStyles = {
     error: {
@@ -76,6 +82,25 @@ export default function ErrorDisplay({
           <div className={`text-sm ${title ? "mt-1" : ""} ${styles.text}`}>
             <p>{message}</p>
           </div>
+
+          {/* Display suggestions if available */}
+          {suggestions && suggestions.length > 0 && (
+            <div className={`mt-3 text-sm ${styles.text}`}>
+              <p className="font-medium mb-1">Suggestions:</p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                {suggestions.map((suggestion, index) => (
+                  <li key={`suggestion-${suggestion.slice(0, 20)}-${index}`}>{suggestion}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Display retry countdown for rate limiting */}
+          {code === 'too_many_requests' && retryAfter && (
+            <div className={`mt-3 text-sm ${styles.text}`}>
+              <p>⏱️ Recommended retry time: {retryAfter} seconds</p>
+            </div>
+          )}
           
           {(onRetry || actionButton) && (
             <div className="mt-4 flex space-x-2">

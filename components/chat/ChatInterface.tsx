@@ -51,9 +51,13 @@ export default function ChatInterface() {
       {error && (
         <div className="px-4 sm:px-6 py-2">
           <ErrorDisplay
-            message={error}
-            type="error"
+            message={error.message}
+            type={error.code === 'too_many_requests' ? 'warning' : 'error'}
+            title={error.code === 'too_many_requests' ? 'Rate Limited' : 'Error'}
             onRetry={clearError}
+            suggestions={error.suggestions}
+            retryAfter={error.retryAfter}
+            code={error.code}
           />
         </div>
       )}

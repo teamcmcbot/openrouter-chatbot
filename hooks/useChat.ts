@@ -11,10 +11,18 @@ interface ChatMessage {
   total_tokens?: number;
 }
 
+interface ChatError {
+  message: string;
+  code?: string;
+  suggestions?: string[];
+  retryAfter?: number;
+  timestamp?: string;
+}
+
 interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
-  error: string | null;
+  error: ChatError | null;
   sendMessage: (content: string, model?: string) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
@@ -23,7 +31,7 @@ interface UseChatReturn {
 export function useChat(): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ChatError | null>(null);
 
   const sendMessage = useCallback(async (content: string, model?: string) => {
     if (!content.trim() || isLoading) return;
@@ -55,7 +63,14 @@ export function useChat(): UseChatReturn {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error ?? `HTTP error! status: ${response.status}`);
+        const chatError: ChatError = {
+          message: errorData.error ?? `HTTP error! status: ${response.status}`,
+          code: errorData.code,
+          suggestions: errorData.suggestions,
+          retryAfter: errorData.retryAfter,
+          timestamp: errorData.timestamp,
+        };
+        throw chatError;
       }
 
       // Handle backend response with 'data' property
@@ -77,11 +92,24 @@ export function useChat(): UseChatReturn {
 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "An error occurred";
-      setError(errorMessage);
+      let chatError: ChatError;
+      
+      if (typeof err === 'object' && err !== null && 'message' in err) {
+        // If it's already a ChatError object from our API response
+        chatError = err as ChatError;
+      } else {
+        // If it's a generic error
+        const errorMessage = err instanceof Error ? err.message : "An error occurred";
+        chatError = {
+          message: errorMessage,
+          code: errorMessage.includes("fetch") ? "network_error" : "unknown_error",
+        };
+      }
+      
+      setError(chatError);
       
       // For development: Add a mock response when backend is not available
-      if (errorMessage.includes("fetch")) {
+      if (chatError.code === "network_error") {
         const mockResponse: ChatMessage = {
           id: (Date.now() + 1).toString(),
           content: "I'm currently not available. The backend API is being developed by Gemini CLI. Please check back later!",

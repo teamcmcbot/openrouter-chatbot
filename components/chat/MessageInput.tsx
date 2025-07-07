@@ -3,7 +3,7 @@
 import { useState, KeyboardEvent } from "react";
 
 interface MessageInputProps {
-  onSendMessage: (message: string) => void;
+  onSendMessage: (message: string) => void
   disabled?: boolean;
 }
 
@@ -32,7 +32,7 @@ export default function MessageInput({ onSendMessage, disabled = false }: Readon
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
+            placeholder="Type your message..."
             disabled={disabled}
             className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
             rows={1}
