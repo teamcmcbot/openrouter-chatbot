@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     logger.debug('Validated chat request data:', data);
 
     const messages: OpenRouterRequest['messages'] = [{ role: 'user', content: data!.message }];
-    const openRouterResponse = await getOpenRouterCompletion(messages);
+    const openRouterResponse = await getOpenRouterCompletion(messages, data!.model);
     logger.debug('OpenRouter response received:', openRouterResponse);
     const assistantResponse = openRouterResponse.choices[0].message.content;
     const usage = openRouterResponse.usage;

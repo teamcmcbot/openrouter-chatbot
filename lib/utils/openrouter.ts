@@ -6,14 +6,17 @@ const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrout
 const OPENROUTER_API_MODEL = process.env.OPENROUTER_API_MODEL || 'deepseek/deepseek-r1-0528:free';
 
 export async function getOpenRouterCompletion(
-  messages: OpenRouterRequest['messages']
+  messages: OpenRouterRequest['messages'],
+  model?: string
 ): Promise<OpenRouterResponse> {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OPENROUTER_API_KEY is not set');
   }
 
+  const selectedModel = model ?? OPENROUTER_API_MODEL;
+
   const requestBody: OpenRouterRequest = {
-    model: OPENROUTER_API_MODEL,
+    model: selectedModel,
     messages,
     max_tokens: 1000,
     temperature: 0.7,

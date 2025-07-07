@@ -2,6 +2,7 @@
 
 export interface ChatRequest {
   message: string;
+  model?: string;
 }
 
 export interface ChatResponse {

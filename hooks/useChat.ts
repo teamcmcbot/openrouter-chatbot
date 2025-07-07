@@ -2,26 +2,20 @@
 
 import { useState, useCallback } from "react";
 
-// TODO: GEMINI - Import proper types from /lib/types/ when available
 interface ChatMessage {
   id: string;
   content: string;
   role: "user" | "assistant";
   timestamp: Date;
-  elapsed_time?: number; // Optional, assuming it might be part of the response
-  total_tokens?: number; // Optional, assuming it might be part of the response
-}
-
-interface ChatResponse {
-  response: string;
-  error?: string;
+  elapsed_time?: number;
+  total_tokens?: number;
 }
 
 interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, model?: string) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -31,7 +25,7 @@ export function useChat(): UseChatReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, model?: string) => {
     if (!content.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
@@ -46,23 +40,27 @@ export function useChat(): UseChatReturn {
     setError(null);
 
     try {
-      // TODO: GEMINI - Replace with actual API call when /api/chat is available
+      const requestBody: { message: string; model?: string } = { message: content };
+      if (model) {
+        requestBody.model = model;
+      }
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData.error ?? `HTTP error! status: ${response.status}`);
       }
 
       // Handle backend response with 'data' property
       const raw = await response.json();
-      const data = raw.data ? raw.data : raw;
+      const data = raw.data ?? raw;
 
       if (data.error) {
         throw new Error(data.error);
