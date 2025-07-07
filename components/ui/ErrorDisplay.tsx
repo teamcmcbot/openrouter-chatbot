@@ -6,6 +6,7 @@ interface ErrorDisplayProps {
   type?: "error" | "warning" | "info";
   actionButton?: ReactNode;
   onRetry?: () => void;
+  onClose?: () => void;
   suggestions?: string[];
   retryAfter?: number; // Seconds until retry is recommended
   code?: string; // Error code for specific handling
@@ -17,6 +18,7 @@ export default function ErrorDisplay({
   type = "error",
   actionButton,
   onRetry,
+  onClose,
   suggestions,
   retryAfter,
   code
@@ -68,12 +70,25 @@ export default function ErrorDisplay({
   };
 
   return (
-    <div className={`border rounded-lg p-4 ${styles.container}`}>
+    <div className={`border rounded-lg p-4 ${styles.container} relative`}>
+      {/* Close button in top-right corner */}
+      {onClose && (
+        <button
+          onClick={onClose}
+          className={`absolute top-2 right-2 inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-yellow-800 hover:bg-opacity-75 ${styles.icon} hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors`}
+          aria-label="Close error message"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+      
       <div className="flex">
         <div className={`flex-shrink-0 ${styles.icon}`}>
           {getIcon()}
         </div>
-        <div className="ml-3 flex-1">
+        <div className="ml-3 flex-1 pr-8">
           {title && (
             <h3 className={`text-sm font-medium ${styles.title}`}>
               {title}

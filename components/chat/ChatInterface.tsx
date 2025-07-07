@@ -55,6 +55,7 @@ export default function ChatInterface() {
             type={error.code === 'too_many_requests' ? 'warning' : 'error'}
             title={error.code === 'too_many_requests' ? 'Rate Limited' : 'Error'}
             onRetry={clearError}
+            onClose={clearError}
             suggestions={error.suggestions}
             retryAfter={error.retryAfter}
             code={error.code}
