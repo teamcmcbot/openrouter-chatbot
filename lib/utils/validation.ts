@@ -2,8 +2,17 @@
 
 import { ChatRequest } from '../types';
 
-export function validateChatRequest(body: any): { data: ChatRequest | null; error: string | null } {
-  if (!body || typeof body.message !== 'string' || body.message.trim().length === 0) {
+function isChatRequestBody(body: unknown): body is { message: string } {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'message' in body &&
+    typeof (body as { message?: unknown }).message === 'string'
+  );
+}
+
+export function validateChatRequest(body: unknown): { data: ChatRequest | null; error: string | null } {
+  if (!isChatRequestBody(body) || body.message.trim().length === 0) {
     return { data: null, error: 'Message is required and must be a non-empty string.' };
   }
 

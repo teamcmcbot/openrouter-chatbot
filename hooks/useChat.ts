@@ -58,7 +58,9 @@ export function useChat(): UseChatReturn {
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-      const data: ChatResponse = await response.json();
+      // Handle backend response with 'data' property
+      const raw = await response.json();
+      const data = raw.data ? raw.data : raw;
 
       if (data.error) {
         throw new Error(data.error);

@@ -14,9 +14,9 @@ const eslintConfig = [
   {
     files: ["jest.config.js", "jest.setup.js"],
     rules: {
-      "@typescript-eslint/no-require-imports": "off"
-    }
-  }
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
 ];
 
 export default eslintConfig;
