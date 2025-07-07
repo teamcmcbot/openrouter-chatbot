@@ -14,6 +14,11 @@ interface OpenRouterError {
     metadata?: {
       raw?: string;
       provider_name?: string;
+      headers?: {
+        'X-RateLimit-Limit'?: string;
+        'X-RateLimit-Remaining'?: string;
+        'X-RateLimit-Reset'?: string;
+      };
     };
   };
   user_id?: string;
@@ -71,8 +76,48 @@ export async function getOpenRouterCompletion(
     if (response.status === 429) {
       const isUpstreamRateLimit = parsedError?.error?.metadata?.raw?.includes('rate-limited upstream');
       const providerName = parsedError?.error?.metadata?.provider_name || 'Unknown';
+      const rateLimitRemaining = parsedError?.error?.metadata?.headers?.['X-RateLimit-Remaining'];
+      const rateLimitReset = parsedError?.error?.metadata?.headers?.['X-RateLimit-Reset'];
       
-      if (isUpstreamRateLimit) {
+      // Check if this is a rate limit with 0 remaining requests
+      const isRateLimitExceeded = rateLimitRemaining === '0';
+      
+      if (isRateLimitExceeded && rateLimitReset) {
+        const resetTime = new Date(parseInt(rateLimitReset));
+        const now = new Date();
+        const timeUntilReset = Math.max(0, Math.ceil((resetTime.getTime() - now.getTime()) / 1000));
+        const hoursUntilReset = Math.floor(timeUntilReset / 3600);
+        const minutesUntilReset = Math.floor((timeUntilReset % 3600) / 60);
+        
+        let resetMessage = '';
+        if (hoursUntilReset > 0) {
+          resetMessage = `Rate limit will reset in ${hoursUntilReset} hour${hoursUntilReset > 1 ? 's' : ''} and ${minutesUntilReset} minute${minutesUntilReset > 1 ? 's' : ''}.`;
+        } else if (minutesUntilReset > 0) {
+          resetMessage = `Rate limit will reset in ${minutesUntilReset} minute${minutesUntilReset > 1 ? 's' : ''}.`;
+        } else {
+          resetMessage = 'Rate limit should reset shortly.';
+        }
+        
+        const alternativeModels = getAlternativeModels(selectedModel);
+        const suggestions = [
+          resetMessage,
+          'Switch to a different model from the dropdown',
+        ];
+        
+        // Add specific model suggestions if available
+        if (alternativeModels.length > 0) {
+          suggestions.splice(1, 1, `Try one of these alternative models: ${alternativeModels.slice(0, 3).join(', ')}`);
+        }
+        
+        const errorMessage = parsedError?.error?.message || 'Rate limit exceeded.';
+        throw new ApiErrorResponse(
+          `${errorMessage} ${resetMessage}`,
+          ErrorCode.TOO_MANY_REQUESTS,
+          parsedError?.error?.metadata?.raw || errorBody,
+          timeUntilReset > 0 ? timeUntilReset : 60,
+          suggestions
+        );
+      } else if (isUpstreamRateLimit) {
         const alternativeModels = getAlternativeModels(selectedModel);
         const suggestions = [
           'Try again in a few minutes',
