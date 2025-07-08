@@ -39,12 +39,11 @@ export const CustomCodeBlock = ({
     );
   }
 
+  // For block code, just render the code element - the pre wrapper is handled by CustomPreBlock
   return (
-    <pre className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 overflow-x-auto my-2">
-      <code className="text-sm font-mono" {...props}>
-        {children}
-      </code>
-    </pre>
+    <code className="text-sm font-mono" {...props}>
+      {children}
+    </code>
   );
 };
 
@@ -82,7 +81,7 @@ export const CustomLink = ({ href, children, ...props }: CustomLinkProps) => (
 
 // Custom component for handling pre elements (used with code blocks)
 export const CustomPreBlock = ({ children, ...props }: CustomPreBlockProps) => (
-  <pre className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 overflow-x-auto my-2" {...props}>
+  <pre className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 whitespace-pre-wrap break-words my-2" {...props}>
     {children}
   </pre>
 );
