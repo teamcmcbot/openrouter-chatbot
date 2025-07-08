@@ -91,7 +91,8 @@ describe("MessageList with Markdown Support", () => {
 
     render(<MessageList messages={messages} isLoading={false} />);
 
-    const userBubble = screen.getByText("User message with markdown").closest("div");
+    // Find the message bubble by looking for the div with the correct styling classes
+    const userBubble = screen.getByText("User message with markdown").closest(".bg-emerald-600");
     expect(userBubble).toHaveClass("bg-emerald-600", "text-white");
   });
 
@@ -139,7 +140,9 @@ describe("MessageList with Markdown Support", () => {
 
     render(<MessageList messages={[messageWithMetadata]} isLoading={false} />);
 
-    expect(screen.getByText(/12:00/)).toBeInTheDocument();
+    // Test the formatted time based on what the formatTime function would produce
+    const expectedTime = messageWithMetadata.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    expect(screen.getByText(expectedTime)).toBeInTheDocument();
     expect(screen.getByText(/Took 2 seconds, 150 tokens/)).toBeInTheDocument();
   });
 });

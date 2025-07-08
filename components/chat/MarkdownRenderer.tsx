@@ -16,11 +16,10 @@ interface MarkdownRendererProps {
 
 const MarkdownRenderer = memo(({ content }: MarkdownRendererProps) => {
   return (
-    <div className="markdown-content">
+    <div className="markdown-content prose prose-sm max-w-none dark:prose-invert">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
-        className="prose prose-sm max-w-none dark:prose-invert"
         components={{
           code: CustomCodeBlock,
           pre: CustomPreBlock,

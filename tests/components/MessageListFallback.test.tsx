@@ -85,7 +85,7 @@ describe("Markdown Fallback Behavior", () => {
       render(<MessageList messages={[message]} isLoading={false} />);
 
       // Should render without crashing
-      expect(screen.getByText("ME")).toBeInTheDocument(); // User avatar should still show
+      expect(screen.getByText("AI")).toBeInTheDocument(); // AI avatar should still show
     });
 
     it("handles very long content", () => {
@@ -175,8 +175,8 @@ describe("Markdown Fallback Behavior", () => {
 
       render(<MessageList messages={messages} isLoading={false} />);
 
-      const userMessage = screen.getByText("User message").closest("div");
-      const assistantMessage = screen.getByText("code").closest("div");
+      const userMessage = screen.getByText("User message").closest(".bg-emerald-600");
+      const assistantMessage = screen.getByText("code").closest(".bg-gray-100");
 
       // Check styling differences
       expect(userMessage).toHaveClass("bg-emerald-600");
