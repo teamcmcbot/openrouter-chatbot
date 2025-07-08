@@ -9,6 +9,7 @@ interface ChatMessage {
   timestamp: Date;
   elapsed_time?: number;
   total_tokens?: number;
+  model?: string; // LLM model name for assistant messages
 }
 
 interface ChatError {
@@ -88,6 +89,7 @@ export function useChat(): UseChatReturn {
         timestamp: new Date(),
         elapsed_time: data.elapsed_time ?? 0, // Assuming elapsed_time is part of the response
         total_tokens: data.usage?.total_tokens ?? 0, // Assuming usage is part of the response
+        model: data.model || model, // Prefer backend model, fallback to selected
       };
 
       setMessages(prev => [...prev, assistantMessage]);

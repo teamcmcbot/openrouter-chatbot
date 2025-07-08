@@ -9,6 +9,7 @@ interface ChatMessage {
   timestamp: Date;
   elapsed_time?: number;
   total_tokens?: number;
+  model?: string;
 }
 
 interface MessageListProps {
@@ -72,7 +73,7 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
                   ? "bg-emerald-600 text-white ml-3" 
                   : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 mr-3"
               }`}>
-                {message.role === "user" ? "U" : "AI"}
+                {message.role === "user" ? "ME" : "AI"}
               </div>
 
               {/* Message Content */}
@@ -81,15 +82,21 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
                   ? "bg-emerald-600 text-white"
                   : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               }`}>
+                {/* LLM Model Tag for assistant */}
+                {message.role === "assistant" && message.model && (
+                  <span className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-gray-800 dark:text-purple-300 align-middle">
+                    {message.model}
+                  </span>
+                )}
                 <p className="whitespace-pre-wrap">{message.content}</p>
                 <p className={`text-xs mt-1 ${
                   message.role === "user" 
                     ? "text-emerald-100" 
-                    : "text-gray-500 dark:text-gray-400"
+                    : "text-gray-400 dark:text-gray-300"
                 }`}>
                   {formatTime(message.timestamp)}{" "}
                   {message.elapsed_time && (
-                    <span className="text-gray-400 dark:text-gray-500">
+                    <span className="text-gray-300 dark:text-gray-400">
                       (Took {message.elapsed_time} seconds, {message.total_tokens} tokens)
                     </span>
                   )}

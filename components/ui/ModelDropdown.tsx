@@ -43,7 +43,7 @@ export default function ModelDropdown({ models, selectedModel, onModelSelect }: 
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors duration-200 border border-gray-200 dark:border-gray-600"
+        className="flex items-center gap-1.5 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors duration-200 border border-gray-200 dark:border-gray-600"
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
@@ -71,14 +71,14 @@ export default function ModelDropdown({ models, selectedModel, onModelSelect }: 
                 onClick={() => handleModelSelect(model)}
                 className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 ${
                   model === selectedModel
-                    ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
+                    ? "bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
                     : "text-gray-700 dark:text-gray-300"
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-xs leading-tight">{displayName(model)}</span>
                   {model === selectedModel && (
-                    <svg className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-2.5 h-2.5 text-violet-600 dark:text-violet-400" fill="currentColor" viewBox="0 0 20 20">
                       <path
                         fillRule="evenodd"
                         d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
