@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -12,6 +12,25 @@ import {
   CustomLink, 
   CustomPreBlock 
 } from "./markdown/MarkdownComponents";
+
+// Memoized markdown component for better performance
+const MemoizedMarkdown = memo(({ children }: { children: string }) => (
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    rehypePlugins={[rehypeHighlight]}
+    components={{
+      code: CustomCodeBlock,
+      pre: CustomPreBlock,
+      table: CustomTable,
+      blockquote: CustomBlockquote,
+      a: CustomLink,
+    }}
+  >
+    {children}
+  </ReactMarkdown>
+));
+
+MemoizedMarkdown.displayName = 'MemoizedMarkdown';
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -93,19 +112,9 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
                 {/* Message Content - Conditional Markdown Rendering */}
                 {message.contentType === "markdown" ? (
                   <div className="markdown-content">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[rehypeHighlight]}
-                      components={{
-                        code: CustomCodeBlock,
-                        pre: CustomPreBlock,
-                        table: CustomTable,
-                        blockquote: CustomBlockquote,
-                        a: CustomLink,
-                      }}
-                    >
+                    <MemoizedMarkdown>
                       {message.content}
-                    </ReactMarkdown>
+                    </MemoizedMarkdown>
                   </div>
                 ) : (
                   <p className="whitespace-pre-wrap">{message.content}</p>
