@@ -23,22 +23,28 @@ describe("CustomCodeBlock", () => {
 
   it("renders block code correctly", () => {
     render(
-      <CustomCodeBlock inline={false}>
-        {`function hello() {
+      <CustomPreBlock>
+        <CustomCodeBlock inline={false}>
+          {`function hello() {
   console.log('world');
 }`}
-      </CustomCodeBlock>
+        </CustomCodeBlock>
+      </CustomPreBlock>
     );
     
-    const preElement = screen.getByText(/function hello\(\)/);
-    expect(preElement.closest("pre")).toHaveClass("bg-gray-100", "dark:bg-gray-800", "rounded-lg", "p-3", "overflow-x-auto", "my-2");
+    const codeElement = screen.getByText(/function hello\(\)/);
+    expect(codeElement).toBeInTheDocument();
+    expect(codeElement.tagName).toBe("CODE");
+    expect(codeElement.closest("pre")).toBeInTheDocument();
   });
 
   it("defaults to block code when inline is not specified", () => {
     render(
-      <CustomCodeBlock>
-        const test = &apos;value&apos;;
-      </CustomCodeBlock>
+      <CustomPreBlock>
+        <CustomCodeBlock>
+          const test = &apos;value&apos;;
+        </CustomCodeBlock>
+      </CustomPreBlock>
     );
     
     const element = screen.getByText("const test = 'value';");
@@ -127,6 +133,6 @@ describe("CustomPreBlock", () => {
     );
     
     const preElement = screen.getByText("Some code content").closest("pre");
-    expect(preElement).toHaveClass("bg-gray-100", "dark:bg-gray-800", "rounded-lg", "p-3", "overflow-x-auto", "my-2");
+    expect(preElement).toHaveClass("bg-gray-100", "dark:bg-gray-800", "rounded-lg", "p-3", "whitespace-pre-wrap", "break-words", "my-2");
   });
 });
