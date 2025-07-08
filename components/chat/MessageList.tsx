@@ -1,16 +1,36 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, memo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import { ChatMessage } from "../../lib/types/chat";
+import { 
+  CustomCodeBlock, 
+  CustomTable, 
+  CustomBlockquote, 
+  CustomLink, 
+  CustomPreBlock 
+} from "./markdown/MarkdownComponents";
 
-interface ChatMessage {
-  id: string;
-  content: string;
-  role: "user" | "assistant";
-  timestamp: Date;
-  elapsed_time?: number;
-  total_tokens?: number;
-  model?: string;
-}
+// Memoized markdown component for better performance
+const MemoizedMarkdown = memo(({ children }: { children: string }) => (
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    rehypePlugins={[rehypeHighlight]}
+    components={{
+      code: CustomCodeBlock,
+      pre: CustomPreBlock,
+      table: CustomTable,
+      blockquote: CustomBlockquote,
+      a: CustomLink,
+    }}
+  >
+    {children}
+  </ReactMarkdown>
+));
+
+MemoizedMarkdown.displayName = 'MemoizedMarkdown';
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -20,6 +40,17 @@ interface MessageListProps {
 export default function MessageList({ messages, isLoading }: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
+  const handleCopyMessage = async (messageId: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy message:', error);
+    }
+  };
 
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
@@ -88,19 +119,50 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
                     {message.model}
                   </span>
                 )}
-                <p className="whitespace-pre-wrap">{message.content}</p>
-                <p className={`text-xs mt-1 ${
-                  message.role === "user" 
-                    ? "text-emerald-100" 
-                    : "text-gray-400 dark:text-gray-300"
-                }`}>
-                  {formatTime(message.timestamp)}{" "}
-                  {message.elapsed_time && (
-                    <span className="text-gray-300 dark:text-gray-400">
-                      (Took {message.elapsed_time} seconds, {message.total_tokens} tokens)
-                    </span>
-                  )}
-                </p>
+                
+                {/* Message Content - Conditional Markdown Rendering */}
+                {message.contentType === "markdown" ? (
+                  <div className="markdown-content">
+                    <MemoizedMarkdown>
+                      {message.content}
+                    </MemoizedMarkdown>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                )}
+                <div className="flex justify-between items-center mt-1">
+                  <p className={`text-xs ${
+                    message.role === "user" 
+                      ? "text-emerald-100" 
+                      : "text-gray-400 dark:text-gray-300"
+                  }`}>
+                    {formatTime(message.timestamp)}{" "}
+                    {message.elapsed_time && (
+                      <span className="text-gray-300 dark:text-gray-400">
+                        (Took {message.elapsed_time} seconds, {message.total_tokens} tokens)
+                      </span>
+                    )}
+                  </p>
+                  <button
+                    onClick={() => handleCopyMessage(message.id, message.content)}
+                    className={`ml-2 p-1 rounded transition-colors ${
+                      message.role === "user" 
+                        ? "hover:bg-emerald-700 text-emerald-100 hover:text-white" 
+                        : "hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-300"
+                    }`}
+                    title={copiedMessageId === message.id ? "Copied!" : "Copy message"}
+                  >
+                    {copiedMessageId === message.id ? (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

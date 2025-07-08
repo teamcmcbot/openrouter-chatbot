@@ -1,16 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-
-interface ChatMessage {
-  id: string;
-  content: string;
-  role: "user" | "assistant";
-  timestamp: Date;
-  elapsed_time?: number;
-  total_tokens?: number;
-  model?: string; // LLM model name for assistant messages
-}
+import { ChatMessage, ChatRequest, ChatResponse } from "../lib/types/chat";
 
 interface ChatError {
   message: string;
@@ -90,6 +81,7 @@ export function useChat(): UseChatReturn {
         elapsed_time: data.elapsed_time ?? 0, // Assuming elapsed_time is part of the response
         total_tokens: data.usage?.total_tokens ?? 0, // Assuming usage is part of the response
         model: data.model || model, // Prefer backend model, fallback to selected
+        contentType: data.contentType || "text", // Use detected content type from API
       };
 
       setMessages(prev => [...prev, assistantMessage]);

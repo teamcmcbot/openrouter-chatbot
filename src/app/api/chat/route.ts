@@ -5,6 +5,7 @@ import { validateChatRequest } from '../../../../lib/utils/validation';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../lib/utils/errors';
 import { createSuccessResponse } from '../../../../lib/utils/response';
 import { logger } from '../../../../lib/utils/logger';
+import { detectMarkdownContent } from '../../../../lib/utils/markdown';
 import { ChatResponse } from '../../../../lib/types';
 import { OpenRouterRequest } from '../../../../lib/types/openrouter';
 
@@ -27,6 +28,10 @@ export async function POST(req: NextRequest) {
     const assistantResponse = openRouterResponse.choices[0].message.content;
     const usage = openRouterResponse.usage;
 
+    // Detect if the response contains markdown
+    const hasMarkdown = detectMarkdownContent(assistantResponse);
+    logger.debug('Markdown detection result:', hasMarkdown, 'for content:', assistantResponse.substring(0, 100));
+
     const now = Math.floor(Date.now() / 1000); // current time in seconds (epoch)
     logger.debug('Current time (epoch):', now);
     logger.debug('OpenRouter response created time (epoch):', openRouterResponse.created);
@@ -43,6 +48,7 @@ export async function POST(req: NextRequest) {
       },
       timestamp: new Date().toISOString(),
       elapsed_time: elapsedTime,
+      contentType: hasMarkdown ? "markdown" : "text", // Add content type detection
     };
 
     logger.info('Chat request successful');
