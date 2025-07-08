@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-
-interface ChatMessage {
-  id: string;
-  content: string;
-  role: "user" | "assistant";
-  timestamp: Date;
-  elapsed_time?: number;
-  total_tokens?: number;
-  model?: string;
-}
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import { ChatMessage } from "../../lib/types/chat";
+import { 
+  CustomCodeBlock, 
+  CustomTable, 
+  CustomBlockquote, 
+  CustomLink, 
+  CustomPreBlock 
+} from "./markdown/MarkdownComponents";
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -88,7 +89,27 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
                     {message.model}
                   </span>
                 )}
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                
+                {/* Message Content - Conditional Markdown Rendering */}
+                {message.contentType === "markdown" ? (
+                  <div className="markdown-content">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeHighlight]}
+                      components={{
+                        code: CustomCodeBlock,
+                        pre: CustomPreBlock,
+                        table: CustomTable,
+                        blockquote: CustomBlockquote,
+                        a: CustomLink,
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                )}
                 <p className={`text-xs mt-1 ${
                   message.role === "user" 
                     ? "text-emerald-100" 

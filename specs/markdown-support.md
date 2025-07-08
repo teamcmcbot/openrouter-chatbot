@@ -508,18 +508,64 @@ const MemoizedMarkdown = memo(({ content }: { content: string }) => (
 
 ## 📋 Migration Checklist
 
-- [ ] Install required dependencies
-- [ ] Update Tailwind configuration
-- [ ] Create custom markdown components
-- [ ] Update MessageList component
-- [ ] Add global markdown styles
-- [ ] Update type definitions
-- [ ] Modify API response format
-- [ ] Update useChat hook
-- [ ] Write comprehensive tests
-- [ ] Update documentation
-- [ ] Performance testing
-- [ ] Security review
+### Phase 1: Foundation Setup
+
+- [x] **Task 1.1**: Install required dependencies (react-markdown, remark-gfm, rehype-highlight, highlight.js)
+- [x] **Task 1.2**: Install Tailwind typography plugin
+- [x] **Task 1.3**: Update Tailwind configuration to include typography plugin
+- [x] **Task 1.4**: Add highlight.js CSS imports to global styles
+
+### Phase 2: Type System Updates
+
+- [x] **Task 2.1**: Update ChatMessage interface to include contentType field
+- [x] **Task 2.2**: Update ChatRequest interface to include preferMarkdown field
+- [x] **Task 2.3**: Update ChatResponse interface to include contentType field
+
+### Phase 3: Custom Markdown Components
+
+- [x] **Task 3.1**: Create MarkdownComponents.tsx with CustomCodeBlock component
+- [x] **Task 3.2**: Add CustomTable component for table rendering
+- [x] **Task 3.3**: Add CustomBlockquote component for quote styling
+- [x] **Task 3.4**: Add CustomLink component for safe external links
+- [x] **Task 3.5**: Add custom markdown styles to global CSS
+
+### Phase 4: Core Message Rendering
+
+- [x] **Task 4.1**: Update MessageList component to conditionally render markdown
+- [x] **Task 4.2**: Add fallback for plain text rendering
+- [x] **Task 4.3**: Test basic markdown rendering functionality
+
+### Phase 5: API Integration
+
+- [x] **Task 5.1**: Update chat API route to detect markdown content
+- [x] **Task 5.2**: Add content type detection logic
+- [x] **Task 5.3**: Update API response to include contentType
+
+### Phase 6: Hook Updates
+
+- [x] **Task 6.1**: Update useChat hook to handle contentType
+- [x] **Task 6.2**: Add preferMarkdown flag to API requests
+- [x] **Task 6.3**: Update message creation to include contentType
+
+### Phase 7: Testing & Validation
+
+- [ ] **Task 7.1**: Create tests for markdown components
+- [ ] **Task 7.2**: Create tests for MessageList with markdown support
+- [ ] **Task 7.3**: Test content type detection
+- [ ] **Task 7.4**: Test fallback to plain text
+
+### Phase 8: Performance & Security
+
+- [ ] **Task 8.1**: Add lazy loading for markdown renderer
+- [ ] **Task 8.2**: Add memoization for performance
+- [ ] **Task 8.3**: Security review for XSS prevention
+- [ ] **Task 8.4**: Performance testing with large content
+
+### Phase 9: Documentation & Polish
+
+- [ ] **Task 9.1**: Update component documentation
+- [ ] **Task 9.2**: Add usage examples
+- [ ] **Task 9.3**: Final testing and bug fixes
 
 ## 🔄 Rollback Plan
 
