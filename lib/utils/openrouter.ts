@@ -6,6 +6,7 @@ import { getEnvVar } from './env';
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
 const OPENROUTER_API_MODEL = process.env.OPENROUTER_API_MODEL || 'deepseek/deepseek-r1-0528:free';
+const OPENROUTER_MAX_TOKENS = parseInt(process.env.OPENROUTER_MAX_TOKENS || '5000', 10);
 
 interface OpenRouterError {
   error: {
@@ -49,7 +50,7 @@ export async function getOpenRouterCompletion(
   const requestBody: OpenRouterRequest = {
     model: selectedModel,
     messages,
-    max_tokens: 1000,
+    max_tokens: OPENROUTER_MAX_TOKENS,
     temperature: 0.7,
   };
 

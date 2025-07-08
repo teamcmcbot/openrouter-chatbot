@@ -48,7 +48,7 @@ cp .env.example .env.local
 OPENROUTER_API_KEY=your_actual_api_key_here
 OPENROUTER_API_MODEL=deepseek/deepseek-r1-0528:free
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_MAX_TOKENS=1000
+OPENROUTER_MAX_TOKENS=5000
 ```
 
 5. Run the development server:
