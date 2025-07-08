@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 interface CustomCodeBlockProps {
   inline?: boolean;
@@ -80,8 +80,63 @@ export const CustomLink = ({ href, children, ...props }: CustomLinkProps) => (
 );
 
 // Custom component for handling pre elements (used with code blocks)
-export const CustomPreBlock = ({ children, ...props }: CustomPreBlockProps) => (
-  <pre className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 whitespace-pre-wrap break-words my-2" {...props}>
-    {children}
-  </pre>
-);
+export const CustomPreBlock = ({ children, ...props }: CustomPreBlockProps) => {
+  const [copied, setCopied] = useState(false);
+
+  const extractTextContent = (node: React.ReactNode): string => {
+    if (typeof node === 'string') {
+      return node;
+    }
+    
+    if (typeof node === 'number') {
+      return node.toString();
+    }
+    
+    if (React.isValidElement(node)) {
+      const element = node as React.ReactElement<{ children?: React.ReactNode }>;
+      if (element.props.children) {
+        return extractTextContent(element.props.children);
+      }
+    }
+    
+    if (Array.isArray(node)) {
+      return node.map(extractTextContent).join('');
+    }
+    
+    return '';
+  };
+
+  const handleCopy = async () => {
+    try {
+      const textContent = extractTextContent(children);
+      await navigator.clipboard.writeText(textContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+    }
+  };
+
+  return (
+    <div className="relative group">
+      <pre className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 whitespace-pre-wrap break-words my-2" {...props}>
+        {children}
+      </pre>
+      <button
+        onClick={handleCopy}
+        className="absolute top-2 right-2 p-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-colors opacity-0 group-hover:opacity-100"
+        title={copied ? "Copied!" : "Copy to clipboard"}
+      >
+        {copied ? (
+          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        ) : (
+          <svg className="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+};
