@@ -28,6 +28,7 @@ export default function ChatInterface() {
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'pricing' | 'capabilities'>('overview');
   const [selectedGenerationId, setSelectedGenerationId] = useState<string | undefined>(undefined);
+  const [hoveredGenerationId, setHoveredGenerationId] = useState<string | undefined>(undefined);
 
   const handleShowDetails = (model: ModelInfo) => {
     setSelectedDetailModel(model);
@@ -77,6 +78,10 @@ export default function ChatInterface() {
         setIsDetailsSidebarOpen(true);
       }
     }
+  };
+
+  const handleGenerationHover = (generationId: string | undefined) => {
+    setHoveredGenerationId(generationId);
   };
 
   const handleNewChat = () => {
@@ -152,6 +157,7 @@ export default function ChatInterface() {
             messages={messages} 
             isLoading={isLoading}
             onModelClick={handleModelClickFromMessage}
+            hoveredGenerationId={hoveredGenerationId}
           />
         </div>
 
@@ -188,6 +194,7 @@ export default function ChatInterface() {
           onClose={handleCloseDetailsSidebar}
           initialTab={selectedTab}
           generationId={selectedGenerationId}
+          onGenerationHover={handleGenerationHover}
         />
       </div>
 
@@ -207,6 +214,7 @@ export default function ChatInterface() {
           onClose={handleCloseDetailsSidebar}
           initialTab={selectedTab}
           generationId={selectedGenerationId}
+          onGenerationHover={handleGenerationHover}
         />
       </div>
     </div>

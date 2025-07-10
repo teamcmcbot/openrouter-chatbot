@@ -36,9 +36,10 @@ interface MessageListProps {
   messages: ChatMessage[];
   isLoading: boolean;
   onModelClick?: (modelId: string, tab?: 'overview' | 'pricing' | 'capabilities', generationId?: string) => void;
+  hoveredGenerationId?: string;
 }
 
-export default function MessageList({ messages, isLoading, onModelClick }: Readonly<MessageListProps>) {
+export default function MessageList({ messages, isLoading, onModelClick, hoveredGenerationId }: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -109,10 +110,14 @@ export default function MessageList({ messages, isLoading, onModelClick }: Reado
               </div>
 
               {/* Message Content */}
-              <div className={`rounded-lg px-4 py-2 ${
+              <div className={`rounded-lg px-4 py-2 transition-all duration-200 ${
                 message.role === "user"
                   ? "bg-emerald-600 text-white"
-                  : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  : `bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${
+                      hoveredGenerationId && message.completion_id === hoveredGenerationId
+                        ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : ''
+                    }`
               }`}>
                 {/* LLM Model Tag for assistant */}
                 {message.role === "assistant" && message.model && (
@@ -147,7 +152,11 @@ export default function MessageList({ messages, isLoading, onModelClick }: Reado
                         (Took {message.elapsed_time} seconds, {message.total_tokens} tokens - 
                         <button
                           onClick={() => onModelClick?.(message.model!, 'pricing', message.completion_id)}
-                          className="underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer ml-1"
+                          className={`underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer ml-1 ${
+                            hoveredGenerationId === message.completion_id
+                              ? 'text-blue-500 dark:text-blue-400 font-medium'
+                              : ''
+                          }`}
                           title={`View pricing details for ${message.model}`}
                         >
                           {message.completion_id}

@@ -11,6 +11,7 @@ interface ModelDetailsSidebarProps {
   onClose: () => void;
   initialTab?: 'overview' | 'pricing' | 'capabilities';
   generationId?: string; // Add optional generation ID
+  onGenerationHover?: (generationId: string | undefined) => void; // Add hover handler
 }
 
 // Format numbers for display
@@ -42,7 +43,7 @@ const formatDate = (timestamp: number): string => {
   });
 };
 
-export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'overview', generationId }: ModelDetailsSidebarProps) {
+export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'overview', generationId, onGenerationHover }: ModelDetailsSidebarProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'capabilities'>(initialTab);
   const [generationData, setGenerationData] = useState<GenerationData | null>(null);
   const [loadingGeneration, setLoadingGeneration] = useState(false);
@@ -268,7 +269,12 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Last Message:
                         </h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-mono break-all">
+                        <p 
+                          className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-mono break-all hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                          onMouseEnter={() => onGenerationHover?.(generationId)}
+                          onMouseLeave={() => onGenerationHover?.(undefined)}
+                          title="Hover to highlight corresponding message"
+                        >
                           {generationId}
                         </p>
                         {loadingGeneration ? (
@@ -283,7 +289,11 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                             </p>
                           </div>
                         ) : generationData ? (
-                          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
+                          <div 
+                            className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2 transition-all duration-200 hover:ring-2 hover:ring-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            onMouseEnter={() => onGenerationHover?.(generationId)}
+                            onMouseLeave={() => onGenerationHover?.(undefined)}
+                          >
                             <div className="flex justify-between">
                               <span className="text-gray-600 dark:text-gray-400">Provider:</span>
                               <span className="font-medium text-gray-900 dark:text-white">
