@@ -54,7 +54,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose }: ModelDetailsSide
       )}
       
       <aside 
-        className={`h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out overflow-hidden
+        className={`h-full bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out overflow-hidden
           ${isOpen ? 'w-96' : 'w-0'}
           md:relative md:block md:w-full
           ${isOpen ? 'fixed inset-y-0 right-0 z-50 md:relative md:z-auto' : 'hidden md:block'}
@@ -153,7 +153,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose }: ModelDetailsSide
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Token Pricing</h3>
-                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-2">
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Input:</span>
                           <span className="font-medium text-gray-900 dark:text-white">

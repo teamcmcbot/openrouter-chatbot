@@ -277,95 +277,96 @@ export default function ModelDropdown({
 
                   return (
                     <div key={modelId} className="group">
-                      <button
-                        onClick={() => handleModelSelect(modelId)}
+                      <div
                         className={`w-full text-left px-3 py-2.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 ${
                           isSelected
                             ? "bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
                             : "text-gray-700 dark:text-gray-300"
-                        }`}
-                        type="button"
-                        aria-label={`Select ${displayName} model`}
+                        } flex items-start justify-between gap-2`}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-xs leading-tight truncate">
-                                {displayName}
+                        <button
+                          onClick={() => handleModelSelect(modelId)}
+                          className="flex-1 min-w-0 text-left"
+                          type="button"
+                          aria-label={`Select ${displayName} model`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-xs leading-tight truncate">
+                              {displayName}
+                            </span>
+                            {contextLength && (
+                              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] font-mono">
+                                {formatContextLength(contextLength)}
                               </span>
-                              {contextLength && (
-                                <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] font-mono">
-                                  {formatContextLength(contextLength)}
-                                </span>
-                              )}
-                              {isEnhanced && (
-                                <div className="flex gap-1">
-                                  {/* Free badge */}
-                                  {parseFloat((model as ModelInfo).pricing.prompt) === 0 && 
-                                   parseFloat((model as ModelInfo).pricing.completion) === 0 && (
-                                    <span className="text-[9px] bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-1 py-0.5 rounded">
-                                      FREE
-                                    </span>
-                                  )}
-                                  {/* Multimodal badge */}
-                                  {(model as ModelInfo).input_modalities.length > 1 && (
-                                    <span className="text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-1 py-0.5 rounded">
-                                      MM
-                                    </span>
-                                  )}
-                                  {/* Reasoning badge */}
-                                  {(model as ModelInfo).supported_parameters.includes('reasoning') && (
-                                    <span className="text-[9px] bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 px-1 py-0.5 rounded">
-                                      R1
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            {hasEnhancedData && description && (
-                              <div className="text-gray-500 dark:text-gray-400 text-[10px] mt-0.5 leading-tight overflow-hidden"
-                                   style={{
-                                     display: '-webkit-box',
-                                     WebkitLineClamp: 2,
-                                     WebkitBoxOrient: 'vertical'
-                                   }}>
-                                {description}
+                            )}
+                            {isEnhanced && (
+                              <div className="flex gap-1">
+                                {/* Free badge */}
+                                {parseFloat((model as ModelInfo).pricing.prompt) === 0 && 
+                                 parseFloat((model as ModelInfo).pricing.completion) === 0 && (
+                                  <span className="text-[9px] bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-1 py-0.5 rounded">
+                                    FREE
+                                  </span>
+                                )}
+                                {/* Multimodal badge */}
+                                {(model as ModelInfo).input_modalities.length > 1 && (
+                                  <span className="text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-1 py-0.5 rounded">
+                                    MM
+                                  </span>
+                                )}
+                                {/* Reasoning badge */}
+                                {(model as ModelInfo).supported_parameters.includes('reasoning') && (
+                                  <span className="text-[9px] bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 px-1 py-0.5 rounded">
+                                    R1
+                                  </span>
+                                )}
                               </div>
                             )}
-                            <div className="text-gray-500 dark:text-gray-400 text-[10px] mt-0.5 font-mono leading-tight">
-                              {modelId}
+                          </div>
+                          {hasEnhancedData && description && (
+                            <div className="text-gray-500 dark:text-gray-400 text-[10px] mt-0.5 leading-tight overflow-hidden"
+                                 style={{
+                                   display: '-webkit-box',
+                                   WebkitLineClamp: 2,
+                                   WebkitBoxOrient: 'vertical'
+                                 }}>
+                              {description}
                             </div>
+                          )}
+                          <div className="text-gray-500 dark:text-gray-400 text-[10px] mt-0.5 font-mono leading-tight">
+                            {modelId}
                           </div>
-                          <div className="flex items-center gap-1">
-                            {/* Details button for enhanced models */}
-                            {isEnhanced && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleShowDetails(model as ModelInfo);
-                                }}
-                                className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
-                                aria-label="View model details"
-                                title="View details"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              </button>
-                            )}
-                            {/* Selected checkmark */}
-                            {isSelected && (
-                              <svg className="w-3 h-3 text-violet-600 dark:text-violet-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
-                                />
+                        </button>
+                        
+                        {/* Details button for enhanced models - separated from main button */}
+                        <div className="flex items-center gap-1">
+                          {isEnhanced && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShowDetails(model as ModelInfo);
+                              }}
+                              className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                              aria-label="View model details"
+                              title="View details"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
-                            )}
-                          </div>
+                            </button>
+                          )}
+                          {/* Selected checkmark */}
+                          {isSelected && (
+                            <svg className="w-3 h-3 text-violet-600 dark:text-violet-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
                         </div>
-                      </button>
+                      </div>
                     </div>
                   );
                 })}

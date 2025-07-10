@@ -54,6 +54,7 @@ This document outlines the implementation of the 3-column layout for the OpenRou
   - Overlay on mobile
   - Tabbed interface (Overview, Pricing, Capabilities)
   - Model information display
+  - **Color Scheme**: Matches chat interface (bg-white dark:bg-gray-800)
 - **Props**:
   - `model`: ModelInfo object or null
   - `isOpen`: Boolean for sidebar visibility
@@ -166,6 +167,23 @@ const [selectedDetailModel, setSelectedDetailModel] =
 3. **Chat Categories**: Organize chats by topics
 4. **Sidebar Resize**: Allow users to adjust sidebar widths
 5. **Keyboard Shortcuts**: Quick access to sidebar functions
+
+## Bug Fixes Applied
+
+### Nested Button HTML Issue
+
+- **Problem**: The ModelDropdown component had nested `<button>` elements (model selection button containing a details button), which caused hydration errors in React
+- **Solution**: Restructured the dropdown item layout to use a container `<div>` with two separate buttons side-by-side instead of nested buttons
+- **Impact**: Eliminates console errors and ensures valid HTML structure while maintaining the same functionality
+
+### Color Scheme Consistency
+
+- **Problem**: ModelDetailsSidebar was using `dark:bg-gray-900` while the chat interface uses `dark:bg-gray-800`, creating visual inconsistency
+- **Solution**: Updated ModelDetailsSidebar to use the same background colors as the chat interface
+- **Changes**:
+  - Main sidebar background: `bg-white dark:bg-gray-800` (was `dark:bg-gray-900`)
+  - Pricing section background: `dark:bg-gray-700` (was `dark:bg-gray-800`)
+- **Impact**: Full visual consistency across all layout components
 
 ## Files Modified/Created
 
