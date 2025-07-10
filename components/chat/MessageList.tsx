@@ -97,7 +97,7 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
             key={message.id}
             className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
           >
-            <div className={`flex max-w-[70%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+            <div className={`flex max-w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
               {/* Avatar */}
               <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                 message.role === "user" 
