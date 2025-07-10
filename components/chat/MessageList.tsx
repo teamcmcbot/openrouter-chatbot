@@ -35,7 +35,7 @@ MemoizedMarkdown.displayName = 'MemoizedMarkdown';
 interface MessageListProps {
   messages: ChatMessage[];
   isLoading: boolean;
-  onModelClick?: (modelId: string, tab?: 'overview' | 'pricing' | 'capabilities') => void;
+  onModelClick?: (modelId: string, tab?: 'overview' | 'pricing' | 'capabilities', generationId?: string) => void;
 }
 
 export default function MessageList({ messages, isLoading, onModelClick }: Readonly<MessageListProps>) {
@@ -117,7 +117,7 @@ export default function MessageList({ messages, isLoading, onModelClick }: Reado
                 {/* LLM Model Tag for assistant */}
                 {message.role === "assistant" && message.model && (
                   <button
-                    onClick={() => onModelClick?.(message.model!, 'overview')}
+                    onClick={() => onModelClick?.(message.model!, 'overview', undefined)}
                     className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-gray-800 dark:text-purple-300 align-middle hover:bg-gray-400 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                     title={`View details for ${message.model}`}
                   >
@@ -146,7 +146,7 @@ export default function MessageList({ messages, isLoading, onModelClick }: Reado
                       <span className="text-gray-300 dark:text-gray-400">
                         (Took {message.elapsed_time} seconds, {message.total_tokens} tokens - 
                         <button
-                          onClick={() => onModelClick?.(message.model!, 'pricing')}
+                          onClick={() => onModelClick?.(message.model!, 'pricing', message.completion_id)}
                           className="underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer ml-1"
                           title={`View pricing details for ${message.model}`}
                         >

@@ -27,6 +27,7 @@ export default function ChatInterface() {
   const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useState(false);
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'pricing' | 'capabilities'>('overview');
+  const [selectedGenerationId, setSelectedGenerationId] = useState<string | undefined>(undefined);
 
   const handleShowDetails = (model: ModelInfo) => {
     setSelectedDetailModel(model);
@@ -44,6 +45,7 @@ export default function ChatInterface() {
       
       if (selectedModelInfo && typeof selectedModelInfo === 'object') {
         setSelectedDetailModel(selectedModelInfo);
+        setSelectedGenerationId(undefined); // Clear generation ID when switching models
         
         // Only auto-open sidebar on desktop (md breakpoint and above)
         // On mobile, let users manually open it via the info icon
@@ -58,9 +60,10 @@ export default function ChatInterface() {
   const handleCloseDetailsSidebar = () => {
     setIsDetailsSidebarOpen(false);
     setSelectedDetailModel(null);
+    setSelectedGenerationId(undefined);
   };
 
-  const handleModelClickFromMessage = (modelId: string, tab: 'overview' | 'pricing' | 'capabilities' = 'overview') => {
+  const handleModelClickFromMessage = (modelId: string, tab: 'overview' | 'pricing' | 'capabilities' = 'overview', generationId?: string) => {
     // Find the model info from available models
     if (availableModels.length > 0) {
       const modelInfo = availableModels.find(model => 
@@ -70,6 +73,7 @@ export default function ChatInterface() {
       if (modelInfo && typeof modelInfo === 'object') {
         setSelectedDetailModel(modelInfo);
         setSelectedTab(tab);
+        setSelectedGenerationId(generationId);
         setIsDetailsSidebarOpen(true);
       }
     }
@@ -183,6 +187,7 @@ export default function ChatInterface() {
           isOpen={true} // Always open on desktop
           onClose={handleCloseDetailsSidebar}
           initialTab={selectedTab}
+          generationId={selectedGenerationId}
         />
       </div>
 
@@ -201,6 +206,7 @@ export default function ChatInterface() {
           isOpen={isDetailsSidebarOpen}
           onClose={handleCloseDetailsSidebar}
           initialTab={selectedTab}
+          generationId={selectedGenerationId}
         />
       </div>
     </div>

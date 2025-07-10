@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ModelInfo } from "../../lib/types/openrouter";
+import { GenerationData } from "../../lib/types/generation";
 import Button from "./Button";
 
 interface ModelDetailsSidebarProps {
@@ -9,6 +10,7 @@ interface ModelDetailsSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   initialTab?: 'overview' | 'pricing' | 'capabilities';
+  generationId?: string; // Add optional generation ID
 }
 
 // Format numbers for display
@@ -40,13 +42,50 @@ const formatDate = (timestamp: number): string => {
   });
 };
 
-export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'overview' }: ModelDetailsSidebarProps) {
+export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'overview', generationId }: ModelDetailsSidebarProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'capabilities'>(initialTab);
+  const [generationData, setGenerationData] = useState<GenerationData | null>(null);
+  const [loadingGeneration, setLoadingGeneration] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   // Update active tab when initialTab changes or when model changes
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab, model?.id]); // Add model?.id as dependency
+
+  // Fetch generation data when generationId changes
+  useEffect(() => {
+    if (generationId && activeTab === 'pricing') {
+      setLoadingGeneration(true);
+      setGenerationError(null);
+      
+      fetch(`/api/generation/${generationId}`)
+        .then(response => {
+          if (!response.ok) {
+            if (response.status === 404) {
+              throw new Error('Generation details not found. This may be because the generation is too recent or not available via the API.');
+            }
+            throw new Error(`Failed to fetch generation data: ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Handle nested data structure from API response
+          const generationData = data.data?.data || data.data;
+          setGenerationData(generationData);
+          setLoadingGeneration(false);
+        })
+        .catch(error => {
+          console.error('Error fetching generation data:', error);
+          setGenerationError(error.message);
+          setLoadingGeneration(false);
+        });
+    } else {
+      // Clear generation data when not needed
+      setGenerationData(null);
+      setGenerationError(null);
+    }
+  }, [generationId, activeTab]);
 
   return (
     <>
@@ -220,6 +259,71 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                         </p>
                       </div>
                     </div>
+
+                    {/* Generation Details */}
+                    {generationId && (
+                      <div>
+                        {/* Divider line */}
+                        <div className="border-t border-gray-200 dark:border-gray-600 my-4"></div>
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Last Message:
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-mono break-all">
+                          {generationId}
+                        </p>
+                        {loadingGeneration ? (
+                          <div className="flex items-center justify-center py-4">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                            <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading...</span>
+                          </div>
+                        ) : generationError ? (
+                          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                            <p className="text-sm text-red-600 dark:text-red-400">
+                              Error: {generationError}
+                            </p>
+                          </div>
+                        ) : generationData ? (
+                          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600 dark:text-gray-400">Provider:</span>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {generationData.provider_name ?? 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600 dark:text-gray-400">Latency:</span>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {generationData.latency ?? 'N/A'}ms
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600 dark:text-gray-400">Duration:</span>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {generationData.generation_time ?? 'N/A'}ms
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600 dark:text-gray-400">Tokens In:</span>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {generationData.tokens_prompt ?? 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600 dark:text-gray-400">Tokens Out:</span>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {generationData.tokens_completion ?? 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600 dark:text-gray-400">Total Cost:</span>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                ${generationData.total_cost?.toFixed(6) ?? 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 )}
 
