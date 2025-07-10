@@ -139,7 +139,7 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
                     {formatTime(message.timestamp)}{" "}
                     {message.elapsed_time && (
                       <span className="text-gray-300 dark:text-gray-400">
-                        (Took {message.elapsed_time} seconds, {message.total_tokens} tokens)
+                        (Took {message.elapsed_time} seconds, {message.total_tokens} tokens - {message.completion_id})
                       </span>
                     )}
                   </p>

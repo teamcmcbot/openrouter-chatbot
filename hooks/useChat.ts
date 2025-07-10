@@ -82,6 +82,7 @@ export function useChat(): UseChatReturn {
         total_tokens: data.usage?.total_tokens ?? 0, // Assuming usage is part of the response
         model: data.model || model, // Prefer backend model, fallback to selected
         contentType: data.contentType || "text", // Use detected content type from API
+        completion_id: data.id, // Use OpenRouter response id for metadata lookup
       };
 
       setMessages(prev => [...prev, assistantMessage]);
