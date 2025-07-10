@@ -32,6 +32,22 @@ export default function ChatInterface() {
     setIsDetailsSidebarOpen(true);
   };
 
+  const handleModelSelect = (modelId: string) => {
+    setSelectedModel(modelId);
+    
+    // Automatically update the details sidebar when a model is selected
+    if (availableModels.length > 0) {
+      const selectedModelInfo = availableModels.find(model => 
+        typeof model === 'string' ? model === modelId : model.id === modelId
+      );
+      
+      if (selectedModelInfo && typeof selectedModelInfo === 'object') {
+        setSelectedDetailModel(selectedModelInfo);
+        setIsDetailsSidebarOpen(true);
+      }
+    }
+  };
+
   const handleCloseDetailsSidebar = () => {
     setIsDetailsSidebarOpen(false);
     setSelectedDetailModel(null);
@@ -86,7 +102,7 @@ export default function ChatInterface() {
                 <ModelDropdown
                   models={availableModels}
                   selectedModel={selectedModel}
-                  onModelSelect={setSelectedModel}
+                  onModelSelect={handleModelSelect}
                   isLoading={modelsLoading}
                   enhanced={isEnhanced}
                   onShowDetails={handleShowDetails}

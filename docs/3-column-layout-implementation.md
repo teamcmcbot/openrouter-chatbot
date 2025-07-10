@@ -111,6 +111,7 @@ This document outlines the implementation of the 3-column layout for the OpenRou
    - Capabilities: Supported parameters
 2. **Placeholder State**: Helpful message when no model selected
 3. **Always Visible**: On desktop, maintains space even without model
+4. **Auto-Update**: Automatically shows details when a new model is selected from dropdown
 
 ### Chat Interface Enhancements
 
@@ -118,6 +119,7 @@ This document outlines the implementation of the 3-column layout for the OpenRou
 2. **Responsive Header**: Accommodates mobile menu button
 3. **Layout Orchestration**: Manages both sidebar states
 4. **Full Width Utilization**: Uses available screen real estate
+5. **Smart Model Selection**: Automatically populates model details sidebar when user selects a new model
 
 ## Technical Implementation
 
@@ -129,6 +131,23 @@ const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false);
 const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useState(false);
 const [selectedDetailModel, setSelectedDetailModel] =
   useState<ModelInfo | null>(null);
+
+// Auto-update handler for model selection
+const handleModelSelect = (modelId: string) => {
+  setSelectedModel(modelId);
+
+  // Automatically update the details sidebar when a model is selected
+  if (availableModels.length > 0) {
+    const selectedModelInfo = availableModels.find((model) =>
+      typeof model === "string" ? model === modelId : model.id === modelId
+    );
+
+    if (selectedModelInfo && typeof selectedModelInfo === "object") {
+      setSelectedDetailModel(selectedModelInfo);
+      setIsDetailsSidebarOpen(true);
+    }
+  }
+};
 ```
 
 ### Mobile Responsiveness
@@ -182,6 +201,18 @@ const [selectedDetailModel, setSelectedDetailModel] =
 - **Solution**: Updated ModelDetailsSidebar to use the same background colors as the chat interface
 - **Changes**:
   - Main sidebar background: `bg-white dark:bg-gray-800` (was `dark:bg-gray-900`)
+  - Pricing section background: `dark:bg-gray-700` (was `dark:bg-gray-800`)
+- **Impact**: Full visual consistency across all layout components
+
+### Auto-Update Model Details Feature
+
+- **Problem**: Users had to manually click the info icon to view model details after selecting a model
+- **Solution**: Automatically update the ModelDetailsSidebar when a new model is selected from the dropdown
+- **Changes**:
+  - Added `handleModelSelect` function in ChatInterface that both updates the selected model and shows details
+  - ModelDropdown now uses `handleModelSelect` instead of calling `setSelectedModel` directly
+  - Automatically opens the details sidebar and populates it with the selected model's information
+- **Impact**: Improved user experience with seamless model selection and immediate detail viewing
   - Pricing section background: `dark:bg-gray-700` (was `dark:bg-gray-800`)
 - **Impact**: Full visual consistency across all layout components
 
