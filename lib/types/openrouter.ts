@@ -30,3 +30,69 @@ export interface OpenRouterResponse {
     total_tokens: number;
   };
 }
+
+// OpenRouter Models API Types (Phase 1 Enhancement)
+
+// OpenRouter API response wrapper
+export interface OpenRouterModelsResponse {
+  data: OpenRouterModel[];
+}
+
+// Complete OpenRouter model interface (matches API v1 structure)
+export interface OpenRouterModel {
+  id: string;
+  canonical_slug: string;
+  name: string;
+  created: number;
+  description: string;
+  context_length: number;
+  architecture: {
+    input_modalities: string[];
+    output_modalities: string[];
+    tokenizer: string;
+    instruct_type: string | null;
+  };
+  pricing: {
+    prompt: string;
+    completion: string;
+    request: string;
+    image: string;
+    web_search: string;
+    internal_reasoning: string;
+    input_cache_read?: string;
+    input_cache_write?: string;
+  };
+  top_provider: {
+    context_length: number;
+    max_completion_tokens: number | null;
+    is_moderated: boolean;
+  };
+  per_request_limits: Record<string, unknown> | null;
+  supported_parameters: string[];
+}
+
+// Simplified interface for frontend consumption
+export interface ModelInfo {
+  id: string;
+  name: string;
+  description: string;
+  context_length: number;
+  pricing: {
+    prompt: string;
+    completion: string;
+  };
+  input_modalities: string[];
+  output_modalities: string[];
+  supported_parameters: string[];
+  created: number;
+}
+
+// API response format (maintaining backward compatibility)
+export interface ModelsResponse {
+  models: ModelInfo[];
+}
+
+// Legacy response format for backward compatibility
+export interface LegacyModelsResponse {
+  models: string[];
+}

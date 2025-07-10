@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEnvVar, isEnhancedModelsEnabled } from "../../../../lib/utils/env";
 import { logger } from "../../../../lib/utils/logger";
+import { handleError } from "../../../../lib/utils/errors";
+import { 
+  fetchOpenRouterModels, 
+  transformOpenRouterModel, 
+  filterAllowedModels 
+} from "../../../../lib/utils/openrouter";
+import { ModelInfo, ModelsResponse, LegacyModelsResponse } from "../../../../lib/types/openrouter";
+import { unstable_cache } from "next/cache";
+
+// Cache the OpenRouter models data for 10 minutes to reduce API calls
+const getCachedModels = unstable_cache(
+  async () => {
+    const models = await fetchOpenRouterModels();
+    return models;
+  },
+  ['openrouter-models'],
+  {
+    revalidate: 600, // 10 minutes
+    tags: ['models']
+  }
+);
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -13,44 +34,84 @@ export async function GET(request: NextRequest) {
     
     logger.info(`Models API called - Enhanced mode: ${isEnhancedRequested}`);
     
-    // Get the models list from environment variable
-    const modelsListEnv = getEnvVar("OPENROUTER_MODELS_LIST", "gpt-3.5-turbo,gpt-4,claude-3-sonnet");
-    
-    // Parse the comma-separated list
-    const models = modelsListEnv
+    // Get the allowed models list from environment variable
+    const modelsListEnv = getEnvVar("OPENROUTER_MODELS_LIST", "");
+    const allowedModelIds = modelsListEnv
       .split(",")
       .map((model: string) => model.trim())
       .filter((model: string) => model.length > 0);
-
-    // For now, return the basic format regardless of enhanced flag
-    // Enhanced functionality will be implemented in Phase 1
-    const response = { models };
     
-    // Log metrics for monitoring adoption
-    const responseTime = Date.now() - startTime;
-    logger.info(`Models API response - Enhanced: ${isEnhancedRequested}, Models: ${models.length}, Time: ${responseTime}ms`);
+    if (isEnhancedRequested) {
+      try {
+        // Fetch models from OpenRouter API with caching
+        const allModels = await getCachedModels();
+        
+        // Filter to only allowed models
+        const filteredModels = filterAllowedModels(allModels, allowedModelIds);
+        
+        // Transform to ModelInfo format for frontend
+        const transformedModels: ModelInfo[] = filteredModels.map(transformOpenRouterModel);
+        
+        const enhancedResponse: ModelsResponse = {
+          models: transformedModels
+        };
+        
+        // Log metrics for monitoring
+        const responseTime = Date.now() - startTime;
+        logger.info(`Enhanced Models API response - Models: ${transformedModels.length}/${allModels.length}, Time: ${responseTime}ms`);
+        
+        // Add headers for monitoring
+        const headers = new Headers();
+        headers.set('X-Enhanced-Mode', 'true');
+        headers.set('X-Response-Time', responseTime.toString());
+        headers.set('X-Models-Count', transformedModels.length.toString());
+        headers.set('X-Total-Models-Available', allModels.length.toString());
+        headers.set('X-Cache-Status', 'hit');
+        
+        return NextResponse.json(enhancedResponse, { headers });
+        
+      } catch (error) {
+        logger.error("Error fetching enhanced models, falling back to legacy mode:", error);
+        
+        // Fall back to legacy mode if enhanced mode fails
+        const fallbackResponse: LegacyModelsResponse = {
+          models: allowedModelIds.length > 0 ? allowedModelIds : ["gpt-3.5-turbo", "gpt-4", "claude-3-sonnet"]
+        };
+        
+        const responseTime = Date.now() - startTime;
+        logger.info(`Enhanced Models API fallback response - Time: ${responseTime}ms`);
+        
+        const headers = new Headers();
+        headers.set('X-Enhanced-Mode', 'false');
+        headers.set('X-Fallback-Used', 'true');
+        headers.set('X-Response-Time', responseTime.toString());
+        headers.set('X-Models-Count', fallbackResponse.models.length.toString());
+        
+        return NextResponse.json(fallbackResponse, { headers });
+      }
+    } else {
+      // Legacy mode - return simple string array
+      const legacyModels = allowedModelIds.length > 0 
+        ? allowedModelIds 
+        : ["gpt-3.5-turbo", "gpt-4", "claude-3-sonnet"];
+      
+      const legacyResponse: LegacyModelsResponse = { models: legacyModels };
+      
+      // Log metrics for monitoring
+      const responseTime = Date.now() - startTime;
+      logger.info(`Legacy Models API response - Models: ${legacyModels.length}, Time: ${responseTime}ms`);
+      
+      // Add headers for monitoring
+      const headers = new Headers();
+      headers.set('X-Enhanced-Mode', 'false');
+      headers.set('X-Response-Time', responseTime.toString());
+      headers.set('X-Models-Count', legacyModels.length.toString());
+      
+      return NextResponse.json(legacyResponse, { headers });
+    }
     
-    // Add headers for monitoring
-    const headers = new Headers();
-    headers.set('X-Enhanced-Mode', isEnhancedRequested.toString());
-    headers.set('X-Response-Time', responseTime.toString());
-    headers.set('X-Models-Count', models.length.toString());
-    
-    return NextResponse.json(response, { headers });
   } catch (error) {
-    const responseTime = Date.now() - startTime;
-    logger.error("Error fetching models:", error);
-    
-    // Return fallback models if environment variable is not set
-    const fallbackModels = ["gpt-3.5-turbo", "gpt-4", "claude-3-sonnet"];
-    const response = { models: fallbackModels };
-    
-    logger.info(`Models API fallback response - Time: ${responseTime}ms`);
-    
-    const headers = new Headers();
-    headers.set('X-Fallback-Used', 'true');
-    headers.set('X-Response-Time', responseTime.toString());
-    
-    return NextResponse.json(response, { headers });
+    logger.error("Critical error in models API:", error);
+    return handleError(error);
   }
 }
