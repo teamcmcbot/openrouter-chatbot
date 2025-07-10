@@ -35,9 +35,10 @@ MemoizedMarkdown.displayName = 'MemoizedMarkdown';
 interface MessageListProps {
   messages: ChatMessage[];
   isLoading: boolean;
+  onModelClick?: (modelId: string, tab?: 'overview' | 'pricing' | 'capabilities') => void;
 }
 
-export default function MessageList({ messages, isLoading }: Readonly<MessageListProps>) {
+export default function MessageList({ messages, isLoading, onModelClick }: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -115,9 +116,13 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
               }`}>
                 {/* LLM Model Tag for assistant */}
                 {message.role === "assistant" && message.model && (
-                  <span className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-gray-800 dark:text-purple-300 align-middle">
+                  <button
+                    onClick={() => onModelClick?.(message.model!, 'overview')}
+                    className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-gray-800 dark:text-purple-300 align-middle hover:bg-gray-400 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                    title={`View details for ${message.model}`}
+                  >
                     {message.model}
-                  </span>
+                  </button>
                 )}
                 
                 {/* Message Content - Conditional Markdown Rendering */}
@@ -139,7 +144,15 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
                     {formatTime(message.timestamp)}{" "}
                     {message.elapsed_time && (
                       <span className="text-gray-300 dark:text-gray-400">
-                        (Took {message.elapsed_time} seconds, {message.total_tokens} tokens - {message.completion_id})
+                        (Took {message.elapsed_time} seconds, {message.total_tokens} tokens - 
+                        <button
+                          onClick={() => onModelClick?.(message.model!, 'pricing')}
+                          className="underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer ml-1"
+                          title={`View pricing details for ${message.model}`}
+                        >
+                          {message.completion_id}
+                        </button>
+                        )
                       </span>
                     )}
                   </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ModelInfo } from "../../lib/types/openrouter";
 import Button from "./Button";
 
@@ -8,6 +8,7 @@ interface ModelDetailsSidebarProps {
   model: ModelInfo | null;
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: 'overview' | 'pricing' | 'capabilities';
 }
 
 // Format numbers for display
@@ -39,8 +40,13 @@ const formatDate = (timestamp: number): string => {
   });
 };
 
-export function ModelDetailsSidebar({ model, isOpen, onClose }: ModelDetailsSidebarProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'capabilities'>('overview');
+export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'overview' }: ModelDetailsSidebarProps) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'capabilities'>(initialTab);
+
+  // Update active tab when initialTab changes or when model changes
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab, model?.id]); // Add model?.id as dependency
 
   return (
     <>

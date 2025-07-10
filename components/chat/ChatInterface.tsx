@@ -26,6 +26,7 @@ export default function ChatInterface() {
   const [selectedDetailModel, setSelectedDetailModel] = useState<ModelInfo | null>(null);
   const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useState(false);
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'pricing' | 'capabilities'>('overview');
 
   const handleShowDetails = (model: ModelInfo) => {
     setSelectedDetailModel(model);
@@ -57,6 +58,21 @@ export default function ChatInterface() {
   const handleCloseDetailsSidebar = () => {
     setIsDetailsSidebarOpen(false);
     setSelectedDetailModel(null);
+  };
+
+  const handleModelClickFromMessage = (modelId: string, tab: 'overview' | 'pricing' | 'capabilities' = 'overview') => {
+    // Find the model info from available models
+    if (availableModels.length > 0) {
+      const modelInfo = availableModels.find(model => 
+        typeof model === 'string' ? model === modelId : model.id === modelId
+      );
+      
+      if (modelInfo && typeof modelInfo === 'object') {
+        setSelectedDetailModel(modelInfo);
+        setSelectedTab(tab);
+        setIsDetailsSidebarOpen(true);
+      }
+    }
   };
 
   const handleNewChat = () => {
@@ -131,6 +147,7 @@ export default function ChatInterface() {
           <MessageList 
             messages={messages} 
             isLoading={isLoading}
+            onModelClick={handleModelClickFromMessage}
           />
         </div>
 
@@ -165,6 +182,7 @@ export default function ChatInterface() {
           model={selectedDetailModel}
           isOpen={true} // Always open on desktop
           onClose={handleCloseDetailsSidebar}
+          initialTab={selectedTab}
         />
       </div>
 
@@ -182,6 +200,7 @@ export default function ChatInterface() {
           model={selectedDetailModel}
           isOpen={isDetailsSidebarOpen}
           onClose={handleCloseDetailsSidebar}
+          initialTab={selectedTab}
         />
       </div>
     </div>
