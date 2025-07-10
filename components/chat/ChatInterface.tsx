@@ -43,7 +43,13 @@ export default function ChatInterface() {
       
       if (selectedModelInfo && typeof selectedModelInfo === 'object') {
         setSelectedDetailModel(selectedModelInfo);
-        setIsDetailsSidebarOpen(true);
+        
+        // Only auto-open sidebar on desktop (md breakpoint and above)
+        // On mobile, let users manually open it via the info icon
+        const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+        if (isDesktop) {
+          setIsDetailsSidebarOpen(true);
+        }
       }
     }
   };

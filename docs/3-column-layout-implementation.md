@@ -144,7 +144,13 @@ const handleModelSelect = (modelId: string) => {
 
     if (selectedModelInfo && typeof selectedModelInfo === "object") {
       setSelectedDetailModel(selectedModelInfo);
-      setIsDetailsSidebarOpen(true);
+
+      // Only auto-open sidebar on desktop (md breakpoint and above)
+      // On mobile, let users manually open it via the info icon
+      const isDesktop = window.matchMedia("(min-width: 768px)").matches;
+      if (isDesktop) {
+        setIsDetailsSidebarOpen(true);
+      }
     }
   }
 };
@@ -211,10 +217,10 @@ const handleModelSelect = (modelId: string) => {
 - **Changes**:
   - Added `handleModelSelect` function in ChatInterface that both updates the selected model and shows details
   - ModelDropdown now uses `handleModelSelect` instead of calling `setSelectedModel` directly
-  - Automatically opens the details sidebar and populates it with the selected model's information
-- **Impact**: Improved user experience with seamless model selection and immediate detail viewing
-  - Pricing section background: `dark:bg-gray-700` (was `dark:bg-gray-800`)
-- **Impact**: Full visual consistency across all layout components
+  - Uses responsive media query (`window.matchMedia('(min-width: 768px)')`) to only auto-open sidebar on desktop
+  - On mobile, model details are populated but sidebar remains closed to avoid disruptive overlay behavior
+  - Automatically opens the details sidebar and populates it with the selected model's information on desktop only
+- **Impact**: Improved user experience with seamless model selection and immediate detail viewing on desktop, while maintaining non-intrusive behavior on mobile devices
 
 ## Files Modified/Created
 
