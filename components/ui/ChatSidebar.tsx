@@ -114,7 +114,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
         `}
       >
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-5 border-b border-gray-200 dark:border-gray-700">
           <Button
             onClick={onNewChat}
             className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white"
