@@ -9,7 +9,13 @@ import ModelDropdown from "../ui/ModelDropdown";
 
 export default function ChatInterface() {
   const { messages, isLoading, error, sendMessage, clearError } = useChat();
-  const { availableModels, selectedModel, setSelectedModel } = useModelSelection();
+  const { 
+    availableModels, 
+    selectedModel, 
+    setSelectedModel, 
+    isLoading: modelsLoading, 
+    isEnhanced 
+  } = useModelSelection();
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
@@ -30,10 +36,17 @@ export default function ChatInterface() {
                 models={availableModels}
                 selectedModel={selectedModel}
                 onModelSelect={setSelectedModel}
+                isLoading={modelsLoading}
+                enhanced={isEnhanced}
               />
             )}
             <div className="text-xs text-gray-500 dark:text-gray-400">
               {messages.length} messages
+              {isEnhanced && (
+                <span className="ml-1 text-violet-500 dark:text-violet-400">
+                  • Enhanced
+                </span>
+              )}
             </div>
           </div>
         </div>
