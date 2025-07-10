@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { useLocalStorage } from "./useLocalStorage";
+import { useModelData } from "./useModelData";
 import { ModelInfo } from "../lib/types/openrouter";
 
 // Type guard to check if models are enhanced
@@ -10,50 +11,17 @@ const isEnhancedModels = (models: ModelInfo[] | string[]): models is ModelInfo[]
 };
 
 export function useModelSelection() {
-  const [availableModels, setAvailableModels] = useState<ModelInfo[] | string[]>([]);
   const [selectedModel, setSelectedModel] = useLocalStorage<string>("selectedModel", "");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [isEnhanced, setIsEnhanced] = useState(false);
-
-  const fetchModels = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch("/api/models?enhanced=true");
-      if (response.ok) {
-        const data = await response.json();
-        const models = data.models;
-        
-        setAvailableModels(models);
-        setIsEnhanced(isEnhancedModels(models));
-        
-        // Log enhanced mode status for debugging
-        console.log('Models fetched:', {
-          count: models.length,
-          isEnhanced: isEnhancedModels(models),
-          enhanced: response.headers.get('X-Enhanced-Mode')
-        });
-      } else {
-        throw new Error(`Failed to fetch models: ${response.status}`);
-      }
-    } catch (fetchError) {
-      console.warn("Failed to fetch available models:", fetchError);
-      setError(fetchError instanceof Error ? fetchError : new Error('Unknown error'));
-      
-      // Fallback to default model list if API fails
-      const fallbackModels = ["gpt-3.5-turbo", "gpt-4", "claude-3-sonnet"];
-      setAvailableModels(fallbackModels);
-      setIsEnhanced(false);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchModels();
-  }, [fetchModels]); // Include fetchModels dependency
+  
+  // Use the new model data hook for caching and background refresh
+  const {
+    models: availableModels,
+    loading: isLoading,
+    error,
+    isEnhanced,
+    refresh: refreshModels,
+    lastUpdated,
+  } = useModelData();
 
   // Separate effect to set default model when models are loaded
   useEffect(() => {
@@ -83,10 +51,6 @@ export function useModelSelection() {
     }
   }, [availableModels, selectedModel, setSelectedModel]);
 
-  const refreshModels = useCallback(() => {
-    fetchModels();
-  }, [fetchModels]);
-
   return {
     availableModels,
     selectedModel,
@@ -95,5 +59,6 @@ export function useModelSelection() {
     error,
     isEnhanced,
     refreshModels,
+    lastUpdated, // Expose last updated timestamp
   };
 }
