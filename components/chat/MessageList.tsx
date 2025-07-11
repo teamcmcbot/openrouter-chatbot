@@ -166,8 +166,22 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                 
                 {/* Error badge for failed user messages */}
                 {message.role === "user" && message.error && (
-                  <div className="absolute -top-1 -left-2 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center" title="Message failed to send">
-                    <span className="text-white text-xs font-bold leading-none">!</span>
+                  <div className="absolute -top-2 -left-2 w-5 h-5 flex items-center justify-center" title="Message failed to send">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      {/* Speech bubble shape - flipped to point right */}
+                      <path 
+                        d="M10 2C14.42 2 18 5.58 18 10C18 12.5 16.8 14.7 14.9 16.1L16.5 17.7C16.8 18 16.6 18.5 16.2 18.5H10C5.58 18.5 2 14.92 2 10.5C2 5.58 5.58 2 10 2Z" 
+                        fill="#EF4444" 
+                      />
+                      {/* Exclamation mark */}
+                      <path 
+                        d="M10 6V11M10 13H10.01" 
+                        stroke="white" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                   </div>
                 )}
                 

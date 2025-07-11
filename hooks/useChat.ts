@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { ChatMessage, ChatRequest, ChatResponse } from "../lib/types/chat";
+import { ChatMessage } from "../lib/types/chat";
 
 interface ChatError {
   message: string;
@@ -16,6 +16,7 @@ interface UseChatReturn {
   isLoading: boolean;
   error: ChatError | null;
   sendMessage: (content: string, model?: string) => Promise<void>;
+  retryLastMessage: (model?: string) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
   clearMessageError: (messageId: string) => void;
@@ -139,11 +140,25 @@ export function useChat(): UseChatReturn {
     ));
   }, []);
 
+  const retryLastMessage = useCallback(async (model?: string) => {
+    // Find the last user message
+    const lastUserMessage = messages.slice().reverse().find(msg => msg.role === 'user');
+    if (!lastUserMessage || isLoading) return;
+    
+    // Remove the failed message and retry
+    setMessages(prev => prev.filter(msg => msg.id !== lastUserMessage.id));
+    setError(null);
+    
+    // Resend the message
+    await sendMessage(lastUserMessage.content, model);
+  }, [messages, isLoading, sendMessage]);
+
   return {
     messages,
     isLoading,
     error,
     sendMessage,
+    retryLastMessage,
     clearMessages,
     clearError,
     clearMessageError,
