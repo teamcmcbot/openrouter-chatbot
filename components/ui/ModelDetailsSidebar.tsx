@@ -25,13 +25,33 @@ const formatNumber = (num: number): string => {
   return num.toString();
 };
 
-// Format pricing for display
-const formatPrice = (price: string): string => {
+// Format pricing for display based on pricing type
+const formatPrice = (price: string, type: 'prompt' | 'completion' | 'image' | 'request' | 'web_search' | 'internal_reasoning' | 'input_cache_read' | 'input_cache_write'): string => {
   const num = parseFloat(price);
   if (num === 0) return "Free";
-  if (num < 0.000001) return `$${(num * 1000000).toFixed(2)}/1M tokens`;
-  if (num < 0.001) return `$${(num * 1000).toFixed(2)}/1K tokens`;
-  return `$${num.toFixed(4)}/token`;
+  
+  // Format based on pricing type
+  switch (type) {
+    case 'prompt':
+    case 'completion':
+    case 'input_cache_read':
+    case 'input_cache_write':
+    case 'internal_reasoning':
+      // Token-based pricing - display per 1M tokens
+      return `$${(num * 1000000).toFixed(2)}/M tokens`;
+    
+    case 'image':
+      // Image-based pricing - display per 1K images
+      return `$${(num * 1000).toFixed(2)}/K images`;
+    
+    case 'request':
+    case 'web_search':
+      // Request-based pricing - display per request
+      return `$${num.toFixed(6)}/request`;
+    
+    default:
+      return `$${num.toFixed(6)}`;
+  }
 };
 
 // Format date for display
@@ -234,27 +254,35 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                 {activeTab === 'pricing' && (
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Token Pricing</h3>
+                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pricing</h3>
                       <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Input:</span>
                           <span className="font-medium text-gray-900 dark:text-white">
-                            {formatPrice(model.pricing.prompt)}
+                            {formatPrice(model.pricing.prompt, 'prompt')}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Output:</span>
                           <span className="font-medium text-gray-900 dark:text-white">
-                            {formatPrice(model.pricing.completion)}
+                            {formatPrice(model.pricing.completion, 'completion')}
                           </span>
                         </div>
+                        {model.pricing.image && parseFloat(model.pricing.image) > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600 dark:text-gray-400">Image:</span>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {formatPrice(model.pricing.image, 'image')}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     <div>
                       <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cost Estimate</h3>
                       <div className="text-sm text-gray-600 dark:text-gray-400">
-                        <p>1,000 tokens input + 1,000 tokens output:</p>
+                        <p>1K input + 1K output tokens:</p>
                         <p className="font-medium text-gray-900 dark:text-white mt-1">
                           ${((parseFloat(model.pricing.prompt) + parseFloat(model.pricing.completion)) * 1000).toFixed(4)}
                         </p>
@@ -315,13 +343,13 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                             <div className="flex justify-between">
                               <span className="text-gray-600 dark:text-gray-400">Tokens In:</span>
                               <span className="font-medium text-gray-900 dark:text-white">
-                                {generationData.tokens_prompt ?? 'N/A'}
+                                {generationData.native_tokens_prompt ?? 'N/A'}
                               </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-600 dark:text-gray-400">Tokens Out:</span>
                               <span className="font-medium text-gray-900 dark:text-white">
-                                {generationData.tokens_completion ?? 'N/A'}
+                                {generationData.native_tokens_completion ?? 'N/A'}
                               </span>
                             </div>
                             <div className="flex justify-between">

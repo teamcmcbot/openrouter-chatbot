@@ -308,6 +308,12 @@ export function transformOpenRouterModel(model: OpenRouterModel): ModelInfo {
     pricing: {
       prompt: model.pricing.prompt,
       completion: model.pricing.completion,
+      request: model.pricing.request,
+      image: model.pricing.image,
+      web_search: model.pricing.web_search,
+      internal_reasoning: model.pricing.internal_reasoning,
+      input_cache_read: model.pricing.input_cache_read,
+      input_cache_write: model.pricing.input_cache_write,
     },
     input_modalities: model.architecture.input_modalities,
     output_modalities: model.architecture.output_modalities,
