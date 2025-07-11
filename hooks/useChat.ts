@@ -18,6 +18,7 @@ interface UseChatReturn {
   sendMessage: (content: string, model?: string) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
+  clearMessageError: (messageId: string) => void;
 }
 
 export function useChat(): UseChatReturn {
@@ -103,6 +104,11 @@ export function useChat(): UseChatReturn {
       
       setError(chatError);
       
+      // Mark the user message as failed
+      setMessages(prev => prev.map(msg => 
+        msg.id === userMessage.id ? { ...msg, error: true } : msg
+      ));
+      
       // For development: Add a mock response when backend is not available
       if (chatError.code === "network_error") {
         const mockResponse: ChatMessage = {
@@ -127,6 +133,12 @@ export function useChat(): UseChatReturn {
     setError(null);
   }, []);
 
+  const clearMessageError = useCallback((messageId: string) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, error: false } : msg
+    ));
+  }, []);
+
   return {
     messages,
     isLoading,
@@ -134,5 +146,6 @@ export function useChat(): UseChatReturn {
     sendMessage,
     clearMessages,
     clearError,
+    clearMessageError,
   };
 }
