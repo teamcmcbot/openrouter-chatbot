@@ -22,6 +22,18 @@ export default function ChatInterface() {
     isEnhanced 
   } = useModelSelection();
 
+  // Retry function to resend the last user message
+  const handleRetry = () => {
+    // Find the last user message
+    const lastUserMessage = messages.slice().reverse().find(msg => msg.role === 'user');
+    if (lastUserMessage) {
+      // Clear the error first
+      clearError();
+      // Resend the last user message with the current selected model
+      sendMessage(lastUserMessage.content, selectedModel);
+    }
+  };
+
   // Sidebar states
   const [selectedDetailModel, setSelectedDetailModel] = useState<ModelInfo | null>(null);
   const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useState(false);
@@ -176,7 +188,7 @@ export default function ChatInterface() {
               message={error.message}
               type={error.code === 'too_many_requests' ? 'warning' : 'error'}
               title={error.code === 'too_many_requests' ? 'Rate Limited' : 'Error'}
-              onRetry={clearError}
+              onRetry={handleRetry}
               onClose={clearError}
               suggestions={error.suggestions}
               retryAfter={error.retryAfter}
