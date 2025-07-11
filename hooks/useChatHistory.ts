@@ -55,11 +55,13 @@ interface UseChatHistoryReturn {
   conversations: ChatConversation[];
   activeConversationId: string | null;
   createConversation: (initialTitle?: string) => ChatConversation;
+  createConversationWithMessages: (initialTitle?: string, messages?: ChatMessage[]) => ChatConversation;
   updateConversation: (conversationId: string, updates: Partial<ChatConversation>) => void;
   deleteConversation: (conversationId: string) => void;
   setActiveConversation: (conversationId: string | null) => void;
   getActiveConversation: () => ChatConversation | null;
   addMessageToConversation: (conversationId: string, message: ChatMessage) => void;
+  addMessagesToConversation: (conversationId: string, messages: ChatMessage[]) => void;
   updateConversationMessages: (conversationId: string, messages: ChatMessage[]) => void;
   getConversationById: (conversationId: string) => ChatConversation | null;
   clearAllConversations: () => void;
@@ -88,6 +90,36 @@ export function useChatHistory(): UseChatHistoryReturn {
     }));
 
     return newConversation;
+  }, [setChatHistoryState]);
+
+  const createConversationWithMessages = useCallback((
+    initialTitle?: string,
+    messages: ChatMessage[] = []
+  ): ChatConversation => {
+    const newConversation = createNewConversation(initialTitle);
+    
+    // Add messages to the conversation before saving to state
+    const conversationWithMessages = {
+      ...newConversation,
+      messages: [...newConversation.messages, ...messages]
+    };
+    
+    // Auto-generate title from first user message if needed
+    const firstUserMessage = messages.find(msg => msg.role === "user");
+    if (conversationWithMessages.title === "New Chat" && firstUserMessage) {
+      conversationWithMessages.title = generateConversationTitle(firstUserMessage.content);
+    }
+    
+    const finalConversation = updateConversationMetadata(conversationWithMessages);
+    
+    setChatHistoryState(prev => ({
+      ...prev,
+      conversations: [finalConversation, ...prev.conversations],
+      activeConversationId: finalConversation.id,
+      lastConversationId: finalConversation.id,
+    }));
+
+    return finalConversation;
   }, [setChatHistoryState]);
 
   const updateConversation = useCallback((
@@ -169,6 +201,31 @@ export function useChatHistory(): UseChatHistoryReturn {
     }));
   }, [setChatHistoryState]);
 
+  const addMessagesToConversation = useCallback((
+    conversationId: string, 
+    messages: ChatMessage[]
+  ) => {
+    setChatHistoryState(prev => ({
+      ...prev,
+      conversations: prev.conversations.map(conv => {
+        if (conv.id !== conversationId) return conv;
+        
+        const updatedConv = {
+          ...conv,
+          messages: [...conv.messages, ...messages],
+        };
+
+        // Auto-generate title from first user message if title is still "New Chat"
+        const firstUserMessage = messages.find(msg => msg.role === "user");
+        if (conv.title === "New Chat" && firstUserMessage && conv.messages.length === 0) {
+          updatedConv.title = generateConversationTitle(firstUserMessage.content);
+        }
+
+        return updateConversationMetadata(updatedConv);
+      }),
+    }));
+  }, [setChatHistoryState]);
+
   const updateConversationMessages = useCallback((
     conversationId: string, 
     messages: ChatMessage[]
@@ -195,11 +252,13 @@ export function useChatHistory(): UseChatHistoryReturn {
     conversations: chatHistoryState.conversations,
     activeConversationId: chatHistoryState.activeConversationId,
     createConversation,
+    createConversationWithMessages,
     updateConversation,
     deleteConversation,
     setActiveConversation,
     getActiveConversation,
     addMessageToConversation,
+    addMessagesToConversation,
     updateConversationMessages,
     getConversationById,
     clearAllConversations,

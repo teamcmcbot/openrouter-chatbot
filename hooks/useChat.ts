@@ -38,9 +38,10 @@ export function useChat(): UseChatReturn {
   const {
     activeConversationId,
     createConversation,
+    createConversationWithMessages,
     setActiveConversation,
     getActiveConversation,
-    addMessageToConversation,
+    addMessagesToConversation,
     updateConversationMessages,
     getConversationById,
   } = useChatHistory();
@@ -65,12 +66,8 @@ export function useChat(): UseChatReturn {
 
     setIsSendingMessage(true);
 
-    // Ensure we have an active conversation
-    let currentConversationId = activeConversationId;
-    if (!currentConversationId) {
-      const newConversation = createConversation();
-      currentConversationId = newConversation.id;
-    }
+    // Don't create conversation yet - only track the ID we'll need
+    const currentConversationId = activeConversationId;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -79,7 +76,7 @@ export function useChat(): UseChatReturn {
       timestamp: new Date(),
     };
 
-    // Update local state immediately
+    // Update local state immediately (no conversation save yet)
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
     setError(null);
@@ -133,10 +130,11 @@ export function useChat(): UseChatReturn {
       // Update local state first
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Sync both messages to history 
-      if (currentConversationId) {
-        addMessageToConversation(currentConversationId, userMessage);
-        addMessageToConversation(currentConversationId, assistantMessage);
+      // Create conversation and save both messages atomically
+      if (!currentConversationId) {
+        createConversationWithMessages(undefined, [userMessage, assistantMessage]);
+      } else {
+        addMessagesToConversation(currentConversationId, [userMessage, assistantMessage]);
       }
       
     } catch (err) {
@@ -169,17 +167,18 @@ export function useChat(): UseChatReturn {
         };
         setMessages(prev => [...prev, mockResponse]);
         
-        // Sync both messages to history
-        if (currentConversationId) {
-          addMessageToConversation(currentConversationId, userMessage);
-          addMessageToConversation(currentConversationId, mockResponse);
+        // Create conversation and save both messages atomically
+        if (!currentConversationId) {
+          createConversationWithMessages(undefined, [userMessage, mockResponse]);
+        } else {
+          addMessagesToConversation(currentConversationId, [userMessage, mockResponse]);
         }
       }
     } finally {
       setIsLoading(false);
       setIsSendingMessage(false);
     }
-  }, [isLoading, activeConversationId, createConversation, addMessageToConversation]);
+  }, [isLoading, activeConversationId, createConversationWithMessages, addMessagesToConversation]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
