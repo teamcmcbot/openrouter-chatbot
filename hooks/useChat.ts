@@ -18,6 +18,7 @@ interface UseChatReturn {
   sendMessage: (content: string, model?: string) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
+  clearMessageError: (messageId: string) => void;
 }
 
 export function useChat(): UseChatReturn {
@@ -82,6 +83,7 @@ export function useChat(): UseChatReturn {
         total_tokens: data.usage?.total_tokens ?? 0, // Assuming usage is part of the response
         model: data.model || model, // Prefer backend model, fallback to selected
         contentType: data.contentType || "text", // Use detected content type from API
+        completion_id: data.id, // Use OpenRouter response id for metadata lookup
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -101,6 +103,11 @@ export function useChat(): UseChatReturn {
       }
       
       setError(chatError);
+      
+      // Mark the user message as failed
+      setMessages(prev => prev.map(msg => 
+        msg.id === userMessage.id ? { ...msg, error: true } : msg
+      ));
       
       // For development: Add a mock response when backend is not available
       if (chatError.code === "network_error") {
@@ -126,6 +133,12 @@ export function useChat(): UseChatReturn {
     setError(null);
   }, []);
 
+  const clearMessageError = useCallback((messageId: string) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, error: false } : msg
+    ));
+  }, []);
+
   return {
     messages,
     isLoading,
@@ -133,5 +146,6 @@ export function useChat(): UseChatReturn {
     sendMessage,
     clearMessages,
     clearError,
+    clearMessageError,
   };
 }

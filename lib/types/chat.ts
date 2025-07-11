@@ -9,6 +9,8 @@ export interface ChatMessage {
   total_tokens?: number;
   model?: string;
   contentType?: "text" | "markdown"; // New field to specify content type
+  completion_id?: string; // OpenRouter response id for metadata lookup
+  error?: boolean; // Flag to indicate if this message failed to send
 }
 
 export interface ChatRequest {
@@ -27,4 +29,5 @@ export interface ChatResponse {
   timestamp: string;
   elapsed_time: number;
   contentType?: "text" | "markdown"; // New field
+  id: string; // OpenRouter response id for metadata lookup
 }

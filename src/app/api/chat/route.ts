@@ -42,13 +42,14 @@ export async function POST(req: NextRequest) {
     const response: ChatResponse = {
       response: assistantResponse,
       usage: {
-      prompt_tokens: usage.prompt_tokens,
-      completion_tokens: usage.completion_tokens,
-      total_tokens: usage.total_tokens,
+        prompt_tokens: usage.prompt_tokens,
+        completion_tokens: usage.completion_tokens,
+        total_tokens: usage.total_tokens,
       },
       timestamp: new Date().toISOString(),
       elapsed_time: elapsedTime,
       contentType: hasMarkdown ? "markdown" : "text", // Add content type detection
+      id: openRouterResponse.id, // Pass OpenRouter response id to ChatResponse
     };
 
     logger.info('Chat request successful');

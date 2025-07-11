@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "highlight.js": "^11.11.1",
     "next": "15.3.5",
     "react": "^19.0.0",

@@ -35,9 +35,12 @@ MemoizedMarkdown.displayName = 'MemoizedMarkdown';
 interface MessageListProps {
   messages: ChatMessage[];
   isLoading: boolean;
+  onModelClick?: (modelId: string, tab?: 'overview' | 'pricing' | 'capabilities', generationId?: string) => void;
+  hoveredGenerationId?: string;
+  scrollToCompletionId?: string; // Add scroll trigger prop
 }
 
-export default function MessageList({ messages, isLoading }: Readonly<MessageListProps>) {
+export default function MessageList({ messages, isLoading, onModelClick, hoveredGenerationId, scrollToCompletionId }: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -58,6 +61,27 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
       messagesContainerRef.current.scrollTop = scrollHeight - clientHeight;
     }
   };
+
+  // Function to scroll to a specific message by completion_id
+  const scrollToMessage = (completionId: string) => {
+    const messageElement = document.querySelector(`[data-completion-id="${completionId}"]`);
+    if (messageElement && messagesContainerRef.current) {
+      const containerTop = messagesContainerRef.current.offsetTop;
+      const messageTop = (messageElement as HTMLElement).offsetTop;
+      messagesContainerRef.current.scrollTop = messageTop - containerTop - 20; // 20px offset for better visibility
+    }
+  };
+
+  // Scroll to message when scrollToCompletionId changes
+  useEffect(() => {
+    if (scrollToCompletionId) {
+      const timeoutId = setTimeout(() => {
+        scrollToMessage(scrollToCompletionId);
+      }, 100); // Small delay to ensure DOM is ready
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [scrollToCompletionId]);
 
   useEffect(() => {
     // Use a small delay to ensure the DOM has updated
@@ -96,8 +120,9 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
           <div
             key={message.id}
             className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+            data-completion-id={message.completion_id} // Add data attribute for scrolling
           >
-            <div className={`flex max-w-[70%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+            <div className={`flex max-w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
               {/* Avatar */}
               <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                 message.role === "user" 
@@ -108,16 +133,24 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
               </div>
 
               {/* Message Content */}
-              <div className={`rounded-lg px-4 py-2 ${
+              <div className={`rounded-lg px-4 py-2 transition-all duration-200 relative ${
                 message.role === "user"
-                  ? "bg-emerald-600 text-white"
-                  : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  ? `bg-emerald-600 text-white ${message.error ? 'ring-2 ring-red-400' : ''}`
+                  : `bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${
+                      hoveredGenerationId && message.completion_id === hoveredGenerationId
+                        ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : ''
+                    }`
               }`}>
                 {/* LLM Model Tag for assistant */}
                 {message.role === "assistant" && message.model && (
-                  <span className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-gray-800 dark:text-purple-300 align-middle">
+                  <button
+                    onClick={() => onModelClick?.(message.model!, 'overview', undefined)}
+                    className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-gray-800 dark:text-purple-300 align-middle hover:bg-gray-400 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                    title={`View details for ${message.model}`}
+                  >
                     {message.model}
-                  </span>
+                  </button>
                 )}
                 
                 {/* Message Content - Conditional Markdown Rendering */}
@@ -130,6 +163,16 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
                 ) : (
                   <p className="whitespace-pre-wrap">{message.content}</p>
                 )}
+                
+                {/* Error icon for failed user messages */}
+                {message.role === "user" && message.error && (
+                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center" title="Message failed to send">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                )}
+                
                 <div className="flex justify-between items-center mt-1">
                   <p className={`text-xs ${
                     message.role === "user" 
@@ -139,7 +182,19 @@ export default function MessageList({ messages, isLoading }: Readonly<MessageLis
                     {formatTime(message.timestamp)}{" "}
                     {message.elapsed_time && (
                       <span className="text-gray-300 dark:text-gray-400">
-                        (Took {message.elapsed_time} seconds, {message.total_tokens} tokens)
+                        (Took {message.elapsed_time} seconds, {message.total_tokens} tokens - 
+                        <button
+                          onClick={() => onModelClick?.(message.model!, 'pricing', message.completion_id)}
+                          className={`underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer ml-1 ${
+                            hoveredGenerationId === message.completion_id
+                              ? 'text-blue-500 dark:text-blue-400 font-medium'
+                              : ''
+                          }`}
+                          title={`View pricing details for ${message.model}`}
+                        >
+                          {message.completion_id}
+                        </button>
+                        )
                       </span>
                     )}
                   </p>
