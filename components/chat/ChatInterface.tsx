@@ -13,7 +13,15 @@ import { ModelInfo } from "../../lib/types/openrouter";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 
 export default function ChatInterface() {
-  const { messages, isLoading, error, sendMessage, retryLastMessage, clearError } = useChat();
+  const { 
+    messages, 
+    isLoading, 
+    error, 
+    sendMessage, 
+    retryLastMessage, 
+    clearError,
+    createNewConversation
+  } = useChat();
   const { 
     availableModels, 
     selectedModel, 
@@ -97,8 +105,18 @@ export default function ChatInterface() {
   };
 
   const handleNewChat = () => {
-    // Clear messages and start new chat
-    window.location.reload(); // Simple implementation - in a real app, you'd use proper state management
+    // Create new conversation and clear current state
+    createNewConversation();
+    
+    // Clear ModelDetailsSidebar state
+    setSelectedDetailModel(null);
+    setSelectedGenerationId(undefined);
+    setHoveredGenerationId(undefined);
+    setScrollToCompletionId(undefined);
+    setSelectedTab('overview');
+    
+    // Close the details sidebar if open
+    setIsDetailsSidebarOpen(false);
   };
 
   const handleToggleChatSidebar = () => {
