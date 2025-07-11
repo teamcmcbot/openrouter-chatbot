@@ -29,6 +29,7 @@ export default function ChatInterface() {
   const [selectedTab, setSelectedTab] = useState<'overview' | 'pricing' | 'capabilities'>('overview');
   const [selectedGenerationId, setSelectedGenerationId] = useState<string | undefined>(undefined);
   const [hoveredGenerationId, setHoveredGenerationId] = useState<string | undefined>(undefined);
+  const [scrollToCompletionId, setScrollToCompletionId] = useState<string | undefined>(undefined);
 
   const handleShowDetails = (model: ModelInfo) => {
     setSelectedDetailModel(model);
@@ -82,6 +83,12 @@ export default function ChatInterface() {
 
   const handleGenerationHover = (generationId: string | undefined) => {
     setHoveredGenerationId(generationId);
+  };
+
+  const handleGenerationClick = (generationId: string) => {
+    setScrollToCompletionId(generationId);
+    // Clear the scroll trigger after a short delay
+    setTimeout(() => setScrollToCompletionId(undefined), 500);
   };
 
   const handleNewChat = () => {
@@ -158,6 +165,7 @@ export default function ChatInterface() {
             isLoading={isLoading}
             onModelClick={handleModelClickFromMessage}
             hoveredGenerationId={hoveredGenerationId}
+            scrollToCompletionId={scrollToCompletionId}
           />
         </div>
 
@@ -195,6 +203,7 @@ export default function ChatInterface() {
           initialTab={selectedTab}
           generationId={selectedGenerationId}
           onGenerationHover={handleGenerationHover}
+          onGenerationClick={handleGenerationClick}
         />
       </div>
 
@@ -215,6 +224,7 @@ export default function ChatInterface() {
           initialTab={selectedTab}
           generationId={selectedGenerationId}
           onGenerationHover={handleGenerationHover}
+          onGenerationClick={handleGenerationClick}
         />
       </div>
     </div>

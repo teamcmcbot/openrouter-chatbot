@@ -37,9 +37,10 @@ interface MessageListProps {
   isLoading: boolean;
   onModelClick?: (modelId: string, tab?: 'overview' | 'pricing' | 'capabilities', generationId?: string) => void;
   hoveredGenerationId?: string;
+  scrollToCompletionId?: string; // Add scroll trigger prop
 }
 
-export default function MessageList({ messages, isLoading, onModelClick, hoveredGenerationId }: Readonly<MessageListProps>) {
+export default function MessageList({ messages, isLoading, onModelClick, hoveredGenerationId, scrollToCompletionId }: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -60,6 +61,27 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
       messagesContainerRef.current.scrollTop = scrollHeight - clientHeight;
     }
   };
+
+  // Function to scroll to a specific message by completion_id
+  const scrollToMessage = (completionId: string) => {
+    const messageElement = document.querySelector(`[data-completion-id="${completionId}"]`);
+    if (messageElement && messagesContainerRef.current) {
+      const containerTop = messagesContainerRef.current.offsetTop;
+      const messageTop = (messageElement as HTMLElement).offsetTop;
+      messagesContainerRef.current.scrollTop = messageTop - containerTop - 20; // 20px offset for better visibility
+    }
+  };
+
+  // Scroll to message when scrollToCompletionId changes
+  useEffect(() => {
+    if (scrollToCompletionId) {
+      const timeoutId = setTimeout(() => {
+        scrollToMessage(scrollToCompletionId);
+      }, 100); // Small delay to ensure DOM is ready
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [scrollToCompletionId]);
 
   useEffect(() => {
     // Use a small delay to ensure the DOM has updated
@@ -98,6 +120,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
           <div
             key={message.id}
             className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+            data-completion-id={message.completion_id} // Add data attribute for scrolling
           >
             <div className={`flex max-w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
               {/* Avatar */}

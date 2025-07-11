@@ -12,6 +12,7 @@ interface ModelDetailsSidebarProps {
   initialTab?: 'overview' | 'pricing' | 'capabilities';
   generationId?: string; // Add optional generation ID
   onGenerationHover?: (generationId: string | undefined) => void; // Add hover handler
+  onGenerationClick?: (generationId: string) => void; // Add click handler for scrolling
 }
 
 // Format numbers for display
@@ -63,11 +64,12 @@ const formatDate = (timestamp: number): string => {
   });
 };
 
-export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'overview', generationId, onGenerationHover }: ModelDetailsSidebarProps) {
+export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'overview', generationId, onGenerationHover, onGenerationClick }: ModelDetailsSidebarProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'capabilities'>(initialTab);
   const [generationData, setGenerationData] = useState<GenerationData | null>(null);
   const [loadingGeneration, setLoadingGeneration] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [isGenerationIdHovered, setIsGenerationIdHovered] = useState(false);
 
   // Update active tab when initialTab changes or when model changes
   useEffect(() => {
@@ -298,10 +300,21 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                           Last Message:
                         </h3>
                         <p 
-                          className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-mono break-all hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
-                          onMouseEnter={() => onGenerationHover?.(generationId)}
-                          onMouseLeave={() => onGenerationHover?.(undefined)}
-                          title="Hover to highlight corresponding message"
+                          className={`text-xs mb-3 font-mono break-all transition-colors cursor-pointer ${
+                            isGenerationIdHovered 
+                              ? '!text-blue-600 dark:!text-blue-400' 
+                              : 'text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
+                          }`}
+                          onMouseEnter={() => {
+                            onGenerationHover?.(generationId);
+                            setIsGenerationIdHovered(true);
+                          }}
+                          onMouseLeave={() => {
+                            onGenerationHover?.(undefined);
+                            setIsGenerationIdHovered(false);
+                          }}
+                          onClick={() => onGenerationClick?.(generationId)}
+                          title="Click to scroll to message • Hover to highlight"
                         >
                           {generationId}
                         </p>
@@ -318,9 +331,21 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                           </div>
                         ) : generationData ? (
                           <div 
-                            className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2 transition-all duration-200 hover:ring-2 hover:ring-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                            onMouseEnter={() => onGenerationHover?.(generationId)}
-                            onMouseLeave={() => onGenerationHover?.(undefined)}
+                            className={`bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2 transition-all duration-200 cursor-pointer ${
+                              isGenerationIdHovered 
+                                ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                                : 'hover:ring-2 hover:ring-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                            }`}
+                            onMouseEnter={() => {
+                              onGenerationHover?.(generationId);
+                              setIsGenerationIdHovered(true);
+                            }}
+                            onMouseLeave={() => {
+                              onGenerationHover?.(undefined);
+                              setIsGenerationIdHovered(false);
+                            }}
+                            onClick={() => onGenerationClick?.(generationId)}
+                            title="Click to scroll to message"
                           >
                             <div className="flex justify-between">
                               <span className="text-gray-600 dark:text-gray-400">Provider:</span>
