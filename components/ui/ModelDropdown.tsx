@@ -27,7 +27,7 @@ export default function ModelDropdown({
 }: ModelDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterBy, setFilterBy] = useState<'all' | 'free' | 'multimodal' | 'reasoning'>('all');
+  const [filterBy, setFilterBy] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,6 +45,8 @@ export default function ModelDropdown({
         switch (filterBy) {
           case 'free':
             return parseFloat(model.pricing.prompt) === 0 && parseFloat(model.pricing.completion) === 0;
+          case 'paid':
+            return parseFloat(model.pricing.prompt) > 0 || parseFloat(model.pricing.completion) > 0;
           case 'multimodal':
             return model.input_modalities.length > 1 || model.output_modalities.length > 1;
           case 'reasoning':
@@ -62,8 +64,7 @@ export default function ModelDropdown({
         const enhancedFiltered = filtered as ModelInfo[];
         filtered = enhancedFiltered.filter(model => (
           model.name.toLowerCase().includes(search) ||
-          model.id.toLowerCase().includes(search) ||
-          model.description.toLowerCase().includes(search)
+          model.id.toLowerCase().includes(search)
         )) as typeof models;
       } else {
         const stringFiltered = filtered as string[];
@@ -242,7 +243,7 @@ export default function ModelDropdown({
             {/* Filter Buttons (only for enhanced models) */}
             {hasEnhancedData && (
               <div className="flex gap-1 flex-wrap">
-                {(['all', 'free', 'multimodal', 'reasoning'] as const).map((filter) => (
+                {(['all', 'free', 'paid', 'multimodal', 'reasoning'] as const).map((filter) => (
                   <button
                     key={filter}
                     onClick={() => setFilterBy(filter)}
@@ -257,6 +258,11 @@ export default function ModelDropdown({
                 ))}
               </div>
             )}
+
+            {/* Results count - always visible */}
+            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {filteredModels.length} model{filteredModels.length !== 1 ? 's' : ''} available
+            </div>
           </div>
 
           {/* Models List */}
@@ -373,13 +379,6 @@ export default function ModelDropdown({
               </div>
             )}
           </div>
-
-          {/* Results count */}
-          {filteredModels.length > 0 && (
-            <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
-              {filteredModels.length} model{filteredModels.length !== 1 ? 's' : ''} available
-            </div>
-          )}
         </div>
       )}
     </div>
