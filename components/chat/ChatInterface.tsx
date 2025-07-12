@@ -4,6 +4,7 @@ import { useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import { useChat } from "../../hooks/useChat";
+import { useChatHistory } from "../../hooks/useChatHistory";
 import { useModelSelection } from "../../hooks/useModelSelection";
 import ErrorDisplay from "../ui/ErrorDisplay";
 import ModelDropdown from "../ui/ModelDropdown";
@@ -24,6 +25,9 @@ export default function ChatInterface() {
     loadConversation,
     activeConversationId
   } = useChat();
+  
+  const { getActiveConversation, conversations } = useChatHistory();
+  
   const { 
     availableModels, 
     selectedModel, 
@@ -31,6 +35,9 @@ export default function ChatInterface() {
     isLoading: modelsLoading, 
     isEnhanced 
   } = useModelSelection();
+
+  // Get active conversation data for header display
+  const activeConversation = getActiveConversation();
 
   // Retry function to resend the last user message
   const handleRetry = () => {
@@ -154,6 +161,7 @@ export default function ChatInterface() {
           onNewChat={handleNewChat}
           onConversationSelect={handleConversationSelect}
           activeConversationId={activeConversationId}
+          conversations={conversations}
         />
       </div>
 
@@ -174,10 +182,13 @@ export default function ChatInterface() {
               
               <div>
                 <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
-                  AI Assistant
+                  {activeConversation?.title || "AI Assistant"}
                 </h1>
                 <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                  Powered by OpenRouter
+                  {activeConversation 
+                    ? `${activeConversation.messages.length} messages • Powered by OpenRouter`
+                    : "Powered by OpenRouter"
+                  }
                 </p>
               </div>
             </div>
@@ -261,6 +272,7 @@ export default function ChatInterface() {
         onConversationSelect={handleConversationSelect}
         activeConversationId={activeConversationId}
         className="md:hidden"
+        conversations={conversations}
       />
 
       {/* Mobile Model Details Sidebar */}

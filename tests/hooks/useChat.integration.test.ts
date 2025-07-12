@@ -29,24 +29,24 @@ describe('useChat integration', () => {
   it('should integrate with chat history correctly', () => {
     const { result } = renderHook(() => useChat());
 
-    // Initially no messages
+    // Initially no messages but should have auto-created "New Chat" conversation
     expect(result.current.messages).toEqual([]);
-    expect(result.current.activeConversationId).toBeNull();
+    expect(result.current.activeConversationId).not.toBeNull();
 
-    // Create new conversation
+    // Create another new conversation
     act(() => {
       result.current.createNewConversation();
     });
 
-    // Should have active conversation now
+    // Should still have active conversation
     expect(result.current.activeConversationId).not.toBeNull();
   });
 
   it('should create conversation when sending first message', async () => {
     const { result } = renderHook(() => useChat());
 
-    // No active conversation initially
-    expect(result.current.activeConversationId).toBeNull();
+    // Should have auto-created conversation initially
+    expect(result.current.activeConversationId).not.toBeNull();
 
     // Send a message
     await act(async () => {

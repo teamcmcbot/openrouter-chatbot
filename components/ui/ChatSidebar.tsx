@@ -13,6 +13,7 @@ interface ChatSidebarProps {
   onConversationSelect?: (conversationId: string) => void;
   activeConversationId?: string | null;
   className?: string;
+  conversations?: ChatConversation[]; // Allow conversations to be passed in
 }
 
 export function ChatSidebar({ 
@@ -21,10 +22,12 @@ export function ChatSidebar({
   onNewChat, 
   onConversationSelect,
   activeConversationId,
-  className = "" 
+  className = "",
+  conversations: propConversations
 }: ChatSidebarProps) {
-  // Use real chat history data
-  const { conversations, deleteConversation, updateConversation } = useChatHistory();
+  // Use passed conversations or fetch from hook as fallback
+  const { conversations: hookConversations, deleteConversation, updateConversation } = useChatHistory();
+  const conversations = propConversations || hookConversations;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -110,14 +113,18 @@ export function ChatSidebar({
         `}
       >
         {/* Header */}
-        <div className="p-5 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <Button
             onClick={onNewChat}
-            className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+            className="w-full mb-3"
           >
-            <PlusIcon className="w-4 h-4" />
+            <PlusIcon className="w-4 h-4 mr-2" />
             New Chat
           </Button>
+          {/* Debug info */}
+          <div className="text-xs text-gray-500 mb-2">
+            Debug: {conversations.length} conversations loaded
+          </div>
         </div>
 
         {/* Chat History */}

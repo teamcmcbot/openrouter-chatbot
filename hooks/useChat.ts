@@ -36,6 +36,7 @@ export function useChat(): UseChatReturn {
   
   // Chat history integration
   const {
+    conversations,
     activeConversationId,
     createConversation,
     createConversationWithMessages,
@@ -45,6 +46,14 @@ export function useChat(): UseChatReturn {
     updateConversationMessages,
     getConversationById,
   } = useChatHistory();
+
+  // Initialize with a "New Chat" on first load if no conversations exist
+  useEffect(() => {
+    if (conversations.length === 0 && !activeConversationId) {
+      createConversation("New Chat");
+      // The createConversation already sets it as active, so no need to call setActiveConversation
+    }
+  }, [conversations.length, activeConversationId, createConversation]);
 
   // Load messages from active conversation only when conversation ID actually changes
   // and we're not currently sending a message
@@ -233,10 +242,22 @@ export function useChat(): UseChatReturn {
   }, [messages, isLoading, sendMessage, activeConversationId, getConversationById, updateConversationMessages]);
 
   const createNewConversation = useCallback(() => {
-    createConversation();
+    // Check if there's already an empty "New Chat" conversation
+    const existingNewChat = conversations.find(conv => 
+      conv.title === "New Chat" && conv.messages.length === 0
+    );
+    
+    if (existingNewChat) {
+      // Reuse the existing empty "New Chat" conversation
+      setActiveConversation(existingNewChat.id);
+    } else {
+      // Create a new "New Chat" conversation
+      createConversation("New Chat");
+    }
+    
     setMessages([]);
     setError(null);
-  }, [createConversation]);
+  }, [conversations, createConversation, setActiveConversation]);
 
   const loadConversation = useCallback((conversationId: string) => {
     setActiveConversation(conversationId);

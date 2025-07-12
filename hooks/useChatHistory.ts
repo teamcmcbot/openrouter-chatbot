@@ -155,15 +155,34 @@ export function useChatHistory(): UseChatHistoryReturn {
   }, [setChatHistoryState]);
 
   const setActiveConversation = useCallback((conversationId: string | null) => {
-    setChatHistoryState(prev => ({
-      ...prev,
-      activeConversationId: conversationId,
-      lastConversationId: conversationId || prev.lastConversationId,
-      conversations: prev.conversations.map(conv => ({
-        ...conv,
-        isActive: conv.id === conversationId,
-      })),
-    }));
+    setChatHistoryState(prev => {
+      const updatedConversations = prev.conversations.map(conv => {
+        if (conv.id === conversationId) {
+          // Update the timestamp to move it to top and mark as active
+          return {
+            ...conv,
+            isActive: true,
+            updatedAt: new Date(), // This will move it to the top of the list
+          };
+        }
+        return {
+          ...conv,
+          isActive: false,
+        };
+      });
+
+      // Sort conversations by updatedAt (newest first)
+      const sortedConversations = updatedConversations.sort(
+        (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
+      );
+
+      return {
+        ...prev,
+        activeConversationId: conversationId,
+        lastConversationId: conversationId || prev.lastConversationId,
+        conversations: sortedConversations,
+      };
+    });
   }, [setChatHistoryState]);
 
   const getActiveConversation = useCallback((): ChatConversation | null => {
