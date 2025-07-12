@@ -20,7 +20,9 @@ export default function ChatInterface() {
     sendMessage, 
     retryLastMessage, 
     clearError,
-    createNewConversation
+    createNewConversation,
+    loadConversation,
+    activeConversationId
   } = useChat();
   const { 
     availableModels, 
@@ -123,6 +125,25 @@ export default function ChatInterface() {
     setIsChatSidebarOpen(!isChatSidebarOpen);
   };
 
+  // Conversation switching handler (ready for next subtask)
+  const handleConversationSelect = (conversationId: string) => {
+    // Load the selected conversation
+    loadConversation(conversationId);
+    
+    // Clear ModelDetailsSidebar state for clean transition
+    setSelectedDetailModel(null);
+    setSelectedGenerationId(undefined);
+    setHoveredGenerationId(undefined);
+    setScrollToCompletionId(undefined);
+    setSelectedTab('overview');
+    
+    // Close the details sidebar if open
+    setIsDetailsSidebarOpen(false);
+    
+    // Close chat sidebar on mobile after selection
+    setIsChatSidebarOpen(false);
+  };
+
   return (
     <div className="flex h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
       {/* Left Sidebar - Chat History (15%) */}
@@ -131,6 +152,8 @@ export default function ChatInterface() {
           isOpen={true}
           onClose={() => {}} // Not used on desktop
           onNewChat={handleNewChat}
+          onConversationSelect={handleConversationSelect}
+          activeConversationId={activeConversationId}
         />
       </div>
 
@@ -235,6 +258,8 @@ export default function ChatInterface() {
         isOpen={isChatSidebarOpen}
         onClose={() => setIsChatSidebarOpen(false)}
         onNewChat={handleNewChat}
+        onConversationSelect={handleConversationSelect}
+        activeConversationId={activeConversationId}
         className="md:hidden"
       />
 

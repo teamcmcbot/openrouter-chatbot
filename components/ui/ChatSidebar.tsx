@@ -3,59 +3,39 @@
 import { useState } from "react";
 import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 import Button from "./Button";
-
-interface ChatHistory {
-  id: string;
-  title: string;
-  lastMessage: string;
-  timestamp: Date;
-  messageCount: number;
-}
+import { useChatHistory } from "../../hooks/useChatHistory";
+import { ChatConversation } from "../../lib/types/chat";
 
 interface ChatSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onNewChat: () => void;
+  onConversationSelect?: (conversationId: string) => void;
+  activeConversationId?: string | null;
   className?: string;
 }
 
-export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: ChatSidebarProps) {
-  const [chatHistory, setChatHistory] = useState<ChatHistory[]>([
-    {
-      id: "1",
-      title: "AI Programming Assistant",
-      lastMessage: "How can I help you today?",
-      timestamp: new Date(),
-      messageCount: 5
-    },
-    {
-      id: "2", 
-      title: "Code Review Help",
-      lastMessage: "The code looks good overall...",
-      timestamp: new Date(Date.now() - 86400000), // 1 day ago
-      messageCount: 12
-    },
-    {
-      id: "3",
-      title: "Debug React Component",
-      lastMessage: "Try checking the props being passed...",
-      timestamp: new Date(Date.now() - 172800000), // 2 days ago
-      messageCount: 8
-    }
-  ]);
+export function ChatSidebar({ 
+  isOpen, 
+  onClose, 
+  onNewChat, 
+  onConversationSelect,
+  activeConversationId,
+  className = "" 
+}: ChatSidebarProps) {
+  // Use real chat history data
+  const { conversations, deleteConversation, updateConversation } = useChatHistory();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
-  const handleStartEdit = (chat: ChatHistory) => {
-    setEditingId(chat.id);
-    setEditTitle(chat.title);
+  const handleStartEdit = (conversation: ChatConversation) => {
+    setEditingId(conversation.id);
+    setEditTitle(conversation.title);
   };
 
   const handleSaveEdit = (id: string) => {
-    setChatHistory(prev => prev.map(chat => 
-      chat.id === id ? { ...chat, title: editTitle } : chat
-    ));
+    updateConversation(id, { title: editTitle });
     setEditingId(null);
     setEditTitle("");
   };
@@ -66,7 +46,13 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   };
 
   const handleDeleteChat = (id: string) => {
-    setChatHistory(prev => prev.filter(chat => chat.id !== id));
+    deleteConversation(id);
+  };
+
+  const handleConversationClick = (conversationId: string) => {
+    if (onConversationSelect) {
+      onConversationSelect(conversationId);
+    }
   };
 
   const formatTimestamp = (timestamp: Date) => {
@@ -83,6 +69,16 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     } else {
       return timestamp.toLocaleDateString();
     }
+  };
+
+  const getLastMessagePreview = (conversation: ChatConversation) => {
+    if (conversation.messages.length === 0) {
+      return "No messages yet";
+    }
+    
+    const lastMessage = conversation.messages[conversation.messages.length - 1];
+    const preview = lastMessage.content.slice(0, 50);
+    return preview.length < lastMessage.content.length ? `${preview}...` : preview;
   };
 
   return (
@@ -132,14 +128,20 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
             </h3>
             
             <div className="space-y-2">
-              {chatHistory.map((chat) => (
-                <div
-                  key={chat.id}
-                  className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border border-transparent hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-200"
-                >
+              {conversations.length > 0 ? (
+                conversations.map((conversation) => (
+                  <div
+                    key={conversation.id}
+                    onClick={() => handleConversationClick(conversation.id)}
+                    className={`group p-3 rounded-lg cursor-pointer border transition-all duration-200 ${
+                      activeConversationId === conversation.id
+                        ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
+                    }`}
+                  >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      {editingId === chat.id ? (
+                      {editingId === conversation.id ? (
                         <div className="space-y-2">
                           <input
                             type="text"
@@ -148,7 +150,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                             className="w-full text-sm font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white"
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
-                                handleSaveEdit(chat.id);
+                                handleSaveEdit(conversation.id);
                               } else if (e.key === 'Escape') {
                                 handleCancelEdit();
                               }
@@ -157,7 +159,10 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                           />
                           <div className="flex gap-2">
                             <button
-                              onClick={() => handleSaveEdit(chat.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSaveEdit(conversation.id);
+                              }}
                               className="text-xs px-2 py-1 bg-violet-600 text-white rounded hover:bg-violet-700"
                             >
                               Save
@@ -175,30 +180,30 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                           <div className="flex items-center gap-2">
                             <ChatBubbleLeftIcon className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                             <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {chat.title}
+                              {conversation.title}
                             </h4>
                           </div>
                           <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">
-                            {chat.lastMessage}
+                            {getLastMessagePreview(conversation)}
                           </p>
                           <div className="flex items-center justify-between mt-2">
                             <span className="text-xs text-gray-500 dark:text-gray-500">
-                              {formatTimestamp(chat.timestamp)}
+                              {formatTimestamp(conversation.updatedAt)}
                             </span>
                             <span className="text-xs text-gray-500 dark:text-gray-500">
-                              {chat.messageCount} messages
+                              {conversation.messageCount} messages
                             </span>
                           </div>
                         </>
                       )}
                     </div>
                     
-                    {editingId !== chat.id && (
+                    {editingId !== conversation.id && (
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleStartEdit(chat);
+                            handleStartEdit(conversation);
                           }}
                           className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
                           title="Edit title"
@@ -208,7 +213,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteChat(chat.id);
+                            handleDeleteChat(conversation.id);
                           }}
                           className="p-1 text-gray-400 hover:text-red-500 rounded"
                           title="Delete chat"
@@ -219,7 +224,18 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                     )}
                   </div>
                 </div>
-              ))}
+              ))
+              ) : (
+                <div className="text-center py-8">
+                  <ChatBubbleLeftIcon className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    No conversations yet
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Start a new chat to begin
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -227,7 +243,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="text-xs text-gray-500 dark:text-gray-500 text-center">
-            {chatHistory.length} total conversations
+            {conversations.length} total conversations
           </div>
         </div>
       </aside>
