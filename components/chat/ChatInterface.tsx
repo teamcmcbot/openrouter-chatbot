@@ -113,9 +113,9 @@ export default function ChatInterface() {
     setTimeout(() => setScrollToCompletionId(undefined), 500);
   };
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     // Create new conversation and clear current state
-    createNewConversation();
+    await createNewConversation();
     
     // Clear ModelDetailsSidebar state
     setSelectedDetailModel(null);
