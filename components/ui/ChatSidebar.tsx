@@ -21,13 +21,15 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     deleteConversation,
     updateConversationTitle,
     getRecentConversations,
+    isHydrated,
   } = useChatStore();
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
   // Get recent conversations (limit to 20 for performance)
-  const recentConversations = getRecentConversations(20);
+  // Only show conversations after hydration to prevent SSR mismatch
+  const recentConversations = isHydrated ? getRecentConversations(20) : [];
 
   const handleStartEdit = (conversationId: string, currentTitle: string) => {
     setEditingId(conversationId);
@@ -54,7 +56,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   const handleConversationClick = (id: string) => {
     switchConversation(id);
     // Close mobile sidebar after selection
-    if (window.innerWidth < 768) {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
       onClose();
     }
   };
@@ -244,7 +246,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="text-xs text-gray-500 dark:text-gray-500 text-center">
-            {conversations.length} total conversations
+            {isHydrated ? `${conversations.length} total conversations` : "Loading conversations..."}
           </div>
         </div>
       </aside>

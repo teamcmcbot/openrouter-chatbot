@@ -167,7 +167,7 @@ export default function ChatInterface() {
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 {messages.length} messages
                 {isEnhanced && (
-                  <span className="ml-1 text-violet-500 dark:text-violet-400">
+                  <span className="ml-1 text-violet-500 dark:text-violet-300">
                     • Enhanced
                   </span>
                 )}
