@@ -3,8 +3,13 @@
 import { useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
-import { useChat } from "../../hooks/useChat";
-import { useModelSelection } from "../../hooks/useModelSelection";
+import { 
+  useChat, 
+  useChatStore, 
+  useModelSelection, 
+  useDetailsSidebar, 
+  useChatSidebarState 
+} from "../../stores";
 import ErrorDisplay from "../ui/ErrorDisplay";
 import ModelDropdown from "../ui/ModelDropdown";
 import { ModelDetailsSidebar } from "../ui/ModelDetailsSidebar";
@@ -13,7 +18,8 @@ import { ModelInfo } from "../../lib/types/openrouter";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 
 export default function ChatInterface() {
-  const { messages, isLoading, error, sendMessage, clearError, clearMessageError } = useChat();
+  const { messages, isLoading, error, sendMessage, clearError, retryLastMessage } = useChat();
+  const createConversation = useChatStore((state) => state.createConversation);
   const { 
     availableModels, 
     selectedModel, 
@@ -22,33 +28,35 @@ export default function ChatInterface() {
     isEnhanced 
   } = useModelSelection();
 
-  // Retry function to resend the last user message
-  const handleRetry = () => {
-    // Find the last user message
-    const lastUserMessage = messages.slice().reverse().find(msg => msg.role === 'user');
-    if (lastUserMessage) {
-      // Clear the error flag from the failed message
-      clearMessageError(lastUserMessage.id);
-      
-      // Clear the error first
-      clearError();
-      // Resend the last user message with the current selected model
-      sendMessage(lastUserMessage.content, selectedModel);
-    }
-  };
+  // UI state from Zustand store
+  const {
+    selectedDetailModel,
+    isDetailsSidebarOpen,
+    selectedTab,
+    selectedGenerationId,
+    hoveredGenerationId,
+    showModelDetails,
+    closeDetailsSidebar,
+    setHoveredGenerationId,
+  } = useDetailsSidebar();
 
-  // Sidebar states
-  const [selectedDetailModel, setSelectedDetailModel] = useState<ModelInfo | null>(null);
-  const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useState(false);
-  const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'pricing' | 'capabilities'>('overview');
-  const [selectedGenerationId, setSelectedGenerationId] = useState<string | undefined>(undefined);
-  const [hoveredGenerationId, setHoveredGenerationId] = useState<string | undefined>(undefined);
+  const {
+    isChatSidebarOpen,
+    toggleChatSidebar,
+  } = useChatSidebarState();
+
+  // Local state for scroll behavior (transient, doesn't need to be in store)
   const [scrollToCompletionId, setScrollToCompletionId] = useState<string | undefined>(undefined);
 
+  // Retry function to resend the last user message
+  const handleRetry = () => {
+    // Clear the error first, then retry the last message
+    clearError();
+    retryLastMessage();
+  };
+
   const handleShowDetails = (model: ModelInfo) => {
-    setSelectedDetailModel(model);
-    setIsDetailsSidebarOpen(true);
+    showModelDetails(model);
   };
 
   const handleModelSelect = (modelId: string) => {
@@ -61,23 +69,21 @@ export default function ChatInterface() {
       );
       
       if (selectedModelInfo && typeof selectedModelInfo === 'object') {
-        setSelectedDetailModel(selectedModelInfo);
-        setSelectedGenerationId(undefined); // Clear generation ID when switching models
+        // Clear generation ID when switching models and show details
+        showModelDetails(selectedModelInfo, 'overview', undefined);
         
-        // Only auto-open sidebar on desktop (md breakpoint and above)
+        // Only auto-open sidebar on desktop (xl breakpoint and above)
         // On mobile, let users manually open it via the info icon
-        const isDesktop = window.matchMedia('(min-width: 768px)').matches;
-        if (isDesktop) {
-          setIsDetailsSidebarOpen(true);
+        const isDesktop = window.matchMedia('(min-width: 1280px)').matches;
+        if (!isDesktop) {
+          closeDetailsSidebar(); // Don't auto-open on mobile
         }
       }
     }
   };
 
   const handleCloseDetailsSidebar = () => {
-    setIsDetailsSidebarOpen(false);
-    setSelectedDetailModel(null);
-    setSelectedGenerationId(undefined);
+    closeDetailsSidebar();
   };
 
   const handleModelClickFromMessage = (modelId: string, tab: 'overview' | 'pricing' | 'capabilities' = 'overview', generationId?: string) => {
@@ -88,10 +94,7 @@ export default function ChatInterface() {
       );
       
       if (modelInfo && typeof modelInfo === 'object') {
-        setSelectedDetailModel(modelInfo);
-        setSelectedTab(tab);
-        setSelectedGenerationId(generationId);
-        setIsDetailsSidebarOpen(true);
+        showModelDetails(modelInfo, tab, generationId);
       }
     }
   };
@@ -107,18 +110,18 @@ export default function ChatInterface() {
   };
 
   const handleNewChat = () => {
-    // Clear messages and start new chat
-    window.location.reload(); // Simple implementation - in a real app, you'd use proper state management
+    // Create a new conversation using the store
+    createConversation();
   };
 
   const handleToggleChatSidebar = () => {
-    setIsChatSidebarOpen(!isChatSidebarOpen);
+    toggleChatSidebar();
   };
 
   return (
     <div className="flex h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
       {/* Left Sidebar - Chat History (15%) */}
-      <div className="hidden md:block w-[15%] min-w-[200px]">
+      <div className="hidden xl:block w-[15%] min-w-[200px]">
         <ChatSidebar
           isOpen={true}
           onClose={() => {}} // Not used on desktop
@@ -127,7 +130,7 @@ export default function ChatInterface() {
       </div>
 
       {/* Main Chat Area (70%) */}
-      <div className="flex flex-col flex-1 md:w-[70%] min-w-0">
+      <div className="flex flex-col flex-1 xl:w-[70%] min-w-0">
         {/* Header */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
           <div className="flex items-center justify-between">
@@ -135,7 +138,7 @@ export default function ChatInterface() {
               {/* Mobile menu button */}
               <button
                 onClick={handleToggleChatSidebar}
-                className="md:hidden p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg"
+                className="xl:hidden p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg"
                 aria-label="Toggle chat sidebar"
               >
                 <Bars3Icon className="w-5 h-5" />
@@ -164,7 +167,7 @@ export default function ChatInterface() {
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 {messages.length} messages
                 {isEnhanced && (
-                  <span className="ml-1 text-violet-500 dark:text-violet-400">
+                  <span className="ml-1 text-violet-500 dark:text-violet-300">
                     • Enhanced
                   </span>
                 )}
@@ -210,7 +213,7 @@ export default function ChatInterface() {
       </div>
 
       {/* Right Sidebar - Model Details (15%) */}
-      <div className="hidden md:block w-[15%] min-w-[240px]">
+      <div className="hidden xl:block w-[15%] min-w-[240px]">
         <ModelDetailsSidebar
           model={selectedDetailModel}
           isOpen={true} // Always open on desktop
@@ -225,13 +228,13 @@ export default function ChatInterface() {
       {/* Mobile Chat Sidebar */}
       <ChatSidebar
         isOpen={isChatSidebarOpen}
-        onClose={() => setIsChatSidebarOpen(false)}
+        onClose={() => toggleChatSidebar()}
         onNewChat={handleNewChat}
-        className="md:hidden"
+        className="xl:hidden"
       />
 
       {/* Mobile Model Details Sidebar */}
-      <div className="md:hidden">
+      <div className="xl:hidden">
         <ModelDetailsSidebar
           model={selectedDetailModel}
           isOpen={isDetailsSidebarOpen}

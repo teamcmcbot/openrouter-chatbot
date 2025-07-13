@@ -92,8 +92,9 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatTime = (date: Date | string) => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -135,7 +136,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
               {/* Message Content */}
               <div className={`rounded-lg px-4 py-2 transition-all duration-200 relative ${
                 message.role === "user"
-                  ? `bg-emerald-600 text-white ${message.error ? 'ring-2 ring-red-400' : ''}`
+                  ? `bg-emerald-600 text-white`
                   : `bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${
                       hoveredGenerationId && message.completion_id === hoveredGenerationId
                         ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20'
@@ -166,7 +167,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                 
                 {/* Error icon for failed user messages */}
                 {message.role === "user" && message.error && (
-                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center" title="Message failed to send">
+                  <div className="absolute -top-1 -left-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center" title="Message failed to send">
                     <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>

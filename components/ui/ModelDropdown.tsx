@@ -201,12 +201,12 @@ export default function ModelDropdown({
         {isLoading ? (
           <div className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 border border-gray-300 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-gray-700 dark:text-violet-300 font-normal text-xs leading-tight">
+            <span className="text-gray-700 dark:text-violet-400 font-normal text-xs leading-tight">
               Loading...
             </span>
           </div>
         ) : (
-          <span className="text-gray-700 dark:text-violet-300 font-normal text-xs leading-tight">
+          <span className="text-gray-700 dark:text-violet-400 font-normal text-xs leading-tight">
             {getSelectedModelDisplay()}
           </span>
         )}
