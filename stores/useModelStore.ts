@@ -150,7 +150,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
           fetchModels: async () => {
             const state = get();
             if (state.isLoading) {
-              logger.warn('Fetch already in progress, skipping');
+              logger.info('Fetch already in progress, skipping duplicate request');
               return;
             }
 
@@ -513,7 +513,7 @@ export const useModelSelection = () => {
     fetchModels,
   } = useModelStore();
 
-  // Initialize models when hydrated (similar to the original useModelData behavior)
+  // Auto-fetch models when hydrated (similar to useModelData behavior)
   useEffect(() => {
     if (isHydrated && availableModels.length === 0 && !isLoading) {
       logger.info('Initializing model data on mount');

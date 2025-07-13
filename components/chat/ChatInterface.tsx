@@ -3,7 +3,13 @@
 import { useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
-import { useChat, useChatStore, useModelSelection } from "../../stores";
+import { 
+  useChat, 
+  useChatStore, 
+  useModelSelection, 
+  useDetailsSidebar, 
+  useChatSidebarState 
+} from "../../stores";
 import ErrorDisplay from "../ui/ErrorDisplay";
 import ModelDropdown from "../ui/ModelDropdown";
 import { ModelDetailsSidebar } from "../ui/ModelDetailsSidebar";
@@ -22,6 +28,26 @@ export default function ChatInterface() {
     isEnhanced 
   } = useModelSelection();
 
+  // UI state from Zustand store
+  const {
+    selectedDetailModel,
+    isDetailsSidebarOpen,
+    selectedTab,
+    selectedGenerationId,
+    hoveredGenerationId,
+    showModelDetails,
+    closeDetailsSidebar,
+    setHoveredGenerationId,
+  } = useDetailsSidebar();
+
+  const {
+    isChatSidebarOpen,
+    toggleChatSidebar,
+  } = useChatSidebarState();
+
+  // Local state for scroll behavior (transient, doesn't need to be in store)
+  const [scrollToCompletionId, setScrollToCompletionId] = useState<string | undefined>(undefined);
+
   // Retry function to resend the last user message
   const handleRetry = () => {
     // Clear the error first, then retry the last message
@@ -29,18 +55,8 @@ export default function ChatInterface() {
     retryLastMessage();
   };
 
-  // Sidebar states
-  const [selectedDetailModel, setSelectedDetailModel] = useState<ModelInfo | null>(null);
-  const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useState(false);
-  const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'pricing' | 'capabilities'>('overview');
-  const [selectedGenerationId, setSelectedGenerationId] = useState<string | undefined>(undefined);
-  const [hoveredGenerationId, setHoveredGenerationId] = useState<string | undefined>(undefined);
-  const [scrollToCompletionId, setScrollToCompletionId] = useState<string | undefined>(undefined);
-
   const handleShowDetails = (model: ModelInfo) => {
-    setSelectedDetailModel(model);
-    setIsDetailsSidebarOpen(true);
+    showModelDetails(model);
   };
 
   const handleModelSelect = (modelId: string) => {
@@ -53,23 +69,21 @@ export default function ChatInterface() {
       );
       
       if (selectedModelInfo && typeof selectedModelInfo === 'object') {
-        setSelectedDetailModel(selectedModelInfo);
-        setSelectedGenerationId(undefined); // Clear generation ID when switching models
+        // Clear generation ID when switching models and show details
+        showModelDetails(selectedModelInfo, 'overview', undefined);
         
         // Only auto-open sidebar on desktop (md breakpoint and above)
         // On mobile, let users manually open it via the info icon
         const isDesktop = window.matchMedia('(min-width: 768px)').matches;
-        if (isDesktop) {
-          setIsDetailsSidebarOpen(true);
+        if (!isDesktop) {
+          closeDetailsSidebar(); // Don't auto-open on mobile
         }
       }
     }
   };
 
   const handleCloseDetailsSidebar = () => {
-    setIsDetailsSidebarOpen(false);
-    setSelectedDetailModel(null);
-    setSelectedGenerationId(undefined);
+    closeDetailsSidebar();
   };
 
   const handleModelClickFromMessage = (modelId: string, tab: 'overview' | 'pricing' | 'capabilities' = 'overview', generationId?: string) => {
@@ -80,10 +94,7 @@ export default function ChatInterface() {
       );
       
       if (modelInfo && typeof modelInfo === 'object') {
-        setSelectedDetailModel(modelInfo);
-        setSelectedTab(tab);
-        setSelectedGenerationId(generationId);
-        setIsDetailsSidebarOpen(true);
+        showModelDetails(modelInfo, tab, generationId);
       }
     }
   };
@@ -104,7 +115,7 @@ export default function ChatInterface() {
   };
 
   const handleToggleChatSidebar = () => {
-    setIsChatSidebarOpen(!isChatSidebarOpen);
+    toggleChatSidebar();
   };
 
   return (
@@ -217,7 +228,7 @@ export default function ChatInterface() {
       {/* Mobile Chat Sidebar */}
       <ChatSidebar
         isOpen={isChatSidebarOpen}
-        onClose={() => setIsChatSidebarOpen(false)}
+        onClose={() => toggleChatSidebar()}
         onNewChat={handleNewChat}
         className="md:hidden"
       />

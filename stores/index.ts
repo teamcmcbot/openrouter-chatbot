@@ -12,9 +12,10 @@ export * from './storeUtils';
 export * from './types';
 export * from './types/chat';
 export * from './types/model';
+export * from './types/ui';
 
 // Stores
 export { useSettingsStore, useLocalStorage } from './useSettingsStore';
 export { useChatStore, useChat } from './useChatStore';
 export { useModelStore, useModelData, useModelSelection } from './useModelStore';
-// export { useUIStore } from './useUIStore';
+export { useUIStore, useDetailsSidebar, useChatSidebarState, useTheme } from './useUIStore';

@@ -29,6 +29,8 @@ export default function MessageInput({ onSendMessage, disabled = false }: Readon
       <div className="flex items-start space-x-4">
         <div className="flex-1">
           <textarea
+            id="message-input"
+            name="message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}

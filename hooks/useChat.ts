@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { ChatMessage, ChatRequest, ChatResponse } from "../lib/types/chat";
+import { ChatMessage } from "../lib/types/chat";
 
 interface ChatError {
   message: string;
