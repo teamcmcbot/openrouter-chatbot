@@ -18,6 +18,17 @@ const logger = createLogger("ChatStore");
 const generateConversationId = () => `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateMessageId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+// Function to convert string dates back to Date objects after rehydration
+const deserializeDates = (conversations: Conversation[]): Conversation[] => {
+  return conversations.map(conversation => ({
+    ...conversation,
+    messages: conversation.messages.map(message => ({
+      ...message,
+      timestamp: typeof message.timestamp === 'string' ? new Date(message.timestamp) : message.timestamp
+    }))
+  }));
+};
+
 const createNewConversation = (title = "New Chat"): Conversation => ({
   id: generateConversationId(),
   title,
@@ -47,7 +58,11 @@ const updateConversationFromMessages = (conversation: Conversation): Conversatio
         lastMessage.content.substring(0, 100) + "..." : 
         lastMessage.content) : 
       undefined,
-    lastMessageTimestamp: lastMessage?.timestamp.toISOString(),
+    lastMessageTimestamp: lastMessage ? 
+      (typeof lastMessage.timestamp === 'string' ? 
+        lastMessage.timestamp : 
+        lastMessage.timestamp.toISOString()) : 
+      undefined,
     updatedAt: new Date().toISOString(),
   };
 };
@@ -152,7 +167,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   code: errorData.code,
                   suggestions: errorData.suggestions,
                   retryAfter: errorData.retryAfter,
-                  timestamp: errorData.timestamp,
+                  timestamp: errorData.timestamp ?? new Date().toISOString(),
                 };
                 throw chatError;
               }
@@ -389,6 +404,10 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             currentConversationId: state.currentConversationId,
           }),
           onRehydrateStorage: () => (state) => {
+            if (state?.conversations) {
+              // Convert string dates back to Date objects
+              state.conversations = deserializeDates(state.conversations);
+            }
             state?._hasHydrated();
           },
         }

@@ -92,8 +92,9 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatTime = (date: Date | string) => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
