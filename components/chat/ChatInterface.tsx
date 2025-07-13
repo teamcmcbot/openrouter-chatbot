@@ -3,8 +3,7 @@
 import { useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
-import { useChat, useChatStore } from "../../stores";
-import { useModelSelection } from "../../hooks/useModelSelection";
+import { useChat, useChatStore, useModelSelection } from "../../stores";
 import ErrorDisplay from "../ui/ErrorDisplay";
 import ModelDropdown from "../ui/ModelDropdown";
 import { ModelDetailsSidebar } from "../ui/ModelDetailsSidebar";

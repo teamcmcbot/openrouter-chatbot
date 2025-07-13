@@ -108,6 +108,11 @@ export const createLogger = (storeName: string) => ({
       console.debug(`[${storeName}]`, message, data);
     }
   },
+  info: (message: string, data?: unknown) => {
+    if (STORE_CONFIG.DEVTOOLS_ENABLED) {
+      console.info(`[${storeName}]`, message, data);
+    }
+  },
   warn: (message: string, data?: unknown) => {
     console.warn(`[${storeName}]`, message, data);
   },

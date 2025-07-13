@@ -11,11 +11,10 @@ export * from './storeUtils';
 // Type definitions
 export * from './types';
 export * from './types/chat';
+export * from './types/model';
 
 // Stores
 export { useSettingsStore, useLocalStorage } from './useSettingsStore';
 export { useChatStore, useChat } from './useChatStore';
-
-// Note: Individual stores will be exported here as they are created
-// export { useModelStore } from './useModelStore';
+export { useModelStore, useModelData, useModelSelection } from './useModelStore';
 // export { useUIStore } from './useUIStore';
