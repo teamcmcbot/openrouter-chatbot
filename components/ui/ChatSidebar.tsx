@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
 import Button from "./Button";
 import { useChatStore } from "../../stores";
 
@@ -117,7 +117,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
         <div className="p-5 border-b border-gray-200 dark:border-gray-700">
           <Button
             onClick={onNewChat}
-            className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+            className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             <PlusIcon className="w-4 h-4" />
             New Chat
@@ -131,18 +131,46 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
               Recent Chats
             </h3>
             
-            <div className="space-y-2">
-              {recentConversations.map((conversation) => (
+            <div className="space-y-1">
+              {recentConversations.map((conversation, index) => (
                 <div
                   key={conversation.id}
-                  className={`group p-3 rounded-lg cursor-pointer border transition-all duration-200 ${
+                  className={`group p-3 rounded-lg cursor-pointer border transition-all duration-200 relative ${
                     conversation.id === currentConversationId
-                      ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
+                      ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 shadow-sm'
+                      : index % 2 === 0
+                        ? 'bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
+                        : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
                   }`}
                   onClick={() => handleConversationClick(conversation.id)}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  {/* Action buttons overlay - only visible on hover */}
+                  {editingId !== conversation.id && (
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-600 p-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEdit(conversation.id, conversation.title);
+                        }}
+                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+                        title="Edit title"
+                      >
+                        <PencilIcon className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteChat(conversation.id);
+                        }}
+                        className="p-1 text-gray-400 hover:text-red-500 rounded"
+                        title="Delete chat"
+                      >
+                        <TrashIcon className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="w-full"> {/* Remove right padding since buttons are absolutely positioned */}
                     <div className="flex-1 min-w-0">
                       {editingId === conversation.id ? (
                         <div className="space-y-2">
@@ -166,7 +194,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                                 e.stopPropagation();
                                 handleSaveEdit(conversation.id);
                               }}
-                              className="text-xs px-2 py-1 bg-violet-600 text-white rounded hover:bg-violet-700"
+                              className="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
                             >
                               Save
                             </button>
@@ -196,38 +224,17 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                             <span className="text-xs text-gray-500 dark:text-gray-500">
                               {formatTimestamp(conversation.updatedAt)}
                             </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-500">
-                              {conversation.messageCount} messages
-                            </span>
+                            <div className="flex items-center gap-1">
+                              
+                              <span className="text-xs text-gray-500 dark:text-gray-500">
+                                {conversation.messageCount}
+                              </span>
+                              <EnvelopeIcon className="w-3 h-3 text-gray-400 dark:text-gray-500" />
+                            </div>
                           </div>
                         </>
                       )}
                     </div>
-                    
-                    {editingId !== conversation.id && (
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStartEdit(conversation.id, conversation.title);
-                          }}
-                          className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
-                          title="Edit title"
-                        >
-                          <PencilIcon className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteChat(conversation.id);
-                          }}
-                          className="p-1 text-gray-400 hover:text-red-500 rounded"
-                          title="Delete chat"
-                        >
-                          <TrashIcon className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
