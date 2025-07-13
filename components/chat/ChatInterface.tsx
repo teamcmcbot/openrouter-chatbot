@@ -3,7 +3,7 @@
 import { useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
-import { useChat } from "../../hooks/useChat";
+import { useChat, useChatStore } from "../../stores";
 import { useModelSelection } from "../../hooks/useModelSelection";
 import ErrorDisplay from "../ui/ErrorDisplay";
 import ModelDropdown from "../ui/ModelDropdown";
@@ -13,7 +13,8 @@ import { ModelInfo } from "../../lib/types/openrouter";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 
 export default function ChatInterface() {
-  const { messages, isLoading, error, sendMessage, clearError, clearMessageError } = useChat();
+  const { messages, isLoading, error, sendMessage, clearError, retryLastMessage } = useChat();
+  const createConversation = useChatStore((state) => state.createConversation);
   const { 
     availableModels, 
     selectedModel, 
@@ -24,17 +25,9 @@ export default function ChatInterface() {
 
   // Retry function to resend the last user message
   const handleRetry = () => {
-    // Find the last user message
-    const lastUserMessage = messages.slice().reverse().find(msg => msg.role === 'user');
-    if (lastUserMessage) {
-      // Clear the error flag from the failed message
-      clearMessageError(lastUserMessage.id);
-      
-      // Clear the error first
-      clearError();
-      // Resend the last user message with the current selected model
-      sendMessage(lastUserMessage.content, selectedModel);
-    }
+    // Clear the error first, then retry the last message
+    clearError();
+    retryLastMessage();
   };
 
   // Sidebar states
@@ -107,8 +100,8 @@ export default function ChatInterface() {
   };
 
   const handleNewChat = () => {
-    // Clear messages and start new chat
-    window.location.reload(); // Simple implementation - in a real app, you'd use proper state management
+    // Create a new conversation using the store
+    createConversation();
   };
 
   const handleToggleChatSidebar = () => {
