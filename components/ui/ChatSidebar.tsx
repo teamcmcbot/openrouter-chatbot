@@ -90,7 +90,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
       {/* Mobile Overlay */}
       {isOpen && (
         <button 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 z-40 xl:hidden"
           onClick={onClose}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
@@ -104,11 +104,11 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
       {/* Sidebar */}
       <aside 
         className={`
-          fixed md:static inset-y-0 left-0 z-50 md:z-0
-          w-64 md:w-full h-full
+          fixed xl:static inset-y-0 left-0 z-50 xl:z-0
+          w-64 xl:w-full h-full
           bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
           transform transition-transform duration-300 ease-in-out
-          ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          ${isOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'}
           flex flex-col
           ${className}
         `}

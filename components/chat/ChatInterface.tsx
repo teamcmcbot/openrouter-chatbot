@@ -72,9 +72,9 @@ export default function ChatInterface() {
         // Clear generation ID when switching models and show details
         showModelDetails(selectedModelInfo, 'overview', undefined);
         
-        // Only auto-open sidebar on desktop (md breakpoint and above)
+        // Only auto-open sidebar on desktop (xl breakpoint and above)
         // On mobile, let users manually open it via the info icon
-        const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+        const isDesktop = window.matchMedia('(min-width: 1280px)').matches;
         if (!isDesktop) {
           closeDetailsSidebar(); // Don't auto-open on mobile
         }
@@ -121,7 +121,7 @@ export default function ChatInterface() {
   return (
     <div className="flex h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
       {/* Left Sidebar - Chat History (15%) */}
-      <div className="hidden md:block w-[15%] min-w-[200px]">
+      <div className="hidden xl:block w-[15%] min-w-[200px]">
         <ChatSidebar
           isOpen={true}
           onClose={() => {}} // Not used on desktop
@@ -130,7 +130,7 @@ export default function ChatInterface() {
       </div>
 
       {/* Main Chat Area (70%) */}
-      <div className="flex flex-col flex-1 md:w-[70%] min-w-0">
+      <div className="flex flex-col flex-1 xl:w-[70%] min-w-0">
         {/* Header */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
           <div className="flex items-center justify-between">
@@ -138,7 +138,7 @@ export default function ChatInterface() {
               {/* Mobile menu button */}
               <button
                 onClick={handleToggleChatSidebar}
-                className="md:hidden p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg"
+                className="xl:hidden p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg"
                 aria-label="Toggle chat sidebar"
               >
                 <Bars3Icon className="w-5 h-5" />
@@ -213,7 +213,7 @@ export default function ChatInterface() {
       </div>
 
       {/* Right Sidebar - Model Details (15%) */}
-      <div className="hidden md:block w-[15%] min-w-[240px]">
+      <div className="hidden xl:block w-[15%] min-w-[240px]">
         <ModelDetailsSidebar
           model={selectedDetailModel}
           isOpen={true} // Always open on desktop
@@ -230,11 +230,11 @@ export default function ChatInterface() {
         isOpen={isChatSidebarOpen}
         onClose={() => toggleChatSidebar()}
         onNewChat={handleNewChat}
-        className="md:hidden"
+        className="xl:hidden"
       />
 
       {/* Mobile Model Details Sidebar */}
-      <div className="md:hidden">
+      <div className="xl:hidden">
         <ModelDetailsSidebar
           model={selectedDetailModel}
           isOpen={isDetailsSidebarOpen}

@@ -115,7 +115,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
       {/* Mobile Overlay */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 xl:hidden"
           onClick={onClose}
           aria-hidden="true"
         />
@@ -124,8 +124,8 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
       <aside 
         className={`h-full bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out overflow-hidden
           ${isOpen ? 'w-96' : 'w-0'}
-          md:relative md:block md:w-full
-          ${isOpen ? 'fixed inset-y-0 right-0 z-50 md:relative md:z-auto' : 'hidden md:block'}
+          xl:relative xl:block xl:w-full
+          ${isOpen ? 'fixed inset-y-0 right-0 z-50 xl:relative xl:z-auto' : 'hidden xl:block'}
         `}
         aria-labelledby="sidebar-title"
       >
