@@ -28,42 +28,185 @@ Currently, each API call to OpenRouter is stateless and does not include chat hi
 
 ## Implementation Plan
 
-### 1. Message Selection
+### 1. Message Selection Strategy
 
-- For each API call, include up to the last 5 messages (user and assistant) from the current chat session.
-- If fewer than 5 messages exist, include all.
+**Previous Messages Format**: Standard OpenRouter messages array format (NOT system messages)
 
-### 2. Summarization (Optional/Advanced)
+```typescript
+// NEW API payload structure
+[
+  { role: "user", content: "What is React?" },
+  { role: "assistant", content: "React is a JavaScript library..." },
+  { role: "user", content: "How do I use hooks?" }, // Current message
+];
+```
 
-- If the conversation exceeds 5 messages, summarize earlier messages into a concise system prompt or summary message.
-- Use a local summarization function or leverage the LLM for summarization.
-- Prepend the summary to the message list sent to the API.
+**Message Count**: Default 5 conversation pairs (5 user + 5 assistant = up to 10 messages)
 
-### 3. API Payload Structure
+- Configurable via environment: `CONTEXT_MESSAGE_PAIRS=5`
+- Progressive reduction if token limits approached: 5→4→3→2→1→0 pairs
 
-- Construct the API request payload as an array of messages, e.g.:
-  ```typescript
-  [
-    { role: "system", content: "Summary of earlier conversation..." }, // optional
-    { role: "user", content: "..." },
-    { role: "assistant", content: "..." },
-    // ...up to last 5 messages
-  ];
-  ```
-- Ensure the payload fits within the model's context window (token limit).
+### 2. Dynamic Token Management
 
-### 4. Token Management
+**Current Problem**: Fixed `OPENROUTER_MAX_TOKENS=5000` for ALL models is inefficient
 
-- Estimate token usage for the selected messages.
-- If approaching the model's token limit, further truncate or summarize context.
-- Optionally, allow user-configurable context window size.
+**New Strategy**: Model-aware token allocation based on context length
+
+- **60% for input context**: Include conversation history
+- **40% for output generation**: Allow longer responses
+- **Reserve 150 tokens**: Safety buffer
+
+**Examples**:
+
+- **GPT-4o** (128K): ~77K input context, ~51K output
+- **DeepSeek R1** (64K): ~38K input context, ~26K output
+- **Free models** (8K): ~5K input context, ~3K output
+
+### 3. Context Length Awareness
+
+**Model Context Detection**: Use existing model store data
+
+```typescript
+const modelInfo = useModelStore.getState().getModelById(model);
+const contextLength = modelInfo?.context_length || 8000; // fallback
+```
+
+**Token Estimation**: Approximate counting for real-time decisions
+
+```typescript
+// Rough estimation: ~4 characters per token
+function estimateTokenCount(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+```
+
+### 4. Intelligent Context Selection
+
+**Algorithm**: Fit maximum recent messages within token budget
+
+- Start from most recent messages and work backwards
+- Include complete conversation pairs when possible
+- Stop when adding next message would exceed token limit
+- Ensure coherent context boundaries (don't cut mid-conversation)
+
+### Example: Context Selection Algorithm
+
+Using your conversation data as an example:
+
+```typescript
+// Your conversation: 3 pairs, 1,475 tokens total
+const messages = [
+  {
+    role: "user",
+    content: "Which basketball team in the NBA has won the most finals?",
+  }, // ~15 tokens
+  {
+    role: "assistant",
+    content: "**The Boston Celtics** have won...",
+    total_tokens: 128,
+  }, // 128 tokens
+  { role: "user", content: "What is the average salary of NBA players?" }, // ~12 tokens
+  {
+    role: "assistant",
+    content: "The average salary of NBA players...",
+    total_tokens: 688,
+  }, // 688 tokens
+  { role: "user", content: "Favourite Dota 2 duo laning heroes" }, // ~8 tokens
+  {
+    role: "assistant",
+    content: "When it comes to Dota 2's duo lanes...",
+    total_tokens: 659,
+  }, // 659 tokens
+];
+
+// New user message
+const newMessage = {
+  role: "user",
+  content: "What about Dota 2 pro player salaries?",
+}; // ~10 tokens
+
+function selectContextMessages(messages, maxInputTokens) {
+  const contextMessages = [];
+  let totalTokens = estimateTokenCount(newMessage.content); // Start with new message
+
+  // Work backwards from most recent
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    const messageTokens =
+      message.total_tokens || estimateTokenCount(message.content);
+
+    if (totalTokens + messageTokens > maxInputTokens) {
+      break; // Would exceed budget
+    }
+
+    contextMessages.unshift(message);
+    totalTokens += messageTokens;
+  }
+
+  return { contextMessages, totalTokens };
+}
+
+// For different models:
+
+// Large model (64K context, ~39K input budget)
+const largeModelResult = selectContextMessages(messages, 39000);
+// Result: ALL 6 messages included (1,475 + 10 = 1,485 tokens)
+
+// Medium model (16K context, ~9.6K input budget)
+const mediumModelResult = selectContextMessages(messages, 9600);
+// Result: ALL 6 messages included (still fits)
+
+// Small model (4K context, ~2.4K input budget)
+const smallModelResult = selectContextMessages(messages, 2400);
+// Result: Only last 2-3 messages included (~700-800 tokens)
+// Might include: Dota 2 question + answer + new message
+```
+
+## Smart Pair Preservation
+
+The algorithm also ensures **complete conversation pairs** when possible:
+
+```typescript
+function selectContextWithPairs(messages, maxInputTokens) {
+  // Always try to include complete user+assistant pairs
+  // If a user message fits but not the assistant response,
+  // decide whether to include the incomplete pair or not
+
+  // Strategy: Prefer complete pairs over partial context
+  if (wouldBreakPair && hasCompletePairAlternative) {
+    return includeCompletePairs();
+  }
+}
+```
+
+### 5. Summarization Strategy (Advanced)
+
+**When to Summarize**:
+
+- Conversation exceeds 20 message pairs
+- Token budget forces aggressive context truncation
+- User manually requests summarization
+
+**How to Summarize**:
+
+- Use same LLM model for consistency
+- Store summary in conversation metadata
+- Include summary as context when needed
 
 ---
 
 ## Database/State Changes
 
-- No schema changes required; chat history is already stored per session.
-- Update chat API logic to retrieve and package recent messages for each request.
+**Current State Management**: Zustand-based conversation storage already implemented
+
+- Conversations persist in `useChatStore` with full message history
+- No schema changes required - existing `ChatMessage[]` structure supports context
+
+**Required Updates**:
+
+- Update chat API logic to retrieve conversation history from current conversation
+- Modify OpenRouter client to accept message arrays instead of single message
+- Add token estimation and context selection utilities
 
 ---
 
@@ -91,20 +234,54 @@ Currently, each API call to OpenRouter is stateless and does not include chat hi
 
 ## Implementation Steps (MVP)
 
-1. Update chat API to include last 5 messages in each request.
-2. Add logic to summarize earlier messages if chat exceeds 5 messages (optional for MVP).
-3. Test with various conversation lengths and verify context is preserved.
-4. Monitor token usage and adjust logic as needed.
+1. **Add Token Management Utilities** (`lib/utils/tokens.ts`)
+
+   - Token estimation functions
+   - Model-aware context calculation
+   - Progressive context reduction logic
+
+2. **Update OpenRouter Client** (`lib/utils/openrouter.ts`)
+
+   - Accept message arrays instead of single message
+   - Support dynamic max_tokens based on model context length
+   - Enhanced error handling for token limit exceeded
+
+3. **Modify Chat Store** (`stores/useChatStore.ts`)
+
+   - Add context message selection logic
+   - Implement conversation history retrieval
+   - Include token-aware message filtering
+
+4. **Update Chat API Endpoint** (`src/app/api/chat/route.ts`)
+
+   - Accept conversation context in request body
+   - Calculate optimal token allocation per model
+   - Pass full message history to OpenRouter
+
+5. **Add Configuration**
+
+   - Environment variables for context settings
+   - Model context length integration
+   - Fallback mechanisms and error handling
+
+6. **Testing & Validation**
+   - Test with various conversation lengths
+   - Verify context preservation across different models
+   - Monitor token usage and optimize allocation
 
 ---
 
 ## Future Enhancements
 
-- Advanced summarization using LLM or external service
-- Dynamic context window based on token usage/model
-- User-configurable context settings
-- Visual indicators for context/summarization in UI
+- **Advanced LLM-based summarization** for long conversations
+- **Dynamic context window** based on real-time token usage analysis
+- **User-configurable context settings** in settings store
+- **Visual indicators** in UI showing context inclusion/summarization status
+- **Context optimization** using embeddings for semantic relevance
+- **Model-specific context strategies** for different LLM capabilities
 
 ---
 
-This draft outlines the requirements and strategies for implementing context-aware chat in the OpenRouter Chatbot. The approach balances conversational quality with efficiency and token constraints.
+This specification outlines a comprehensive approach to implementing context-aware chat that leverages the existing Zustand architecture while providing intelligent, model-aware context management. The implementation balances conversational quality with efficiency and respects each model's unique context constraints.
+
+**Key Innovation**: Unlike simple message count limits, this approach uses dynamic token allocation based on each model's actual context length, maximizing context utilization while preventing token limit errors.
