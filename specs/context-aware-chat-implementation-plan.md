@@ -382,31 +382,31 @@ interface Conversation {
 
 **File**: `stores/useChatStore.ts`
 
-- [ ] Create `getContextMessages(maxTokens: number)` method
-- [ ] Implement backward message selection algorithm
-- [ ] Add logic to preserve complete conversation pairs when possible
-- [ ] Add extensive logging for context selection decisions
-- [ ] **Human Verification**: Console shows which messages are included/excluded
+- [x] Create `getContextMessages(maxTokens: number)` method
+- [x] Implement backward message selection algorithm
+- [x] Add logic to preserve complete conversation pairs when possible
+- [x] Add extensive logging for context selection decisions
+- [x] **Human Verification**: Console shows which messages are included/excluded
 
 #### Task 3.2: Integrate Token Calculation in sendMessage
 
 **File**: `stores/useChatStore.ts`
 
-- [ ] Modify `sendMessage` to calculate model-specific token limits
-- [ ] Call `getContextMessages` to select appropriate history
-- [ ] Build complete message array (context + new message)
-- [ ] Add logging for total token usage and context decisions
-- [ ] **Human Verification**: Console logs show token calculations before API calls
+- [x] Modify `sendMessage` to calculate model-specific token limits
+- [x] Call `getContextMessages` to select appropriate history
+- [x] Build complete message array (context + new message)
+- [x] Add logging for total token usage and context decisions
+- [x] **Human Verification**: Console logs show token calculations before API calls
 
 #### Task 3.3: Add Progressive Fallback Logic
 
 **File**: `stores/useChatStore.ts`
 
-- [ ] Implement context reduction when token limit exceeded
-- [ ] Add fallback chain: 5→4→3→2→1→0 message pairs
-- [ ] Log each fallback step for debugging
-- [ ] Ensure system gracefully handles all edge cases
-- [ ] **Human Verification**: Test with small models to trigger fallbacks
+- [x] Implement context reduction when token limit exceeded
+- [x] Add fallback chain: 5→4→3→2→1→0 message pairs
+- [x] Log each fallback step for debugging
+- [x] Ensure system gracefully handles all edge cases
+- [x] **Human Verification**: Test with small models to trigger fallbacks
 
 **🛑 CHECKPOINT 3**: Chat store selects appropriate context
 **Commit Message**: `feat: add intelligent context selection to chat store`
@@ -542,9 +542,9 @@ interface Conversation {
 
 ### Phase 3 Verification:
 
-- [ ] Console shows intelligent message selection
-- [ ] Token calculations displayed before API calls
-- [ ] Fallback logic triggers with small models
+- [x] Console shows intelligent message selection
+- [x] Token calculations displayed before API calls
+- [x] Fallback logic triggers with small models
 
 ### Phase 4 Verification:
 

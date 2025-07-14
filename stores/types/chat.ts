@@ -42,6 +42,7 @@ export interface ChatState {
   clearError: () => void;
   clearMessageError: (messageId: string) => void;
   retryLastMessage: () => Promise<void>;
+  getContextMessages: (maxTokens: number) => ChatMessage[]; // Phase 3: Context selection
 
   // Internal hydration handler
   _hasHydrated: () => void;

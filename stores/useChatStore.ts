@@ -11,6 +11,14 @@ import { ChatMessage } from "../lib/types/chat";
 import { ChatState, Conversation, ChatError, ChatSelectors } from "./types/chat";
 import { STORAGE_KEYS } from "../lib/constants";
 import { createLogger } from "./storeUtils";
+// Phase 3: Import token management utilities
+import { 
+  estimateTokenCount, 
+  estimateMessagesTokens, 
+  getModelTokenLimits, 
+  isWithinInputBudget,
+  getMaxOutputTokens
+} from "../lib/utils/tokens";
 
 const logger = createLogger("ChatStore");
 
@@ -111,6 +119,48 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }));
           },
 
+          // Phase 3: Context selection method
+          getContextMessages: (maxTokens: number) => {
+            const { currentConversationId, conversations } = get();
+            
+            if (!currentConversationId) {
+              console.log('[Context Selection] No current conversation');
+              return [];
+            }
+
+            const conversation = conversations.find(c => c.id === currentConversationId);
+            if (!conversation || conversation.messages.length <= 1) {
+              console.log('[Context Selection] No conversation or insufficient messages');
+              return [];
+            }
+
+            // Exclude the current user message (last message) if it exists
+            const messages = conversation.messages.slice(0, -1);
+            const selectedMessages: ChatMessage[] = [];
+            let tokenCount = 0;
+
+            console.log(`[Context Selection] Starting selection from ${messages.length} available messages`);
+            console.log(`[Context Selection] Token budget: ${maxTokens} tokens`);
+
+            // Start from most recent and work backwards
+            for (let i = messages.length - 1; i >= 0; i--) {
+              const message = messages[i];
+              const messageTokens = estimateTokenCount(message.content) + 4; // structure overhead
+
+              if (tokenCount + messageTokens > maxTokens) {
+                console.log(`[Context Selection] Would exceed budget with message ${i}: ${messageTokens} tokens (total would be ${tokenCount + messageTokens})`);
+                break; // Would exceed limit
+              }
+
+              selectedMessages.unshift(message); // Add to beginning
+              tokenCount += messageTokens;
+              console.log(`[Context Selection] Included message ${i}: ${messageTokens} tokens (running total: ${tokenCount})`);
+            }
+
+            console.log(`[Context Selection] Selected ${selectedMessages.length} messages using ${tokenCount}/${maxTokens} tokens`);
+            return selectedMessages;
+          },
+
           sendMessage: async (content, model) => {
             if (!content.trim() || get().isLoading) {
               logger.warn("Cannot send message: empty content or already loading");
@@ -149,9 +199,79 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }));
 
             try {
-              const requestBody: { message: string; model?: string } = { message: content };
-              if (model) {
-                requestBody.model = model;
+              // Phase 3: Check if context-aware mode is enabled
+              const isContextAwareEnabled = process.env.NEXT_PUBLIC_ENABLE_CONTEXT_AWARE === 'true';
+              
+              console.log(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
+              console.log(`[Send Message] Model: ${model || 'default'}`);
+
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[] };
+
+              if (isContextAwareEnabled) {
+                // Phase 3: Get model-specific token limits and select context
+                const strategy = getModelTokenLimits(model);
+                console.log(`[Send Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
+
+                // Get context messages within token budget
+                const contextMessages = get().getContextMessages(strategy.maxInputTokens);
+                
+                // Build complete message array (context + new message)
+                const allMessages = [...contextMessages, userMessage];
+                
+                // Calculate total token usage
+                const totalTokens = estimateMessagesTokens(allMessages);
+                console.log(`[Send Message] Total message tokens: ${totalTokens}/${strategy.maxInputTokens}`);
+                
+                // Validate budget
+                if (!isWithinInputBudget(totalTokens, strategy)) {
+                  console.log(`[Send Message] Token budget exceeded, falling back to progressive reduction`);
+                  
+                  // Progressive fallback: try smaller context
+                  const fallbackSizes = [
+                    Math.floor(strategy.maxInputTokens * 0.8),
+                    Math.floor(strategy.maxInputTokens * 0.6),
+                    Math.floor(strategy.maxInputTokens * 0.4),
+                    Math.floor(strategy.maxInputTokens * 0.2),
+                    estimateTokenCount(userMessage.content) + 20 // Just user message + buffer
+                  ];
+                  
+                  let finalContextMessages = contextMessages;
+                  for (const fallbackSize of fallbackSizes) {
+                    const reducedContext = get().getContextMessages(fallbackSize);
+                    const reducedTotal = estimateMessagesTokens([...reducedContext, userMessage]);
+                    
+                    if (reducedTotal <= strategy.maxInputTokens) {
+                      finalContextMessages = reducedContext;
+                      console.log(`[Send Message] Using fallback context: ${reducedContext.length} messages, ${reducedTotal} tokens`);
+                      break;
+                    }
+                  }
+                  
+                  // Build request with conversation context
+                  requestBody = { 
+                    message: content, 
+                    messages: [...finalContextMessages, userMessage]
+                  };
+                } else {
+                  // Build request with conversation context
+                  requestBody = { 
+                    message: content, 
+                    messages: allMessages
+                  };
+                }
+                
+                if (model) {
+                  requestBody.model = model;
+                }
+                
+                console.log(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
+              } else {
+                // Legacy format
+                requestBody = { message: content };
+                if (model) {
+                  requestBody.model = model;
+                }
+                console.log(`[Send Message] Sending LEGACY format (single message)`);
               }
 
               const response = await fetch("/api/chat", {
