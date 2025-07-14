@@ -352,21 +352,21 @@ interface Conversation {
 
 **File**: `lib/utils/openrouter.ts`
 
-- [ ] Update `getOpenRouterCompletion` signature to accept `maxTokens?: number`
-- [ ] Modify function to use dynamic `max_tokens` instead of fixed value
-- [ ] Add logging for request payload size and token allocation
-- [ ] Maintain backward compatibility with single message format
-- [ ] **Human Verification**: Network tab shows dynamic max_tokens in API requests
+- [x] Update `getOpenRouterCompletion` signature to accept `maxTokens?: number`
+- [x] Modify function to use dynamic `max_tokens` instead of fixed value
+- [x] Add logging for request payload size and token allocation
+- [x] Maintain backward compatibility with single message format
+- [x] **Human Verification**: Network tab shows dynamic max_tokens in API requests
 
 #### Task 2.2: Add Request Validation
 
 **File**: `lib/utils/validation.ts`
 
-- [ ] Update `validateChatRequest` to accept optional `messages` array
-- [ ] Add validation for message array format
-- [ ] Ensure backward compatibility with single message requests
-- [ ] Add logging for request validation results
-- [ ] **Human Verification**: Both old and new request formats work correctly
+- [x] Update `validateChatRequest` to accept optional `messages` array
+- [x] Add validation for message array format
+- [x] Ensure backward compatibility with single message requests
+- [x] Add logging for request validation results
+- [x] **Human Verification**: Both old and new request formats work correctly
 
 **🛑 CHECKPOINT 2**: OpenRouter client accepts conversation arrays
 **Commit Message**: `feat: enhance OpenRouter client for conversation context`
@@ -536,9 +536,9 @@ interface Conversation {
 
 ### Phase 2 Verification:
 
-- [ ] Network tab shows dynamic max_tokens in requests
-- [ ] Both old and new request formats accepted
-- [ ] API requests maintain backward compatibility
+- [x] Network tab shows dynamic max_tokens in requests
+- [x] Both old and new request formats accepted
+- [x] API requests maintain backward compatibility
 
 ### Phase 3 Verification:
 

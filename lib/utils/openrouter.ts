@@ -46,18 +46,25 @@ function getAlternativeModels(currentModel: string): string[] {
 
 export async function getOpenRouterCompletion(
   messages: OpenRouterRequest['messages'],
-  model?: string
+  model?: string,
+  maxTokens?: number // NEW: dynamic max tokens
 ): Promise<OpenRouterResponse> {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OPENROUTER_API_KEY is not set');
   }
 
   const selectedModel = model ?? OPENROUTER_API_MODEL;
+  const dynamicMaxTokens = maxTokens ?? OPENROUTER_MAX_TOKENS;
+
+  // Phase 2: Log request payload details for human verification
+  console.log(`[OpenRouter Request] Model: ${selectedModel}`);
+  console.log(`[OpenRouter Request] Messages: ${messages.length} messages`);
+  console.log(`[OpenRouter Request] Max Tokens: ${dynamicMaxTokens} (${maxTokens ? 'dynamic' : 'legacy default'})`);
 
   const requestBody: OpenRouterRequest = {
     model: selectedModel,
     messages,
-    max_tokens: OPENROUTER_MAX_TOKENS,
+    max_tokens: dynamicMaxTokens, // NOW: Dynamic max tokens
     temperature: 0.7,
   };
 

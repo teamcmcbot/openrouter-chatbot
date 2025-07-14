@@ -17,6 +17,7 @@ export interface ChatRequest {
   message: string;
   model?: string;
   preferMarkdown?: boolean; // New optional field
+  messages?: ChatMessage[]; // NEW: Optional conversation context
 }
 
 export interface ChatResponse {

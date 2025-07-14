@@ -22,7 +22,14 @@ export async function POST(req: NextRequest) {
 
     logger.debug('Validated chat request data:', data);
 
-    const messages: OpenRouterRequest['messages'] = [{ role: 'user', content: data!.message }];
+    // Phase 2: Support both old and new message formats
+    const messages: OpenRouterRequest['messages'] = data!.messages || [{ role: 'user', content: data!.message }];
+    
+    // Phase 2: Log request format for human verification
+    console.log(`[Chat API] Request format: ${data!.messages ? 'NEW' : 'LEGACY'}`);
+    console.log(`[Chat API] Message count: ${messages.length} messages`);
+    console.log(`[Chat API] Current message: "${data!.message}"`);
+    
     const openRouterResponse = await getOpenRouterCompletion(messages, data!.model);
     logger.debug('OpenRouter response received:', openRouterResponse);
     const assistantResponse = openRouterResponse.choices[0].message.content;
