@@ -310,33 +310,33 @@ interface Conversation {
 
 **File**: `lib/utils/tokens.ts` (NEW)
 
-- [ ] Create `estimateTokenCount(text: string)` function
-- [ ] Create `estimateMessagesTokens(messages: ChatMessage[])` function
-- [ ] Add comprehensive unit tests for token estimation
-- [ ] Add console logging to verify estimation accuracy
-- [ ] **Human Verification**: Check console logs showing token estimates vs actual API usage
+- [x] Create `estimateTokenCount(text: string)` function
+- [x] Create `estimateMessagesTokens(messages: ChatMessage[])` function
+- [x] Add comprehensive unit tests for token estimation
+- [x] Add console logging to verify estimation accuracy
+- [x] **Human Verification**: Check console logs showing token estimates vs actual API usage
 
 #### Task 1.2: Add Model-Aware Token Strategy
 
 **File**: `lib/utils/tokens.ts`
 
-- [ ] Create `TokenStrategy` interface
-- [ ] Implement `calculateTokenStrategy(contextLength: number)` function
-- [ ] Add `getModelTokenLimits(modelId: string)` function using model store
-- [ ] Add debug logging for token allocation decisions
-- [ ] **Human Verification**: Console logs showing different token allocations per model
+- [x] Create `TokenStrategy` interface
+- [x] Implement `calculateTokenStrategy(contextLength: number)` function
+- [x] Add `getModelTokenLimits(modelId: string)` function using model store
+- [x] Add debug logging for token allocation decisions
+- [x] **Human Verification**: Console logs showing different token allocations per model
 
 #### Task 1.3: Update Environment Configuration
 
 **Files**: `.env.example` and `.env.local`
 
-- [ ] Add `CONTEXT_MESSAGE_PAIRS=5` (default conversation pairs to include)
-- [ ] Add `CONTEXT_RATIO=0.6` (60% for input context)
-- [ ] Add `OUTPUT_RATIO=0.4` (40% for output generation)
-- [ ] Add `RESERVE_TOKENS=150` (safety buffer)
-- [ ] Add `ENABLE_CONTEXT_AWARE=true` (feature flag)
-- [ ] Keep `OPENROUTER_MAX_TOKENS=1000` (legacy fallback)
-- [ ] **Human Verification**: Environment variables loaded correctly in development
+- [x] Add `CONTEXT_MESSAGE_PAIRS=5` (default conversation pairs to include)
+- [x] Add `CONTEXT_RATIO=0.6` (60% for input context)
+- [x] Add `OUTPUT_RATIO=0.4` (40% for output generation)
+- [x] Add `RESERVE_TOKENS=150` (safety buffer)
+- [x] Add `ENABLE_CONTEXT_AWARE=true` (feature flag)
+- [x] Keep `OPENROUTER_MAX_TOKENS=1000` (legacy fallback)
+- [x] **Human Verification**: Environment variables loaded correctly in development
 
 **🛑 CHECKPOINT 1**: Token utilities working and tested
 **Commit Message**: `feat: add token estimation utilities and model-aware strategy`
@@ -530,9 +530,9 @@ interface Conversation {
 
 ### Phase 1 Verification:
 
-- [ ] Console logs show accurate token estimates
-- [ ] Different models show different token allocations
-- [ ] Environment variables load correctly
+- [x] Console logs show accurate token estimates
+- [x] Different models show different token allocations
+- [x] Environment variables load correctly
 
 ### Phase 2 Verification:
 
