@@ -119,7 +119,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }));
           },
 
-          // Phase 3: Context selection method
+          // Phase 3: Context selection method with pair-based and token-based limits
           getContextMessages: (maxTokens: number) => {
             const { currentConversationId, conversations } = get();
             
@@ -129,35 +129,101 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }
 
             const conversation = conversations.find(c => c.id === currentConversationId);
-            if (!conversation || conversation.messages.length <= 1) {
-              console.log('[Context Selection] No conversation or insufficient messages');
+            if (!conversation) {
+              console.log('[Context Selection] No conversation found');
               return [];
             }
 
             // Exclude the current user message (last message) if it exists
             const messages = conversation.messages.slice(0, -1);
-            const selectedMessages: ChatMessage[] = [];
-            let tokenCount = 0;
-
+            
+            if (messages.length === 0) {
+              console.log('[Context Selection] No messages available for context');
+              return [];
+            }
+            
+            // Get configuration from environment
+            const maxMessagePairs = parseInt(process.env.CONTEXT_MESSAGE_PAIRS || '5', 10);
+            
             console.log(`[Context Selection] Starting selection from ${messages.length} available messages`);
             console.log(`[Context Selection] Token budget: ${maxTokens} tokens`);
+            console.log(`[Context Selection] Max message pairs: ${maxMessagePairs} pairs`);
 
-            // Start from most recent and work backwards
-            for (let i = messages.length - 1; i >= 0; i--) {
+            // Strategy: Intelligent pair-based selection with fallback
+            const selectedMessages: ChatMessage[] = [];
+            let tokenCount = 0;
+            let pairCount = 0;
+
+            // Try to select complete user-assistant pairs first
+            let pendingUserMessage: ChatMessage | null = null;
+            
+            for (let i = messages.length - 1; i >= 0 && pairCount < maxMessagePairs; i--) {
               const message = messages[i];
               const messageTokens = estimateTokenCount(message.content) + 4; // structure overhead
-
+              
+              // Check token budget first
               if (tokenCount + messageTokens > maxTokens) {
-                console.log(`[Context Selection] Would exceed budget with message ${i}: ${messageTokens} tokens (total would be ${tokenCount + messageTokens})`);
-                break; // Would exceed limit
+                console.log(`[Context Selection] Would exceed token budget with message ${i}: ${messageTokens} tokens (total would be ${tokenCount + messageTokens})`);
+                break;
               }
 
-              selectedMessages.unshift(message); // Add to beginning
-              tokenCount += messageTokens;
-              console.log(`[Context Selection] Included message ${i}: ${messageTokens} tokens (running total: ${tokenCount})`);
+              if (message.role === 'user') {
+                // Store user message, but don't add it yet (wait for complete pair)
+                pendingUserMessage = message;
+              } else if (message.role === 'assistant' && pendingUserMessage) {
+                // Found a complete pair (assistant response to stored user message)
+                const pairTokens = messageTokens + estimateTokenCount(pendingUserMessage.content) + 4;
+                
+                if (tokenCount + pairTokens <= maxTokens) {
+                  // Add the complete pair (user first, then assistant)
+                  selectedMessages.unshift(pendingUserMessage, message);
+                  tokenCount += pairTokens;
+                  pairCount++;
+                  console.log(`[Context Selection] Added pair ${pairCount}: user+assistant (${pairTokens} tokens, running total: ${tokenCount})`);
+                  pendingUserMessage = null; // Reset
+                } else {
+                  console.log(`[Context Selection] Pair would exceed token budget: ${pairTokens} tokens`);
+                  break;
+                }
+              } else if (message.role === 'assistant' && !pendingUserMessage) {
+                // Orphaned assistant message (no prior user message) - might be from a failure
+                if (tokenCount + messageTokens <= maxTokens) {
+                  selectedMessages.unshift(message);
+                  tokenCount += messageTokens;
+                  console.log(`[Context Selection] Added orphaned assistant message: ${messageTokens} tokens (running total: ${tokenCount})`);
+                }
+              }
+            }
+            
+            // If we have an unpaired user message at the end, try to include it
+            if (pendingUserMessage && tokenCount + estimateTokenCount(pendingUserMessage.content) + 4 <= maxTokens) {
+              selectedMessages.unshift(pendingUserMessage);
+              tokenCount += estimateTokenCount(pendingUserMessage.content) + 4;
+              console.log(`[Context Selection] Added unpaired user message: ${estimateTokenCount(pendingUserMessage.content) + 4} tokens (running total: ${tokenCount})`);
+            }
+            
+            // If we still have budget and fewer than maxMessagePairs, add older messages individually
+            if (pairCount < maxMessagePairs && tokenCount < maxTokens) {
+              const earliestIncludedIndex = selectedMessages.length > 0 ? 
+                messages.findIndex(m => m.id === selectedMessages[0].id) : messages.length;
+              
+              for (let i = earliestIncludedIndex - 1; i >= 0; i--) {
+                const message = messages[i];
+                const messageTokens = estimateTokenCount(message.content) + 4;
+                
+                if (tokenCount + messageTokens > maxTokens) {
+                  break;
+                }
+                
+                selectedMessages.unshift(message);
+                tokenCount += messageTokens;
+                console.log(`[Context Selection] Added individual message ${i}: ${messageTokens} tokens (running total: ${tokenCount})`);
+              }
             }
 
-            console.log(`[Context Selection] Selected ${selectedMessages.length} messages using ${tokenCount}/${maxTokens} tokens`);
+            console.log(`[Context Selection] Final: ${selectedMessages.length} messages, ${pairCount} complete pairs, ${tokenCount}/${maxTokens} tokens`);
+            console.log(`[Context Selection] Message breakdown: ${selectedMessages.map(m => m.role).join(' → ')}`);
+            
             return selectedMessages;
           },
 
