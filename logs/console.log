@@ -1,240 +1,450 @@
-Navigated to http://localhost:3000/
-main-app.js?v=1752410985956:2314 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
-storeUtils.ts:113 [ModelStore] Initializing model data on mount undefined
-storeUtils.ts:113 [ModelStore] Cache version mismatch, invalidating cache undefined
-storeUtils.ts:113 [ModelStore] Fetching fresh model data undefined
-storeUtils.ts:113 [ModelStore] Initializing model data on mount undefined
-storeUtils.ts:117 [ModelStore] Fetch already in progress, skipping undefined
-warn @ storeUtils.ts:117
-fetchModels @ useModelStore.ts:153
-useModelSelection.useEffect @ useModelStore.ts:520
-react-stack-bottom-frame @ react-dom-client.development.js:23055
-runWithFiberInDEV @ react-dom-client.development.js:845
-commitHookEffectListMount @ react-dom-client.development.js:11978
-commitHookPassiveMountEffects @ react-dom-client.development.js:12099
-reconnectPassiveEffects @ react-dom-client.development.js:14097
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14090
-recursivelyTraverseReconnectPassiveEffects @ react-dom-client.development.js:14068
-reconnectPassiveEffects @ react-dom-client.development.js:14144
-doubleInvokeEffectsOnFiber @ react-dom-client.development.js:16100
-runWithFiberInDEV @ react-dom-client.development.js:845
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16060
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16067
-commitDoubleInvokeEffectsInDEV @ react-dom-client.development.js:16109
-flushPassiveEffects @ react-dom-client.development.js:15879
-eval @ react-dom-client.development.js:15505
-performWorkUntilDeadline @ scheduler.development.js:45
-"use client"
-ChatPage @ page.tsx:7
-eval @ react-server-dom-webpack-client.browser.development.js:2355
-initializeModelChunk @ react-server-dom-webpack-client.browser.development.js:1054
-getOutlinedModel @ react-server-dom-webpack-client.browser.development.js:1327
-parseModelString @ react-server-dom-webpack-client.browser.development.js:1540
-eval @ react-server-dom-webpack-client.browser.development.js:2294
-initializeModelChunk @ react-server-dom-webpack-client.browser.development.js:1054
-resolveModelChunk @ react-server-dom-webpack-client.browser.development.js:1031
-resolveModel @ react-server-dom-webpack-client.browser.development.js:1599
-processFullStringRow @ react-server-dom-webpack-client.browser.development.js:2288
-processFullBinaryRow @ react-server-dom-webpack-client.browser.development.js:2233
-progress @ react-server-dom-webpack-client.browser.development.js:2479
-<ChatPage>
-buildFakeTask @ react-server-dom-webpack-client.browser.development.js:2040
-initializeFakeTask @ react-server-dom-webpack-client.browser.development.js:2027
-resolveDebugInfo @ react-server-dom-webpack-client.browser.development.js:2063
-processFullStringRow @ react-server-dom-webpack-client.browser.development.js:2261
-processFullBinaryRow @ react-server-dom-webpack-client.browser.development.js:2233
-progress @ react-server-dom-webpack-client.browser.development.js:2479
-"use server"
-ResponseInstance @ react-server-dom-webpack-client.browser.development.js:1587
-createResponseFromOptions @ react-server-dom-webpack-client.browser.development.js:2396
-exports.createFromReadableStream @ react-server-dom-webpack-client.browser.development.js:2717
-createFromNextReadableStream @ fetch-server-response.js:172
-fetchServerResponse @ fetch-server-response.js:126
-await in fetchServerResponse
-eval @ prefetch-cache-utils.js:197
-task @ promise-queue.js:30
-processNext @ promise-queue.js:81
-enqueue @ promise-queue.js:45
-createLazyPrefetchEntry @ prefetch-cache-utils.js:197
-getOrCreatePrefetchCacheEntry @ prefetch-cache-utils.js:144
-navigateReducer @ navigate-reducer.js:163
-clientReducer @ router-reducer.js:25
-action @ app-router-instance.js:156
-runAction @ app-router-instance.js:66
-dispatchAction @ app-router-instance.js:120
-dispatch @ app-router-instance.js:154
-eval @ use-action-queue.js:55
-startTransition @ react-dom-client.development.js:7843
-dispatch @ use-action-queue.js:54
-dispatchAppRouterAction @ use-action-queue.js:37
-dispatchNavigateAction @ app-router-instance.js:207
-navigate @ link.js:82
-exports.startTransition @ react.development.js:1129
-linkClicked @ link.js:84
-onClick @ link.js:315
-executeDispatch @ react-dom-client.development.js:16502
-runWithFiberInDEV @ react-dom-client.development.js:845
-processDispatchQueue @ react-dom-client.development.js:16552
-eval @ react-dom-client.development.js:17150
-batchedUpdates$1 @ react-dom-client.development.js:3263
-dispatchEventForPluginEventSystem @ react-dom-client.development.js:16706
-dispatchEvent @ react-dom-client.development.js:20816
-dispatchDiscreteEvent @ react-dom-client.development.js:20784
-<a>
-exports.jsx @ react-jsx-runtime.development.js:339
-LinkComponent @ link.js:365
-react-stack-bottom-frame @ react-dom-client.development.js:22974
-renderWithHooksAgain @ react-dom-client.development.js:6767
-renderWithHooks @ react-dom-client.development.js:6679
-updateFunctionComponent @ react-dom-client.development.js:8931
-beginWork @ react-dom-client.development.js:10556
-runWithFiberInDEV @ react-dom-client.development.js:845
-performUnitOfWork @ react-dom-client.development.js:15258
-workLoopConcurrentByScheduler @ react-dom-client.development.js:15252
-renderRootConcurrent @ react-dom-client.development.js:15227
-performWorkOnRoot @ react-dom-client.development.js:14525
-performWorkOnRootViaSchedulerTask @ react-dom-client.development.js:16350
-performWorkUntilDeadline @ scheduler.development.js:45
-<LinkComponent>
-exports.jsxDEV @ react-jsx-dev-runtime.development.js:346
-HomePage @ page.tsx:26
-react-stack-bottom-frame @ react-dom-client.development.js:22974
-renderWithHooksAgain @ react-dom-client.development.js:6767
-renderWithHooks @ react-dom-client.development.js:6679
-updateFunctionComponent @ react-dom-client.development.js:8931
-beginWork @ react-dom-client.development.js:10556
-runWithFiberInDEV @ react-dom-client.development.js:845
-performUnitOfWork @ react-dom-client.development.js:15258
-workLoopConcurrentByScheduler @ react-dom-client.development.js:15252
-renderRootConcurrent @ react-dom-client.development.js:15227
-performWorkOnRoot @ react-dom-client.development.js:14525
-performWorkOnRootViaSchedulerTask @ react-dom-client.development.js:16350
-performWorkUntilDeadline @ scheduler.development.js:45
-<HomePage>
-exports.jsx @ react-jsx-runtime.development.js:339
-ClientPageRoot @ client-page.js:20
-react-stack-bottom-frame @ react-dom-client.development.js:22974
-renderWithHooksAgain @ react-dom-client.development.js:6767
-renderWithHooks @ react-dom-client.development.js:6679
-updateFunctionComponent @ react-dom-client.development.js:8931
-beginWork @ react-dom-client.development.js:10505
-runWithFiberInDEV @ react-dom-client.development.js:845
-performUnitOfWork @ react-dom-client.development.js:15258
-workLoopConcurrentByScheduler @ react-dom-client.development.js:15252
-renderRootConcurrent @ react-dom-client.development.js:15227
-performWorkOnRoot @ react-dom-client.development.js:14525
-performWorkOnRootViaSchedulerTask @ react-dom-client.development.js:16350
-performWorkUntilDeadline @ scheduler.development.js:45
-"use client"
-eval @ react-server-dom-webpack-client.browser.development.js:2354
-initializeModelChunk @ react-server-dom-webpack-client.browser.development.js:1054
-resolveModelChunk @ react-server-dom-webpack-client.browser.development.js:1031
-resolveModel @ react-server-dom-webpack-client.browser.development.js:1599
-processFullStringRow @ react-server-dom-webpack-client.browser.development.js:2288
-processFullBinaryRow @ react-server-dom-webpack-client.browser.development.js:2233
-progress @ react-server-dom-webpack-client.browser.development.js:2479
-"use server"
-ResponseInstance @ react-server-dom-webpack-client.browser.development.js:1587
-createResponseFromOptions @ react-server-dom-webpack-client.browser.development.js:2396
-exports.createFromReadableStream @ react-server-dom-webpack-client.browser.development.js:2717
-eval @ app-index.js:132
-(app-pages-browser)/./node_modules/next/dist/client/app-index.js @ main-app.js?v=1752410985956:160
-options.factory @ webpack.js?v=1752410985956:712
-__webpack_require__ @ webpack.js?v=1752410985956:37
-fn @ webpack.js?v=1752410985956:369
-eval @ app-next-dev.js:11
-eval @ app-bootstrap.js:62
-loadScriptsInSequence @ app-bootstrap.js:23
-appBootstrap @ app-bootstrap.js:56
-eval @ app-next-dev.js:10
-(app-pages-browser)/./node_modules/next/dist/client/app-next-dev.js @ main-app.js?v=1752410985956:182
-options.factory @ webpack.js?v=1752410985956:712
-__webpack_require__ @ webpack.js?v=1752410985956:37
-__webpack_exec__ @ main-app.js?v=1752410985956:2824
-(anonymous) @ main-app.js?v=1752410985956:2825
-webpackJsonpCallback @ webpack.js?v=1752410985956:1388
-(anonymous) @ main-app.js?v=1752410985956:9Understand this warning
-storeUtils.ts:113 [ModelStore] Enhanced mode detected and working undefined
-storeUtils.ts:113 [ModelStore] Model data cached successfully 
+Context aware testing:
+
+Console logs:
+
+[Send Message] Context-aware mode: ENABLED
+useChatStore.ts:206 [Send Message] Model: openrouter/cypher-alpha:free
+tokens.ts:130 [Model Token Limits] Looking up limits for model: openrouter/cypher-alpha:free
+tokens.ts:145 [Model Token Limits] Found Cypher Alpha with 32768 context length
+tokens.ts:148 [Model Token Limits] Found model openrouter/cypher-alpha:free with context length: 32768
+tokens.ts:117 [Token Strategy] Model context: 32768 → Input: 19570 (60%) | Output: 13047 (40%) | Reserve: 150
+useChatStore.ts:213 [Send Message] Token strategy - Input: 19570, Output: 13047
+useChatStore.ts:142 [Context Selection] Starting selection from 18 available messages
+useChatStore.ts:143 [Context Selection] Token budget: 19570 tokens
+tokens.ts:58 [Token Estimation] Text length: 1109 chars → ~278 tokens
+useChatStore.ts:157 [Context Selection] Included message 17: 282 tokens (running total: 282)
+tokens.ts:58 [Token Estimation] Text length: 50 chars → ~13 tokens
+useChatStore.ts:157 [Context Selection] Included message 16: 17 tokens (running total: 299)
+tokens.ts:58 [Token Estimation] Text length: 1070 chars → ~268 tokens
+useChatStore.ts:157 [Context Selection] Included message 15: 272 tokens (running total: 571)
+tokens.ts:58 [Token Estimation] Text length: 34 chars → ~9 tokens
+useChatStore.ts:157 [Context Selection] Included message 14: 13 tokens (running total: 584)
+tokens.ts:58 [Token Estimation] Text length: 844 chars → ~211 tokens
+useChatStore.ts:157 [Context Selection] Included message 13: 215 tokens (running total: 799)
+tokens.ts:58 [Token Estimation] Text length: 55 chars → ~14 tokens
+useChatStore.ts:157 [Context Selection] Included message 12: 18 tokens (running total: 817)
+tokens.ts:58 [Token Estimation] Text length: 1040 chars → ~260 tokens
+useChatStore.ts:157 [Context Selection] Included message 11: 264 tokens (running total: 1081)
+tokens.ts:58 [Token Estimation] Text length: 16 chars → ~4 tokens
+useChatStore.ts:157 [Context Selection] Included message 10: 8 tokens (running total: 1089)
+tokens.ts:58 [Token Estimation] Text length: 2737 chars → ~685 tokens
+useChatStore.ts:157 [Context Selection] Included message 9: 689 tokens (running total: 1778)
+tokens.ts:58 [Token Estimation] Text length: 51 chars → ~13 tokens
+useChatStore.ts:157 [Context Selection] Included message 8: 17 tokens (running total: 1795)
+tokens.ts:58 [Token Estimation] Text length: 1027 chars → ~257 tokens
+useChatStore.ts:157 [Context Selection] Included message 7: 261 tokens (running total: 2056)
+tokens.ts:58 [Token Estimation] Text length: 50 chars → ~13 tokens
+useChatStore.ts:157 [Context Selection] Included message 6: 17 tokens (running total: 2073)
+tokens.ts:58 [Token Estimation] Text length: 1186 chars → ~297 tokens
+useChatStore.ts:157 [Context Selection] Included message 5: 301 tokens (running total: 2374)
+tokens.ts:58 [Token Estimation] Text length: 34 chars → ~9 tokens
+useChatStore.ts:157 [Context Selection] Included message 4: 13 tokens (running total: 2387)
+tokens.ts:58 [Token Estimation] Text length: 997 chars → ~250 tokens
+useChatStore.ts:157 [Context Selection] Included message 3: 254 tokens (running total: 2641)
+tokens.ts:58 [Token Estimation] Text length: 42 chars → ~11 tokens
+useChatStore.ts:157 [Context Selection] Included message 2: 15 tokens (running total: 2656)
+tokens.ts:58 [Token Estimation] Text length: 426 chars → ~107 tokens
+useChatStore.ts:157 [Context Selection] Included message 1: 111 tokens (running total: 2767)
+tokens.ts:58 [Token Estimation] Text length: 57 chars → ~15 tokens
+useChatStore.ts:157 [Context Selection] Included message 0: 19 tokens (running total: 2786)
+useChatStore.ts:160 [Context Selection] Selected 18 messages using 2786/19570 tokens
+tokens.ts:58 [Token Estimation] Text length: 57 chars → ~15 tokens
+tokens.ts:58 [Token Estimation] Text length: 426 chars → ~107 tokens
+tokens.ts:58 [Token Estimation] Text length: 42 chars → ~11 tokens
+tokens.ts:58 [Token Estimation] Text length: 997 chars → ~250 tokens
+tokens.ts:58 [Token Estimation] Text length: 34 chars → ~9 tokens
+tokens.ts:58 [Token Estimation] Text length: 1186 chars → ~297 tokens
+tokens.ts:58 [Token Estimation] Text length: 50 chars → ~13 tokens
+tokens.ts:58 [Token Estimation] Text length: 1027 chars → ~257 tokens
+tokens.ts:58 [Token Estimation] Text length: 51 chars → ~13 tokens
+tokens.ts:58 [Token Estimation] Text length: 2737 chars → ~685 tokens
+tokens.ts:58 [Token Estimation] Text length: 16 chars → ~4 tokens
+tokens.ts:58 [Token Estimation] Text length: 1040 chars → ~260 tokens
+tokens.ts:58 [Token Estimation] Text length: 55 chars → ~14 tokens
+tokens.ts:58 [Token Estimation] Text length: 844 chars → ~211 tokens
+tokens.ts:58 [Token Estimation] Text length: 34 chars → ~9 tokens
+tokens.ts:58 [Token Estimation] Text length: 1070 chars → ~268 tokens
+tokens.ts:58 [Token Estimation] Text length: 50 chars → ~13 tokens
+tokens.ts:58 [Token Estimation] Text length: 1109 chars → ~278 tokens
+tokens.ts:58 [Token Estimation] Text length: 45 chars → ~12 tokens
+tokens.ts:84 [Token Estimation] 19 messages: 2726 content + 76 structure = 2802 total tokens
+useChatStore.ts:223 [Send Message] Total message tokens: 2802/19570
+tokens.ts:163 [Token Budget] 2802 tokens fits within input budget of 19570
+useChatStore.ts:267 [Send Message] Sending NEW format with 19 messages
+hot-reloader-client.js:197 [Fast Refresh] rebuilding
+report-hmr-latency.js:14 [Fast Refresh] done in 229ms
+
+
+backend logs:
+
+[2025-07-14T09:55:51.124Z] [INFO] Chat request received
+[Request Validation] Validated 19 messages in array
+[Request Validation] Successfully validated 19 context messages
+[2025-07-14T09:55:51.125Z] [INFO] Using validated model from request: openrouter/cypher-alpha:free
+[Request Validation] Final request: NEW format with model openrouter/cypher-alpha:free
+[2025-07-14T09:55:51.125Z] [DEBUG] Validated chat request data: {
+  message: 'where are all the players from that team now?',
+  model: 'openrouter/cypher-alpha:free',
+  messages: [
+    {
+      id: 'msg_1752412139750_0rtcgn7hj',
+      content: 'Which basketball team in the NBA has won the most finals?',
+      role: 'user',
+      timestamp: '2025-07-13T13:08:59.750Z'
+    },
+    {
+      id: 'msg_1752412144332_u1bcsfxqt',
+      content: '**The Boston Celtics** have won the most NBA Finals, with a total of **17 championships**. \n' +
+        '\n' +
+        "Here's a breakdown of the top teams:\n" +
+        '\n' +
+        '1. **Boston Celtics:** 17 championships\n' +
+        '2. **Los Angeles Lakers:** 17 championships\n' +
+        '3. **Golden State Warriors:** 7 championships\n' +
+        '4. **Chicago Bulls:** 6 championships\n' +
+        '5. **San Antonio Spurs:** 5 championships\n' +
+        '\n' +
+        '\n' +
+        '\n' +
+        "It's worth noting that the Celtics and Lakers are tied for the most championships!",
+      role: 'assistant',
+      timestamp: '2025-07-13T13:09:04.332Z',
+      elapsed_time: 4,
+      total_tokens: 128,
+      model: 'google/gemma-3-27b-it:free',
+      contentType: 'markdown',
+      completion_id: 'gen-1752412140-O4Pb9ciI06GKmFWK1AKP'
+    },
+    {
+      id: 'msg_1752412207122_2jjxs1tlj',
+      content: 'What is the average salary of NBA players?',
+      role: 'user',
+      timestamp: '2025-07-13T13:10:07.122Z'
+    },
+    {
+      id: 'msg_1752412212059_nlp53q5ii',
+      content: "The average salary of NBA players can vary each season based on factors like the league's salary cap, Collective Bargaining Agreement (CBA), and player contracts. Based on the most recent data available up to my last training (around 2023), here's a breakdown:\n" +
+        '\n' +
+        '- **For the 2022-2023 NBA season**, the average player salary was approximately **$9.6 million**.\n' +
+        '- **For the 2023-2024 season**, reports from sources like Spotrac and ESPN estimate the average salary to be around **$11.2 million**. This reflects a significant increase due to rising TV deals and overall league revenue.\n' +
+        '\n' +
+        'Keep in mind that these figures can fluctuate annually, and the exact average for the current or upcoming seasons (e.g., 2024-2025) might be higher. For the most up-to-date information, I recommend checking reliable sources such as:\n' +
+        "- The NBA's official website\n" +
+        '- Spotrac (spotrac.com)\n' +
+        '- ESPN or Basketball Reference\n' +
+        '\n' +
+        'If you have a specific season or additional details in mind, I can try to provide more context!',
+      role: 'assistant',
+      timestamp: '2025-07-13T13:10:12.059Z',
+      elapsed_time: 5,
+      total_tokens: 688,
+      model: 'x-ai/grok-3-mini',
+      contentType: 'markdown',
+      completion_id: 'gen-1752412207-WE2jDdlxFTkzjzbHjGUn'
+    },
+    {
+      id: 'msg_1752419653996_b80uflbvn',
+      content: 'Favourite Dota 2 duo laning heroes',
+      role: 'user',
+      timestamp: '2025-07-13T15:14:13.996Z'
+    },
+    {
+      id: 'msg_1752419660381_r790kfei8',
+      content: "When it comes to Dota 2's duo lanes, there are several hero combinations that can create strong synergies and dominate the early game. Here are a few popular picks:\n" +
+        '\n' +
+        '1. Offlaner + Support: A classic duo that can bully opponents with sheer damage and sustain. Popular choices include: \n' +
+        '   - Axe + Crystal Maiden\n' +
+        '   - Tidehunter + Shadow Shaman\n' +
+        '\n' +
+        '2. Carry + Support: A safelaner with a supportive partner can accumulate gold and experience safely. Common picks include:\n' +
+        '   - Juggernaut + Oracle\n' +
+        '   - Phantom Assassin + Rubick\n' +
+        '\n' +
+        '3. Harass-oriented Duo: Heroes that can apply constant pressure and zone opponents from farming. Examples:\n' +
+        '   - Viper + Shadow Fiend\n' +
+        '   - Pudge + Dazzle\n' +
+        '\n' +
+        '4. Zoning Duo: Heroes that can control space and limit enemy movement. Good examples are:\n' +
+        '   - Bristleback + Lion\n' +
+        '   - Centaur Warrunner + Earthshaker\n' +
+        '\n' +
+        '5. Poke Duo: Heroes that can deal damage from a distance while staying relatively safe. Some combinations are:\n' +
+        '   - Drow Ranger + Windranger\n' +
+        '   - Lina + Shadow Demon\n' +
+        '\n' +
+        "These are just a few examples of powerful duo laning combinations in Dota 2. The key to success is understanding your heroes' strengths and working together to maximize your lane dominance.",
+      role: 'assistant',
+      timestamp: '2025-07-13T15:14:20.381Z',
+      elapsed_time: 5,
+      total_tokens: 659,
+      model: 'openrouter/cypher-alpha:free',
+      contentType: 'markdown',
+      completion_id: 'gen-1752419654-tro3gMvxO5sWHkmPCtau'
+    },
+    {
+      id: 'msg_1752481741496_814z6puoe',
+      content: 'what is the highest Dota 2 tourmament prize money?',
+      role: 'user',
+      timestamp: '2025-07-14T08:29:01.496Z'
+    },
+    {
+      id: 'msg_1752481751417_wi4spvjhz',
+      content: '\n' +
+        'The highest Dota 2 tournament prize money is **The International 2021 (TI10)**, with a total prize pool of **$40,019,000 USD**.\n' +
+        '\n' +
+        "Team Spirit won TI10, taking home $18,208,000 USD as the champion's share.\n" +
+        '\n' +
+        "Here's a breakdown of the top 5 highest prize pools in Dota 2 history:\n" +
+        '\n' +
+        '1. **The International 2021 (TI10):** $40,019,000\n' +
+        '2. **The International 2019 (TI9):** $34,770,000\n' +
+        '3. **The International 2018 (TI8):** $25,500,000\n' +
+        '4. **The International 2017 (TI7):** $24,750,000\n' +
+        '5. **The International 2016 (TI6):** $20,770,000\n' +
+        '\n' +
+        'These prize pools are largely funded by Valve through battle passes sold to the Dota 2 community.  The community contributes significantly to the overall amount!\n' +
+        '\n' +
+        '\n' +
+        '\n' +
+        'You can find more information here:\n' +
+        '\n' +
+        '*   **Liquipedia (Dota 2 Prize Pool History):** [https://liquipedia.net/dota2/Prize_Pool_History](https://liquipedia.net/dota2/Prize_Pool_History)\n' +
+        '*   **Esports Earnings (Dota 2 Tournaments):** [https://www.esportsearnings.com/dota2/tournaments](https://www.esportsearnings.com/dota2/tournaments)\n' +
+        '\n' +
+        '\n' +
+        '\n',
+      role: 'assistant',
+      timestamp: '2025-07-14T08:29:11.417Z',
+      elapsed_time: 5,
+      total_tokens: 397,
+      model: 'google/gemma-3-27b-it:free',
+      contentType: 'markdown',
+      completion_id: 'gen-1752481746-FHAzlFLXLbcTfcQvRsZn'
+    },
+    {
+      id: 'msg_1752482860222_k2hzdgy8l',
+      content: 'Dota 2 heroes which has been removed from the game.',
+      role: 'user',
+      timestamp: '2025-07-14T08:47:40.222Z'
+    },
+    {
+      id: 'msg_1752482873815_xmx3p5fw5',
+      content: '\n' +
+        "Okay, let's list the Dota 2 heroes that have been *completely removed* from the game, meaning they are no longer playable through any means in the standard game modes.  It's a surprisingly short list, as Valve usually prefers to rework heroes rather than outright delete them.  I'll also give some context on *why* they were removed.\n" +
+        '\n' +
+        "Here's the list:\n" +
+        '\n' +
+        "*   **Windranger (Original Version - Pre-Rework):** This is the most significant removal. The original Windranger, before her massive overhaul in 2016, was removed because her kit was deemed fundamentally flawed and unable to be balanced. She was *completely* replaced with a new hero, still named Windranger, but with a new model, abilities, and playstyle.  The old Windranger is gone forever, and there's no way to play as her in modern Dota.\n" +
+        '*   **Techies (Original Version - Pre-Rework):**  Techies was removed in 2018. Similar to Windranger, the original Techies was considered problematic. The main issue was the frustrating gameplay experience for those on the receiving end of his mines. Valve took the drastic step of removing him entirely to rebuild the hero from the ground up.  The new Techies is very different.\n' +
+        '*   **Riki (Original Version - Pre-Rework):** Riki was removed in 2016 and replaced with a reworked version. The original Riki was considered too strong and hard to counter. The rework aimed to make him more skill-dependent and less oppressive.\n' +
+        "*   **Lion (Original Version - Pre-Rework):** Lion was removed in 2018 and replaced with a reworked version. Like the others, the original Lion was deemed to have balance issues that couldn't be fixed without a complete overhaul.\n" +
+        '\n' +
+        '\n' +
+        '\n' +
+        '**Important Notes & Clarifications:**\n' +
+        '\n' +
+        '*   **Reworks vs. Removals:** Many heroes have been *reworked* in Dota 2 (e.g., Queen of Pain, Disruptor, Skywrath Mage).  Reworks change abilities, models, and playstyles, but the hero still *exists* in the game.  The heroes listed above were *deleted* and replaced with essentially new heroes.\n' +
+        '*   **Arcade/Custom Games:**  It *might* be possible to find remnants of the old heroes in custom games or the Dota 2 Workshop, but they are not playable in standard matchmaking modes.\n' +
+        "* **Limited Time Events**: Some heroes have been temporarily removed for specific events (like a battlepass story line), but they always return to the game. These are not the heroes I've listed.\n" +
+        '\n' +
+        '\n' +
+        '\n' +
+        'Where to find more info:\n' +
+        '\n' +
+        '*   **Dota 2 Wiki:** [https://dota2.fandom.com/wiki/Dota_2_Wiki](https://dota2.fandom.com/wiki/Dota_2_Wiki) (Search for hero history or specific hero changes)\n' +
+        '*   **Dota 2 Official Blog:**  Valve often announces major changes on their official blog.\n' +
+        '\n' +
+        '\n' +
+        '\n' +
+        'I hope this is a comprehensive answer! Let me know if you have any other questions.',
+      role: 'assistant',
+      timestamp: '2025-07-14T08:47:53.816Z',
+      elapsed_time: 12,
+      total_tokens: 697,
+      model: 'google/gemma-3-27b-it:free',
+      contentType: 'markdown',
+      completion_id: 'gen-1752482861-bwMDOXtWOjYXNB3lwqW5'
+    },
+    {
+      id: 'msg_1752483957411_1xsrb6ypj',
+      content: 'who won in TI10?',
+      role: 'user',
+      timestamp: '2025-07-14T09:05:57.411Z'
+    },
+    {
+      id: 'msg_1752483966335_arogcpfzx',
+      content: '\n' +
+        '\n' +
+        '**Team Spirit** won The International 10 (TI10)!\n' +
+        '\n' +
+        'They defeated PSG.Quest in the Grand Finals with a score of 3-2 in a thrilling best-of-five series. This was a huge upset, as Team Spirit was a relatively unknown team going into the tournament, and they became the first Eastern European team to win The International.\n' +
+        '\n' +
+        "Here's a quick recap:\n" +
+        '\n' +
+        '*   **Winner:** Team Spirit\n' +
+        '*   **Runner-up:** PSG.Quest\n' +
+        "*   **Prize Money:** $18,208,000 (Team Spirit's share)\n" +
+        '*   **Location:** Bucharest, Romania\n' +
+        '*   **Year:** 2021\n' +
+        '\n' +
+        "TI10 was a historic tournament, and Team Spirit's victory is one of the most memorable underdog stories in Dota 2 history.\n" +
+        '\n' +
+        '\n' +
+        '\n' +
+        'You can find more details here:\n' +
+        '\n' +
+        '*   **Liquipedia - TI10:** [https://liquipedia.net/dota2/The_International_2021](https://liquipedia.net/dota2/The_International_2021)\n' +
+        "*   **Team Spirit's Victory:** [https://www.thescore.com/esports/dota2/news/9049818/team-spirit-wins-ti10-dota-2-world-championship](https://www.thescore.com/esports/dota2/news/9049818/team-spirit-wins-ti10-dota-2-world-championship)",
+      role: 'assistant',
+      timestamp: '2025-07-14T09:06:06.335Z',
+      elapsed_time: 8,
+      total_tokens: 2140,
+      model: 'google/gemma-3-27b-it:free',
+      contentType: 'markdown',
+      completion_id: 'gen-1752483958-qUzY0WO30OkIiOYsJ8IH'
+    },
+    {
+      id: 'msg_1752484035248_zxr6gtv7i',
+      content: 'list all the players in the finals game in table format',
+      role: 'user',
+      timestamp: '2025-07-14T09:07:15.248Z'
+    },
+    {
+      id: 'msg_1752484041396_4gmkq7kmb',
+      content: '\n' +
+        '\n' +
+        "Here's a table listing all the players who participated in the Grand Finals of The International 10 (TI10) between Team Spirit and PSG.Quest:\n" +
+        '\n' +
+        '| **Team Spirit** | **Role** | **Hero** | **PSG.Quest** | **Role** | **Hero** |\n' +
+        '|---|---|---|---|---|---|\n' +
+        '| Miposhka | Pos 1 (Carry) | Faceless Void | Sumail | Pos 1 (Carry) | Phantom Lancer |\n' +
+        '| Yatoro | Pos 2 (Mid) | Invoker | Topson | Pos 2 (Mid) | Ember Spirit |\n' +
+        '| Collapse | Pos 3 (Offlane) | Mars | Ace | Pos 3 (Offlane) | Beastmaster |\n' +
+        '| Mira | Pos 4 (Soft Support) | Grimstroke | Puppey | Pos 4 (Soft Support) | Disruptor |\n' +
+        '| Larl | Pos 5 (Hard Support) | Witch Doctor | Gorgc | Pos 5 (Hard Support) | Ancient Apparition |\n' +
+        '\n' +
+        '**Series Result:** Team Spirit won 3-2.\n' +
+        '\n' +
+        '**Note:** This table shows the heroes played in the final game (Game 5) of the series. Hero picks varied in the previous games.',
+      role: 'assistant',
+      timestamp: '2025-07-14T09:07:21.396Z',
+      elapsed_time: 5,
+      total_tokens: 2425,
+      model: 'google/gemma-3-27b-it:free',
+      contentType: 'markdown',
+      completion_id: 'gen-1752484035-oIRqLNiYSAB0v6grFDbF'
+    },
+    {
+      id: 'msg_1752484144159_mrxprxldu',
+      content: 'I think it was PSG.LGD from China?',
+      role: 'user',
+      timestamp: '2025-07-14T09:09:04.159Z'
+    },
+    {
+      id: 'msg_1752484152553_1u875am0l',
+      content: '\n' +
+        '\n' +
+        'You are absolutely right to question me! My apologies for the mistake. **PSG.LGD** was the team that Team Spirit defeated in the Grand Finals of TI10, *not* PSG.Quest. \n' +
+        '\n' +
+        'I am still under development and learning to access and process information accurately. I clearly made an error in recalling the correct team.\n' +
+        '\n' +
+        "Thank you for pointing out my mistake. Here's the corrected table with PSG.LGD:\n" +
+        '\n' +
+        '| **Team Spirit** | **Role** | **Hero** | **PSG.LGD** | **Role** | **Hero** |\n' +
+        '|---|---|---|---|---|---|\n' +
+        '| Miposhka | Pos 1 (Carry) | Faceless Void | Ame | Pos 1 (Carry) | Phantom Lancer |\n' +
+        '| Yatoro | Pos 2 (Mid) | Invoker | Maybe | Pos 2 (Mid) | Ember Spirit |\n' +
+        '| Collapse | Pos 3 (Offlane) | Mars | XinQ | Pos 3 (Offlane) | Beastmaster |\n' +
+        "| Mira | Pos 4 (Soft Support) | Grimstroke | y' | Pos 4 (Soft Support) | Disruptor |\n" +
+        '| Larl | Pos 5 (Hard Support) | Witch Doctor | fy | Pos 5 (Hard Support) | Ancient Apparition |\n' +
+        '\n' +
+        '**Series Result:** Team Spirit won 3-2.\n' +
+        '\n' +
+        'I will strive to be more accurate in the future. Thanks again for catching my error! I appreciate the correction.',
+      role: 'assistant',
+      timestamp: '2025-07-14T09:09:12.553Z',
+      elapsed_time: 8,
+      total_tokens: 2759,
+      model: 'google/gemma-3-27b-it:free',
+      contentType: 'markdown',
+      completion_id: 'gen-1752484144-2n4FIKXPPBeO9PRxIcsI'
+    },
+    {
+      id: 'msg_1752484325357_yn4ou495g',
+      content: 'tell me where was the next TI held in and who won.',
+      role: 'user',
+      timestamp: '2025-07-14T09:12:05.357Z'
+    },
+    {
+      id: 'msg_1752484333177_p37hauwkt',
+      content: 'The International 11 (TI11) was held in **Singapore** from **October 13th to 24th, 2022**. This was a return to in-person events after a two-year hiatus due to the COVID-19 pandemic.\n' +
+        '\n' +
+        '**Winner of TI11:** **Team Tundra**\n' +
+        '\n' +
+        "Team Tundra, a European squad, won TI11 by defeating the Chinese team PSG.LGD in the Grand Finals. This was Tundra's first TI victory, and they secured a massive prize of $18,193,000 USD.\n" +
+        '\n' +
+        "Here's a recap of the TI11 Finals:\n" +
+        '\n' +
+        '*   **Champion:** Team Tundra\n' +
+        '*   **Runner-up:** PSG.LGD\n' +
+        '*   **Finals Score:** 3-2\n' +
+        "*   **Prize Pool:** $18,193,000 (Tundra's share)\n" +
+        '\n' +
+        "TI11 was a thrilling tournament, and Tundra's victory solidified their status as one of the top teams in Dota 2.\n" +
+        '\n' +
+        'Here are some helpful resources for more information:\n' +
+        '\n' +
+        '*   **Liquipedia - TI11:** [https://liquipedia.net/dota2/The_International_2022](https://liquipedia.net/dota2/The_International_2022)\n' +
+        "*   **Team Tundra's Victory:** [https://www.espn.com/esports/story/_/id/34988961/team-tundra-wins-ti11-dota-2-world-championship](https://www.espn.com/esports/story/_/id/34988961/team-tundra-wins-ti11-dota-2-world-championship)",
+      role: 'assistant',
+      timestamp: '2025-07-14T09:12:13.177Z',
+      elapsed_time: 7,
+      total_tokens: 3475,
+      model: 'openrouter/cypher-alpha:free',
+      contentType: 'markdown',
+      completion_id: 'gen-1752484325-TJaQ31WTvjgbkMHtMiWa'
+    },
+    {
+      id: 'msg_1752486950754_k466d5tpo',
+      content: 'where are all the players from that team now?',
+      role: 'user',
+      timestamp: '2025-07-14T09:55:50.754Z'
+    }
+  ]
+}
+[Chat API] Request format: NEW
+[Chat API] Message count: 19 messages
+[Chat API] Current message: "where are all the players from that team now?"
+[Model Token Limits] Looking up limits for model: openrouter/cypher-alpha:free
+[Model Token Limits] Found Cypher Alpha with 32768 context length
+[Model Token Limits] Found model openrouter/cypher-alpha:free with context length: 32768
+[Token Strategy] Model context: 32768 → Input: 19570 (60%) | Output: 13047 (40%) | Reserve: 150
+[Chat API] Model: openrouter/cypher-alpha:free
+[Chat API] Token strategy - Input: 19570, Output: 13047
+[Chat API] Using dynamic max_tokens: 13047 (calculated from model limits)
+[Chat API] Verifying maxTokens parameter will be: 13047
+[OpenRouter Request] Model: openrouter/cypher-alpha:free
+[OpenRouter Request] Messages: 19 messages
+[OpenRouter Request] Max Tokens: 13047 (dynamic)
+[2025-07-14T09:55:58.604Z] [DEBUG] OpenRouter response received: {
+  id: 'gen-1752486955-IybeTdsy5mp9KcIm4dL3',
+  provider: 'Stealth',
+  model: 'openrouter/cypher-alpha:free',
+  object: 'chat.completion',
+  created: 1752486956,
+  choices: [
+    {
+      logprobs: null,
+      finish_reason: 'stop',
+      native_finish_reason: 'stop',
+      index: 0,
+      message: [Object]
+    }
+  ],
+  usage: { prompt_tokens: 3490, completion_tokens: 406, total_tokens: 3896 }
+}
+[2025-07-14T09:55:58.606Z] [DEBUG] Markdown detection result: true for content: I can provide an update on the current status of the **Team Tundra** roster that won The Internation
+[2025-07-14T09:55:58.606Z] [DEBUG] Current time (epoch): 1752486958
+[2025-07-14T09:55:58.606Z] [DEBUG] OpenRouter response created time (epoch): 1752486956
+[2025-07-14T09:55:58.606Z] [DEBUG] Elapsed time for response: 2 seconds
+[2025-07-14T09:55:58.606Z] [INFO] Chat request successful
