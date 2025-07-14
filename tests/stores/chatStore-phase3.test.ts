@@ -13,7 +13,7 @@ jest.mock('../../lib/utils/tokens', () => ({
     const contentTokens = messages.reduce((total, msg) => total + Math.ceil(msg.content.length / 4), 0);
     return contentTokens + (messages.length * 4); // structure overhead
   }),
-  getModelTokenLimits: jest.fn(() => ({
+  getModelTokenLimits: jest.fn(() => Promise.resolve({
     maxInputTokens: 1000,
     maxOutputTokens: 500,
     contextRatio: 0.6,
@@ -22,7 +22,7 @@ jest.mock('../../lib/utils/tokens', () => ({
     totalContextLength: 2000
   })),
   isWithinInputBudget: jest.fn((tokenCount: number, strategy: TokenStrategy) => tokenCount <= strategy.maxInputTokens),
-  getMaxOutputTokens: jest.fn(() => 500)
+  getMaxOutputTokens: jest.fn(() => Promise.resolve(500))
 }));
 
 // Mock environment

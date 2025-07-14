@@ -6,10 +6,13 @@
  */
 
 import { ChatMessage } from '../types/chat';
+import { ModelInfo } from '../types/openrouter';
+import { getEnvVar } from './env';
+import { logger } from './logger';
 
-// Server-side model context configurations
-// This is a subset of model info for token calculation purposes
-const SERVER_SIDE_MODEL_CONFIGS: Record<string, { context_length: number; description: string }> = {
+// Fallback model context configurations
+// Used when dynamic fetching fails or for server-side initialization
+const FALLBACK_MODEL_CONFIGS: Record<string, { context_length: number; description: string }> = {
   'openai/gpt-4o-mini': { context_length: 128000, description: 'GPT-4o Mini' },
   'openai/gpt-4o': { context_length: 128000, description: 'GPT-4o' },
   'google/gemini-2.0-flash-exp:free': { context_length: 1000000, description: 'Gemini 2.0 Flash' },
@@ -22,6 +25,10 @@ const SERVER_SIDE_MODEL_CONFIGS: Record<string, { context_length: number; descri
   'moonshotai/kimi-dev-72b:free': { context_length: 128000, description: 'Kimi Dev 72B' },
   'x-ai/grok-3-mini': { context_length: 128000, description: 'Grok 3 Mini' },
 };
+
+// Dynamic model context configurations
+let dynamicModelConfigs: Record<string, { context_length: number; description: string }> = {};
+let isConfigsInitialized = false;
 
 /**
  * Token allocation strategy for a model
@@ -120,13 +127,13 @@ export function calculateTokenStrategy(contextLength: number): TokenStrategy {
 }
 
 /**
- * Gets token limits for a specific model using the model store
+ * Gets token limits for a specific model using dynamic configuration
  * Falls back to conservative defaults if model info is not available
  * 
  * @param modelId - The OpenRouter model ID
  * @returns Token strategy for the specified model
  */
-export function getModelTokenLimits(modelId?: string): TokenStrategy {
+export async function getModelTokenLimits(modelId?: string): Promise<TokenStrategy> {
   console.log(`[Model Token Limits] Looking up limits for model: ${modelId || 'default'}`);
   
   if (!modelId) {
@@ -134,20 +141,25 @@ export function getModelTokenLimits(modelId?: string): TokenStrategy {
     return calculateTokenStrategy(8000); // Conservative default
   }
   
-  // Get model info from server-side configuration
-  const modelConfig = SERVER_SIDE_MODEL_CONFIGS[modelId];
-  
-  if (!modelConfig) {
-    console.log(`[Model Token Limits] Model '${modelId}' not found in server config, using conservative default (8K context)`);
-    return calculateTokenStrategy(8000); // Conservative fallback
+  try {
+    // Get model info from dynamic configuration
+    const modelConfig = await getModelConfig(modelId);
+    
+    if (!modelConfig) {
+      console.log(`[Model Token Limits] Model '${modelId}' not found in config, using conservative default (8K context)`);
+      return calculateTokenStrategy(8000); // Conservative fallback
+    }
+    
+    console.log(`[Model Token Limits] Found ${modelConfig.description} with ${modelConfig.context_length} context length`);
+    
+    const contextLength = modelConfig.context_length;
+    console.log(`[Model Token Limits] Found model ${modelId} with context length: ${contextLength}`);
+    
+    return calculateTokenStrategy(contextLength);
+  } catch (error) {
+    console.error(`[Model Token Limits] Error fetching model config for ${modelId}:`, error);
+    return calculateTokenStrategy(8000); // Conservative fallback on error
   }
-  
-  console.log(`[Model Token Limits] Found ${modelConfig.description} with ${modelConfig.context_length} context length`);
-  
-  const contextLength = modelConfig.context_length;
-  console.log(`[Model Token Limits] Found model ${modelId} with context length: ${contextLength}`);
-  
-  return calculateTokenStrategy(contextLength);
 }
 
 /**
@@ -172,11 +184,89 @@ export function isWithinInputBudget(tokenCount: number, strategy: TokenStrategy)
  * @param modelId - The OpenRouter model ID
  * @returns Maximum output tokens for the model
  */
-export function getMaxOutputTokens(modelId?: string): number {
-  const strategy = getModelTokenLimits(modelId);
+export async function getMaxOutputTokens(modelId?: string): Promise<number> {
+  const strategy = await getModelTokenLimits(modelId);
   const maxTokens = strategy.maxOutputTokens;
   
   console.log(`[Legacy Token Limit] Model ${modelId || 'default'} max output tokens: ${maxTokens}`);
   
   return maxTokens;
+}
+
+/**
+ * Fetches model configurations from OpenRouter API
+ * Filters models based on OPENROUTER_MODELS_LIST environment variable
+ */
+async function fetchModelConfigs(): Promise<void> {
+  try {
+    logger.info('[Model Configs] Fetching models from OpenRouter API...');
+    
+    const response = await fetch('https://openrouter.ai/api/v1/models');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Get allowed models from environment variable
+    const allowedModelsEnv = getEnvVar('OPENROUTER_MODELS_LIST', '');
+    const allowedModels = allowedModelsEnv ? allowedModelsEnv.split(',').map(m => m.trim()) : [];
+    
+    logger.info(`[Model Configs] Found ${data.data?.length || 0} models from API, filtering by ${allowedModels.length} allowed models`);
+    
+    // Filter models based on allowed list (if specified)
+    const modelsToProcess = allowedModels.length > 0 
+      ? data.data.filter((model: ModelInfo) => allowedModels.includes(model.id))
+      : data.data;
+    
+    // Build configurations object
+    dynamicModelConfigs = modelsToProcess.reduce((configs: Record<string, { context_length: number; description: string }>, model: ModelInfo) => {
+      configs[model.id] = {
+        context_length: model.context_length || 8192, // fallback to 8K
+        description: model.name || model.id
+      };
+      return configs;
+    }, {});
+    
+    isConfigsInitialized = true;
+    logger.info(`[Model Configs] Successfully loaded ${Object.keys(dynamicModelConfigs).length} model configurations`);
+    
+  } catch (error) {
+    logger.error('[Model Configs] Failed to fetch models from OpenRouter API:', error);
+    logger.info('[Model Configs] Using fallback configurations');
+    
+    // Use fallback configurations
+    dynamicModelConfigs = { ...FALLBACK_MODEL_CONFIGS };
+    isConfigsInitialized = true;
+  }
+}
+
+/**
+ * Gets the current model configurations (dynamic or fallback)
+ * Initializes configs if not already done
+ */
+async function getModelConfigs(): Promise<Record<string, { context_length: number; description: string }>> {
+  if (!isConfigsInitialized) {
+    await fetchModelConfigs();
+  }
+  
+  return Object.keys(dynamicModelConfigs).length > 0 ? dynamicModelConfigs : FALLBACK_MODEL_CONFIGS;
+}
+
+/**
+ * Manually refresh model configurations (useful for runtime updates)
+ */
+export async function refreshModelConfigs(): Promise<void> {
+  isConfigsInitialized = false;
+  await fetchModelConfigs();
+}
+
+/**
+ * Gets model configuration for a specific model ID
+ * @param modelId - The OpenRouter model ID
+ * @returns Model configuration with context length and description
+ */
+async function getModelConfig(modelId: string): Promise<{ context_length: number; description: string } | null> {
+  const configs = await getModelConfigs();
+  return configs[modelId] || null;
 }

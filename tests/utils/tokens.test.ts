@@ -181,16 +181,16 @@ describe('Token Estimation Utilities', () => {
   });
 
   describe('getMaxOutputTokens', () => {
-    it('should return max output tokens for legacy compatibility', () => {
+    it('should return max output tokens for legacy compatibility', async () => {
       // This will use the conservative default since we can't properly mock useModelStore
-      const maxTokens = getMaxOutputTokens('gpt-4');
+      const maxTokens = await getMaxOutputTokens('gpt-4');
       
       expect(typeof maxTokens).toBe('number');
       expect(maxTokens).toBeGreaterThan(0);
     });
 
-    it('should log legacy token limit for verification', () => {
-      getMaxOutputTokens('gpt-4');
+    it('should log legacy token limit for verification', async () => {
+      await getMaxOutputTokens('gpt-4');
       
       expect(mockConsoleLog).toHaveBeenCalledWith(
         expect.stringMatching(/\[Legacy Token Limit\] Model .* max output tokens: \d+/)

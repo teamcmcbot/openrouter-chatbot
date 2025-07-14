@@ -275,7 +275,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
-                const strategy = getModelTokenLimits(model);
+                const strategy = await getModelTokenLimits(model);
                 console.log(`[Send Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
 
                 // Get context messages within token budget

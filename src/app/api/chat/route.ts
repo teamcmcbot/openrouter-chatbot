@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     console.log(`[Chat API] Current message: "${data!.message}"`);
     
     // Phase 4: Calculate model-aware max tokens
-    const tokenStrategy = getModelTokenLimits(data!.model);
+    const tokenStrategy = await getModelTokenLimits(data!.model);
     const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
     
     console.log(`[Chat API] Model: ${data!.model || 'default'}`);

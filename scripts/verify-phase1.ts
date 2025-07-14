@@ -12,6 +12,7 @@ import {
 } from '../lib/utils/tokens';
 import { ChatMessage } from '../lib/types/chat';
 
+async function runVerification() {
 console.log('=== Phase 1: Token Management Foundation - Human Verification ===\n');
 
 // Test 1: Basic token estimation
@@ -73,7 +74,7 @@ const fitsMedium = isWithinInputBudget(totalMessageTokens, mediumModelStrategy);
 
 // Test 5: Legacy compatibility
 console.log('\n5. Legacy Compatibility:');
-const legacyMaxTokens = getMaxOutputTokens();
+const legacyMaxTokens = await getMaxOutputTokens();
 console.log(`   Legacy max tokens (no model specified): ${legacyMaxTokens}`);
 
 console.log('\n=== Verification Summary ===');
@@ -85,3 +86,7 @@ console.log(`✓ Legacy compatibility: ${legacyMaxTokens > 0}`);
 
 console.log('\n🎯 Phase 1 verification complete! Check the detailed logs above.');
 console.log('Ready for human review and checkpoint commit.');
+}
+
+// Run the verification
+runVerification().catch(console.error);
