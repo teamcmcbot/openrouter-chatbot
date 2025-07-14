@@ -8,6 +8,8 @@ import { logger } from '../../../../lib/utils/logger';
 import { detectMarkdownContent } from '../../../../lib/utils/markdown';
 import { ChatResponse } from '../../../../lib/types';
 import { OpenRouterRequest } from '../../../../lib/types/openrouter';
+// Phase 4: Import token management utilities
+import { getModelTokenLimits } from '../../../../lib/utils/tokens';
 
 export async function POST(req: NextRequest) {
   logger.info('Chat request received');
@@ -30,7 +32,18 @@ export async function POST(req: NextRequest) {
     console.log(`[Chat API] Message count: ${messages.length} messages`);
     console.log(`[Chat API] Current message: "${data!.message}"`);
     
-    const openRouterResponse = await getOpenRouterCompletion(messages, data!.model);
+    // Phase 4: Calculate model-aware max tokens
+    const tokenStrategy = getModelTokenLimits(data!.model);
+    const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
+    
+    console.log(`[Chat API] Model: ${data!.model || 'default'}`);
+    console.log(`[Chat API] Token strategy - Input: ${tokenStrategy.maxInputTokens}, Output: ${tokenStrategy.maxOutputTokens}`);
+    console.log(`[Chat API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`);
+    
+    // DEBUGGING: Check if maxTokens parameter is being passed correctly
+    console.log(`[Chat API] Verifying maxTokens parameter will be: ${dynamicMaxTokens}`);
+    
+    const openRouterResponse = await getOpenRouterCompletion(messages, data!.model, dynamicMaxTokens);
     logger.debug('OpenRouter response received:', openRouterResponse);
     const assistantResponse = openRouterResponse.choices[0].message.content;
     const usage = openRouterResponse.usage;

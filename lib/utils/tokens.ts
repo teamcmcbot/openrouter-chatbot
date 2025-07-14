@@ -6,7 +6,22 @@
  */
 
 import { ChatMessage } from '../types/chat';
-import { useModelStore } from '../../stores/useModelStore';
+
+// Server-side model context configurations
+// This is a subset of model info for token calculation purposes
+const SERVER_SIDE_MODEL_CONFIGS: Record<string, { context_length: number; description: string }> = {
+  'openai/gpt-4o-mini': { context_length: 128000, description: 'GPT-4o Mini' },
+  'openai/gpt-4o': { context_length: 128000, description: 'GPT-4o' },
+  'google/gemini-2.0-flash-exp:free': { context_length: 1000000, description: 'Gemini 2.0 Flash' },
+  'google/gemini-2.5-flash': { context_length: 1000000, description: 'Gemini 2.5 Flash' },
+  'google/gemma-3-27b-it:free': { context_length: 8192, description: 'Gemma 3 27B' },
+  'deepseek/deepseek-r1-0528:free': { context_length: 128000, description: 'DeepSeek R1' },
+  'deepseek/deepseek-r1-0528-qwen3-8b:free': { context_length: 32768, description: 'DeepSeek R1 Qwen3' },
+  'openrouter/cypher-alpha:free': { context_length: 32768, description: 'Cypher Alpha' },
+  'mistralai/mistral-small-3.2-24b-instruct:free': { context_length: 32768, description: 'Mistral Small' },
+  'moonshotai/kimi-dev-72b:free': { context_length: 128000, description: 'Kimi Dev 72B' },
+  'x-ai/grok-3-mini': { context_length: 128000, description: 'Grok 3 Mini' },
+};
 
 /**
  * Token allocation strategy for a model
@@ -119,16 +134,17 @@ export function getModelTokenLimits(modelId?: string): TokenStrategy {
     return calculateTokenStrategy(8000); // Conservative default
   }
   
-  // Get model info from the model store
-  const modelStore = useModelStore.getState();
-  const modelInfo = modelStore.getModelById(modelId);
+  // Get model info from server-side configuration
+  const modelConfig = SERVER_SIDE_MODEL_CONFIGS[modelId];
   
-  if (!modelInfo || typeof modelInfo === 'string' || !modelInfo.context_length) {
-    console.log(`[Model Token Limits] Model not found or no context_length, using conservative default (8K context)`);
+  if (!modelConfig) {
+    console.log(`[Model Token Limits] Model '${modelId}' not found in server config, using conservative default (8K context)`);
     return calculateTokenStrategy(8000); // Conservative fallback
   }
   
-  const contextLength = modelInfo.context_length;
+  console.log(`[Model Token Limits] Found ${modelConfig.description} with ${modelConfig.context_length} context length`);
+  
+  const contextLength = modelConfig.context_length;
   console.log(`[Model Token Limits] Found model ${modelId} with context length: ${contextLength}`);
   
   return calculateTokenStrategy(contextLength);
