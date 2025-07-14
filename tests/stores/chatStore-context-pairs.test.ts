@@ -92,10 +92,14 @@ describe('Phase 3.5: Context Pair Selection', () => {
       timestamp: new Date('2023-01-01T10:07:00Z'),
     });
     
-    const conversation = store.conversations.find(c => c.isActive);
-    if (conversation) {
-      conversation.messages = messages;
-    }
+    // Update store state properly using setState
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map(conv => 
+        conv.isActive 
+          ? { ...conv, messages }
+          : conv
+      )
+    }));
     
     // Get context with generous token budget (should be limited by pairs)
     const contextMessages = store.getContextMessages(10000);
@@ -156,10 +160,14 @@ describe('Phase 3.5: Context Pair Selection', () => {
       },
     ];
     
-    const conversation = store.conversations.find(c => c.isActive);
-    if (conversation) {
-      conversation.messages = messages;
-    }
+    // Update store state properly using setState
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map(conv => 
+        conv.isActive 
+          ? { ...conv, messages }
+          : conv
+      )
+    }));
     
     const contextMessages = store.getContextMessages(1000);
     
@@ -186,10 +194,14 @@ describe('Phase 3.5: Context Pair Selection', () => {
       { id: 'current_msg', content: 'Current question', role: 'user' as const, timestamp: new Date('2023-01-01T10:05:00Z') },
     ];
     
-    const conversation = store.conversations.find(c => c.isActive);
-    if (conversation) {
-      conversation.messages = messages;
-    }
+    // Update store state properly using setState
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map(conv => 
+        conv.isActive 
+          ? { ...conv, messages }
+          : conv
+      )
+    }));
     
     const contextMessages = store.getContextMessages(1000);
     
@@ -221,10 +233,14 @@ describe('Phase 3.5: Context Pair Selection', () => {
       { id: 'current_msg', content: 'Current question', role: 'user' as const, timestamp: new Date('2023-01-01T10:04:00Z') },
     ];
     
-    const conversation = store.conversations.find(c => c.isActive);
-    if (conversation) {
-      conversation.messages = messages;
-    }
+    // Update store state properly using setState
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map(conv => 
+        conv.isActive 
+          ? { ...conv, messages }
+          : conv
+      )
+    }));
     
     const contextMessages = store.getContextMessages(1000);
     
@@ -255,10 +271,14 @@ describe('Phase 3.5: Context Pair Selection', () => {
       timestamp: new Date('2023-01-01T10:07:00Z'),
     });
     
-    const conversation = store.conversations.find(c => c.isActive);
-    if (conversation) {
-      conversation.messages = messages;
-    }
+    // Update store state properly using setState
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map(conv => 
+        conv.isActive 
+          ? { ...conv, messages }
+          : conv
+      )
+    }));
     
     store.getContextMessages(1000);
     
