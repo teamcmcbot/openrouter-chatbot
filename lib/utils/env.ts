@@ -45,7 +45,7 @@ export function getEnvNumber(name: string, defaultValue?: number): number {
 
 // Enhanced models API feature flags
 export function isEnhancedModelsEnabled(): boolean {
-  return isFeatureEnabled('ENABLE_ENHANCED_MODELS', false);
+  return isFeatureEnabled('NEXT_PUBLIC_ENABLE_ENHANCED_MODELS', false);
 }
 
 export function getModelsCacheTTL(): number {
@@ -71,7 +71,7 @@ export function validateEnvVars() {
   // Optional environment variables (will use defaults if not provided)
   const optionalEnvVars = [
     'OPENROUTER_MODELS_LIST', // Comma-separated list of available models
-    'ENABLE_ENHANCED_MODELS', // Feature flag for enhanced models API
+    'NEXT_PUBLIC_ENABLE_ENHANCED_MODELS', // Feature flag for enhanced models API
     'OPENROUTER_MODELS_API_URL', // OpenRouter models API endpoint
     'MODELS_CACHE_TTL_MINUTES', // Cache TTL in minutes
     'NEXT_PUBLIC_SITE_URL', // Site URL for OpenRouter API headers

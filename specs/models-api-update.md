@@ -79,7 +79,7 @@ This specification outlines the implementation plan for enhancing the `/api/mode
 **Implementation Details**:
 
 - Added support for `?enhanced=true` query parameter detection
-- Integrated with feature flag system (`ENABLE_ENHANCED_MODELS`)
+- Integrated with feature flag system (`NEXT_PUBLIC_ENABLE_ENHANCED_MODELS`)
 - Added comprehensive logging with performance metrics
 - Added response headers for monitoring (`X-Enhanced-Mode`, `X-Response-Time`, etc.)
 - Maintained backward compatibility with existing response format
@@ -164,7 +164,7 @@ This specification outlines the implementation plan for enhancing the `/api/mode
 
 - Server-side caching using Next.js 15's `unstable_cache` (10-minute TTL)
 - Graceful fallback to environment variable list if OpenRouter API fails
-- Feature flag support for gradual rollout (`ENABLE_ENHANCED_MODELS`)
+- Feature flag support for gradual rollout (`NEXT_PUBLIC_ENABLE_ENHANCED_MODELS`)
 - Comprehensive error logging and monitoring headers
 - Rate limiting protection with exponential backoff
 - Backward compatibility maintained through dual-mode API design
@@ -530,7 +530,7 @@ OPENROUTER_MODELS_API_URL=https://openrouter.ai/api/v1/models
 MODELS_CACHE_TTL_MINUTES=30
 
 # Enable enhanced models API (optional, defaults to false for gradual rollout)
-ENABLE_ENHANCED_MODELS=false
+NEXT_PUBLIC_ENABLE_ENHANCED_MODELS=false
 
 # Site URL for OpenRouter API headers (required for API access)
 NEXT_PUBLIC_SITE_URL=https://your-domain.com

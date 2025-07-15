@@ -340,7 +340,7 @@ export function filterAllowedModels(
   }
   
   const filtered = models.filter(model => allowedModels.includes(model.id));
-  
+  logger.info(`Allowed list size: ${allowedModels.length}`);
   logger.info(`Filtered ${models.length} models to ${filtered.length} allowed models`);
   
   if (filtered.length === 0) {

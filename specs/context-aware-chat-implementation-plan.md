@@ -238,7 +238,7 @@ CONTEXT_MESSAGE_PAIRS=5
 CONTEXT_RATIO=0.6
 OUTPUT_RATIO=0.4
 RESERVE_TOKENS=150
-ENABLE_CONTEXT_AWARE=true
+NEXT_PUBLIC_ENABLE_CONTEXT_AWARE=true
 
 # Legacy fallback (kept for compatibility)
 OPENROUTER_MAX_TOKENS=1000
@@ -334,7 +334,7 @@ interface Conversation {
 - [x] Add `CONTEXT_RATIO=0.6` (60% for input context)
 - [x] Add `OUTPUT_RATIO=0.4` (40% for output generation)
 - [x] Add `RESERVE_TOKENS=150` (safety buffer)
-- [x] Add `ENABLE_CONTEXT_AWARE=true` (feature flag)
+- [x] Add `NEXT_PUBLIC_ENABLE_CONTEXT_AWARE=true` (feature flag)
 - [x] Keep `OPENROUTER_MAX_TOKENS=1000` (legacy fallback)
 - [x] **Human Verification**: Environment variables loaded correctly in development
 
