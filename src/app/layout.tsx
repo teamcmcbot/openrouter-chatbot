@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenRouter Chatbot",
+  title: process.env.BRAND_NAME || "OpenRouter Chatbot",
   description: "A modern chatbot powered by OpenRouter's AI models",
   manifest: '/manifest.json',
   icons: {

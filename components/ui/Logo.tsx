@@ -92,12 +92,16 @@ export const Logo: React.FC<LogoProps> = ({ className = "", size = 32 }) => {
   );
 };
 
+
 export const LogoWithText: React.FC<LogoProps> = ({ className = "", size = 32 }) => {
+  const brandName = typeof process !== 'undefined' && process.env && process.env.BRAND_NAME
+    ? process.env.BRAND_NAME
+    : 'OpenRouter Chat';
   return (
     <div className={`flex items-center space-x-3 ${className}`}>
       <Logo size={size} />
       <span className="text-xl font-bold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-        OpenRouter Chat
+        {brandName}
       </span>
     </div>
   );
