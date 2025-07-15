@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import ErrorBoundary from "../../components/ui/ErrorBoundary";
 import "./globals.css";
+import { LogoWithText } from "../../components/ui/Logo";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,6 +18,28 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "OpenRouter Chatbot",
   description: "A modern chatbot powered by OpenRouter's AI models",
+  manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon-16x16.svg', sizes: '16x16', type: 'image/svg+xml' },
+      { url: '/favicon-32x32.svg', sizes: '32x32', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.svg',
+    apple: [
+      { url: '/android-chrome-192x192.svg', sizes: '192x192', type: 'image/svg+xml' },
+    ],
+    other: [
+      {
+        rel: 'android-chrome-192x192',
+        url: '/android-chrome-192x192.svg',
+      },
+      {
+        rel: 'android-chrome-512x512',
+        url: '/android-chrome-512x512.svg',
+      },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -35,8 +58,11 @@ export default function RootLayout({
               <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div className="flex h-16 items-center justify-between">
                   <div className="flex items-center">
-                    <Link href="/" className="text-xl font-bold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                    {/* <Link href="/" className="text-xl font-bold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                       OpenRouter Chat
+                    </Link> */}
+                    <Link href="/" className="">
+                      <LogoWithText size={32} />
                     </Link>
                   </div>
                   <div className="flex items-center space-x-4">
