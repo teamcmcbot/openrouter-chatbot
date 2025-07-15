@@ -51,6 +51,10 @@ OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_MAX_TOKENS=5000
 ```
 
+`.env.local` is ignored by Git and automatically loaded by Next.js. Use it to
+override any environment variables for your local setup without committing them
+to the repository.
+
 5. Run the development server:
 
 ```bash
@@ -62,32 +66,42 @@ npm run dev
 ## Project Structure
 
 ```
+├── __mocks__/         # Test mocks
 ├── components/
 │   ├── chat/           # Chat-related components
 │   │   ├── ChatInterface.tsx
+│   │   ├── MarkdownRenderer.tsx
+│   │   ├── MessageContent.tsx
+│   │   ├── MessageInput.tsx
 │   │   ├── MessageList.tsx
-│   │   └── MessageInput.tsx
+│   │   └── markdown/
+│   │       └── MarkdownComponents.tsx
 │   └── ui/             # Reusable UI components
 │       ├── Button.tsx
+│       ├── ChatSidebar.tsx
+│       ├── ErrorBoundary.tsx
+│       ├── ErrorDisplay.tsx
 │       ├── Input.tsx
 │       ├── Loading.tsx
-│       └── ErrorDisplay.tsx
+│       ├── ModelComparison.tsx
+│       ├── ModelDetailsSidebar.tsx
+│       └── ModelDropdown.tsx
 ├── hooks/              # Custom React hooks
-│   ├── useChat.ts
-│   ├── useLocalStorage.ts
-│   └── useDebounce.ts
-├── lib/               # Utility functions and types
-│   ├── types/
-│   └── utils/
+├── lib/                # Utilities and types
+├── public/             # Static assets
 ├── src/
-│   └── app/           # Next.js app directory
-│       ├── (app)/     # Main application routes
-│       │   ├── chat/
-│       │   └── page.tsx
-│       └── globals.css
-└── tests/             # Test files
+│   └── app/            # Next.js app directory
+│       ├── (app)/      # Main routes
+│       ├── api/        # Route handlers
+│       ├── chat/
+│       └── test-env/
+├── stores/             # Zustand stores
+└── tests/              # Test files
     ├── components/
-    └── hooks/
+    ├── hooks/
+    ├── integration/
+    ├── stores/
+    └── utils/
 ```
 
 ## Available Scripts
@@ -130,9 +144,9 @@ npm test
 
 ### State Management
 
+- **Zustand Stores**: Centralized and persistent state for chat, settings, and UI
 - **React State**: Local component state for UI interactions
-- **Custom Hooks**: Shared state logic (chat, localStorage)
-- **No External Library**: Keeping it simple with React's built-in state
+- **Custom Hooks**: Encapsulate shared logic (chat, localStorage)
 
 ## API Integration
 
@@ -184,12 +198,20 @@ The app can be deployed to any platform that supports Next.js:
 
 ## Environment Variables
 
-| Variable                | Description                 | Default                          |
-| ----------------------- | --------------------------- | -------------------------------- |
-| `OPENROUTER_API_KEY`    | Your OpenRouter API key     | Required                         |
-| `OPENROUTER_API_MODEL`  | Model to use                | `deepseek/deepseek-r1-0528:free` |
-| `OPENROUTER_BASE_URL`   | OpenRouter API base URL     | `https://openrouter.ai/api/v1`   |
-| `OPENROUTER_MAX_TOKENS` | Maximum tokens per response | `1000`                           |
+| Variable | Description | Default |
+| --------------------------- | --------------------------- | ---------------- |
+| `OPENROUTER_API_KEY` | Your OpenRouter API key | Required |
+| `OPENROUTER_API_MODEL` | Default model to use | `deepseek/deepseek-r1-0528:free` |
+| `OPENROUTER_MODELS_LIST` | Comma separated list of models | See `.env.example` |
+| `OPENROUTER_BASE_URL` | OpenRouter API base URL | `https://openrouter.ai/api/v1` |
+| `OPENROUTER_MAX_TOKENS` | Maximum tokens per response | `1000` |
+| `CONTEXT_MESSAGE_PAIRS` | Number of message pairs for context | `5` |
+| `CONTEXT_RATIO` | Ratio of context tokens | `0.6` |
+| `OUTPUT_RATIO` | Ratio of output tokens | `0.4` |
+| `RESERVE_TOKENS` | Tokens reserved for system prompts | `150` |
+| `ENABLE_CONTEXT_AWARE` | Enable context-aware chat | `true` |
+| `NEXT_PUBLIC_ENABLE_CONTEXT_AWARE` | Expose context-aware flag to client | `true` |
+| `ENABLE_ENHANCED_MODELS` | Allow using enhanced models | `true` |
 
 ## License
 
