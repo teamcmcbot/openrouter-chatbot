@@ -5,6 +5,8 @@ export interface CachedModelData {
   isEnhanced: boolean;
   timestamp: number;
   version: number;
+  // Added for token limit caching
+  modelConfigs?: Record<string, { context_length: number; description: string }>;
 }
 
 export interface ModelState {
@@ -18,6 +20,8 @@ export interface ModelState {
   isHydrated: boolean;
   isOnline: boolean;
   backgroundRefreshEnabled: boolean;
+  // Added for token limit caching
+  modelConfigs: Record<string, { context_length: number; description: string }>;
 
   // Actions
   fetchModels: () => Promise<void>;
@@ -41,6 +45,9 @@ export interface ModelSelectors {
   getModelCount: () => number;
   isCacheValid: () => boolean;
   isRefreshNeeded: () => boolean;
+  // Added for token limit access
+  getModelConfig: (modelId: string) => { context_length: number; description: string } | undefined;
+  getAllModelConfigs: () => Record<string, { context_length: number; description: string }>;
 }
 
 // Type guards

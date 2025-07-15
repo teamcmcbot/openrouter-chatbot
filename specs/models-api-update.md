@@ -787,4 +787,30 @@ This **updated specification** provides a comprehensive roadmap for upgrading th
 - **Extensibility**: Architecture supports future features like model comparison and detailed information display
 
 Each task is designed to be independently implementable and testable, allowing for incremental progress tracking and easy rollback if issues arise.
+
+## Performance Optimization: Model Configuration Caching
+
+### Issue Addressed
+
+During implementation, an optimization opportunity was identified where the application was making redundant API calls:
+
+1. **Initial load**: `GET /api/models?enhanced=true` to populate models dropdown
+2. **Message sending**: Direct call to `https://openrouter.ai/api/v1/models` for token limit calculations
+
+### Solution Implemented
+
+**Enhanced Store Caching**: The `useModelStore` now caches model configurations (context lengths) alongside the models list, eliminating redundant API calls during token estimation.
+
+**Benefits**:
+- Reduced API calls to OpenRouter
+- Faster message sending (no network delay for token limits)
+- Better rate limit management
+- Improved offline functionality
+
+**Technical Details**:
+- Added `modelConfigs` to store state for caching context lengths
+- Updated `tokens.ts` to check store cache before making API calls
+- Maintained backward compatibility and graceful fallbacks
+
+See `/specs/model-configuration-caching.md` for detailed implementation documentation.
 ````
