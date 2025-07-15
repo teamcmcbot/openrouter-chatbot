@@ -9,6 +9,7 @@ import { ChatMessage } from '../types/chat';
 import { ModelInfo } from '../types/openrouter';
 import { getEnvVar } from './env';
 import { logger } from './logger';
+import { getModelConfigFromStore, hasModelConfigsInStore } from '../../stores/useModelStore';
 
 // Fallback model context configurations
 // Used when dynamic fetching fails or for server-side initialization
@@ -29,6 +30,10 @@ const FALLBACK_MODEL_CONFIGS: Record<string, { context_length: number; descripti
 // Dynamic model context configurations
 let dynamicModelConfigs: Record<string, { context_length: number; description: string }> = {};
 let isConfigsInitialized = false;
+let configsLastFetched = 0;
+
+// Server-side cache configuration
+const SERVER_CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
 /**
  * Token allocation strategy for a model
@@ -127,8 +132,8 @@ export function calculateTokenStrategy(contextLength: number): TokenStrategy {
 }
 
 /**
- * Gets token limits for a specific model using dynamic configuration
- * Falls back to conservative defaults if model info is not available
+ * Gets token limits for a specific model using cached configuration first (client-side only)
+ * Falls back to API fetch then conservative defaults if model info is not available
  * 
  * @param modelId - The OpenRouter model ID
  * @returns Token strategy for the specified model
@@ -142,15 +147,38 @@ export async function getModelTokenLimits(modelId?: string): Promise<TokenStrate
   }
   
   try {
-    // Get model info from dynamic configuration
+    // First, try to get model config from the store (cached from dropdown fetch)
+    // Only available on client-side due to Zustand store limitations
+    if (typeof window !== 'undefined') {
+      try {
+        if (hasModelConfigsInStore()) {
+          const cachedModelConfig = getModelConfigFromStore(modelId);
+          if (cachedModelConfig) {
+            console.log(`[Model Token Limits] Found ${cachedModelConfig.description} with ${cachedModelConfig.context_length} context length from cache`);
+            console.log(`[Model Token Limits] Using cached model ${modelId} with context length: ${cachedModelConfig.context_length}`);
+            return calculateTokenStrategy(cachedModelConfig.context_length);
+          } else {
+            console.log(`[Model Token Limits] Model '${modelId}' not found in cached configs, falling back to API`);
+          }
+        } else {
+          console.log(`[Model Token Limits] No cached model configs available, falling back to API`);
+        }
+      } catch (error) {
+        console.log(`[Model Token Limits] Error accessing store cache (expected on server-side), falling back to API:`, error);
+      }
+    } else {
+      console.log(`[Model Token Limits] Server-side execution, skipping store cache and using API`);
+    }
+    
+    // Fallback to dynamic configuration (API call)
     const modelConfig = await getModelConfig(modelId);
     
     if (!modelConfig) {
-      console.log(`[Model Token Limits] Model '${modelId}' not found in config, using conservative default (8K context)`);
+      console.log(`[Model Token Limits] Model '${modelId}' not found in API config, using conservative default (8K context)`);
       return calculateTokenStrategy(8000); // Conservative fallback
     }
     
-    console.log(`[Model Token Limits] Found ${modelConfig.description} with ${modelConfig.context_length} context length`);
+    console.log(`[Model Token Limits] Found ${modelConfig.description} with ${modelConfig.context_length} context length from API`);
     
     const contextLength = modelConfig.context_length;
     console.log(`[Model Token Limits] Found model ${modelId} with context length: ${contextLength}`);
@@ -194,7 +222,7 @@ export async function getMaxOutputTokens(modelId?: string): Promise<number> {
 }
 
 /**
- * Fetches model configurations from OpenRouter API
+ * Fetches model configurations from OpenRouter API with server-side caching
  * Filters models based on OPENROUTER_MODELS_LIST environment variable
  */
 async function fetchModelConfigs(): Promise<void> {
@@ -229,7 +257,8 @@ async function fetchModelConfigs(): Promise<void> {
     }, {});
     
     isConfigsInitialized = true;
-    logger.info(`[Model Configs] Successfully loaded ${Object.keys(dynamicModelConfigs).length} model configurations`);
+    configsLastFetched = Date.now();
+    logger.info(`[Model Configs] Successfully loaded ${Object.keys(dynamicModelConfigs).length} model configurations (server-side cache)`);
     
   } catch (error) {
     logger.error('[Model Configs] Failed to fetch models from OpenRouter API:', error);
@@ -238,16 +267,26 @@ async function fetchModelConfigs(): Promise<void> {
     // Use fallback configurations
     dynamicModelConfigs = { ...FALLBACK_MODEL_CONFIGS };
     isConfigsInitialized = true;
+    configsLastFetched = Date.now();
   }
 }
 
 /**
- * Gets the current model configurations (dynamic or fallback)
- * Initializes configs if not already done
+ * Gets the current model configurations (dynamic or fallback) with server-side caching
+ * Initializes configs if not already done or if cache has expired
  */
 async function getModelConfigs(): Promise<Record<string, { context_length: number; description: string }>> {
-  if (!isConfigsInitialized) {
+  const now = Date.now();
+  const cacheAge = now - configsLastFetched;
+  const isExpired = cacheAge > SERVER_CACHE_TTL;
+  
+  if (!isConfigsInitialized || isExpired) {
+    if (isExpired && isConfigsInitialized) {
+      logger.info(`[Model Configs] Server-side cache expired (${Math.round(cacheAge / 1000 / 60)} minutes old), refreshing...`);
+    }
     await fetchModelConfigs();
+  } else {
+    logger.debug(`[Model Configs] Using server-side cached configurations (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
   }
   
   return Object.keys(dynamicModelConfigs).length > 0 ? dynamicModelConfigs : FALLBACK_MODEL_CONFIGS;
@@ -269,4 +308,35 @@ export async function refreshModelConfigs(): Promise<void> {
 async function getModelConfig(modelId: string): Promise<{ context_length: number; description: string } | null> {
   const configs = await getModelConfigs();
   return configs[modelId] || null;
+}
+
+/**
+ * Preloads model configurations into server-side cache
+ * Useful for reducing latency on first chat requests
+ */
+export async function preloadModelConfigs(): Promise<void> {
+  logger.info('[Model Configs] Preloading model configurations into server-side cache...');
+  await fetchModelConfigs();
+}
+
+/**
+ * Gets cache statistics for monitoring
+ */
+export function getServerCacheStats(): {
+  isInitialized: boolean;
+  configCount: number;
+  ageMinutes: number;
+  isExpired: boolean;
+} {
+  const now = Date.now();
+  const cacheAge = now - configsLastFetched;
+  const ageMinutes = Math.round(cacheAge / 1000 / 60);
+  const isExpired = cacheAge > SERVER_CACHE_TTL;
+  
+  return {
+    isInitialized: isConfigsInitialized,
+    configCount: Object.keys(dynamicModelConfigs).length,
+    ageMinutes,
+    isExpired,
+  };
 }

@@ -50,17 +50,33 @@ const setCachedData = (models: ModelInfo[] | string[], isEnhanced: boolean): voi
   if (typeof window === 'undefined') return;
   
   try {
+    // Extract model configurations for token limit caching
+    const modelConfigs: Record<string, { context_length: number; description: string }> = {};
+    
+    if (isEnhanced && isEnhancedModels(models)) {
+      // Enhanced models contain full model info including context_length
+      models.forEach(model => {
+        modelConfigs[model.id] = {
+          context_length: model.context_length || 8192,
+          description: model.name || model.id
+        };
+      });
+      logger.info('Extracted model configurations for token limits', { configCount: Object.keys(modelConfigs).length });
+    }
+    
     const cacheData: CachedModelData = {
       models,
       isEnhanced,
       timestamp: Date.now(),
       version: CACHE_CONFIG.CACHE_VERSION,
+      modelConfigs,
     };
     
     localStorage.setItem(STORAGE_KEYS.MODELS, JSON.stringify(cacheData));
     logger.info('Model data cached successfully', { 
       modelCount: models.length, 
       isEnhanced,
+      configCount: Object.keys(modelConfigs).length,
       timestamp: new Date().toISOString() 
     });
   } catch (error) {
@@ -147,6 +163,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
           isHydrated: false,
           isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
           backgroundRefreshEnabled: false,
+          modelConfigs: {},
 
           // Actions
           fetchModels: async () => {
@@ -175,6 +192,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
                   selectedModel: shouldAutoSelect ? firstModelId : state.selectedModel,
                   isLoading: false,
                   lastUpdated: new Date(cachedData.timestamp),
+                  modelConfigs: cachedData.modelConfigs || {},
                 });
                 
                 if (shouldAutoSelect) {
@@ -205,6 +223,17 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               const firstModelId = result.models.length > 0 ? 
                 (typeof result.models[0] === 'string' ? result.models[0] : result.models[0].id) : '';
               
+              // Extract model configurations for token limits from fresh data
+              const modelConfigs: Record<string, { context_length: number; description: string }> = {};
+              if (result.isEnhanced && isEnhancedModels(result.models)) {
+                result.models.forEach(model => {
+                  modelConfigs[model.id] = {
+                    context_length: model.context_length || 8192,
+                    description: model.name || model.id
+                  };
+                });
+              }
+              
               set({
                 models: result.models,
                 selectedModel: shouldAutoSelect ? firstModelId : state.selectedModel,
@@ -212,6 +241,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
                 isLoading: false,
                 lastUpdated: new Date(),
                 error: null,
+                modelConfigs,
               });
 
               if (shouldAutoSelect) {
@@ -244,6 +274,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
                   isLoading: false,
                   error: errorMessage,
                   lastUpdated: new Date(cachedData.timestamp),
+                  modelConfigs: cachedData.modelConfigs || {},
                 });
                 
                 if (shouldAutoSelect) {
@@ -273,11 +304,23 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               const result = await fetchModelsFromAPI();
               setCachedData(result.models, result.isEnhanced);
               
+              // Extract model configurations for token limits from refresh data
+              const modelConfigs: Record<string, { context_length: number; description: string }> = {};
+              if (result.isEnhanced && isEnhancedModels(result.models)) {
+                result.models.forEach(model => {
+                  modelConfigs[model.id] = {
+                    context_length: model.context_length || 8192,
+                    description: model.name || model.id
+                  };
+                });
+              }
+              
               set({
                 models: result.models,
                 isEnhanced: result.isEnhanced,
                 lastUpdated: new Date(),
                 error: null,
+                modelConfigs,
               });
 
               logger.info('Models refreshed successfully', {
@@ -356,7 +399,8 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
             set({ 
               models: [], 
               lastUpdated: null,
-              error: null 
+              error: null,
+              modelConfigs: {},
             });
           },
 
@@ -414,6 +458,15 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
             }
             
             return false;
+          },
+
+          getModelConfig: (modelId: string) => {
+            const { modelConfigs } = get();
+            return modelConfigs[modelId];
+          },
+
+          getAllModelConfigs: () => {
+            return get().modelConfigs;
           },
         }),
         {
@@ -547,4 +600,22 @@ export const useModelSelection = () => {
     refreshModels,
     lastUpdated,
   };
+};
+
+// Utility function for external modules to access model configurations
+export const getModelConfigFromStore = (modelId: string): { context_length: number; description: string } | null => {
+  const state = useModelStore.getState();
+  return state.getModelConfig(modelId) || null;
+};
+
+export const getAllModelConfigsFromStore = (): Record<string, { context_length: number; description: string }> => {
+  const state = useModelStore.getState();
+  return state.getAllModelConfigs();
+};
+
+// Check if model configurations are available in store
+export const hasModelConfigsInStore = (): boolean => {
+  const state = useModelStore.getState();
+  const configs = state.getAllModelConfigs();
+  return Object.keys(configs).length > 0;
 };
