@@ -1,0 +1,23 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- Antenna (15% of height = 2.4px) with rounder top -->
+  <rect x="7.5" y="1.25" width="1" height="1.25" fill="#10B981"/>
+  <circle cx="8" cy="1.25" r="1" fill="#10B981"/>
+  
+  <!-- Chat bubble body with integrated pointer (70% of height = 11.2px, centered) -->
+  <rect x="2.5" y="2.5" width="11" height="11" rx="2" ry="2" fill="#10B981"/>
+  
+  <!-- Left ear -->
+  <circle cx="1.5" cy="6" r="1" fill="#10B981"/>
+  
+  <!-- Speech bubble pointer (seamlessly connected to body) -->
+  <path d="M 5.25 13.5 L 4 15 L 6.5 13.5 Z" fill="#10B981"/>
+  
+  <!-- Left eye (normal) -->
+  <circle cx="6" cy="7" r="0.75" fill="#000"/>
+  
+  <!-- Right eye (winking) -->
+  <path d="M 9 7 C 10 6.5 11 6.5 11 7" stroke="#000" stroke-width="0.75" fill="none" stroke-linecap="round"/>
+  
+  <!-- Smile -->
+  <path d="M 5.5 9.5 Q 8 11 10.5 9.5" stroke="#000" stroke-width="0.75" fill="none" stroke-linecap="round"/>
+</svg>

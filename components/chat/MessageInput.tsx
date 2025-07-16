@@ -72,7 +72,7 @@ export default function MessageInput({ onSendMessage, disabled = false }: Readon
         <span>
           {message.length > 0 && `${message.length} characters`}
         </span>
-        <span>
+        <span className="hidden sm:inline">
           Press Enter to send • Shift+Enter for new line
         </span>
       </div>
