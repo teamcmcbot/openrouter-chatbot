@@ -2,75 +2,54 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '../../lib/supabase/client'
-import { User } from '@supabase/supabase-js'
+import { useAuth } from '../../stores/useAuthStore'
 import Button from '../ui/Button'
 
 export function SimpleAuthButton() {
   const [showModal, setShowModal] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [user, setUser] = useState<User | null>(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  const { 
+    user, 
+    isAuthenticated, 
+    isLoading, 
+    isInitialized,
+    error,
+    signInWithGoogle, 
+    signOut,
+    initialize,
+    clearError 
+  } = useAuth()
 
+  // Initialize auth on mount
   useEffect(() => {
-    const supabase = createClient()
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setAuthLoading(false)
-    })
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      setAuthLoading(false)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const handleGoogleSignIn = async () => {
-    try {
-      setIsLoading(true)
-      console.log('Starting Google sign-in...')
-      
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
-      })
-
-      if (error) {
-        console.error('Google sign-in error:', error)
-        alert(`Sign-in error: ${error.message}`)
-      } else {
-        console.log('Google sign-in initiated:', data)
-        setShowModal(false) // Close modal as redirect will happen
-      }
-    } catch (err) {
-      console.error('Unexpected error during sign-in:', err)
-      alert('An unexpected error occurred. Please try again.')
-    } finally {
-      setIsLoading(false)
+    if (!isInitialized) {
+      initialize()
     }
-  }
+  }, [isInitialized, initialize])
 
   const handleSignOut = async () => {
     try {
-      const supabase = createClient()
-      await supabase.auth.signOut()
-      window.location.href = '/'
+      await signOut()
+      // signOut already handles redirect, so no need to do anything else
     } catch (err) {
-      console.error('Sign out error:', err)
+      console.error('Sign out failed:', err)
+      // Error is handled in the store
     }
   }
 
-  if (authLoading) {
+  const handleGoogleSignIn = async () => {
+    try {
+      clearError() // Clear any previous errors
+      await signInWithGoogle()
+      setShowModal(false) // Close modal as redirect will happen
+    } catch (err) {
+      console.error('Sign in failed:', err)
+      // Error is handled in the store and displayed via error state
+      // Keep modal open to show error
+    }
+  }
+
+  // Show loading state during initialization
+  if (!isInitialized) {
     return (
       <Button variant="ghost" size="sm" disabled>
         Loading...
@@ -78,29 +57,33 @@ export function SimpleAuthButton() {
     )
   }
 
-  if (user) {
+  // Show authenticated user state
+  if (isAuthenticated && user) {
     return (
       <div className="flex items-center space-x-2">
         <span className="text-sm text-gray-700 dark:text-gray-300">
           Hi, {user.email?.split('@')[0]}!
         </span>
-        <Button onClick={handleSignOut} variant="ghost" size="sm">
+        <Button 
+          onClick={handleSignOut} 
+          variant="ghost" 
+          size="sm"
+          loading={isLoading}
+        >
           Sign Out
         </Button>
       </div>
     )
   }
 
+  // Show sign in button for non-authenticated users
   return (
     <>
       <Button
         onClick={() => {
           console.log('Sign in button clicked!')
-          // Option 1: Show modal first (current behavior)
+          clearError() // Clear any previous errors
           setShowModal(true)
-          
-          // Option 2: Direct redirect (uncomment line below and comment line above)
-          // handleGoogleSignIn()
         }}
         variant="primary"
         size="sm"
@@ -110,71 +93,49 @@ export function SimpleAuthButton() {
       </Button>
       {showModal && (
         <div 
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
+          className="fixed inset-0 z-50 bg-black bg-opacity-50"
           onClick={() => {
             console.log('Backdrop clicked, closing modal')
             setShowModal(false)
+            clearError() // Clear error when closing modal
           }}
         >
-          <div 
-            style={{
-              backgroundColor: 'white',
-              padding: '2rem',
-              borderRadius: '8px',
-              maxWidth: '400px',
-              width: '90%',
-              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ margin: '0 0 1rem 0', fontSize: '1.5rem', fontWeight: 'bold' }}>
-              Welcome to OpenRouter Chat
+          <div className="min-h-screen flex items-center justify-center p-4">
+            <div 
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 border border-white-200 dark:border-white-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
+              Sign In
             </h2>
-            <p style={{ margin: '0 0 1.5rem 0', color: '#666' }}>
+            <p className="text-gray-600 dark:text-gray-400 mb-6 text-center">
               Sign in to save your chat history and personalize your experience.
             </p>
             
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+            {/* Error display */}
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                <p className="text-sm text-red-800 dark:text-red-400 m-0">
+                  {error}
+                </p>
+              </div>
+            )}
+            
+            <div className="mb-4">
               <button
                 onClick={handleGoogleSignIn}
                 disabled={isLoading}
-                style={{
-                  backgroundColor: '#4285f4',
-                  color: 'white',
-                  padding: '0.75rem 1rem',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  opacity: isLoading ? 0.7 : 1
-                }}
+                className={`
+                  w-full flex items-center justify-center gap-3 px-4 py-3 
+                  bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400
+                  text-white font-medium rounded-lg transition-colors
+                  disabled:cursor-not-allowed
+                  ${isLoading ? 'opacity-70' : ''}
+                `}
               >
                 {isLoading ? (
                   <>
-                    <div style={{ 
-                      width: '16px', 
-                      height: '16px', 
-                      border: '2px solid #ffffff', 
-                      borderTop: '2px solid transparent', 
-                      borderRadius: '50%', 
-                      animation: 'spin 1s linear infinite' 
-                    }} />
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Signing in...
                   </>
                 ) : (
@@ -192,30 +153,18 @@ export function SimpleAuthButton() {
             </div>
             
             <button
-              onClick={() => setShowModal(false)}
-              style={{
-                backgroundColor: 'transparent',
-                color: '#666',
-                padding: '0.5rem',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                width: '100%'
+              onClick={() => {
+                setShowModal(false)
+                clearError()
               }}
+              className="w-full px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
             >
               Maybe later
             </button>
+            </div>
           </div>
         </div>
       )}
-      
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
     </>
   )
 }

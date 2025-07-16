@@ -4,8 +4,7 @@ import Link from "next/link";
 import ErrorBoundary from "../../components/ui/ErrorBoundary";
 import "./globals.css";
 import { LogoWithText } from "../../components/ui/Logo";
-// import { AuthProvider } from "../../contexts/AuthContext";
-// import { AuthButton } from "../../components/auth/AuthButton";
+import { AuthProvider } from "../../components/auth/AuthProvider";
 import { SimpleAuthButton } from "../../components/auth/SimpleAuthButton";
 
 const geistSans = Geist({
@@ -55,6 +54,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 dark:bg-gray-900`}
       >
+        <AuthProvider>
           <ErrorBoundary>
             <div className="flex flex-col h-screen">
               <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md dark:border-gray-800 dark:bg-gray-900/80 flex-shrink-0">
@@ -84,6 +84,7 @@ export default function RootLayout({
               </footer>
             </div>
           </ErrorBoundary>
+        </AuthProvider>
       </body>
     </html>
   );
