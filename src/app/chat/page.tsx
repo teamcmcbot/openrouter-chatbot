@@ -1,11 +1,32 @@
-import ChatInterface from "../../../components/chat/ChatInterface";
+'use client'
 
-export default function ChatPage() {
+import { Suspense } from 'react'
+import ChatInterface from "../../../components/chat/ChatInterface";
+import AuthSuccessNotification from './AuthSuccessNotification'
+
+function ChatPageContent() {
   return (
     <div className="h-full bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+      <Suspense fallback={null}>
+        <AuthSuccessNotification />
+      </Suspense>
       <div className="h-full max-w-full mx-auto">
         <ChatInterface />
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-full bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+        <div className="h-full max-w-full mx-auto">
+          <ChatInterface />
+        </div>
+      </div>
+    }>
+      <ChatPageContent />
+    </Suspense>
   );
 }
