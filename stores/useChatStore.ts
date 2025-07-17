@@ -11,13 +11,13 @@ import { ChatMessage } from "../lib/types/chat";
 import { ChatState, Conversation, ChatError, ChatSelectors } from "./types/chat";
 import { STORAGE_KEYS } from "../lib/constants";
 import { createLogger } from "./storeUtils";
+import { useAuthStore } from "./useAuthStore";
 // Phase 3: Import token management utilities
 import { 
   estimateTokenCount, 
   estimateMessagesTokens, 
   getModelTokenLimits, 
-  isWithinInputBudget,
-  getMaxOutputTokens
+  isWithinInputBudget
 } from "../lib/utils/tokens";
 
 const logger = createLogger("ChatStore");
@@ -37,10 +37,11 @@ const deserializeDates = (conversations: Conversation[]): Conversation[] => {
   }));
 };
 
-const createNewConversation = (title = "New Chat"): Conversation => ({
+const createNewConversation = (title = "New Chat", userId?: string): Conversation => ({
   id: generateConversationId(),
   title,
   messages: [],
+  userId, // Include userId for authenticated users
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   messageCount: 0,
@@ -88,14 +89,20 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           error: null,
           isHydrated: false,
 
+          // Sync state
+          isSyncing: false,
+          lastSyncTime: null,
+          syncError: null,
+
           // Actions
           createConversation: (title = "New Chat") => {
             const id = generateConversationId();
-            const newConversation = createNewConversation(title);
+            const { user } = useAuthStore.getState();
+            const newConversation = createNewConversation(title, user?.id);
             newConversation.id = id;
             newConversation.isActive = true;
 
-            logger.debug("Creating new conversation", { id, title });
+            logger.debug("Creating new conversation", { id, title, userId: user?.id });
 
             set((state) => ({
               conversations: [newConversation, ...state.conversations.map(c => ({ ...c, isActive: false }))],
@@ -547,6 +554,173 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               // Resend with the same content
               await get().sendMessage(lastUserMessage.content);
             }
+          },
+
+          // Sync actions
+          syncConversations: async () => {
+            const { conversations } = get();
+            const { user } = useAuthStore.getState();
+            
+            if (!user) {
+              logger.debug("No authenticated user, skipping sync");
+              return;
+            }
+
+            // Filter conversations that belong to the current user
+            const userConversations = conversations.filter(conv => conv.userId === user.id);
+            
+            if (userConversations.length === 0) {
+              logger.debug("No user conversations to sync");
+              return;
+            }
+
+            set({ isSyncing: true, syncError: null });
+
+            try {
+              logger.debug("Syncing conversations to server", { count: userConversations.length });
+              
+              const response = await fetch('/api/chat/sync', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ conversations: userConversations })
+              });
+
+              if (!response.ok) {
+                throw new Error(`Sync failed: ${response.statusText}`);
+              }
+
+              const result = await response.json();
+              
+              set({ 
+                isSyncing: false, 
+                lastSyncTime: result.syncTime,
+                syncError: null 
+              });
+              
+              logger.debug("Sync completed successfully", result.results);
+              
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Sync failed';
+              logger.error("Sync failed", errorMessage);
+              
+              set({ 
+                isSyncing: false, 
+                syncError: errorMessage 
+              });
+            }
+          },
+
+          loadUserConversations: async (userId: string) => {
+            const { isLoading } = get();
+            
+            // Prevent multiple concurrent loads
+            if (isLoading) {
+              logger.debug("Load already in progress, skipping");
+              return;
+            }
+
+            set({ isLoading: true, error: null });
+
+            try {
+              logger.debug("Loading user conversations from server", { userId });
+              
+              const response = await fetch('/api/chat/sync');
+              
+              if (!response.ok) {
+                throw new Error(`Failed to load conversations: ${response.statusText}`);
+              }
+
+              const result = await response.json();
+              const serverConversations = result.conversations || [];
+              
+              // Merge with existing conversations, prioritizing server data
+              set((state) => {
+                const existingIds = new Set(state.conversations.map(c => c.id));
+                const newConversations = serverConversations.filter((conv: Conversation) => !existingIds.has(conv.id));
+                
+                // Sort merged conversations by updatedAt (most recent first)
+                const allConversations = [...newConversations, ...state.conversations]
+                  .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                
+                return {
+                  conversations: allConversations,
+                  isLoading: false,
+                  lastSyncTime: result.syncTime
+                };
+              });
+              
+              logger.debug("User conversations loaded successfully", { count: serverConversations.length });
+              
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to load conversations';
+              logger.error("Failed to load user conversations", errorMessage);
+              
+              set({ 
+                isLoading: false, 
+                error: { message: errorMessage, timestamp: new Date().toISOString() }
+              });
+            }
+          },
+
+          migrateAnonymousConversations: async (userId: string) => {
+            const { conversations } = get();
+            
+            // Find anonymous conversations (no userId)
+            const anonymousConversations = conversations.filter(conv => !conv.userId);
+            
+            if (anonymousConversations.length === 0) {
+              logger.debug("No anonymous conversations to migrate");
+              return;
+            }
+
+            logger.debug("Migrating anonymous conversations", { count: anonymousConversations.length });
+            
+            // Update conversations with userId in store
+            set((state) => ({
+              conversations: state.conversations.map(conv => 
+                anonymousConversations.some(anon => anon.id === conv.id)
+                  ? { ...conv, userId, updatedAt: new Date().toISOString() }
+                  : conv
+              )
+            }));
+
+            // Sync migrated conversations to server
+            try {
+              await get().syncConversations();
+              logger.debug("Anonymous conversations migrated successfully");
+            } catch (error) {
+              logger.error("Failed to sync migrated conversations", error);
+            }
+          },
+
+          filterConversationsByUser: (userId: string | null) => {
+            const { conversations } = get();
+            
+            const filteredConversations = conversations.filter(conv => {
+              if (!userId) {
+                // Anonymous mode: show only conversations without userId
+                return !conv.userId;
+              } else {
+                // Authenticated mode: show only current user's conversations
+                return conv.userId === userId;
+              }
+            });
+
+            // Find the current conversation in filtered list
+            const { currentConversationId } = get();
+            const isCurrentConversationVisible = filteredConversations.some(c => c.id === currentConversationId);
+            
+            set({
+              conversations: filteredConversations,
+              currentConversationId: isCurrentConversationVisible ? currentConversationId : null
+            });
+            
+            logger.debug("Conversations filtered by user", { 
+              userId, 
+              count: filteredConversations.length 
+            });
           },
 
           _hasHydrated: () => {

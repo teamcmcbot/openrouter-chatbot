@@ -6,6 +6,7 @@ export interface Conversation {
   id: string;
   title: string;
   messages: ChatMessage[];
+  userId?: string; // NEW: Track conversation owner (null for anonymous, string for authenticated users)
   createdAt: string; // ISO string for better serialization
   updatedAt: string; // ISO string for better serialization
   messageCount: number;
@@ -32,6 +33,11 @@ export interface ChatState {
   error: ChatError | null;
   isHydrated: boolean;
 
+  // Sync state
+  isSyncing: boolean;
+  lastSyncTime: string | null;
+  syncError: string | null;
+
   // Actions
   createConversation: (title?: string) => string;
   switchConversation: (id: string) => void;
@@ -43,6 +49,12 @@ export interface ChatState {
   clearMessageError: (messageId: string) => void;
   retryLastMessage: () => Promise<void>;
   getContextMessages: (maxTokens: number) => ChatMessage[]; // Phase 3: Context selection
+
+  // Sync actions
+  syncConversations: () => Promise<void>;
+  loadUserConversations: (userId: string) => Promise<void>;
+  migrateAnonymousConversations: (userId: string) => Promise<void>;
+  filterConversationsByUser: (userId: string | null) => void;
 
   // Internal hydration handler
   _hasHydrated: () => void;
