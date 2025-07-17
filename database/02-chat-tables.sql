@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
     tokens INTEGER DEFAULT 0,
     
     -- Timing information
-    timestamp TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    message_timestamp TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     
     -- Message status
@@ -78,8 +78,8 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_active ON public.chat_sessions(user
 
 -- Chat Messages Indexes  
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON public.chat_messages(session_id);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_session_timestamp ON public.chat_messages(session_id, timestamp);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON public.chat_messages(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session_timestamp ON public.chat_messages(session_id, message_timestamp);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON public.chat_messages(message_timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_role ON public.chat_messages(session_id, role);
 
 -- =============================================================================
@@ -163,11 +163,11 @@ BEGIN
     WHERE session_id = session_record.id;
     
     -- Get last message info
-    SELECT content, timestamp, model
+    SELECT content, message_timestamp, model
     INTO last_msg
     FROM public.chat_messages 
     WHERE session_id = session_record.id 
-    ORDER BY timestamp DESC 
+    ORDER BY message_timestamp DESC 
     LIMIT 1;
     
     -- Update session with new stats
@@ -181,7 +181,7 @@ BEGIN
                 LEFT(last_msg.content, 100) 
             ELSE NULL 
         END,
-        last_message_timestamp = last_msg.timestamp,
+        last_message_timestamp = last_msg.message_timestamp,
         last_model = COALESCE(last_msg.model, last_model)
     WHERE id = session_record.id;
     
@@ -269,7 +269,7 @@ RETURNS TABLE (
     content TEXT,
     model VARCHAR(100),
     tokens INTEGER,
-    timestamp TIMESTAMPTZ,
+    message_timestamp TIMESTAMPTZ,
     is_error BOOLEAN,
     error_message TEXT,
     metadata JSONB
@@ -290,13 +290,13 @@ BEGIN
         m.content,
         m.model,
         m.tokens,
-        m.timestamp,
+        m.message_timestamp,
         m.is_error,
         m.error_message,
         m.metadata
     FROM public.chat_messages m
     WHERE m.session_id = session_uuid
-    ORDER BY m.timestamp ASC;
+    ORDER BY m.message_timestamp ASC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -351,7 +351,7 @@ BEGIN
                 content,
                 model,
                 tokens,
-                timestamp,
+                message_timestamp,
                 is_error
             ) VALUES (
                 session_id,
@@ -436,4 +436,8 @@ Next Steps:
 - Agent will implement API endpoints (/api/chat/*)
 - Chat sync functionality will be activated
 - Anonymous conversation migration will be available
+*/
+
+/* 
+-- End of Phase 2 SQL Script
 */
