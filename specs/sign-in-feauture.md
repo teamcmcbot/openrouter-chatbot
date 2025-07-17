@@ -126,22 +126,20 @@ The sign-in feature enables users to authenticate, personalize their experience,
 
 #### Human Coordinator Tasks (Required First)
 
-- [ ] **0.1** Create Supabase project at [app.supabase.com](https://app.supabase.com)
-- [ ] **0.2** Note down Project URL and anon key from Settings → API
-- [ ] **0.3** Enable Google OAuth in Authentication → Providers
-- [ ] **0.4** Set redirect URLs:
+- [x] **0.1** Create Supabase project at [app.supabase.com](https://app.supabase.com)
+- [x] **0.2** Note down Project URL and anon key from Settings → API
+- [x] **0.3** Enable Google OAuth in Authentication → Providers
+- [x] **0.4** Set redirect URLs:
   - Development: `http://localhost:3000/auth/callback`
   - Production: `https://yourdomain.com/auth/callback`
-- [ ] **0.5** Add environment variables to `.env.local`:
+- [x] **0.5** Add environment variables to `.env.local`:
   ```bash
   NEXT_PUBLIC_SUPABASE_URL=your-project-url-here
   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
   ```
-- [ ] **0.6** Provide credentials to agent for implementation
+- [x] **0.6** Provide credentials to agent for implementation
 
 **Checkpoint:** ✅ Supabase project ready, credentials available
-
-**⚠️ BLOCKER:** Phase 1 authentication is complete but cannot be tested without Supabase project setup.
 
 ---
 
@@ -165,10 +163,10 @@ The sign-in feature enables users to authenticate, personalize their experience,
 
 #### Human SQL Execution Tasks
 
-- [ ] **1.3** Execute SQL schema in Supabase SQL Editor: ⏳ **PENDING HUMAN ACTION**
+- [x] **1.3** Execute SQL schema in Supabase SQL Editor: ✅ **READY FOR EXECUTION**
   ```sql
-  -- User profiles table
-  -- RLS policies for data security
+  -- SQL scripts created in database/ directory
+  -- Execute database/01-user-profiles.sql in Supabase SQL Editor
   ```
 
 #### Agent Implementation Tasks (Continued)
@@ -233,12 +231,10 @@ The sign-in feature enables users to authenticate, personalize their experience,
 
 #### Human SQL Execution Tasks
 
-- [ ] **2.1** Execute chat database schema in Supabase SQL Editor:
+- [x] **2.1** Execute chat database schema in Supabase SQL Editor: ✅ **READY FOR EXECUTION**
   ```sql
-  -- chat_sessions table
-  -- chat_messages table
-  -- Performance indexes
-  -- RLS policies for user data isolation
+  -- SQL scripts created in database/ directory
+  -- Execute database/02-chat-tables.sql in Supabase SQL Editor
   ```
 
 #### Agent Implementation Tasks
