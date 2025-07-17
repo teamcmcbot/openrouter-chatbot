@@ -405,6 +405,18 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 get().updateConversationTitle(currentConversationId, title);
               }
 
+              // Auto-sync for authenticated users after successful message exchange
+              const { user } = useAuthStore.getState();
+              if (user?.id && currentConv?.userId === user.id) {
+                logger.debug("Triggering auto-sync after successful message", { conversationId: currentConversationId });
+                // Use setTimeout to avoid blocking the UI update
+                setTimeout(() => {
+                  get().syncConversations().catch(error => {
+                    logger.debug("Auto-sync after message failed (silent)", error);
+                  });
+                }, 100);
+              }
+
               logger.debug("Message sent successfully", { conversationId: currentConversationId });
 
             } catch (err) {
@@ -475,6 +487,19 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   : conv
               ),
             }));
+
+            // Auto-sync for authenticated users after title update
+            const { user } = useAuthStore.getState();
+            const conversation = get().conversations.find(c => c.id === id);
+            if (user?.id && conversation?.userId === user.id) {
+              logger.debug("Triggering auto-sync after title update", { conversationId: id });
+              // Use setTimeout to avoid blocking the UI update
+              setTimeout(() => {
+                get().syncConversations().catch(error => {
+                  logger.debug("Auto-sync after title update failed (silent)", error);
+                });
+              }, 100);
+            }
           },
 
           deleteConversation: (id) => {
