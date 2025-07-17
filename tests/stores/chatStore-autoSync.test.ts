@@ -1,34 +1,48 @@
 // tests/stores/chatStore-autoSync.test.ts
 
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { useChatStore } from '../../stores/useChatStore';
-import { useAuthStore } from '../../stores/useAuthStore';
 
 // Mock fetch globally
 const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
 global.fetch = mockFetch;
 
-// Mock auth store
-jest.mock('../../stores/useAuthStore', () => ({
-  useAuthStore: {
-    getState: jest.fn(),
-  },
-}));
-
-const mockAuthStore = useAuthStore as jest.Mocked<typeof useAuthStore>;
+// Import stores
+import { useChatStore } from '../../stores/useChatStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import type { User } from '@supabase/supabase-js';
 
 describe('Chat Store - Auto Sync Functionality', () => {
+  let authStoreSpy: ReturnType<typeof jest.spyOn>;
+
   beforeEach(() => {
     // Clear all stores before each test
     useChatStore.getState().conversations.forEach(conv => {
       useChatStore.getState().deleteConversation(conv.id);
     });
     
-    // Mock authenticated user
-    mockAuthStore.getState.mockReturnValue({
-      user: { id: 'test-user-123' },
+    // Spy on the auth store's getState method
+    authStoreSpy = jest.spyOn(useAuthStore, 'getState').mockReturnValue({
+      user: { id: 'test-user-123' } as User,
+      session: null,
       isAuthenticated: true,
-    } as any);
+      isLoading: false,
+      isInitialized: true,
+      isHydrated: true,
+      error: null,
+      lastUpdated: new Date(),
+      _hasHydrated: jest.fn(),
+      clearError: jest.fn(),
+      reset: jest.fn(),
+      setUser: jest.fn(),
+      setSession: jest.fn(),
+      clearAuth: jest.fn(),
+      setLoading: jest.fn(),
+      setInitialized: jest.fn(),
+      signInWithGoogle: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+      clearAllStores: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+      initialize: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+      signOut: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+    });
 
     // Mock successful fetch response
     mockFetch.mockResolvedValue({
@@ -44,23 +58,27 @@ describe('Chat Store - Auto Sync Functionality', () => {
   });
 
   afterEach(() => {
+    // Restore the spy
+    authStoreSpy.mockRestore();
+  });
+
+  // Test to verify the mock is working
+  it('should have properly mocked auth store', () => {
+    const authState = useAuthStore.getState();
+    expect(authState.user?.id).toBe('test-user-123');
+    expect(authState.isAuthenticated).toBe(true);
+  });
+
+  afterEach(() => {
     jest.clearAllTimers();
   });
 
   describe('Auto-sync after successful message exchange', () => {
     it('should trigger sync after assistant response for authenticated user', async () => {
-      // Setup: Create a conversation with user ID
+      // Setup: Create conversation with proper user context
       const store = useChatStore.getState();
-      const conversationId = store.createConversation('Test Chat');
+      const conversationId = store.createConversation('Test Chat'); // This will now have userId automatically
       
-      // Manually set userId to simulate authenticated user conversation
-      const updatedConversations = store.conversations.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, userId: 'test-user-123' }
-          : conv
-      );
-      useChatStore.setState({ conversations: updatedConversations });
-
       // Mock the chat API response first, then sync response
       mockFetch
         .mockResolvedValueOnce({
@@ -108,6 +126,30 @@ describe('Chat Store - Auto Sync Functionality', () => {
     });
 
     it('should NOT trigger sync for anonymous user conversations', async () => {
+      // Setup: Mock anonymous user BEFORE creating conversation
+      authStoreSpy.mockReturnValue({
+        user: null,
+        session: null,
+        isAuthenticated: false,
+        isLoading: false,
+        isInitialized: true,
+        isHydrated: true,
+        error: null,
+        lastUpdated: new Date(),
+        _hasHydrated: jest.fn(),
+        clearError: jest.fn(),
+        reset: jest.fn(),
+        setUser: jest.fn(),
+        setSession: jest.fn(),
+        clearAuth: jest.fn(),
+        setLoading: jest.fn(),
+        setInitialized: jest.fn(),
+        signInWithGoogle: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        clearAllStores: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        initialize: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        signOut: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+      });
+
       // Setup: Create anonymous conversation (no userId)
       const store = useChatStore.getState();
       store.createConversation('Anonymous Chat'); // Keep conversation anonymous (no userId)
@@ -139,10 +181,28 @@ describe('Chat Store - Auto Sync Functionality', () => {
 
     it('should NOT trigger sync when user is not authenticated', async () => {
       // Setup: Mock unauthenticated state
-      mockAuthStore.getState.mockReturnValue({
+      authStoreSpy.mockReturnValue({
         user: null,
+        session: null,
         isAuthenticated: false,
-      } as any);
+        isLoading: false,
+        isInitialized: true,
+        isHydrated: true,
+        error: null,
+        lastUpdated: new Date(),
+        _hasHydrated: jest.fn(),
+        clearError: jest.fn(),
+        reset: jest.fn(),
+        setUser: jest.fn(),
+        setSession: jest.fn(),
+        clearAuth: jest.fn(),
+        setLoading: jest.fn(),
+        setInitialized: jest.fn(),
+        signInWithGoogle: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        clearAllStores: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        initialize: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        signOut: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+      });
 
       const store = useChatStore.getState();
       store.createConversation('Test Chat');
@@ -175,23 +235,30 @@ describe('Chat Store - Auto Sync Functionality', () => {
 
   describe('Auto-sync after conversation title update', () => {
     it('should trigger sync after title update for authenticated user conversation', async () => {
-      // Setup: Create conversation with user ID
+      // Debug: Verify the mock is working before creating conversation
+      console.log('Mock before create:', useAuthStore.getState());
+      
+      // Setup: Create conversation with proper user context
       const store = useChatStore.getState();
       const conversationId = store.createConversation('Old Title');
-      
-      // Manually set userId to simulate authenticated user conversation
-      const updatedConversations = store.conversations.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, userId: 'test-user-123' }
-          : conv
-      );
-      useChatStore.setState({ conversations: updatedConversations });
+
+      // Debug: Check what the conversation looks like after creation
+      const conversation = store.getConversationById(conversationId);
+      console.log('Created conversation:', conversation);
+      console.log('Auth state after create:', useAuthStore.getState());
 
       // Act: Update conversation title
       store.updateConversationTitle(conversationId, 'New Title');
 
+      // Debug: Check auth state during title update
+      console.log('Auth state during update:', useAuthStore.getState());
+
       // Wait for async operations (auto-sync has 100ms timeout)
       await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Debug: Check what fetch calls were made
+      console.log('Fetch call count:', mockFetch.mock.calls.length);
+      console.log('Fetch calls:', mockFetch.mock.calls);
 
       // Assert: Verify sync was called
       expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -202,11 +269,35 @@ describe('Chat Store - Auto Sync Functionality', () => {
       }));
 
       // Verify the title was actually updated
-      const conversation = store.getConversationById(conversationId);
-      expect(conversation?.title).toBe('New Title');
+      const updatedConversation = store.getConversationById(conversationId);
+      expect(updatedConversation?.title).toBe('New Title');
     });
 
     it('should NOT trigger sync for anonymous conversation title update', async () => {
+      // Setup: Mock anonymous user BEFORE creating conversation
+      authStoreSpy.mockReturnValue({
+        user: null,
+        session: null,
+        isAuthenticated: false,
+        isLoading: false,
+        isInitialized: true,
+        isHydrated: true,
+        error: null,
+        lastUpdated: new Date(),
+        _hasHydrated: jest.fn(),
+        clearError: jest.fn(),
+        reset: jest.fn(),
+        setUser: jest.fn(),
+        setSession: jest.fn(),
+        clearAuth: jest.fn(),
+        setLoading: jest.fn(),
+        setInitialized: jest.fn(),
+        signInWithGoogle: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        clearAllStores: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        initialize: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        signOut: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+      });
+
       // Setup: Create anonymous conversation
       const store = useChatStore.getState();
       const conversationId = store.createConversation('Anonymous Title');
@@ -226,16 +317,9 @@ describe('Chat Store - Auto Sync Functionality', () => {
     });
 
     it('should handle sync failure silently', async () => {
-      // Setup: Create conversation with user ID
+      // Setup: Create conversation with proper user context
       const store = useChatStore.getState();
-      const conversationId = store.createConversation('Test Title');
-      
-      const updatedConversations = store.conversations.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, userId: 'test-user-123' }
-          : conv
-      );
-      useChatStore.setState({ conversations: updatedConversations });
+      const conversationId = store.createConversation('Test Title'); // This will now have userId automatically
 
       // Mock sync failure
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
@@ -257,17 +341,58 @@ describe('Chat Store - Auto Sync Functionality', () => {
 
   describe('Auto-sync trigger conditions', () => {
     it('should only sync conversations belonging to current user', async () => {
-      // Setup: Create multiple conversations with different users
+      // Setup: Create conversation for current user first
       const store = useChatStore.getState();
-      const conv1 = store.createConversation('User 1 Chat');
-      const conv2 = store.createConversation('User 2 Chat');
+      const conv1 = store.createConversation('User 1 Chat'); // Will have current user's ID
       
-      const updatedConversations = store.conversations.map(conv => {
-        if (conv.id === conv1) return { ...conv, userId: 'test-user-123' };
-        if (conv.id === conv2) return { ...conv, userId: 'different-user' };
-        return conv;
+      // Now create conversation for different user by temporarily changing the mock
+      authStoreSpy.mockReturnValue({
+        user: { id: 'different-user' } as User,
+        session: null,
+        isAuthenticated: true,
+        isLoading: false,
+        isInitialized: true,
+        isHydrated: true,
+        error: null,
+        lastUpdated: new Date(),
+        _hasHydrated: jest.fn(),
+        clearError: jest.fn(),
+        reset: jest.fn(),
+        setUser: jest.fn(),
+        setSession: jest.fn(),
+        clearAuth: jest.fn(),
+        setLoading: jest.fn(),
+        setInitialized: jest.fn(),
+        signInWithGoogle: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        clearAllStores: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        initialize: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        signOut: jest.fn() as jest.MockedFunction<() => Promise<void>>,
       });
-      useChatStore.setState({ conversations: updatedConversations });
+      const conv2 = store.createConversation('User 2 Chat'); // Will have different user's ID
+      
+      // Reset mock back to original user
+      authStoreSpy.mockReturnValue({
+        user: { id: 'test-user-123' } as User,
+        session: null,
+        isAuthenticated: true,
+        isLoading: false,
+        isInitialized: true,
+        isHydrated: true,
+        error: null,
+        lastUpdated: new Date(),
+        _hasHydrated: jest.fn(),
+        clearError: jest.fn(),
+        reset: jest.fn(),
+        setUser: jest.fn(),
+        setSession: jest.fn(),
+        clearAuth: jest.fn(),
+        setLoading: jest.fn(),
+        setInitialized: jest.fn(),
+        signInWithGoogle: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        clearAllStores: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        initialize: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+        signOut: jest.fn() as jest.MockedFunction<() => Promise<void>>,
+      });
 
       // Act: Update title for different user's conversation
       store.updateConversationTitle(conv2, 'Updated Title');
