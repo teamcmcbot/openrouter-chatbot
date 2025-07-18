@@ -6,6 +6,7 @@ import Button from "./Button";
 import { useChatStore } from "../../stores";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { useChatSync } from "../../hooks/useChatSync";
+import { formatConversationTimestamp } from "../../lib/utils/dateFormat";
 
 interface ChatSidebarProps {
   isOpen: boolean;
@@ -80,23 +81,6 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
         console.error('Failed to clear all conversations:', error);
         alert('Failed to clear conversations. Please try again.');
       }
-    }
-  };
-
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      return "Today";
-    } else if (diffDays === 1) {
-      return "Yesterday";
-    } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
-    } else {
-      return date.toLocaleDateString();
     }
   };
 
@@ -208,7 +192,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
           
           {/* Non-authenticated prompt */}
           {!isAuthenticated && (
-            <div className="mt-1 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="mt-1 mb-3 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <div className="text-xs text-blue-700 dark:text-blue-300">
                 <span className="font-medium">Sign in to sync across devices</span>
                 <br />
@@ -308,7 +292,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                           </p>
                           <div className="flex items-center justify-between mt-2">
                             <span className="text-xs text-gray-500 dark:text-gray-500">
-                              {formatTimestamp(conversation.updatedAt)}
+                              {formatConversationTimestamp(conversation.updatedAt)}
                             </span>
                             <div className="flex items-center gap-1">
                               

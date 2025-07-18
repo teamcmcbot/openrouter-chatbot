@@ -122,11 +122,11 @@ WHERE content_type IS NULL;
 
 #### Checkpoint 3: Integration Testing
 
-- [ ] **Human Coordinator**: Test complete flow end-to-end
-- [ ] Send a message with markdown content
-- [ ] Verify it syncs to database with all metadata
-- [ ] Sign out and sign back in on different device
-- [ ] Confirm all metadata is preserved after sync
+- [x] **Human Coordinator**: Test complete flow end-to-end
+- [x] Send a message with markdown content
+- [x] Verify it syncs to database with all metadata
+- [x] Sign out and sign back in on different device
+- [x] Confirm all metadata is preserved after sync
 
 ---
 

@@ -1,6 +1,39 @@
 import { render, screen } from "@testing-library/react";
 import MessageList from "../../components/chat/MessageList";
 import { ChatMessage } from "../../lib/types/chat";
+import { useAuthStore } from "../../stores/useAuthStore";
+
+// Mock Next.js Image component
+jest.mock("next/image", () => {
+  return function MockImage({ src, alt }: { src: string; alt: string }) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={alt} data-testid="user-avatar" />;
+  };
+});
+
+// Mock the auth store
+jest.mock("../../stores/useAuthStore", () => ({
+  useAuthStore: jest.fn(),
+}));
+
+const mockUseAuthStore = useAuthStore as jest.MockedFunction<typeof useAuthStore>;
+
+// Helper to create a mock user
+const createMockUser = (hasAvatar = true) => ({
+  id: "test-user-id",
+  email: "test@example.com",
+  user_metadata: hasAvatar ? {
+    avatar_url: "https://example.com/avatar.jpg",
+    full_name: "Test User",
+  } : {
+    full_name: "Test User",
+  },
+  app_metadata: {},
+  aud: "authenticated",
+  created_at: "2024-01-01T00:00:00Z",
+  updated_at: "2024-01-01T00:00:00Z",
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+} as any);
 
 let messageCounter = 0;
 const createTestMessage = (content: string, contentType: "text" | "markdown" = "text", role: "user" | "assistant" = "assistant"): ChatMessage => ({
@@ -14,6 +47,8 @@ const createTestMessage = (content: string, contentType: "text" | "markdown" = "
 describe("MessageList with Markdown Support", () => {
   beforeEach(() => {
     messageCounter = 0;
+    // Default mock: no user signed in
+    mockUseAuthStore.mockReturnValue(null);
   });
   it("renders plain text messages correctly", () => {
     const messages = [
@@ -140,9 +175,81 @@ describe("MessageList with Markdown Support", () => {
 
     render(<MessageList messages={[messageWithMetadata]} isLoading={false} />);
 
-    // Test the formatted time based on what the formatTime function would produce
-    const expectedTime = messageWithMetadata.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    expect(screen.getByText(expectedTime)).toBeInTheDocument();
+    // Test that the timestamp appears (it will include date since it's not today)
+    // Use case-insensitive regex to handle both "PM" and "pm" formats
+    expect(screen.getByText(/01\/01\/2024.*08:00 pm/i)).toBeInTheDocument();
     expect(screen.getByText(/Took 2 seconds, 150 tokens/)).toBeInTheDocument();
+  });
+
+  describe("User Avatar functionality", () => {
+    it("displays user avatar when user is signed in with avatar_url", () => {
+      // Mock signed-in user with avatar
+      mockUseAuthStore.mockReturnValue(createMockUser(true));
+
+      const messages = [
+        createTestMessage("User message with avatar", "text", "user"),
+      ];
+
+      render(<MessageList messages={messages} isLoading={false} />);
+
+      // Should show avatar image instead of "ME"
+      const avatar = screen.getByTestId("user-avatar");
+      expect(avatar).toBeInTheDocument();
+      expect(avatar).toHaveAttribute("src", "https://example.com/avatar.jpg");
+      expect(avatar).toHaveAttribute("alt", "User Avatar");
+      
+      // Should not show "ME" text
+      expect(screen.queryByText("ME")).not.toBeInTheDocument();
+    });
+
+    it("displays 'ME' text when user is signed in but has no avatar_url", () => {
+      // Mock signed-in user without avatar
+      mockUseAuthStore.mockReturnValue(createMockUser(false));
+
+      const messages = [
+        createTestMessage("User message without avatar", "text", "user"),
+      ];
+
+      render(<MessageList messages={messages} isLoading={false} />);
+
+      // Should show "ME" text
+      expect(screen.getByText("ME")).toBeInTheDocument();
+      
+      // Should not show avatar image
+      expect(screen.queryByTestId("user-avatar")).not.toBeInTheDocument();
+    });
+
+    it("displays 'ME' text when user is not signed in", () => {
+      // Default mock is already set in beforeEach (no user)
+      
+      const messages = [
+        createTestMessage("Anonymous user message", "text", "user"),
+      ];
+
+      render(<MessageList messages={messages} isLoading={false} />);
+
+      // Should show "ME" text
+      expect(screen.getByText("ME")).toBeInTheDocument();
+      
+      // Should not show avatar image
+      expect(screen.queryByTestId("user-avatar")).not.toBeInTheDocument();
+    });
+
+    it("always displays 'AI' for assistant messages regardless of user state", () => {
+      // Mock signed-in user with avatar
+      mockUseAuthStore.mockReturnValue(createMockUser(true));
+
+      const messages = [
+        createTestMessage("Assistant response", "text", "assistant"),
+      ];
+
+      render(<MessageList messages={messages} isLoading={false} />);
+
+      // Should always show "AI" for assistant messages
+      expect(screen.getByText("AI")).toBeInTheDocument();
+      
+      // Should not show user avatar for assistant messages
+      expect(screen.queryByTestId("user-avatar")).not.toBeInTheDocument();
+    });
   });
 });

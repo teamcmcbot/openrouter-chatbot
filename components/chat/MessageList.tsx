@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, memo, useState } from "react";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { ChatMessage } from "../../lib/types/chat";
+import { formatMessageTime } from "../../lib/utils/dateFormat";
+import { useAuthStore } from "../../stores/useAuthStore";
 import { 
   CustomCodeBlock, 
   CustomTable, 
@@ -44,6 +47,10 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
+  
+  // Get user from auth store
+  const user = useAuthStore((state) => state.user);
 
   const handleCopyMessage = async (messageId: string, content: string) => {
     try {
@@ -53,6 +60,10 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
     } catch (error) {
       console.error('Failed to copy message:', error);
     }
+  };
+
+  const handleAvatarError = (avatarUrl: string) => {
+    setFailedAvatars(prev => new Set(prev).add(avatarUrl));
   };
 
   const scrollToBottom = () => {
@@ -92,10 +103,6 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
 
-  const formatTime = (date: Date | string) => {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
 
   return (
     <div 
@@ -125,12 +132,27 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
           >
             <div className={`flex max-w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
               {/* Avatar */}
-              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium overflow-hidden ${
                 message.role === "user" 
                   ? "bg-emerald-600 text-white ml-3" 
                   : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 mr-3"
               }`}>
-                {message.role === "user" ? "ME" : "AI"}
+                {message.role === "user" ? (
+                  user?.user_metadata?.avatar_url && !failedAvatars.has(user.user_metadata.avatar_url) ? (
+                    <Image
+                      src={user.user_metadata.avatar_url}
+                      alt="User Avatar"
+                      width={32}
+                      height={32}
+                      className="w-full h-full rounded-full object-cover"
+                      onError={() => handleAvatarError(user.user_metadata.avatar_url)}
+                    />
+                  ) : (
+                    "ME"
+                  )
+                ) : (
+                  "AI"
+                )}
               </div>
 
               {/* Message Content */}
@@ -180,8 +202,8 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                       ? "text-emerald-100" 
                       : "text-gray-400 dark:text-gray-300"
                   }`}>
-                    {formatTime(message.timestamp)}{" "}
-                    {message.elapsed_time && (
+                    {formatMessageTime(message.timestamp)}{" "}
+                    {message.role === "assistant" && message.elapsed_time && (
                       <span className="text-gray-300 dark:text-gray-400">
                         (Took {message.elapsed_time} seconds, {message.total_tokens} tokens - 
                         <button
