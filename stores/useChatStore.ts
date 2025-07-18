@@ -647,6 +647,17 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             try {
               logger.debug("Syncing conversations to server", { count: userConversations.length });
               
+              // Log sample message metadata for verification
+              const sampleMessage = userConversations[0]?.messages.find(m => m.role === 'assistant');
+              if (sampleMessage) {
+                logger.debug("Sample assistant message metadata", {
+                  hasContentType: !!sampleMessage.contentType,
+                  hasElapsedTime: !!sampleMessage.elapsed_time,
+                  hasCompletionId: !!sampleMessage.completion_id,
+                  hasTotalTokens: !!sampleMessage.total_tokens
+                });
+              }
+              
               const response = await fetch('/api/chat/sync', {
                 method: 'POST',
                 headers: {
@@ -702,6 +713,17 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
               const result = await response.json();
               const serverConversations = result.conversations || [];
+              
+              // Log sample message metadata for verification
+              const sampleMessage = serverConversations[0]?.messages?.find((m: ChatMessage) => m.role === 'assistant');
+              if (sampleMessage) {
+                logger.debug("Sample loaded assistant message metadata", {
+                  hasContentType: !!sampleMessage.contentType,
+                  hasElapsedTime: !!sampleMessage.elapsed_time,
+                  hasCompletionId: !!sampleMessage.completion_id,
+                  hasTotalTokens: !!sampleMessage.total_tokens
+                });
+              }
               
               // Merge with existing conversations, prioritizing server data
               set((state) => {

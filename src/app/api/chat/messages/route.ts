@@ -61,6 +61,9 @@ export async function GET(request: NextRequest) {
       content: message.content,
       model: message.model,
       total_tokens: message.total_tokens,
+      contentType: message.content_type || 'text', // New: content type
+      elapsed_time: message.elapsed_time || 0, // New: elapsed time
+      completion_id: message.completion_id || undefined, // New: completion ID
       timestamp: new Date(message.message_timestamp),
       error: !!message.error_message
     }));
@@ -123,6 +126,9 @@ export async function POST(request: NextRequest) {
         content: messageData.message.content,
         model: messageData.message.model,
         total_tokens: messageData.message.total_tokens || 0,
+        content_type: messageData.message.contentType || 'text', // New: content type
+        elapsed_time: messageData.message.elapsed_time || 0, // New: elapsed time
+        completion_id: messageData.message.completion_id || null, // New: completion ID
         message_timestamp: typeof messageData.message.timestamp === 'string' 
           ? messageData.message.timestamp 
           : messageData.message.timestamp.toISOString(),

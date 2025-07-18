@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
     model VARCHAR(100),
     total_tokens INTEGER DEFAULT 0,
     
+    -- Response metadata (for assistant messages)
+    content_type VARCHAR(20) DEFAULT 'text' CHECK (content_type IN ('text', 'markdown')),
+    elapsed_time INTEGER DEFAULT 0,
+    completion_id VARCHAR(255),
+    
     -- Timing information
     message_timestamp TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     
@@ -77,6 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_updated ON public.chat_session
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON public.chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON public.chat_messages(message_timestamp);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session_timestamp ON public.chat_messages(session_id, message_timestamp);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_completion_id ON public.chat_messages(completion_id);
 
 -- =============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES

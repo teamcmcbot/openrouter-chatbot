@@ -32,6 +32,9 @@ interface DatabaseMessage {
   content: string;
   model?: string;
   total_tokens: number;
+  content_type?: string; // New: content type field
+  elapsed_time?: number; // New: elapsed time field
+  completion_id?: string; // New: completion ID field
   message_timestamp: string;
   error_message?: string;
   is_streaming: boolean;
@@ -126,6 +129,9 @@ export async function POST(request: NextRequest) {
             content: message.content,
             model: message.model,
             total_tokens: message.total_tokens || 0,
+            content_type: message.contentType || 'text', // New: content type
+            elapsed_time: message.elapsed_time || 0, // New: elapsed time
+            completion_id: message.completion_id || null, // New: completion ID
             message_timestamp: typeof message.timestamp === 'string' 
               ? message.timestamp 
               : message.timestamp?.toISOString() || new Date().toISOString(),
@@ -218,6 +224,9 @@ export async function GET() {
           content: message.content,
           model: message.model,
           total_tokens: message.total_tokens,
+          contentType: message.content_type || 'text', // New: content type
+          elapsed_time: message.elapsed_time || 0, // New: elapsed time
+          completion_id: message.completion_id || undefined, // New: completion ID
           timestamp: new Date(message.message_timestamp),
           error: !!message.error_message
         })),
