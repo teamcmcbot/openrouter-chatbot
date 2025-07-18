@@ -519,6 +519,49 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             });
           },
 
+          clearAllConversations: async () => {
+            const { user } = useAuthStore.getState();
+            
+            logger.debug("Clearing all conversations");
+
+            try {
+              // If user is authenticated, also clear from Supabase
+              if (user) {
+                logger.debug("Clearing all conversations from server for authenticated user");
+                const response = await fetch('/api/chat/clear-all', {
+                  method: 'DELETE',
+                });
+
+                if (!response.ok) {
+                  throw new Error(`Failed to clear server conversations: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                logger.debug("Server conversations cleared", result);
+              }
+
+              // Clear all conversations from local store
+              set({
+                conversations: [],
+                currentConversationId: null,
+                error: null,
+              });
+
+              logger.debug("All conversations cleared successfully");
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to clear conversations';
+              logger.error("Failed to clear all conversations", errorMessage);
+              
+              set({ 
+                error: { 
+                  message: errorMessage, 
+                  timestamp: new Date().toISOString() 
+                }
+              });
+              throw error;
+            }
+          },
+
           clearCurrentMessages: () => {
             const { currentConversationId } = get();
             if (!currentConversationId) return;

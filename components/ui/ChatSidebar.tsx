@@ -23,6 +23,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     deleteConversation,
     updateConversationTitle,
     getRecentConversations,
+    clearAllConversations,
     isHydrated,
   } = useChatStore();
   
@@ -64,6 +65,21 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     // Close mobile sidebar after selection
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       onClose();
+    }
+  };
+
+  const handleClearAllConversations = async () => {
+    if (conversations.length === 0) return;
+    
+    const confirmMessage = `Are you sure you want to delete all ${conversations.length} conversations? This action cannot be undone.`;
+    
+    if (window.confirm(confirmMessage)) {
+      try {
+        await clearAllConversations();
+      } catch (error) {
+        console.error('Failed to clear all conversations:', error);
+        alert('Failed to clear conversations. Please try again.');
+      }
     }
   };
 
@@ -322,8 +338,19 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-500 dark:text-gray-500 text-center">
-            {isHydrated ? `${conversations.length} total conversations` : "Loading conversations..."}
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-gray-500 dark:text-gray-500">
+              {isHydrated ? `${conversations.length} total conversations` : "Loading conversations..."}
+            </div>
+            {isHydrated && conversations.length > 0 && (
+              <button
+                onClick={handleClearAllConversations}
+                className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded"
+                title="Clear all conversations"
+              >
+                <TrashIcon className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </aside>
