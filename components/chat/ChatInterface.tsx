@@ -144,14 +144,14 @@ export default function ChatInterface() {
                 <Bars3Icon className="w-5 h-5" />
               </button>
               
-              <div>
+                <div className="hidden sm:block">
                 <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                   AI Assistant
                 </h1>
                 <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                   Powered by OpenRouter
                 </p>
-              </div>
+                </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               {availableModels.length > 0 && (

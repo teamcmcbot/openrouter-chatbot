@@ -2,6 +2,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
+import { UserIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../stores/useAuthStore'
 import Button from '../ui/Button'
 
@@ -60,19 +62,32 @@ export function SimpleAuthButton() {
   // Show authenticated user state
   if (isAuthenticated && user) {
     return (
-      <div className="flex items-center space-x-2">
-        <span className="text-sm text-gray-700 dark:text-gray-300">
-          Hi, {user.email?.split('@')[0]}!
-        </span>
-        <Button 
-          onClick={handleSignOut} 
-          variant="ghost" 
-          size="sm"
-          loading={isLoading}
-        >
-          Sign Out
-        </Button>
-      </div>
+      <Button 
+        onClick={handleSignOut} 
+        variant="secondary" 
+        size="sm"
+        loading={isLoading}
+        className="flex items-center gap-2"
+      >
+        {user.user_metadata?.avatar_url ? (
+          <Image
+            src={user.user_metadata.avatar_url}
+            alt="Profile"
+            width={25}
+            height={25}
+            className="rounded-full"
+            onError={(e) => {
+              // Hide image on error and show fallback
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        ) : (
+          <div className="w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+            <UserIcon className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+          </div>
+        )}
+        Sign Out
+      </Button>
     )
   }
 

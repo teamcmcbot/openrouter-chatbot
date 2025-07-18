@@ -129,9 +129,21 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
             New Chat
           </Button>
           
-          {/* Sync Status */}
+          
+        </div>
+
+        {/* Chat History */}
+        <div className="flex-1 overflow-y-auto">
+          
+          <div className="ml-2 p-4">
+            
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Recent Chats
+            </h3>
+
+            {/* Sync Status */}
           {isAuthenticated && (
-            <div className="mt-3 px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <div className="mb-3 px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {syncStatus.isSyncing ? (
@@ -180,7 +192,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
           
           {/* Non-authenticated prompt */}
           {!isAuthenticated && (
-            <div className="mt-3 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="mt-1 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <div className="text-xs text-blue-700 dark:text-blue-300">
                 <span className="font-medium">Sign in to sync across devices</span>
                 <br />
@@ -188,14 +200,6 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
               </div>
             </div>
           )}
-        </div>
-
-        {/* Chat History */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-              Recent Chats
-            </h3>
             
             <div className="space-y-1">
               {recentConversations.map((conversation, index) => (
