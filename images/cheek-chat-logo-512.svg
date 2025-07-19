@@ -1,0 +1,38 @@
+<svg width="512" height="512" viewBox="0 0 512 512"
+     xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Chat‑bot logo">
+
+  <!--
+    The logo’s original bounding‑box was:
+      left  = 136,  right = 376   ⇒ width  = 240 px
+      top   =  93,  bottom = 406  ⇒ height = 313 px
+    To fill the 512 px square we:
+      • translate (−136, −93) so the logo’s top‑left is at (0,0)
+      • scale by 512 / 313 ≈ 1.63578 to make the height exactly 512 px
+      • translate horizontally by (512 – 240 × scale)/2 ≈ 59.706 px
+        so it is centred.
+  -->
+  <g transform="
+        translate(59.706,0)
+        scale(1.63578275)
+        translate(-136,-93)
+      ">
+
+    <!-- Robot body (speech bubble) -->
+    <path d="M136 186 C136 159.49 157.49 138 184 138 L328 138 C354.51 138 376 159.49 376 186 L376 326 C376 352.51 354.51 374 328 374 L184 374 C157.49 374 136 352.51 136 326 L136 186 Z"
+          fill="#10B981"/>
+
+    <!-- Tail -->
+    <path d="M220 349 L176 406 L176 349 Z" fill="#10B981"/>
+
+    <!-- Antenna -->
+    <rect  x="248" y="118" width="15" height="25" fill="#10B981"/>
+    <circle cx="256" cy="107" r="14" fill="#10B981"/>
+
+    <!-- Face -->
+    <ellipse cx="216" cy="230" rx="15" ry="19.2" fill="#000"/>
+    <path d="M270 236 Q286 214 302 236" stroke="#000" stroke-width="18"
+          stroke-linecap="round" fill="none"/>
+    <path d="M206 290 Q256 320 306 290" stroke="#000" stroke-width="18"
+          stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

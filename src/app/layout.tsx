@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     ],
     shortcut: '/favicon.svg',
     apple: [
-      { url: '/android-chrome-192x192.svg', sizes: '192x192', type: 'image/svg+xml' },
+      { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
     ],
     other: [
       {
@@ -78,7 +78,9 @@ export default function RootLayout({
                 <footer className="hidden sm:block border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 flex-shrink-0">
                 <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
                   <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-                  <p>&copy; 2025 OpenRouter Chatbot. Powered by OpenRouter AI.</p>
+                    <p>
+                    &copy; 2025 {process.env.BRAND_NAME || "OpenRouter Chatbot"}. Powered by OpenRouter AI.
+                    </p>
                   </div>
                 </div>
                 </footer>
