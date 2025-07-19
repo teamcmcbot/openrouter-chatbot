@@ -13,6 +13,9 @@ A hydration flag prevents mismatches during SSR.
 | `isLoading` | `boolean` | `true` while waiting for an API response. |
 | `error` | `ChatError \| null` | Last request error. |
 | `isHydrated` | `boolean` | `true` once state is restored from storage. |
+| `isSyncing` | `boolean` | Indicates a sync request is in progress. |
+| `lastSyncTime` | `Date \| null` | Timestamp of the last successful sync. |
+| `syncError` | `string \| null` | Error message from the last sync attempt. |
 
 ## Actions / Methods
 | Action | Parameters | Description |
@@ -26,6 +29,11 @@ A hydration flag prevents mismatches during SSR.
 | `clearError` | `()` | Reset the `error` state. |
 | `clearMessageError` | `(messageId: string)` | Clear the error flag on a specific message. |
 | `retryLastMessage` | `()` | Resend the last user message. |
+| `syncConversations` | `()` | Upload all user conversations to the server. |
+| `loadUserConversations` | `(userId: string)` | Merge server conversations into local state. |
+| `migrateAnonymousConversations` | `(userId: string)` | Assign existing local conversations to the signed-in user. |
+| `filterConversationsByUser` | `(userId: string \| null)` | Display conversations for the given user. |
+| `clearAllConversations` | `()` | Delete every conversation from local storage. |
 
 ## Selectors / Computed State
 | Selector | Description |
@@ -41,6 +49,7 @@ A hydration flag prevents mismatches during SSR.
 - Uses `persist` with `createJSONStorage` to store conversations in `localStorage`.
 - Only `conversations` and `currentConversationId` are persisted.
 - Dates are deserialized on rehydrate and `_hasHydrated()` sets `isHydrated`.
+- Sync metadata like `lastSyncTime` is kept in memory only.
 
 ## SSR Considerations
 `useChat` and `useChatStore` avoid returning data until `isHydrated` is `true`
@@ -53,3 +62,4 @@ internal state until hydration completes.
 ## Developer Tips
 - `createLogger('ChatStore')` logs actions when devtools are enabled.
 - Store utilities in `storeUtils.ts` provide safe localStorage helpers.
+- Use `syncConversations` after sign-in to ensure local changes reach the server.
