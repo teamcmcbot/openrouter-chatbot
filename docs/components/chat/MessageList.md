@@ -3,6 +3,7 @@
 ## Purpose
 - Shows the entire conversation thread with copy and scroll helpers.
 - Handles markdown rendering and message highlighting.
+- Displays user avatars for signed in users.
 
 ## Props
 | Prop | Type | Required? | Description |
@@ -15,6 +16,7 @@
 
 ## State Variables
 - `copiedMessageId`: `null` – which message was copied to the clipboard.
+- `failedAvatars`: `Set<string>` – avatar URLs that failed to load.
 
 ## useEffect Hooks
 - `[scrollToCompletionId]` – scrolls to a specific message when the ID changes.
@@ -23,13 +25,17 @@
 ## Event Handlers
 - `handleCopyMessage` – triggered by the copy button on each message.
 - `scrollToMessage` – locates a message element and scrolls it into view.
+- `handleAvatarError` – falls back to initials when the avatar fails to load.
 
 ## Data Flow
 - Receives messages and renders them with avatars and timestamps.
 - Calls `onModelClick` when a model or generation ID is clicked.
+- `useAuthStore` supplies user info for avatar display.
+- Timestamp rendering uses `formatMessageTime` from `lib/utils/dateFormat`.
 
 ## Usage Locations
 - `components/chat/ChatInterface.tsx`
 
 ## Notes for Juniors
 - Uses `ReactMarkdown` for rich content and memoizes it for performance.
+- Avatar images are rendered with Next.js `Image` and fall back to "ME" if they fail to load.
