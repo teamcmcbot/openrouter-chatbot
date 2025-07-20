@@ -22,7 +22,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     if (!isInitialized) {
-      console.log('Initializing auth store...')
+      console.log(`[${new Date().toISOString()}] Initializing auth store...`)
       initialize()
     }
   }, [isInitialized, initialize])

@@ -140,7 +140,10 @@ export const useAuthStore = create<AuthStore>()(
           // Listen for auth changes
           const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
-                console.log('Auth state changed:', event, session?.user?.email, 'at', new Date().toISOString());
+                const maskedEmail = session?.user?.email
+                  ? session.user.email.replace(/(.{2}).+(@.+)/, '$1***$2')
+                  : undefined;
+                console.log('Auth state changed:', event, maskedEmail, 'at', new Date().toISOString());
               
               get().setSession(session);
               

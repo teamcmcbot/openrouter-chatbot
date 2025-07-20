@@ -19,12 +19,12 @@ export const useChatSync = () => {
   // Stabilize the sync process to prevent multiple calls
   const handleUserAuthentication = useCallback(async () => {
     if (!isAuthenticated || !user?.id) {
-      console.log('[ChatSync] User not authenticated, showing anonymous conversations');
+      console.log(`[ChatSync] User not authenticated at ${new Date().toISOString()}, showing anonymous conversations`);
       filterConversationsByUser(null);
       return;
     }
 
-    console.log('[ChatSync] User authenticated, initiating sync process');
+    console.log(`[ChatSync] User authenticated at ${new Date().toISOString()}, initiating sync process`);
     
     try {
       // Step 1: Migrate anonymous conversations (this updates them with userId)
@@ -36,7 +36,7 @@ export const useChatSync = () => {
       // Step 3: Filter to show only user's conversations (now that migration is complete)
       filterConversationsByUser(user.id);
       
-      console.log('[ChatSync] Sync process completed successfully');
+      console.log(`[ChatSync] Sync process completed successfully at ${new Date().toISOString()}`);
     } catch (error) {
       console.error('[ChatSync] Sync process failed:', error);
     }
