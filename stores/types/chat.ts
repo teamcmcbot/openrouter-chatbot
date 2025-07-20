@@ -37,6 +37,7 @@ export interface ChatState {
   isSyncing: boolean;
   lastSyncTime: string | null;
   syncError: string | null;
+  syncInProgress: boolean;
 
   // Actions
   createConversation: (title?: string) => string;

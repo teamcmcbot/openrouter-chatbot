@@ -5,7 +5,6 @@ import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, Arro
 import Button from "./Button";
 import { useChatStore } from "../../stores";
 import { useAuthStore } from "../../stores/useAuthStore";
-import { useChatSync } from "../../hooks/useChatSync";
 import { formatConversationTimestamp } from "../../lib/utils/dateFormat";
 
 interface ChatSidebarProps {
@@ -28,9 +27,28 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     isHydrated,
   } = useChatStore();
   
-  // Get auth state and sync functionality
+  // Get auth state
   const { isAuthenticated } = useAuthStore();
-  const { manualSync, syncStatus } = useChatSync();
+  
+  // Get sync state from chat store
+  const { isSyncing, lastSyncTime, syncError, syncConversations } = useChatStore();
+  
+  // Create sync status object and manual sync function for the UI
+  const syncStatus = {
+    isSyncing,
+    lastSyncTime: lastSyncTime ? new Date(lastSyncTime) : null,
+    syncError,
+    canSync: isAuthenticated
+  };
+  
+  const manualSync = async () => {
+    if (!isAuthenticated) {
+      console.warn('[ChatSidebar] Cannot sync: user not authenticated');
+      return;
+    }
+    console.log('[ChatSidebar] Manual sync triggered');
+    await syncConversations();
+  };
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");

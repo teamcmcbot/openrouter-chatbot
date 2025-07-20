@@ -12,6 +12,7 @@ import { ChatState, Conversation, ChatError, ChatSelectors } from "./types/chat"
 import { STORAGE_KEYS } from "../lib/constants";
 import { createLogger } from "./storeUtils";
 import { useAuthStore } from "./useAuthStore";
+import { syncManager } from "../lib/utils/syncManager";
 // Phase 3: Import token management utilities
 import { 
   estimateTokenCount, 
@@ -93,6 +94,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           isSyncing: false,
           lastSyncTime: null,
           syncError: null,
+          syncInProgress: false,
 
           // Actions
           createConversation: (title = "New Chat") => {
@@ -634,11 +636,17 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               return;
             }
 
+            // Use global sync manager to prevent multiple concurrent syncs
+            if (!syncManager.startSync()) {
+              return; // Sync was blocked by the manager
+            }
+
             // Filter conversations that belong to the current user
             const userConversations = conversations.filter(conv => conv.userId === user.id);
             
             if (userConversations.length === 0) {
               logger.debug("No user conversations to sync");
+              syncManager.endSync();
               return;
             }
 
@@ -688,6 +696,10 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 isSyncing: false, 
                 syncError: errorMessage 
               });
+            } finally {
+              // Always clear the sync in progress flag
+              set({ syncInProgress: false });
+              syncManager.endSync();
             }
           },
 

@@ -3,44 +3,55 @@
 import { useEffect, useCallback } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useChatStore } from '../stores/useChatStore';
+import { useDebounce } from './useDebounce';
 
 export const useChatSync = () => {
   const { user, isAuthenticated } = useAuthStore();
   const { 
     syncConversations, 
-    loadUserConversations, 
-    migrateAnonymousConversations,
-    filterConversationsByUser,
     isSyncing,
     lastSyncTime,
     syncError
   } = useChatStore();
 
+  // Debounce auth state to prevent rapid-fire triggers during OAuth flow
+  const debouncedIsAuthenticated = useDebounce(isAuthenticated, 200);
+  const debouncedUserId = useDebounce(user?.id, 200);
+
   // Stabilize the sync process to prevent multiple calls
   const handleUserAuthentication = useCallback(async () => {
-    if (!isAuthenticated || !user?.id) {
+    if (!debouncedIsAuthenticated || !debouncedUserId) {
       console.log(`[ChatSync] User not authenticated at ${new Date().toISOString()}, showing anonymous conversations`);
+      // Get fresh store actions inside the callback to avoid dependency issues
+      const { filterConversationsByUser } = useChatStore.getState();
       filterConversationsByUser(null);
       return;
     }
 
-    console.log(`[ChatSync] User authenticated at ${new Date().toISOString()}, initiating sync process`);
-    
     try {
+      console.log(`[ChatSync] User authenticated at ${new Date().toISOString()}, initiating sync process`);
+      
+      // Get fresh store actions inside the callback to avoid dependency issues
+      const { 
+        migrateAnonymousConversations, 
+        loadUserConversations, 
+        filterConversationsByUser 
+      } = useChatStore.getState();
+      
       // Step 1: Migrate anonymous conversations (this updates them with userId)
-      await migrateAnonymousConversations(user.id);
+      await migrateAnonymousConversations(debouncedUserId);
       
       // Step 2: Load server conversations (this will merge with local)
-      await loadUserConversations(user.id);
+      await loadUserConversations(debouncedUserId);
       
       // Step 3: Filter to show only user's conversations (now that migration is complete)
-      filterConversationsByUser(user.id);
+      filterConversationsByUser(debouncedUserId);
       
       console.log(`[ChatSync] Sync process completed successfully at ${new Date().toISOString()}`);
     } catch (error) {
       console.error('[ChatSync] Sync process failed:', error);
     }
-  }, [isAuthenticated, user?.id, migrateAnonymousConversations, loadUserConversations, filterConversationsByUser]);
+  }, [debouncedIsAuthenticated, debouncedUserId]); // Use debounced values as dependencies
 
   // Handle user authentication state changes
   useEffect(() => {
@@ -65,7 +76,7 @@ export const useChatSync = () => {
 
     const interval = setInterval(() => {
       console.log(`[ChatSync] Auto-sync triggered at ${new Date().toISOString()}`);
-      syncConversations();
+      syncConversations(); // Store-level deduplication will handle multiple calls
     }, intervalMs);
 
     return () => clearInterval(interval);
