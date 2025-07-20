@@ -47,14 +47,26 @@ export const useChatSync = () => {
     handleUserAuthentication();
   }, [handleUserAuthentication]);
 
-  // Auto-sync conversations every 5 minutes for authenticated users
+  // Periodic auto-sync: configurable interval and on/off switch from env
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
+    // Read from environment variables
+    const autoSyncEnabled = process.env.NEXT_PUBLIC_AUTO_SYNC_FLAG === 'true';
+    // Default to 5 minutes if not set or invalid
+    let intervalMinutes = 5;
+    if (process.env.NEXT_PUBLIC_AUTO_SYNC_INTERVAL) {
+      const parsed = parseInt(process.env.NEXT_PUBLIC_AUTO_SYNC_INTERVAL, 10);
+      if (!isNaN(parsed) && parsed > 0) intervalMinutes = parsed;
+    }
+    const intervalMs = intervalMinutes * 60 * 1000;
+
+    if (!autoSyncEnabled) return;
+
     const interval = setInterval(() => {
-      console.log('[ChatSync] Auto-sync triggered');
+      console.log(`[ChatSync] Auto-sync triggered at ${new Date().toISOString()}`);
       syncConversations();
-    }, 5 * 60 * 1000); // 5 minutes
+    }, intervalMs);
 
     return () => clearInterval(interval);
   }, [isAuthenticated, user, syncConversations]);
