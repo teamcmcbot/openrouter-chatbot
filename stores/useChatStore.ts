@@ -482,6 +482,10 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           updateConversationTitle: (id, title) => {
             logger.debug("Updating conversation title", { id, title });
             
+            // Get conversation data before state update to avoid timing issues
+            const { user } = useAuthStore.getState();
+            const conversation = get().conversations.find(c => c.id === id);
+            
             set((state) => ({
               conversations: state.conversations.map((conv) =>
                 conv.id === id
@@ -491,8 +495,6 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }));
 
             // Auto-sync for authenticated users after title update
-            const { user } = useAuthStore.getState();
-            const conversation = get().conversations.find(c => c.id === id);
             if (user?.id && conversation?.userId === user.id) {
               logger.debug("Triggering auto-sync after title update", { conversationId: id });
               // Use setTimeout to avoid blocking the UI update

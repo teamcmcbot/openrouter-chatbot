@@ -9,15 +9,35 @@ global.fetch = mockFetch;
 // Import stores
 import { useChatStore } from '../../stores/useChatStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { syncManager } from '../../lib/utils/syncManager';
 import type { User } from '@supabase/supabase-js';
 
 describe('Chat Store - Auto Sync Functionality', () => {
   let authStoreSpy: ReturnType<typeof jest.spyOn>;
 
   beforeEach(() => {
+    // Clear all timers first
+    jest.clearAllTimers();
+    
+    // Reset sync manager to prevent debounce interference between tests
+    syncManager.reset();
+    
     // Clear all stores before each test
     useChatStore.getState().conversations.forEach(conv => {
       useChatStore.getState().deleteConversation(conv.id);
+    });
+    
+    // Reset store state completely
+    useChatStore.setState({
+      conversations: [],
+      currentConversationId: null,
+      isLoading: false,
+      error: null,
+      isHydrated: true,
+      isSyncing: false,
+      lastSyncTime: null,
+      syncError: null,
+      syncInProgress: false,
     });
     
     // Spy on the auth store's getState method
@@ -67,10 +87,6 @@ describe('Chat Store - Auto Sync Functionality', () => {
     const authState = useAuthStore.getState();
     expect(authState.user?.id).toBe('test-user-123');
     expect(authState.isAuthenticated).toBe(true);
-  });
-
-  afterEach(() => {
-    jest.clearAllTimers();
   });
 
   describe('Auto-sync after successful message exchange', () => {
@@ -152,7 +168,7 @@ describe('Chat Store - Auto Sync Functionality', () => {
 
       // Setup: Create anonymous conversation (no userId)
       const store = useChatStore.getState();
-      store.createConversation('Anonymous Chat'); // Keep conversation anonymous (no userId)
+      const conversationId = store.createConversation('Anonymous Chat'); // Keep conversation anonymous (no userId)
 
       // Mock the chat API response
       mockFetch.mockResolvedValueOnce({
@@ -177,6 +193,9 @@ describe('Chat Store - Auto Sync Functionality', () => {
       // Assert: Only chat API should be called, not sync API
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledWith('/api/chat', expect.any(Object));
+      
+      // Verify conversation exists
+      expect(store.getConversationById(conversationId)).toBeTruthy();
     });
 
     it('should NOT trigger sync when user is not authenticated', async () => {
@@ -402,6 +421,10 @@ describe('Chat Store - Auto Sync Functionality', () => {
 
       // Assert: No sync should be triggered for different user's conversation
       expect(mockFetch).not.toHaveBeenCalled();
+      
+      // Verify both conversations exist
+      expect(store.getConversationById(conv1)).toBeTruthy();
+      expect(store.getConversationById(conv2)).toBeTruthy();
     });
   });
 });
