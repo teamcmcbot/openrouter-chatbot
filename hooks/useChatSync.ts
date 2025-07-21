@@ -74,12 +74,48 @@ export const useChatSync = () => {
 
     if (!autoSyncEnabled) return;
 
-    const interval = setInterval(() => {
-      console.log(`[ChatSync] Auto-sync triggered at ${new Date().toISOString()}`);
-      syncConversations(); // Store-level deduplication will handle multiple calls
-    }, intervalMs);
+    let interval: NodeJS.Timeout | null = null;
 
-    return () => clearInterval(interval);
+    // Helper to start the interval
+    const startInterval = () => {
+      if (!interval) {
+        interval = setInterval(() => {
+          console.log(`[ChatSync] Auto-sync triggered at ${new Date().toISOString()}`);
+          syncConversations(); // Store-level deduplication will handle multiple calls
+        }, intervalMs);
+      }
+    };
+
+    // Helper to clear the interval
+    const clearSyncInterval = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    // Visibility handler
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        console.log('[ChatSync] Tab hidden, pausing auto-sync');
+        clearSyncInterval();
+      } else if (document.visibilityState === 'visible') {
+        console.log('[ChatSync] Tab visible, resuming auto-sync');
+        startInterval();
+      }
+    };
+
+    // Start interval if tab is visible
+    if (document.visibilityState === 'visible') {
+      startInterval();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearSyncInterval();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [isAuthenticated, user, syncConversations]);
 
   // Manual sync function
