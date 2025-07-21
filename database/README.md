@@ -81,19 +81,6 @@ Execute these SQL files **in order** in your Supabase SQL Editor:
 - **Model Access:** `get_user_allowed_models()` function
 - **Usage Tracking:** `track_user_usage()` function
 
-## �️ Deprecated Files
-
-The following files are now **obsolete** and replaced by the consolidated versions:
-
-```
-❌ 01-user-profiles.sql (replaced by 01-complete-user-management.sql)
-❌ 02-chat-tables.sql (replaced by 02-complete-chat-history.sql)
-❌ 03-user-enhancements.sql (replaced by 03-complete-user-enhancements.sql)
-❌ 04-preferences.sql (replaced by 04-complete-system-final.sql)
-❌ 05-id-schema-fix.sql (integrated into Phase 2)
-❌ profile-sync-enhancement.sql (integrated into Phase 1)
-```
-
 ## 🔍 Verification
 
 After executing all phases, you should see:
