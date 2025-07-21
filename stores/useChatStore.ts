@@ -506,21 +506,54 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }
           },
 
-          deleteConversation: (id) => {
-            logger.debug("Deleting conversation", { id });
+          deleteConversation: async (id) => {
+            const { user } = useAuthStore.getState();
             
-            set((state) => {
-              const newConversations = state.conversations.filter(c => c.id !== id);
-              const newCurrentId = state.currentConversationId === id
-                ? newConversations[0]?.id ?? null
-                : state.currentConversationId;
+            logger.debug("Deleting conversation", { id, authenticated: !!user });
+            
+            try {
+              // If user is authenticated, delete from backend first
+              if (user) {
+                logger.debug("Deleting conversation from server for authenticated user");
+                const response = await fetch(`/api/chat/sessions?id=${encodeURIComponent(id)}`, {
+                  method: 'DELETE',
+                });
 
-              return {
-                conversations: newConversations,
-                currentConversationId: newCurrentId,
-                error: null,
-              };
-            });
+                if (!response.ok) {
+                  throw new Error(`Failed to delete conversation: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                logger.debug("Server conversation deleted", result);
+              }
+
+              // Delete from local store
+              set((state) => {
+                const newConversations = state.conversations.filter(c => c.id !== id);
+                const newCurrentId = state.currentConversationId === id
+                  ? newConversations[0]?.id ?? null
+                  : state.currentConversationId;
+
+                return {
+                  conversations: newConversations,
+                  currentConversationId: newCurrentId,
+                  error: null,
+                };
+              });
+
+              logger.debug("Conversation deleted successfully", { id });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to delete conversation';
+              logger.error("Failed to delete conversation", errorMessage);
+              
+              set({ 
+                error: { 
+                  message: errorMessage, 
+                  timestamp: new Date().toISOString() 
+                }
+              });
+              throw error; // Re-throw for UI handling
+            }
           },
 
           clearAllConversations: async () => {

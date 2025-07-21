@@ -75,8 +75,13 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     setEditTitle("");
   };
 
-  const handleDeleteChat = (id: string) => {
-    deleteConversation(id);
+  const handleDeleteChat = async (id: string) => {
+    try {
+      await deleteConversation(id);
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+      alert('Failed to delete conversation. Please try again.');
+    }
   };
 
   const handleConversationClick = (id: string) => {

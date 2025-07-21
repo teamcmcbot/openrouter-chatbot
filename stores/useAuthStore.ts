@@ -188,9 +188,7 @@ export const useAuthStore = create<AuthStore>()(
           const chatState = useChatStore.getState();
           // Clear all conversations
           const conversationIds = chatState.conversations.map(conv => conv.id);
-          conversationIds.forEach(id => {
-            chatState.deleteConversation(id);
-          });
+          await Promise.all(conversationIds.map(id => chatState.deleteConversation(id)));
           chatState.clearError();
 
           // Clear settings

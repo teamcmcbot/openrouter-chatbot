@@ -15,7 +15,7 @@ import type { User } from '@supabase/supabase-js';
 describe('Chat Store - Auto Sync Functionality', () => {
   let authStoreSpy: ReturnType<typeof jest.spyOn>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Clear all timers first
     jest.clearAllTimers();
     
@@ -23,9 +23,10 @@ describe('Chat Store - Auto Sync Functionality', () => {
     syncManager.reset();
     
     // Clear all stores before each test
-    useChatStore.getState().conversations.forEach(conv => {
-      useChatStore.getState().deleteConversation(conv.id);
-    });
+    const conversations = useChatStore.getState().conversations;
+    await Promise.all(conversations.map(conv => 
+      useChatStore.getState().deleteConversation(conv.id)
+    ));
     
     // Reset store state completely
     useChatStore.setState({

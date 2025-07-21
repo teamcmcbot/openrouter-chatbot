@@ -44,7 +44,7 @@ export interface ChatState {
   switchConversation: (id: string) => void;
   sendMessage: (content: string, model?: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
-  deleteConversation: (id: string) => void;
+  deleteConversation: (id: string) => Promise<void>;
   clearAllConversations: () => Promise<void>;
   clearCurrentMessages: () => void;
   clearError: () => void;
