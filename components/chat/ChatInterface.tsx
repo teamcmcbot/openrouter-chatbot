@@ -222,6 +222,7 @@ export default function ChatInterface() {
           generationId={selectedGenerationId}
           onGenerationHover={handleGenerationHover}
           onGenerationClick={handleGenerationClick}
+          variant="desktop"
         />
       </div>
 
@@ -243,6 +244,7 @@ export default function ChatInterface() {
           generationId={selectedGenerationId}
           onGenerationHover={handleGenerationHover}
           onGenerationClick={handleGenerationClick}
+          variant="mobile"
         />
       </div>
     </div>
