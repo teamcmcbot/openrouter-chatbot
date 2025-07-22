@@ -383,18 +383,30 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 timestamp: new Date(),
                 elapsed_time: data.elapsed_time ?? 0,
                 total_tokens: data.usage?.total_tokens ?? 0,
+                input_tokens: data.usage?.prompt_tokens ?? 0,
+                output_tokens: data.usage?.completion_tokens ?? 0,
+                user_message_id: data.request_id, // Link to the user message that triggered this response
                 model: data.model || model,
                 contentType: data.contentType || "text",
                 completion_id: data.id,
               };
 
               // Add assistant response and update conversation metadata
+              // Also update the user message with input tokens if we have a request_id
               set((state) => ({
                 conversations: state.conversations.map((conv) =>
                   conv.id === state.currentConversationId
                     ? updateConversationFromMessages({
                         ...conv,
-                        messages: [...conv.messages, assistantMessage],
+                        messages: [
+                          ...conv.messages.map((msg) =>
+                            // Update the user message that triggered this response with input tokens
+                            msg.id === data.request_id && msg.role === 'user'
+                              ? { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 }
+                              : msg
+                          ),
+                          assistantMessage
+                        ],
                       })
                     : conv
                 ),
@@ -808,23 +820,32 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 timestamp: new Date(),
                 elapsed_time: data.elapsed_time ?? 0,
                 total_tokens: data.usage?.total_tokens ?? 0,
+                input_tokens: data.usage?.prompt_tokens ?? 0,
+                output_tokens: data.usage?.completion_tokens ?? 0,
+                user_message_id: data.request_id, // Link to the user message that triggered this response
                 model: data.model || model,
                 contentType: data.contentType || "text",
                 completion_id: data.id,
               };
 
               // Update the conversation: clear error on retried message and add assistant response
+              // Also update the user message with input tokens if we have a request_id
               set((state) => ({
                 conversations: state.conversations.map((conv) =>
                   conv.id === state.currentConversationId
                     ? updateConversationFromMessages({
                         ...conv,
                         messages: [
-                          ...conv.messages.map((msg) =>
-                            msg.id === messageId
-                              ? { ...msg, error: false } // Clear error flag on successful retry
-                              : msg
-                          ),
+                          ...conv.messages.map((msg) => {
+                            if (msg.id === messageId) {
+                              // Clear error flag on successful retry
+                              return { ...msg, error: false };
+                            } else if (msg.id === data.request_id && msg.role === 'user') {
+                              // Update the user message that triggered this response with input tokens
+                              return { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 };
+                            }
+                            return msg;
+                          }),
                           assistantMessage // Add the assistant response
                         ],
                       })

@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
         completion_tokens: usage.completion_tokens,
         total_tokens: usage.total_tokens,
       },
+      request_id: data!.messages?.[0]?.id || undefined, // NEW: Link to user message that triggered this response
       timestamp: new Date().toISOString(),
       elapsed_time: elapsedTime,
       contentType: hasMarkdown ? "markdown" : "text", // Add content type detection

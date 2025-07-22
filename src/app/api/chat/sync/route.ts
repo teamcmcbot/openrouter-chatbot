@@ -32,6 +32,9 @@ interface DatabaseMessage {
   content: string;
   model?: string;
   total_tokens: number;
+  input_tokens: number; // NEW: input token tracking
+  output_tokens: number; // NEW: output token tracking
+  user_message_id?: string; // NEW: links assistant messages to user messages
   content_type?: string; // New: content type field
   elapsed_time?: number; // New: elapsed time field
   completion_id?: string; // New: completion ID field
@@ -129,11 +132,14 @@ export async function POST(request: NextRequest) {
             content: message.content,
             model: message.model,
             total_tokens: message.total_tokens || 0,
+            input_tokens: message.input_tokens || 0, // NEW: input token tracking
+            output_tokens: message.output_tokens || 0, // NEW: output token tracking
+            user_message_id: message.user_message_id || null, // NEW: user message linking
             content_type: message.contentType || 'text', // New: content type
             elapsed_time: message.elapsed_time || 0, // New: elapsed time
             completion_id: message.completion_id || null, // New: completion ID
-            message_timestamp: typeof message.timestamp === 'string' 
-              ? message.timestamp 
+            message_timestamp: typeof message.timestamp === 'string'
+              ? message.timestamp
               : message.timestamp?.toISOString() || new Date().toISOString(),
             error_message: message.error ? 'Message failed' : undefined,
             is_streaming: false // Default to false since streaming is complete when syncing
@@ -224,6 +230,9 @@ export async function GET() {
           content: message.content,
           model: message.model,
           total_tokens: message.total_tokens,
+          input_tokens: message.input_tokens || 0, // NEW: input token tracking
+          output_tokens: message.output_tokens || 0, // NEW: output token tracking
+          user_message_id: message.user_message_id || undefined, // NEW: user message linking
           contentType: message.content_type || 'text', // New: content type
           elapsed_time: message.elapsed_time || 0, // New: elapsed time
           completion_id: message.completion_id || undefined, // New: completion ID

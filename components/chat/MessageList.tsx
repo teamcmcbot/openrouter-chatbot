@@ -198,28 +198,45 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                 
                 <div className="flex justify-between items-center mt-1">
                   <p className={`text-xs ${
-                    message.role === "user" 
-                      ? "text-emerald-100" 
+                    message.role === "user"
+                      ? "text-emerald-100"
                       : "text-gray-400 dark:text-gray-300"
                   }`}>
                     {formatMessageTime(message.timestamp)}{" "}
-                    {message.role === "assistant" && message.elapsed_time && (
-                      <span className="text-gray-300 dark:text-gray-400">
-                        (Took {message.elapsed_time} seconds, {message.total_tokens} tokens - 
-                        <button
-                          onClick={() => onModelClick?.(message.model!, 'pricing', message.completion_id)}
-                          className={`underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer ml-1 ${
-                            hoveredGenerationId === message.completion_id
-                              ? 'text-blue-500 dark:text-blue-400 font-medium'
-                              : ''
-                          }`}
-                          title={`View pricing details for ${message.model}`}
-                        >
-                          {message.completion_id}
-                        </button>
-                        )
+                    {message.role === "user" && message.input_tokens && message.input_tokens > 0 && (
+                      <span className="text-emerald-100">
+                        ({message.input_tokens} input tokens)
                       </span>
                     )}
+                    {message.role === "assistant" && message.elapsed_time && (() => {
+                      console.log('MessageList - Assistant message tokens:', {
+                        id: message.id,
+                        input_tokens: message.input_tokens,
+                        output_tokens: message.output_tokens,
+                        total_tokens: message.total_tokens,
+                        message: message
+                      });
+                      return (
+                        <span className="text-gray-300 dark:text-gray-400">
+                          (Took {message.elapsed_time}s |
+                          Input: {message.input_tokens || 0},
+                          Output: {message.output_tokens || 0},
+                          Total: {message.total_tokens} tokens -
+                          <button
+                            onClick={() => onModelClick?.(message.model!, 'pricing', message.completion_id)}
+                            className={`underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer ml-1 ${
+                              hoveredGenerationId === message.completion_id
+                                ? 'text-blue-500 dark:text-blue-400 font-medium'
+                                : ''
+                            }`}
+                            title={`View pricing details for ${message.model}`}
+                          >
+                            {message.completion_id}
+                          </button>
+                          )
+                        </span>
+                      );
+                    })()}
                   </p>
                   <button
                     onClick={() => handleCopyMessage(message.id, message.content)}

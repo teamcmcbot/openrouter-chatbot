@@ -6,6 +6,15 @@ On successful message, Usage details (input, output, total tokens) are returned.
 But currently only total_tokens are used and sync to db (for signed in users).
 To use all 3 usage values and display on the frontend, as well as sync back to db for signed in users.
 
+## Database schema
+
+Please go through the existing schema first.
+
+- /database/01-complete-user-management.sql
+- /database/02-complete-chat-history.sql
+- /database/03-complete-user-enhancements.sql
+- /database/04-complete-system-final.sql
+
 ## User Message
 
 ### Request
@@ -118,3 +127,11 @@ Currently, we are only using total_tokens, displayed in the assistance response 
 - Syncing is 2 ways, when new message/response is received and updated back to db, as well as on initial sign in syncing chat histories to the ChatSidebar. The newly added columns must be able sync back front db to frontend and display properly.
 - Currently the User's message chat bubble do not have any tokens details tied to it. Think about how they will be displayed when assistance response returns.
 - Feel free to make suggestions on the database design for chat_messages, chat_sessions, think about how the data can be used for probably user's analytics / dashboard in the future.
+
+## Expected Deliverables
+
+- Create an implementation plan for the above changes, breaking into phases and manageable tasks.
+- SQL scripts to add the new columns to the `chat_messages` table
+- Update the frontend to display the input and output tokens in the chat interface.
+- Update the backend to handle the new token fields in the chat messages.
+- Update database schema in /database folder.
