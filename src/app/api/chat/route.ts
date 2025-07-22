@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
 
     logger.debug('Validated chat request data:', data);
 
+
     // Phase 2: Support both old and new message formats
     const messages: OpenRouterRequest['messages'] = data!.messages || [{ role: 'user', content: data!.message }];
     

@@ -255,6 +255,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               content: content.trim(),
               role: "user",
               timestamp: new Date(),
+              originalModel: model, // Store the model used for this message (for retry purposes)
             };
 
             logger.debug("Sending message", { conversationId: currentConversationId, content: content.substring(0, 50) + "..." });
@@ -644,20 +645,228 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
             if (!currentConversation) return;
 
-            const lastUserMessage = currentConversation.messages
+            // Find the last failed user message (with error flag)
+            const lastFailedMessage = currentConversation.messages
               .slice()
               .reverse()
-              .find((msg) => msg.role === "user");
+              .find((msg) => msg.role === "user" && msg.error);
 
-            if (lastUserMessage) {
-              logger.debug("Retrying last message", { messageId: lastUserMessage.id });
+            if (!lastFailedMessage) {
+              logger.warn("No failed user message found to retry");
+              return;
+            }
+
+            // Get the model to use for retry (priority: originalModel > conversation lastModel > fallback)
+            const modelToUse = lastFailedMessage.originalModel ||
+                              currentConversation.lastModel ||
+                              undefined; // Let sendMessage handle default
+
+            logger.debug("Retrying failed message", {
+              messageId: lastFailedMessage.id,
+              content: lastFailedMessage.content.substring(0, 50) + "...",
+              modelToUse
+            });
+            
+            // Clear error state first
+            get().clearError();
+            get().clearMessageError(lastFailedMessage.id);
+            
+            // Retry the message with the original model
+            // This will reuse the existing message instead of creating a new one
+            await get().retryMessage(lastFailedMessage.id, lastFailedMessage.content, modelToUse);
+          },
+
+          // New function to retry a specific message without creating duplicates
+          retryMessage: async (messageId: string, content: string, model?: string) => {
+            if (!content.trim() || get().isLoading) {
+              logger.warn("Cannot retry message: empty content or already loading");
+              return;
+            }
+
+            const { currentConversationId } = get();
+            if (!currentConversationId) return;
+
+            logger.debug("Retrying specific message", { messageId, model });
+
+            // Set loading state
+            set({ isLoading: true, error: null });
+
+            try {
+              // Phase 3: Check if context-aware mode is enabled
+              const isContextAwareEnabled = process.env.NEXT_PUBLIC_ENABLE_CONTEXT_AWARE === 'true';
               
-              // Clear error first
-              get().clearError();
-              get().clearMessageError(lastUserMessage.id);
+              console.log(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
+              console.log(`[Retry Message] Model: ${model || 'default'}`);
+
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[] };
+
+              if (isContextAwareEnabled) {
+                // Phase 3: Get model-specific token limits and select context
+                const strategy = await getModelTokenLimits(model);
+                console.log(`[Retry Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
+
+                // Get context messages within token budget (excluding the message being retried)
+                const contextMessages = get().getContextMessages(strategy.maxInputTokens)
+                  .filter(msg => msg.id !== messageId); // Exclude the message being retried
+                
+                // Create a temporary message for the retry (not added to store yet)
+                const retryMessage: ChatMessage = {
+                  id: messageId, // Reuse the same ID
+                  content: content.trim(),
+                  role: "user",
+                  timestamp: new Date(),
+                  originalModel: model,
+                };
+                
+                // Build complete message array (context + retry message)
+                const allMessages = [...contextMessages, retryMessage];
+                
+                // Calculate total token usage
+                const totalTokens = estimateMessagesTokens(allMessages);
+                console.log(`[Retry Message] Total message tokens: ${totalTokens}/${strategy.maxInputTokens}`);
+                
+                // Validate budget with fallback logic (same as sendMessage)
+                if (!isWithinInputBudget(totalTokens, strategy)) {
+                  console.log(`[Retry Message] Token budget exceeded, falling back to progressive reduction`);
+                  
+                  const fallbackSizes = [
+                    Math.floor(strategy.maxInputTokens * 0.8),
+                    Math.floor(strategy.maxInputTokens * 0.6),
+                    Math.floor(strategy.maxInputTokens * 0.4),
+                    Math.floor(strategy.maxInputTokens * 0.2),
+                    estimateTokenCount(retryMessage.content) + 20
+                  ];
+                  
+                  let finalContextMessages = contextMessages;
+                  for (const fallbackSize of fallbackSizes) {
+                    const reducedContext = get().getContextMessages(fallbackSize)
+                      .filter(msg => msg.id !== messageId);
+                    const reducedTotal = estimateMessagesTokens([...reducedContext, retryMessage]);
+                    
+                    if (reducedTotal <= strategy.maxInputTokens) {
+                      finalContextMessages = reducedContext;
+                      console.log(`[Retry Message] Using fallback context: ${reducedContext.length} messages, ${reducedTotal} tokens`);
+                      break;
+                    }
+                  }
+                  
+                  requestBody = {
+                    message: content,
+                    messages: [...finalContextMessages, retryMessage]
+                  };
+                } else {
+                  requestBody = {
+                    message: content,
+                    messages: allMessages
+                  };
+                }
+                
+                if (model) {
+                  requestBody.model = model;
+                }
+                
+                console.log(`[Retry Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
+              } else {
+                // Legacy format
+                requestBody = { message: content };
+                if (model) {
+                  requestBody.model = model;
+                }
+                console.log(`[Retry Message] Sending LEGACY format (single message)`);
+              }
+
+              const response = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(requestBody),
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const chatError: ChatError = {
+                  message: errorData.error ?? `HTTP error! status: ${response.status}`,
+                  code: errorData.code,
+                  suggestions: errorData.suggestions,
+                  retryAfter: errorData.retryAfter,
+                  timestamp: errorData.timestamp ?? new Date().toISOString(),
+                };
+                throw chatError;
+              }
+
+              // Handle backend response
+              const raw = await response.json();
+              const data = raw.data ?? raw;
+
+              if (data.error) {
+                throw new Error(data.error);
+              }
+
+              const assistantMessage: ChatMessage = {
+                id: generateMessageId(),
+                content: data.response,
+                role: "assistant",
+                timestamp: new Date(),
+                elapsed_time: data.elapsed_time ?? 0,
+                total_tokens: data.usage?.total_tokens ?? 0,
+                model: data.model || model,
+                contentType: data.contentType || "text",
+                completion_id: data.id,
+              };
+
+              // Update the conversation: clear error on retried message and add assistant response
+              set((state) => ({
+                conversations: state.conversations.map((conv) =>
+                  conv.id === state.currentConversationId
+                    ? updateConversationFromMessages({
+                        ...conv,
+                        messages: [
+                          ...conv.messages.map((msg) =>
+                            msg.id === messageId
+                              ? { ...msg, error: false } // Clear error flag on successful retry
+                              : msg
+                          ),
+                          assistantMessage // Add the assistant response
+                        ],
+                      })
+                    : conv
+                ),
+                isLoading: false,
+              }));
+
+              logger.debug("Message retry successful", { messageId, conversationId: currentConversationId });
+
+            } catch (err) {
+              let chatError: ChatError;
               
-              // Resend with the same content
-              await get().sendMessage(lastUserMessage.content);
+              if (typeof err === 'object' && err !== null && 'code' in err && typeof (err as ChatError).code === 'string') {
+                chatError = err as ChatError;
+              } else {
+                const errorMessage = err instanceof Error ? err.message : "An error occurred";
+                chatError = {
+                  message: errorMessage,
+                  code: (errorMessage.includes("fetch") || errorMessage.includes("Network")) ? "network_error" : "unknown_error",
+                };
+              }
+
+              logger.error("Failed to retry message", { error: chatError, messageId });
+
+              // Mark the message as failed again and set error state
+              set((state) => ({
+                conversations: state.conversations.map((conv) =>
+                  conv.id === state.currentConversationId
+                    ? {
+                        ...conv,
+                        messages: conv.messages.map((msg) =>
+                          msg.id === messageId
+                            ? { ...msg, error: true }
+                            : msg
+                        ),
+                      }
+                    : conv
+                ),
+                isLoading: false,
+                error: chatError,
+              }));
             }
           },
 
