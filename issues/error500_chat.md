@@ -45,3 +45,17 @@ This error occurs when the code attempts to access the first element of an array
   "timestamp": "2025-07-21T15:17:44.277Z"
 }
 ```
+
+---
+
+## Tasks
+
+- Review OpenRouter API documentation to understand the expected response structure for errors https://openrouter.ai/docs/api-reference/errors
+- Review the `getOpenRouterCompletion` function in `openrouter.ts` to understand how it handles different response scenarios, success, 429, other errors.
+- Review `/src/app/api/chat/route.ts` to understand how the chat API route processes the response from OpenRouter. NOTE that for non-success responses, the `choices` array may not be present.
+- But the error will then be caught in the `catch` block, which then returns a generic error response to the frontend via the `handleError` function.
+- This generic error response works fine for 429 errors, but how it was thrown due to not having a `choices` array seems weird
+
+- Implement error handling in the chat API route to gracefully handle cases where `choices` is undefined or empty.
+- Add logging to capture the full response from OpenRouter when an error occurs, to aid in debugging.
+- Provide your analysis and recommendations for fixing this issue in the comments below.
