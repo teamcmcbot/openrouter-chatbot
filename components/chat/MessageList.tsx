@@ -130,11 +130,11 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
             className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             data-completion-id={message.completion_id} // Add data attribute for scrolling
           >
-            <div className={`flex max-w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-              {/* Avatar */}
-              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium overflow-hidden ${
-                message.role === "user" 
-                  ? "bg-emerald-600 text-white ml-3" 
+            <div className={`flex w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+              {/* Avatar - Hidden on mobile (< sm breakpoint) */}
+              <div className={`hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full items-center justify-center text-sm font-medium overflow-hidden ${
+                message.role === "user"
+                  ? "bg-emerald-600 text-white ml-3"
                   : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 mr-3"
               }`}>
                 {message.role === "user" ? (
@@ -156,7 +156,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
               </div>
 
               {/* Message Content */}
-              <div className={`rounded-lg px-4 py-2 transition-all duration-200 relative ${
+              <div className={`rounded-lg px-3 sm:px-4 py-2 transition-all duration-200 relative flex-1 sm:flex-initial ${
                 message.role === "user"
                   ? `bg-emerald-600 text-white`
                   : `bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${
@@ -249,11 +249,12 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
         {/* Loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="flex max-w-[70%]">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 flex items-center justify-center text-sm font-medium mr-3">
+            <div className="flex w-full sm:max-w-[70%]">
+              {/* Avatar - Hidden on mobile (< sm breakpoint) */}
+              <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 items-center justify-center text-sm font-medium mr-3">
                 AI
               </div>
-              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2">
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 sm:flex-initial">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>

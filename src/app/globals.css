@@ -148,3 +148,40 @@ a {
 * {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
+
+/* Mobile-specific improvements */
+@media (max-width: 640px) {
+  /* Ensure no horizontal overflow on mobile */
+  body {
+    overflow-x: hidden;
+  }
+  
+  /* Better word wrapping for mobile */
+  .markdown-content {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  /* Ensure long URLs and text break properly */
+  .markdown-content p,
+  .markdown-content li,
+  .markdown-content td {
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  /* Mobile-optimized code blocks */
+  .markdown-content pre {
+    overflow-x: auto;
+    max-width: 100%;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  
+  /* Mobile-optimized tables */
+  .markdown-content table {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+}
