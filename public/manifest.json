@@ -1,8 +1,8 @@
 {
-  "name": "CheekChat",
-  "short_name": "Cheek",
+  "name": "GreenBubble",
+  "short_name": "GreenBubble",
   "description": "A modern chatbot powered by OpenRouter's AI models",
-  "start_url": "/",
+  "start_url": "/chat",
   "icons": [
     {
       "src": "/android-chrome-192x192.svg",

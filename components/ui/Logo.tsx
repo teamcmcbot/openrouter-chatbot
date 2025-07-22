@@ -102,7 +102,7 @@ export const Logo: React.FC<LogoProps> = ({
     viewBox="0 0 512 512"
     xmlns="http://www.w3.org/2000/svg"
     role="img"
-    aria-label="Cheek.Chat logo"
+    aria-label="GreenBubble logo"
     className={className}
   >
     {/* Scale‑and‑centre group (translate → scale → translate‑back) */}
