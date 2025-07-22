@@ -169,8 +169,10 @@ describe("MessageList with Markdown Support", () => {
       role: "assistant",
       timestamp: new Date("2024-01-01T12:00:00Z"),
       contentType: "text",
-      elapsed_time: 2,
-      total_tokens: 150,
+      elapsed_time: 7,
+      input_tokens: 34,
+      output_tokens: 83,
+      total_tokens: 117,
     };
 
     render(<MessageList messages={[messageWithMetadata]} isLoading={false} />);
@@ -178,7 +180,7 @@ describe("MessageList with Markdown Support", () => {
     // Test that the timestamp appears (it will include date since it's not today)
     // Use case-insensitive regex to handle both "PM" and "pm" formats
     expect(screen.getByText(/01\/01\/2024.*08:00 pm/i)).toBeInTheDocument();
-    expect(screen.getByText(/Took 2 seconds, 150 tokens/)).toBeInTheDocument();
+    expect(screen.getByText(/Took 7s | Input: 34, Output: 83, 117 tokens/)).toBeInTheDocument();
   });
 
   describe("User Avatar functionality", () => {
