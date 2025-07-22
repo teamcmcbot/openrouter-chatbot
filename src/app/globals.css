@@ -78,6 +78,29 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  
+  /* Dynamic Viewport Height Variables */
+  --vh-fallback: 100vh;
+  --vh-small: 100svh;    /* Small viewport height (excludes browser UI) */
+  --vh-large: 100lvh;    /* Large viewport height (includes browser UI) */
+  --vh-dynamic: 100dvh;  /* Dynamic viewport height (adjusts to browser UI) */
+  
+  /* Safe Area Insets for devices with notches/dynamic islands */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  
+  /* Mobile-optimized viewport heights */
+  --mobile-viewport-height: var(--vh-dynamic);
+  --mobile-safe-viewport-height: calc(var(--vh-dynamic) - var(--safe-area-inset-top) - var(--safe-area-inset-bottom));
+  
+  /* App-specific heights */
+  --header-height: 4rem; /* 64px - matches h-16 */
+  --footer-height: 3.5rem; /* Approximate footer height on desktop */
+  --mobile-content-height: calc(var(--mobile-viewport-height) - var(--header-height));
+  --mobile-safe-content-height: calc(var(--mobile-safe-viewport-height) - var(--header-height));
+  --desktop-content-height: calc(var(--mobile-viewport-height) - var(--header-height) - var(--footer-height));
 }
 
 @theme inline {
@@ -183,5 +206,93 @@ a {
   .markdown-content table {
     font-size: 0.875rem;
     line-height: 1.25rem;
+  }
+}
+
+/* Mobile Dynamic Viewport Height Utilities */
+.h-mobile-screen {
+  height: var(--mobile-viewport-height);
+}
+
+.h-mobile-safe-screen {
+  height: var(--mobile-safe-viewport-height);
+}
+
+.h-mobile-content {
+  height: var(--mobile-content-height);
+}
+
+.h-mobile-safe-content {
+  height: var(--mobile-safe-content-height);
+}
+
+.h-desktop-content {
+  height: var(--desktop-content-height);
+}
+
+.min-h-mobile-screen {
+  min-height: var(--mobile-viewport-height);
+}
+
+.min-h-mobile-safe-screen {
+  min-height: var(--mobile-safe-viewport-height);
+}
+
+/* Browser Fallbacks for older browsers that don't support dvh */
+@supports not (height: 100dvh) {
+  :root {
+    --vh-dynamic: 100vh;
+    --mobile-viewport-height: 100vh;
+    --mobile-safe-viewport-height: 100vh;
+    --mobile-content-height: calc(100vh - var(--header-height));
+    --mobile-safe-content-height: calc(100vh - var(--header-height));
+    --desktop-content-height: calc(100vh - var(--header-height) - var(--footer-height));
+  }
+}
+
+/* Enhanced mobile viewport support */
+@media screen and (max-width: 768px) {
+  /* Use small viewport height on mobile for better compatibility */
+  :root {
+    --mobile-viewport-height: var(--vh-small);
+    --mobile-safe-viewport-height: calc(var(--vh-small) - var(--safe-area-inset-top) - var(--safe-area-inset-bottom));
+    --mobile-content-height: calc(var(--vh-small) - var(--header-height));
+    --mobile-safe-content-height: calc(var(--vh-small) - var(--header-height) - var(--safe-area-inset-top) - var(--safe-area-inset-bottom));
+  }
+  
+  /* Ensure proper padding for safe areas */
+  .mobile-safe-area {
+    padding-top: var(--safe-area-inset-top);
+    padding-right: var(--safe-area-inset-right);
+    padding-bottom: var(--safe-area-inset-bottom);
+    padding-left: var(--safe-area-inset-left);
+  }
+  
+  /* Mobile-specific height utilities */
+  .h-mobile-full {
+    height: var(--mobile-content-height);
+  }
+  
+  .h-mobile-safe-full {
+    height: var(--mobile-safe-content-height);
+  }
+}
+
+/* Desktop and larger screens - use dynamic viewport height */
+@media screen and (min-width: 769px) {
+  :root {
+    --mobile-viewport-height: var(--vh-dynamic);
+    --mobile-safe-viewport-height: var(--vh-dynamic);
+    --mobile-content-height: calc(var(--vh-dynamic) - var(--header-height));
+    --mobile-safe-content-height: calc(var(--vh-dynamic) - var(--header-height));
+    --desktop-content-height: calc(var(--vh-dynamic) - var(--header-height) - var(--footer-height));
+  }
+  
+  .h-mobile-full {
+    height: calc(var(--vh-dynamic) - var(--header-height) - var(--footer-height));
+  }
+  
+  .h-mobile-safe-full {
+    height: calc(var(--vh-dynamic) - var(--header-height) - var(--footer-height));
   }
 }

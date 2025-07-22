@@ -131,10 +131,10 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
       )}
       
       {/* Sidebar */}
-      <aside 
+      <aside
         className={`
           fixed xl:static inset-y-0 left-0 z-50 xl:z-0
-          w-64 xl:w-full h-full
+          w-64 xl:w-full h-full mobile-safe-area
           bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
           transform transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'}

@@ -119,7 +119,7 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+    <div className="flex h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden mobile-safe-area">
       {/* Left Sidebar - Chat History (15%) */}
       <div className="hidden xl:block w-[15%] min-w-[200px]">
         <ChatSidebar

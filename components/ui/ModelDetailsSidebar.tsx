@@ -156,8 +156,8 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
         />
       )}
       
-      <aside 
-        className={`h-full bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out overflow-hidden
+      <aside
+        className={`h-full mobile-safe-area bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out overflow-hidden
           ${isOpen ? 'w-96' : 'w-0'}
           xl:relative xl:block xl:w-full
           ${isOpen ? 'fixed inset-y-0 right-0 z-50 xl:relative xl:z-auto' : 'hidden xl:block'}

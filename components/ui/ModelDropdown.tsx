@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+
+// Utility to detect mobile devices
+function isMobileDevice() {
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
 import { ModelInfo } from "../../lib/types/openrouter";
 
 interface ModelDropdownProps {
@@ -87,7 +92,7 @@ export default function ModelDropdown({
 
   // Focus search input when dropdown opens
   useEffect(() => {
-    if (isOpen && searchInputRef.current) {
+    if (isOpen && searchInputRef.current && !isMobileDevice()) {
       searchInputRef.current.focus();
     }
   }, [isOpen]);
