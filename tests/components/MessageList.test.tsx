@@ -180,7 +180,10 @@ describe("MessageList with Markdown Support", () => {
     // Test that the timestamp appears (it will include date since it's not today)
     // Use case-insensitive regex to handle both "PM" and "pm" formats
     expect(screen.getByText(/01\/01\/2024.*08:00 pm/i)).toBeInTheDocument();
-    expect(screen.getByText(/Took 7s | Input: 34, Output: 83, 117 tokens/)).toBeInTheDocument();
+    expect(screen.getByText(/Took 7 seconds/)).toBeInTheDocument();
+    expect(screen.getByText(/Input: 34/)).toBeInTheDocument();
+    expect(screen.getByText(/Output: 83/)).toBeInTheDocument();
+    expect(screen.getByText(/Total: 117/)).toBeInTheDocument();
   });
 
   describe("User Avatar functionality", () => {
