@@ -169,7 +169,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                 {message.role === "assistant" && message.model && (
                   <button
                     onClick={() => onModelClick?.(message.model!, 'overview', undefined)}
-                    className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-gray-800 dark:text-purple-300 align-middle hover:bg-gray-400 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                    className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-purple-800 dark:text-purple-300 align-middle hover:bg-gray-400 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                     title={`View details for ${message.model}`}
                   >
                     {message.model}
@@ -200,7 +200,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                   {/* Left column (Group 1 + Group 2) */}
                   <div className="flex flex-wrap items-center gap-x-1 gap-y-1 flex-grow min-w-0">
                     {/* Group 1: Time + Elapsed Time */}
-                    <div className="flex items-center text-xs text-gray-400 dark:text-gray-300">
+                    <div className={`flex items-center text-xs ${message.role === "user" ? "text-white/80" : "text-gray-600 dark:text-gray-300"}`}> 
                       <span>{formatMessageTime(message.timestamp)}</span>
                       {message.role === "assistant" && message.elapsed_time && (
                         <span className="ml-1">(Took {message.elapsed_time} seconds)</span>
@@ -214,7 +214,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
 
                     {/* Group 2: Tokens Info */}
                     {message.role === "assistant" && (
-                      <div className="flex items-center text-xs text-gray-400 dark:text-gray-300">
+                      <div className="flex items-center text-xs text-gray-600 dark:text-gray-300">
                         Input: {message.input_tokens || 0}, Output: {message.output_tokens || 0}, 
                         Total: {message.total_tokens} tokens
                       </div>
