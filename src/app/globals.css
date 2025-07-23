@@ -172,6 +172,43 @@ a {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
+/* Responsive Table Styles */
+.responsive-table-wrapper {
+  @apply w-full my-4;
+  /* Mobile phones only: Use constrained width with more precise calculation */
+  @media (max-width: 479px) {
+    width: calc(100vw - 4.5rem); /* More conservative padding calculation */
+    max-width: calc(100vw - 4.5rem);
+    margin-left: calc(-0.75rem);
+    margin-right: calc(-0.75rem);
+  }
+}
+
+.responsive-table-container {
+  @apply w-full;
+  /* Mobile phones only: Enable horizontal scrolling */
+  @media (max-width: 479px) {
+    @apply overflow-x-auto;
+  }
+  /* Tablets and desktop: No horizontal scrolling */
+  @media (min-width: 480px) {
+    overflow-x: visible;
+  }
+}
+
+.responsive-table {
+  @apply border-collapse border border-gray-300 dark:border-gray-600;
+  /* Mobile phones only: Enable horizontal scrolling */
+  @media (max-width: 479px) {
+    @apply whitespace-nowrap min-w-max;
+  }
+  /* Tablets and desktop: Normal text wrapping */
+  @media (min-width: 480px) {
+    @apply min-w-full;
+    white-space: normal;
+  }
+}
+
 /* Mobile-specific improvements */
 @media (max-width: 640px) {
   /* Ensure no horizontal overflow on mobile */

@@ -48,13 +48,15 @@ export const CustomCodeBlock = ({
 };
 
 export const CustomTable = ({ children, ...props }: CustomTableProps) => (
-  <div className="overflow-x-auto my-4">
-    <table
-      className="min-w-full border-collapse border border-gray-300 dark:border-gray-600"
-      {...props}
-    >
-      {children}
-    </table>
+  <div className="responsive-table-wrapper">
+    <div className="responsive-table-container">
+      <table
+        className="responsive-table"
+        {...props}
+      >
+        {children}
+      </table>
+    </div>
   </div>
 );
 
