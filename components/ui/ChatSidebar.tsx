@@ -315,7 +315,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                           </p>
                           <div className="flex items-center justify-between mt-2">
                             <span className="text-xs text-gray-500 dark:text-gray-500">
-                              {formatConversationTimestamp(conversation.updatedAt)}
+                              {formatConversationTimestamp(conversation.lastMessageTimestamp || "")}
                             </span>
                             <div className="flex items-center gap-1">
                               
