@@ -52,6 +52,9 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
     -- Model and performance metadata
     model VARCHAR(100),
     total_tokens INTEGER DEFAULT 0,
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    user_message_id TEXT,
     
     -- Response metadata (for assistant messages)
     content_type VARCHAR(20) DEFAULT 'text' CHECK (content_type IN ('text', 'markdown')),
@@ -83,6 +86,12 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON public.chat_messages(
 CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON public.chat_messages(message_timestamp);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session_timestamp ON public.chat_messages(session_id, message_timestamp);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_completion_id ON public.chat_messages(completion_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_message_id
+    ON public.chat_messages(user_message_id)
+    WHERE user_message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_chat_messages_tokens_role
+    ON public.chat_messages(role, input_tokens, output_tokens)
+    WHERE input_tokens > 0 OR output_tokens > 0;
 
 -- =============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -147,29 +156,36 @@ CREATE OR REPLACE FUNCTION public.update_session_stats()
 RETURNS TRIGGER AS $$
 DECLARE
     session_stats RECORD;
+    total_input_tokens INTEGER := 0;
+    total_output_tokens INTEGER := 0;
 BEGIN
     -- Determine which session to update
     IF TG_OP = 'DELETE' THEN
         -- Use OLD record for DELETE operations
-        SELECT 
+        SELECT
             COUNT(*) as msg_count,
             COALESCE(SUM(total_tokens), 0) as token_sum,
+            COALESCE(SUM(input_tokens), 0) as input_sum,
+            COALESCE(SUM(output_tokens), 0) as output_sum,
             MAX(message_timestamp) as last_msg_time,
-            (SELECT content FROM public.chat_messages 
-             WHERE session_id = OLD.session_id 
-             ORDER BY message_timestamp DESC 
+            (SELECT content FROM public.chat_messages
+             WHERE session_id = OLD.session_id
+             ORDER BY message_timestamp DESC
              LIMIT 1) as last_preview,
-            (SELECT model FROM public.chat_messages 
-             WHERE session_id = OLD.session_id 
-             ORDER BY message_timestamp DESC 
+            (SELECT model FROM public.chat_messages
+             WHERE session_id = OLD.session_id
+             ORDER BY message_timestamp DESC
              LIMIT 1) as last_model_used
         INTO session_stats
-        FROM public.chat_messages 
+        FROM public.chat_messages
         WHERE session_id = OLD.session_id;
-        
+
+        total_input_tokens := session_stats.input_sum;
+        total_output_tokens := session_stats.output_sum;
+
         -- Update the session
-        UPDATE public.chat_sessions 
-        SET 
+        UPDATE public.chat_sessions
+        SET
             message_count = session_stats.msg_count,
             total_tokens = session_stats.token_sum,
             last_message_timestamp = session_stats.last_msg_time,
@@ -180,25 +196,30 @@ BEGIN
         WHERE id = OLD.session_id;
     ELSE
         -- Use NEW record for INSERT/UPDATE operations
-        SELECT 
+        SELECT
             COUNT(*) as msg_count,
             COALESCE(SUM(total_tokens), 0) as token_sum,
+            COALESCE(SUM(input_tokens), 0) as input_sum,
+            COALESCE(SUM(output_tokens), 0) as output_sum,
             MAX(message_timestamp) as last_msg_time,
-            (SELECT content FROM public.chat_messages 
-             WHERE session_id = NEW.session_id 
-             ORDER BY message_timestamp DESC 
+            (SELECT content FROM public.chat_messages
+             WHERE session_id = NEW.session_id
+             ORDER BY message_timestamp DESC
              LIMIT 1) as last_preview,
-            (SELECT model FROM public.chat_messages 
-             WHERE session_id = NEW.session_id 
-             ORDER BY message_timestamp DESC 
+            (SELECT model FROM public.chat_messages
+             WHERE session_id = NEW.session_id
+             ORDER BY message_timestamp DESC
              LIMIT 1) as last_model_used
         INTO session_stats
-        FROM public.chat_messages 
+        FROM public.chat_messages
         WHERE session_id = NEW.session_id;
-        
+
+        total_input_tokens := session_stats.input_sum;
+        total_output_tokens := session_stats.output_sum;
+
         -- Update the session
-        UPDATE public.chat_sessions 
-        SET 
+        UPDATE public.chat_sessions
+        SET
             message_count = session_stats.msg_count,
             total_tokens = session_stats.token_sum,
             last_message_timestamp = session_stats.last_msg_time,
@@ -207,8 +228,22 @@ BEGIN
             last_activity = NOW(),
             updated_at = NOW()
         WHERE id = NEW.session_id;
+
+        -- Update user_usage_daily with detailed token tracking
+        IF NEW.role IN ('user', 'assistant') THEN
+            PERFORM public.track_user_usage(
+                (SELECT user_id FROM public.chat_sessions WHERE id = NEW.session_id),
+                CASE WHEN NEW.role = 'user' THEN 1 ELSE 0 END,
+                CASE WHEN NEW.role = 'assistant' THEN 1 ELSE 0 END,
+                COALESCE(NEW.input_tokens, 0),
+                COALESCE(NEW.output_tokens, 0),
+                NEW.model,
+                false,
+                CASE WHEN NEW.role = 'assistant' THEN COALESCE(NEW.elapsed_time, 0) ELSE 0 END
+            );
+        END IF;
     END IF;
-    
+
     -- Return appropriate record
     IF TG_OP = 'DELETE' THEN
         RETURN OLD;
@@ -384,6 +419,7 @@ BEGIN
                 LOOP
                     INSERT INTO public.chat_messages (
                         id, session_id, role, content, model, total_tokens,
+                        input_tokens, output_tokens, user_message_id,
                         message_timestamp, error_message, is_streaming
                     ) VALUES (
                         message->>'id',
@@ -392,6 +428,9 @@ BEGIN
                         message->>'content',
                         message->>'model',
                         COALESCE((message->>'total_tokens')::integer, 0),
+                        COALESCE((message->>'input_tokens')::integer, 0),
+                        COALESCE((message->>'output_tokens')::integer, 0),
+                        message->>'user_message_id',
                         (message->>'timestamp')::timestamptz,
                         CASE WHEN (message->>'error')::boolean THEN 'Message failed' ELSE NULL END,
                         false
@@ -400,6 +439,9 @@ BEGIN
                         content = EXCLUDED.content,
                         model = EXCLUDED.model,
                         total_tokens = EXCLUDED.total_tokens,
+                        input_tokens = EXCLUDED.input_tokens,
+                        output_tokens = EXCLUDED.output_tokens,
+                        user_message_id = EXCLUDED.user_message_id,
                         message_timestamp = EXCLUDED.message_timestamp;
                 END LOOP;
             END IF;
