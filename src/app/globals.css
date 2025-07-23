@@ -76,8 +76,8 @@
 }
 
 :root {
-  --background: #f7f7fa;
-  --foreground: #171717;
+  --background: #ececec;   /* Soft light gray */
+  --foreground: #23272f;   /* Deep slate gray */
   
   /* Dynamic Viewport Height Variables */
   --vh-fallback: 100vh;
@@ -121,7 +121,7 @@ html {
   scroll-behavior: smooth;
 }
 
-body {
+body, #__next, main {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
