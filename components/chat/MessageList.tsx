@@ -196,67 +196,58 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                   </div>
                 )}
                 
-                <div className="flex justify-between items-center mt-1">
-                  <p className={`text-xs ${
-                    message.role === "user"
-                      ? "text-emerald-100"
-                      : "text-gray-400 dark:text-gray-300"
-                  }`}>
-                    {formatMessageTime(message.timestamp)}{" "}
-                    {message.role === "user" && message.input_tokens && message.input_tokens > 0 && (
-                      <span className="text-emerald-100">
-                        ({message.input_tokens} input tokens)
-                      </span>
-                    )}
-                    {message.role === "assistant" && message.elapsed_time && (() => {
-                      console.log('MessageList - Assistant message tokens:', {
-                        id: message.id,
-                        input_tokens: message.input_tokens,
-                        output_tokens: message.output_tokens,
-                        total_tokens: message.total_tokens,
-                        message: message
-                      });
-                      return (
-                        <span className="text-gray-300 dark:text-gray-400">
-                          (Took {message.elapsed_time}s |
-                          Input: {message.input_tokens || 0},
-                          Output: {message.output_tokens || 0},
-                          Total: {message.total_tokens} tokens -
-                          <button
-                            onClick={() => onModelClick?.(message.model!, 'pricing', message.completion_id)}
-                            className={`underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer ml-1 ${
-                              hoveredGenerationId === message.completion_id
-                                ? 'text-blue-500 dark:text-blue-400 font-medium'
-                                : ''
-                            }`}
-                            title={`View pricing details for ${message.model}`}
-                          >
-                            {message.completion_id}
-                          </button>
-                          )
+                <div className="mt-2 flex flex-wrap items-start w-full gap-x-2 gap-y-1">
+                  {/* Left column (Group 1 + Group 2) */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 flex-grow min-w-0">
+                    {/* Group 1: Time + Elapsed Time */}
+                    <div className="flex items-center text-xs text-gray-400 dark:text-gray-300">
+                      <span>{formatMessageTime(message.timestamp)}</span>
+                      {message.role === "assistant" && message.elapsed_time && (
+                        <span className="ml-1">(Took {message.elapsed_time} seconds)</span>
+                      )}
+                      {message.role === "user" && message.input_tokens > 0 && (
+                        <span className="ml-1">
+                          ({message.input_tokens} input tokens)
                         </span>
-                      );
-                    })()}
-                  </p>
-                  <button
-                    onClick={() => handleCopyMessage(message.id, message.content)}
-                    className={`ml-2 p-1 rounded transition-colors ${
-                      message.role === "user" 
-                        ? "hover:bg-emerald-700 text-emerald-100 hover:text-white" 
-                        : "hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-300"
-                    }`}
-                    title={copiedMessageId === message.id ? "Copied!" : "Copy message"}
-                  >
-                    {copiedMessageId === message.id ? (
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
+                      )}
+                    </div>
+
+                    {/* Group 2: Tokens Info */}
+                    {message.role === "assistant" && (
+                      <div className="flex items-center text-xs text-gray-400 dark:text-gray-300">
+                        Input: {message.input_tokens || 0}, Output: {message.output_tokens || 0}, 
+                        Total: {message.total_tokens} tokens
+                      </div>
                     )}
-                  </button>
+                  </div>
+
+                  {/* Group 3 (always on the far right or its own row) */}
+                  {message.role === "assistant" && message.completion_id && (
+                    <div className="flex items-center justify-between w-full md:w-auto md:flex-grow-0 md:ml-auto">
+                      <button
+                        onClick={() => onModelClick?.(message.model!, 'pricing', message.completion_id)}
+                        className="text-xs underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer truncate max-w-[120px] md:max-w-[220px] block overflow-hidden whitespace-nowrap text-ellipsis"
+                        title={message.completion_id} // Optional: show full ID on hover
+                      >
+                        {message.completion_id}
+                      </button>
+                      <button
+                        onClick={() => handleCopyMessage(message.id, message.content)}
+                        className="ml-2 p-1 rounded transition-colors hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-300"
+                        title={copiedMessageId === message.id ? "Copied!" : "Copy message"}
+                      >
+                        {copiedMessageId === message.id ? (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
