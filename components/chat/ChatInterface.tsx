@@ -47,6 +47,8 @@ export default function ChatInterface() {
 
   // Local state for scroll behavior (transient, doesn't need to be in store)
   const [scrollToCompletionId, setScrollToCompletionId] = useState<string | undefined>(undefined);
+  // Local state for prompt selection
+  const [selectedPrompt, setSelectedPrompt] = useState<string>("");
 
   // Retry function to resend the last user message
   const handleRetry = () => {
@@ -118,6 +120,10 @@ export default function ChatInterface() {
     toggleChatSidebar();
   };
 
+  const handlePromptSelect = (prompt: string) => {
+    setSelectedPrompt(prompt);
+  };
+
   return (
     <div className="flex h-full bg-gray-300 dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden mobile-safe-area">
       {/* Left Sidebar - Chat History (15%) */}
@@ -184,6 +190,7 @@ export default function ChatInterface() {
             onModelClick={handleModelClickFromMessage}
             hoveredGenerationId={hoveredGenerationId}
             scrollToCompletionId={scrollToCompletionId}
+            onPromptSelect={handlePromptSelect}
           />
         </div>
 
@@ -206,8 +213,12 @@ export default function ChatInterface() {
         {/* Input Area */}
         <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
           <MessageInput 
-            onSendMessage={(message) => sendMessage(message, selectedModel)}
+            onSendMessage={(message) => {
+              sendMessage(message, selectedModel);
+              setSelectedPrompt(""); // Clear the selected prompt after sending
+            }}
             disabled={isLoading}
+            initialMessage={selectedPrompt}
           />
         </div>
       </div>

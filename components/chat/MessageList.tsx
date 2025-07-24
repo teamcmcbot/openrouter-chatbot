@@ -15,6 +15,7 @@ import {
   CustomLink, 
   CustomPreBlock 
 } from "./markdown/MarkdownComponents";
+import PromptTabs from "./PromptTabs";
 
 // Memoized markdown component for better performance
 const MemoizedMarkdown = memo(({ children }: { children: string }) => (
@@ -41,9 +42,10 @@ interface MessageListProps {
   onModelClick?: (modelId: string, tab?: 'overview' | 'pricing' | 'capabilities', generationId?: string) => void;
   hoveredGenerationId?: string;
   scrollToCompletionId?: string; // Add scroll trigger prop
+  onPromptSelect?: (prompt: string) => void;
 }
 
-export default function MessageList({ messages, isLoading, onModelClick, hoveredGenerationId, scrollToCompletionId }: Readonly<MessageListProps>) {
+export default function MessageList({ messages, isLoading, onModelClick, hoveredGenerationId, scrollToCompletionId, onPromptSelect }: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -111,16 +113,17 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
     >
       <div className="space-y-4">
         {messages.length === 0 && !isLoading && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+          <div className="flex flex-col items-center justify-center h-full">
             <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
             <p className="text-lg mb-2">Start a conversation</p>
-            <p className="text-sm text-center max-w-md">
-              Type a message below to begin chatting with the AI assistant.
+            <p className="text-sm text-center max-w-md mb-6">
+              Type a message to chat with the AI.
             </p>
+            <PromptTabs onPromptSelect={onPromptSelect || (() => {})} />
           </div>
         )}
 

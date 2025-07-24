@@ -1,14 +1,28 @@
 "use client";
 
-import { useState, KeyboardEvent } from "react";
+import { useState, KeyboardEvent, useEffect } from "react";
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void
   disabled?: boolean;
+  initialMessage?: string;
 }
 
-export default function MessageInput({ onSendMessage, disabled = false }: Readonly<MessageInputProps>) {
+export default function MessageInput({ onSendMessage, disabled = false, initialMessage }: Readonly<MessageInputProps>) {
   const [message, setMessage] = useState("");
+
+  // Update message when initialMessage prop changes
+  useEffect(() => {
+    if (initialMessage) {
+      setMessage(initialMessage);
+      // Focus and select the textarea
+      const textarea = document.getElementById('message-input') as HTMLTextAreaElement;
+      if (textarea) {
+        textarea.focus();
+        textarea.select();
+      }
+    }
+  }, [initialMessage]);
 
   const handleSend = () => {
     if (message.trim() && !disabled) {
