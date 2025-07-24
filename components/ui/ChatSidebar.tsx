@@ -232,8 +232,8 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                     conversation.id === currentConversationId
                       ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 shadow-sm'
                       : index % 2 === 0
-                        ? 'bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
-                        : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
+                        ? 'bg-gray-100/30 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
+                        : 'bg-gray-200 dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
                   }`}
                   onClick={() => handleConversationClick(conversation.id)}
                 >

@@ -117,7 +117,7 @@ export function SimpleAuthButton() {
         >
           <div className="min-h-screen flex items-center justify-center p-4">
             <div 
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 border border-white-200 dark:border-white-700"
+              className="bg-gray-100 dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 border border-white-200 dark:border-white-700"
               onClick={(e) => e.stopPropagation()}
             >
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
