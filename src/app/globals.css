@@ -177,8 +177,8 @@ a {
   @apply w-full my-4;
   /* Mobile phones only: Use constrained width with more precise calculation */
   @media (max-width: 479px) {
-    width: calc(100vw - 4.5rem); /* More conservative padding calculation */
-    max-width: calc(100vw - 4.5rem);
+    width: calc(100vw - 5.4rem); /* More conservative padding calculation */
+    max-width: calc(100vw - 5.4rem);
     margin-left: calc(-0.75rem);
     margin-right: calc(-0.75rem);
   }
