@@ -232,22 +232,23 @@ BEGIN
     
     -- Get recent usage stats
     SELECT jsonb_build_object(
-        'today', jsonb_agg(
-            jsonb_build_object(
-                'messages_sent', messages_sent,
-                'messages_received', messages_received,
-                'total_tokens', total_tokens,
-                'models_used', models_used,
-                'sessions_created', sessions_created,
-                'active_minutes', active_minutes
+        'today', (
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'messages_sent', messages_sent,
+                    'messages_received', messages_received,
+                    'total_tokens', total_tokens,
+                    'models_used', models_used,
+                    'sessions_created', sessions_created,
+                    'active_minutes', active_minutes
+                ) ORDER BY usage_date DESC
             )
+            FROM public.user_usage_daily
+            WHERE user_id = user_uuid 
+            AND usage_date >= CURRENT_DATE - INTERVAL '7 days'
         ),
         'total', profile_data.usage_stats
-    ) INTO usage_stats_data
-    FROM public.user_usage_daily
-    WHERE user_id = user_uuid 
-    AND usage_date >= CURRENT_DATE - INTERVAL '7 days'
-    ORDER BY usage_date DESC;
+    ) INTO usage_stats_data;
     
     -- Return complete profile
     RETURN jsonb_build_object(

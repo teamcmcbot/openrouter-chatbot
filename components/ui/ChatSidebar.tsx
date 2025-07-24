@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, ArrowPathIcon, CloudIcon, ComputerDesktopIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, ArrowPathIcon, CloudIcon, ComputerDesktopIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import Button from "./Button";
 import { useChatStore } from "../../stores";
 import { useAuthStore } from "../../stores/useAuthStore";
@@ -350,13 +350,28 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
               {isHydrated ? `${conversations.length} total conversations` : "Loading conversations..."}
             </div>
             {isHydrated && conversations.length > 0 && (
-              <button
-                onClick={handleClearAllConversations}
-                className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded"
-                title="Clear all conversations"
-              >
-                <TrashIcon className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {isAuthenticated && (
+                  <button
+                    onClick={() => {
+                      const user = useAuthStore.getState().user;
+                      const userInfo = user?.id || user?.email || "unknown";
+                      console.log(`Clicked settings button for user ${userInfo}`);
+                    }}
+                    className="p-1 text-gray-400 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors rounded"
+                    title="Settings"
+                  >
+                    <Cog6ToothIcon className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  onClick={handleClearAllConversations}
+                  className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded"
+                  title="Clear all conversations"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              </div>
             )}
           </div>
         </div>

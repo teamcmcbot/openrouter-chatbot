@@ -159,7 +159,7 @@ describe("MessageList with Markdown Support", () => {
     render(<MessageList messages={[]} isLoading={false} />);
 
     expect(screen.getByText("Start a conversation")).toBeInTheDocument();
-    expect(screen.getByText("Type a message below to begin chatting with the AI assistant.")).toBeInTheDocument();
+    expect(screen.getByText("Type a message to chat with the AI.")).toBeInTheDocument();
   });
 
   it("renders timestamp and metadata correctly", () => {
