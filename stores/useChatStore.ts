@@ -1009,7 +1009,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 
                 // Sort merged conversations by updatedAt (most recent first)
                 const allConversations = [...newConversations, ...state.conversations]
-                  .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                  .sort((a, b) => new Date(b.last_message_timestamp).getTime() - new Date(a.last_message_timestamp).getTime());
                 
                 return {
                   conversations: allConversations,
@@ -1119,7 +1119,6 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
           getRecentConversations: (limit = 10) => {
             return get().conversations
-              .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
               .slice(0, limit);
           },
         }),

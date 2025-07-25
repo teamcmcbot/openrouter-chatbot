@@ -233,13 +233,13 @@ BEGIN
         IF NEW.role IN ('user', 'assistant') THEN
             PERFORM public.track_user_usage(
                 (SELECT user_id FROM public.chat_sessions WHERE id = NEW.session_id),
-                CASE WHEN NEW.role = 'user' THEN 1 ELSE 0 END,
-                CASE WHEN NEW.role = 'assistant' THEN 1 ELSE 0 END,
-                COALESCE(NEW.input_tokens, 0),
-                COALESCE(NEW.output_tokens, 0),
-                NEW.model,
-                false,
-                CASE WHEN NEW.role = 'assistant' THEN COALESCE(NEW.elapsed_time, 0) ELSE 0 END
+                CASE WHEN NEW.role = 'user' THEN 1 ELSE 0 END, -- messages_sent
+                CASE WHEN NEW.role = 'assistant' THEN 1 ELSE 0 END, -- messages_received
+                CASE WHEN NEW.role = 'user' THEN COALESCE(NEW.input_tokens, 0) ELSE 0 END, -- input_tokens
+                CASE WHEN NEW.role = 'assistant' THEN COALESCE(NEW.output_tokens, 0) ELSE 0 END, -- output_tokens
+                NEW.model, -- model_used
+                false, -- session_created
+                CASE WHEN NEW.role = 'assistant' THEN COALESCE(NEW.elapsed_time, 0) ELSE 0 END -- active_minutes
             );
         END IF;
     END IF;

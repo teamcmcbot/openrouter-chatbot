@@ -208,7 +208,7 @@ export async function GET() {
         chat_messages (*)
       `)
       .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
+      .order('last_message_timestamp', { ascending: false })
       .limit(10); // Latest 10 conversations
 
     if (sessionsError) {

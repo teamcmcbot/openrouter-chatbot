@@ -197,6 +197,7 @@
 
 1. `public.api_user_summary` (04-complete-system-final.sql)
    - Provides a summary of API usage per user, including session counts and recent usage.
+   - Gets data from `public.profiles`, `public.chat_sessions`, and `public.user_usage_daily`.
 
 ## Scenarios
 
