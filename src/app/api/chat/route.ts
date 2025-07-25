@@ -60,6 +60,12 @@ export async function POST(req: NextRequest) {
     const elapsedTime = now - openRouterResponse.created;
     logger.debug('Elapsed time for response:', elapsedTime, 'seconds');
 
+    // Find the current user message that triggered this response
+    // Match by content to ensure we link to the correct message
+    const currentUserMessage = data!.messages?.find(m => 
+      m.role === 'user' && m.content.trim() === data!.message.trim()
+    );
+
     const response: ChatResponse = {
       response: assistantResponse,
       usage: {
@@ -67,7 +73,7 @@ export async function POST(req: NextRequest) {
         completion_tokens: usage.completion_tokens,
         total_tokens: usage.total_tokens,
       },
-      request_id: data!.messages?.[0]?.id || undefined, // NEW: Link to user message that triggered this response
+      request_id: currentUserMessage?.id || undefined, // Link to the correct user message that triggered this response
       timestamp: new Date().toISOString(),
       elapsed_time: elapsedTime,
       contentType: hasMarkdown ? "markdown" : "text", // Add content type detection

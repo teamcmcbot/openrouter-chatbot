@@ -393,25 +393,46 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
               // Add assistant response and update conversation metadata
               // Also update the user message with input tokens if we have a request_id
-              set((state) => ({
-                conversations: state.conversations.map((conv) =>
-                  conv.id === state.currentConversationId
-                    ? updateConversationFromMessages({
-                        ...conv,
-                        messages: [
-                          ...conv.messages.map((msg) =>
-                            // Update the user message that triggered this response with input tokens
-                            msg.id === data.request_id && msg.role === 'user'
-                              ? { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 }
-                              : msg
-                          ),
-                          assistantMessage
-                        ],
-                      })
-                    : conv
-                ),
-                isLoading: false,
-              }));
+              set((state) => {
+                const currentConv = state.conversations.find(c => c.id === state.currentConversationId);
+                
+                // Validation: Check if request_id matches any user message
+                if (data.request_id && currentConv) {
+                  const matchingUserMessage = currentConv.messages.find(m => m.id === data.request_id && m.role === 'user');
+                  if (matchingUserMessage) {
+                    logger.debug("Updating user message with input tokens", { 
+                      messageId: data.request_id, 
+                      inputTokens: data.usage?.prompt_tokens,
+                      messageContent: matchingUserMessage.content.substring(0, 50) + "..."
+                    });
+                  } else {
+                    logger.warn("Warning: request_id not found in user messages", { 
+                      requestId: data.request_id,
+                      availableUserMessages: currentConv.messages.filter(m => m.role === 'user').map(m => ({ id: m.id, content: m.content.substring(0, 30) + "..." }))
+                    });
+                  }
+                }
+
+                return {
+                  conversations: state.conversations.map((conv) =>
+                    conv.id === state.currentConversationId
+                      ? updateConversationFromMessages({
+                          ...conv,
+                          messages: [
+                            ...conv.messages.map((msg) =>
+                              // Update the user message that triggered this response with input tokens
+                              msg.id === data.request_id && msg.role === 'user'
+                                ? { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 }
+                                : msg
+                            ),
+                            assistantMessage
+                          ],
+                        })
+                      : conv
+                  ),
+                  isLoading: false,
+                };
+              });
 
               // Auto-generate title from first user message if it's still "New Chat"
               const currentConv = get().conversations.find(c => c.id === currentConversationId);
@@ -830,29 +851,50 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
               // Update the conversation: clear error on retried message and add assistant response
               // Also update the user message with input tokens if we have a request_id
-              set((state) => ({
-                conversations: state.conversations.map((conv) =>
-                  conv.id === state.currentConversationId
-                    ? updateConversationFromMessages({
-                        ...conv,
-                        messages: [
-                          ...conv.messages.map((msg) => {
-                            if (msg.id === messageId) {
-                              // Clear error flag on successful retry
-                              return { ...msg, error: false };
-                            } else if (msg.id === data.request_id && msg.role === 'user') {
-                              // Update the user message that triggered this response with input tokens
-                              return { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 };
-                            }
-                            return msg;
-                          }),
-                          assistantMessage // Add the assistant response
-                        ],
-                      })
-                    : conv
-                ),
-                isLoading: false,
-              }));
+              set((state) => {
+                const currentConv = state.conversations.find(c => c.id === state.currentConversationId);
+                
+                // Validation: Check if request_id matches any user message
+                if (data.request_id && currentConv) {
+                  const matchingUserMessage = currentConv.messages.find(m => m.id === data.request_id && m.role === 'user');
+                  if (matchingUserMessage) {
+                    logger.debug("Updating user message with input tokens (retry)", { 
+                      messageId: data.request_id, 
+                      inputTokens: data.usage?.prompt_tokens,
+                      messageContent: matchingUserMessage.content.substring(0, 50) + "..."
+                    });
+                  } else {
+                    logger.warn("Warning: request_id not found in user messages (retry)", { 
+                      requestId: data.request_id,
+                      availableUserMessages: currentConv.messages.filter(m => m.role === 'user').map(m => ({ id: m.id, content: m.content.substring(0, 30) + "..." }))
+                    });
+                  }
+                }
+
+                return {
+                  conversations: state.conversations.map((conv) =>
+                    conv.id === state.currentConversationId
+                      ? updateConversationFromMessages({
+                          ...conv,
+                          messages: [
+                            ...conv.messages.map((msg) => {
+                              if (msg.id === messageId) {
+                                // Clear error flag on successful retry
+                                return { ...msg, error: false };
+                              } else if (msg.id === data.request_id && msg.role === 'user') {
+                                // Update the user message that triggered this response with input tokens
+                                return { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 };
+                              }
+                              return msg;
+                            }),
+                            assistantMessage // Add the assistant response
+                          ],
+                        })
+                      : conv
+                  ),
+                  isLoading: false,
+                };
+              });
 
               logger.debug("Message retry successful", { messageId, conversationId: currentConversationId });
 
