@@ -450,6 +450,16 @@ describe("Authentication Flow", () => {
 
 ## Migration Plan
 
+IMPORTANT note for AGENT:
+
+- Do not declare a phase as completed until `npm run build` and `npm test` has been run successfully.
+- Do not run git commit or add.
+- I will personally run git commit at the end of each phase AFTER verification is complete.
+- Verification includes manual testing and shakedown of existing
+  functionality + any verifiable new functionality added.
+- Please provide a detailed summary of each phase completed, including how I can test or verify the changes made (e.g. checking logs or network tab on browser etc).
+- Please update /docs/jwt/ after each phase with the changes made, including any new endpoints, features, or configurations as well as notes to pass to agent for the next phase, this will be used as context to the next AGENT implementing the next phase/task.
+
 ### Phase 1: Core Infrastructure (Week 1)
 
 1. **Create Authentication Types**

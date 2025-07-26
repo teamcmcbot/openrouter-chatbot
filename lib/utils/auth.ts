@@ -108,27 +108,39 @@ export async function validateJWT(token: string): Promise<JWTValidationResult> {
  */
 export async function extractAuthContext(request: NextRequest): Promise<AuthContext> {
   try {
-    // Extract JWT token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
+    // First try to get user from Supabase (handles cookies automatically)
+    const supabase = await createClient();
+    const { data: { user }, error } = await supabase.auth.getUser();
 
-    if (!token) {
-      logger.debug('No authentication token found, creating anonymous context');
-      return createAnonymousContext();
+    if (error || !user) {
+      // If no user from cookies, try Authorization header as fallback
+      const authHeader = request.headers.get('authorization');
+      const token = authHeader?.replace('Bearer ', '');
+
+      if (!token) {
+        logger.debug('No authentication found (cookies or header), creating anonymous context');
+        return createAnonymousContext();
+      }
+
+      // Validate the JWT token from header
+      const validation = await validateJWT(token);
+      
+      if (!validation.valid || !validation.user) {
+        logger.warn('Invalid token from header, creating anonymous context:', validation.error?.message);
+        return createAnonymousContext();
+      }
+
+      // Fetch user profile
+      const profile = await fetchUserProfile(validation.user.id);
+      
+      return createAuthenticatedContext(validation.user, profile);
     }
 
-    // Validate the JWT token
-    const validation = await validateJWT(token);
+    // User found via cookies, fetch profile
+    logger.debug('User authenticated via cookies:', user.id);
+    const profile = await fetchUserProfile(user.id);
     
-    if (!validation.valid || !validation.user) {
-      logger.warn('Invalid token, creating anonymous context:', validation.error?.message);
-      return createAnonymousContext();
-    }
-
-    // Fetch user profile
-    const profile = await fetchUserProfile(validation.user.id);
-    
-    return createAuthenticatedContext(validation.user, profile);
+    return createAuthenticatedContext(user, profile);
 
   } catch (error) {
     logger.error('Error extracting auth context:', error);
@@ -144,7 +156,7 @@ export async function fetchUserProfile(userId: string): Promise<UserProfile | nu
     const supabase = await createClient();
     
     const { data: profile, error } = await supabase
-      .from('user_profiles')
+      .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
@@ -196,7 +208,7 @@ async function createDefaultUserProfile(userId: string): Promise<UserProfile | n
     };
 
     const { data: profile, error } = await supabase
-      .from('user_profiles')
+      .from('profiles')
       .insert(defaultProfile)
       .select()
       .single();

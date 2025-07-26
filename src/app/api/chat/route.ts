@@ -1,50 +1,95 @@
 // src/app/api/chat/route.ts
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getOpenRouterCompletion } from '../../../../lib/utils/openrouter';
-import { validateChatRequest } from '../../../../lib/utils/validation';
+import { validateChatRequestWithAuth, validateRequestLimits } from '../../../../lib/utils/validation';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../lib/utils/errors';
 import { createSuccessResponse } from '../../../../lib/utils/response';
 import { logger } from '../../../../lib/utils/logger';
 import { detectMarkdownContent } from '../../../../lib/utils/markdown';
 import { ChatResponse } from '../../../../lib/types';
 import { OpenRouterRequest } from '../../../../lib/types/openrouter';
-// Phase 4: Import token management utilities
-import { getModelTokenLimits } from '../../../../lib/utils/tokens';
+import { AuthContext } from '../../../../lib/types/auth';
+import { withEnhancedAuth } from '../../../../lib/middleware/auth';
+import { withRateLimit } from '../../../../lib/middleware/rateLimitMiddleware';
+import { estimateTokenCount, getModelTokenLimits } from '../../../../lib/utils/tokens';
 
-export async function POST(req: NextRequest) {
-  logger.info('Chat request received');
+async function chatHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  logger.info('Chat request received', {
+    isAuthenticated: authContext.isAuthenticated,
+    userId: authContext.user?.id,
+    tier: authContext.profile?.subscription_tier
+  });
+  
   try {
-    const body = await req.json();
-    const { data, error } = validateChatRequest(body);
+    const body = await request.json();
+    
+    // Create request data structure for validation
+    const requestData = {
+      messages: body.messages || [{ role: 'user', content: body.message }],
+      model: body.model || process.env.OPENROUTER_API_MODEL || 'deepseek/deepseek-r1-0528:free',
+      temperature: body.temperature,
+      systemPrompt: body.systemPrompt
+    };
 
-    if (error) {
-      logger.warn('Invalid chat request:', error);
-      throw new ApiErrorResponse(error, ErrorCode.BAD_REQUEST);
+    // Validate request with authentication context
+    const validation = validateChatRequestWithAuth(requestData, authContext);
+
+    if (!validation.valid) {
+      logger.warn('Chat request validation failed:', validation.errors);
+      throw new ApiErrorResponse(
+        validation.errors.join('; '),
+        ErrorCode.BAD_REQUEST
+      );
     }
 
-    logger.debug('Validated chat request data:', data);
+    // Log warnings if any
+    if (validation.warnings.length > 0) {
+      logger.info('Chat request warnings:', validation.warnings);
+    }
 
+    // Use enhanced data with applied feature flags
+    const enhancedData = validation.enhancedData;
+    
+    logger.debug('Enhanced chat request data:', {
+      model: enhancedData.model,
+      messageCount: enhancedData.messages.length,
+      hasTemperature: !!enhancedData.temperature,
+      hasSystemPrompt: !!enhancedData.systemPrompt
+    });
 
     // Phase 2: Support both old and new message formats
-    const messages: OpenRouterRequest['messages'] = data!.messages || [{ role: 'user', content: data!.message }];
+    const messages: OpenRouterRequest['messages'] = enhancedData.messages.map(msg => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content
+    }));
     
     // Phase 2: Log request format for human verification
-    console.log(`[Chat API] Request format: ${data!.messages ? 'NEW' : 'LEGACY'}`);
+    console.log(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
     console.log(`[Chat API] Message count: ${messages.length} messages`);
-    console.log(`[Chat API] Current message: "${data!.message}"`);
+    console.log(`[Chat API] Current message: "${body.message}"`);
+    console.log(`[Chat API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`);
+    console.log(`[Chat API] Model access: ${authContext.features.allowedModels.join(', ')}`);
     
     // Phase 4: Calculate model-aware max tokens
-    const tokenStrategy = await getModelTokenLimits(data!.model);
+    const tokenStrategy = await getModelTokenLimits(enhancedData.model);
     const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
     
-    console.log(`[Chat API] Model: ${data!.model || 'default'}`);
+    console.log(`[Chat API] Model: ${enhancedData.model}`);
     console.log(`[Chat API] Token strategy - Input: ${tokenStrategy.maxInputTokens}, Output: ${tokenStrategy.maxOutputTokens}`);
     console.log(`[Chat API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`);
     
-    // DEBUGGING: Check if maxTokens parameter is being passed correctly
-    console.log(`[Chat API] Verifying maxTokens parameter will be: ${dynamicMaxTokens}`);
+    // Additional validation for token limits based on user tier
+    const totalInputTokens = messages.reduce((total, msg) => total + estimateTokenCount(msg.content), 0);
+    const tokenValidation = validateRequestLimits(totalInputTokens, authContext.features);
     
-    const openRouterResponse = await getOpenRouterCompletion(messages, data!.model, dynamicMaxTokens);
+    if (!tokenValidation.allowed) {
+      throw new ApiErrorResponse(
+        tokenValidation.reason || 'Request exceeds token limits',
+        ErrorCode.TOKEN_LIMIT_EXCEEDED
+      );
+    }
+    
+    const openRouterResponse = await getOpenRouterCompletion(messages, enhancedData.model, dynamicMaxTokens);
     logger.debug('OpenRouter response received:', openRouterResponse);
     const assistantResponse = openRouterResponse.choices[0].message.content;
     const usage = openRouterResponse.usage;
@@ -62,8 +107,8 @@ export async function POST(req: NextRequest) {
 
     // Find the current user message that triggered this response
     // Match by content to ensure we link to the correct message
-    const currentUserMessage = data!.messages?.find(m => 
-      m.role === 'user' && m.content.trim() === data!.message.trim()
+    const currentUserMessage = body.messages?.find((m: { role: string; content: string; id?: string }) =>
+      m.role === 'user' && m.content.trim() === body.message.trim()
     );
 
     const response: ChatResponse = {
@@ -80,10 +125,21 @@ export async function POST(req: NextRequest) {
       id: openRouterResponse.id, // Pass OpenRouter response id to ChatResponse
     };
 
-    logger.info('Chat request successful');
+    logger.info('Chat request successful', {
+      userId: authContext.user?.id,
+      model: enhancedData.model,
+      tokens: usage.total_tokens,
+      tier: authContext.profile?.subscription_tier
+    });
+    
     return createSuccessResponse(response);
   } catch (error) {
     logger.error('Error processing chat request:', error);
     return handleError(error);
   }
 }
+
+// Apply enhanced authentication middleware with rate limiting
+export const POST = withEnhancedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(chatHandler)(req, authContext)
+);

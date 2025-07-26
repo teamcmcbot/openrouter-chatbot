@@ -1,8 +1,13 @@
 // src/app/api/chat/sync/route.ts
 
-import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ChatMessage } from '../../../../../lib/types/chat';
+import { withConversationOwnership } from '../../../../../lib/middleware/auth';
+import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
+import { AuthContext } from '../../../../../lib/types/auth';
+import { createClient } from '../../../../../lib/supabase/server';
+import { logger } from '../../../../../lib/utils/logger';
+import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
 
 interface SyncResult {
   conversationId: string;
@@ -57,26 +62,27 @@ interface DatabaseSession {
   chat_messages: DatabaseMessage[];
 }
 
-export async function POST(request: NextRequest) {
+async function syncHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
+    logger.info('Chat sync request received', { userId: authContext.user?.id });
+    
     const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
+    const { user } = authContext;
+
+    // Validate sync access
+    if (!authContext.features.canSyncConversations) {
+      throw new ApiErrorResponse(
+        'Conversation sync not available for your subscription tier',
+        ErrorCode.FEATURE_NOT_AVAILABLE
       );
     }
 
     const { conversations }: { conversations: ConversationSync[] } = await request.json();
 
     if (!Array.isArray(conversations)) {
-      return NextResponse.json(
-        { error: 'Invalid conversations data' },
-        { status: 400 }
+      throw new ApiErrorResponse(
+        'Invalid conversations data',
+        ErrorCode.BAD_REQUEST
       );
     }
 
@@ -89,16 +95,7 @@ export async function POST(request: NextRequest) {
 
     for (const conversation of conversations) {
       try {
-        // Validate conversation belongs to user
-        if (conversation.userId !== user.id) {
-          syncResults.errors++;
-          syncResults.details.push({
-            conversationId: conversation.id,
-            error: 'Conversation does not belong to user'
-          });
-          continue;
-        }
-
+        // Conversation ownership is already validated by middleware
         // Use original conversation ID directly (database should accept TEXT)
         const databaseId = conversation.id;
 
@@ -107,7 +104,7 @@ export async function POST(request: NextRequest) {
           .from('chat_sessions')
           .upsert({
             id: databaseId,
-            user_id: user.id,
+            user_id: user!.id,
             title: conversation.title,
             message_count: conversation.messageCount || 0,
             total_tokens: conversation.totalTokens || 0,
@@ -162,7 +159,7 @@ export async function POST(request: NextRequest) {
         });
 
       } catch (error) {
-        console.error('Error syncing conversation:', conversation.id, error);
+        logger.error('Error syncing conversation:', { conversationId: conversation.id, error });
         syncResults.errors++;
         syncResults.details.push({
           conversationId: conversation.id,
@@ -171,6 +168,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    logger.info('Chat sync completed', {
+      synced: syncResults.synced,
+      errors: syncResults.errors,
+      userId: user?.id
+    });
+
+    // Return sync results directly (not wrapped in data object) to match frontend expectations
     return NextResponse.json({
       success: true,
       results: syncResults,
@@ -178,25 +182,23 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Sync endpoint error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Sync endpoint error:', error);
+    return handleError(error);
   }
 }
 
-export async function GET() {
+async function getConversationsHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
+    logger.info('Get conversations request received', { userId: authContext.user?.id });
+    
     const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
+    const { user } = authContext;
+
+    // Validate sync access
+    if (!authContext.features.canSyncConversations) {
+      throw new ApiErrorResponse(
+        'Conversation sync not available for your subscription tier',
+        ErrorCode.FEATURE_NOT_AVAILABLE
       );
     }
 
@@ -207,7 +209,7 @@ export async function GET() {
         *,
         chat_messages (*)
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', user!.id)
       .order('last_message_timestamp', { ascending: false })
       .limit(10); // Latest 10 conversations
 
@@ -221,7 +223,7 @@ export async function GET() {
       title: session.title,
       userId: session.user_id,
       messages: session.chat_messages
-        .sort((a: DatabaseMessage, b: DatabaseMessage) => 
+        .sort((a: DatabaseMessage, b: DatabaseMessage) =>
           new Date(a.message_timestamp).getTime() - new Date(b.message_timestamp).getTime()
         )
         .map((message: DatabaseMessage) => ({
@@ -249,16 +251,27 @@ export async function GET() {
       isActive: false
     }));
 
+    logger.info('Get conversations completed', {
+      conversationCount: conversations.length,
+      userId: user?.id
+    });
+
+    // Return conversations directly (not wrapped in data object) to match frontend expectations
     return NextResponse.json({
       conversations,
       syncTime: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('Get conversations error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Get conversations error:', error);
+    return handleError(error);
   }
 }
+
+// Apply authentication middleware with conversation ownership validation and rate limiting
+export const POST = withConversationOwnership((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(syncHandler)(req, authContext)
+);
+export const GET = withConversationOwnership((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(getConversationsHandler)(req, authContext)
+);

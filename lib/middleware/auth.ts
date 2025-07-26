@@ -175,38 +175,45 @@ export function withConversationOwnership<T extends NextRequest>(
 ) {
   return withProtectedAuth(async (req: T, context: AuthContext) => {
     try {
-      // Parse request body to check for conversations
-      const body = await req.json();
-      
-      if (body.conversations && Array.isArray(body.conversations)) {
-        const validation = validateConversationOwnership(body.conversations, context);
+      // Only validate conversation ownership for POST requests (sync operations)
+      // GET requests (fetch operations) don't need this validation
+      if (req.method === 'POST') {
+        // Parse request body to check for conversations
+        const body = await req.json();
         
-        if (!validation.valid) {
-          logger.warn('Conversation ownership validation failed:', {
-            userId: context.user?.id,
-            invalidConversations: validation.invalidConversations
-          });
+        if (body.conversations && Array.isArray(body.conversations)) {
+          const validation = validateConversationOwnership(body.conversations, context);
           
-          const authError = createAuthError(
-            AuthErrorCode.INSUFFICIENT_PERMISSIONS,
-            'Unauthorized conversation access',
-            `Invalid conversations: ${validation.invalidConversations.join(', ')}`,
-            false,
-            'You can only access your own conversations'
-          );
-          
-          return handleAuthError(authError);
+          if (!validation.valid) {
+            logger.warn('Conversation ownership validation failed:', {
+              userId: context.user?.id,
+              invalidConversations: validation.invalidConversations
+            });
+            
+            const authError = createAuthError(
+              AuthErrorCode.INSUFFICIENT_PERMISSIONS,
+              'Unauthorized conversation access',
+              `Invalid conversations: ${validation.invalidConversations.join(', ')}`,
+              false,
+              'You can only access your own conversations'
+            );
+            
+            return handleAuthError(authError);
+          }
         }
+
+        // Create new request with parsed body for POST requests
+        const newReq = new Request(req.url, {
+          method: req.method,
+          headers: req.headers,
+          body: JSON.stringify(body)
+        }) as T;
+
+        return await handler(newReq, context);
+      } else {
+        // For GET requests, just pass through without body parsing
+        return await handler(req, context);
       }
-
-      // Create new request with parsed body
-      const newReq = new Request(req.url, {
-        method: req.method,
-        headers: req.headers,
-        body: JSON.stringify(body)
-      }) as T;
-
-      return await handler(newReq, context);
       
     } catch (error) {
       logger.error('Conversation ownership validation error:', error);
