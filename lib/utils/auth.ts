@@ -139,6 +139,7 @@ export async function extractAuthContext(request: NextRequest): Promise<AuthCont
     // User found via cookies, fetch profile
     logger.debug('User authenticated via cookies:', user.id);
     const profile = await fetchUserProfile(user.id);
+    logger.debug('User profile fetched:', profile ? profile : 'null');
     
     return createAuthenticatedContext(user, profile);
 

@@ -10,41 +10,41 @@ This document describes the implementation of Phase 1 of the JWT authentication 
 
 #### 1. **Enhanced Type Definitions** ([`lib/types/auth.ts`](../../lib/types/auth.ts))
 
-- **[`AuthContext`](../../lib/types/auth.ts:27)** - Comprehensive authentication context interface
-- **[`FeatureFlags`](../../lib/types/auth.ts:17)** - Tier-based feature access control
-- **[`UserProfile`](../../lib/types/auth.ts:8)** - Extended user profile with subscription tiers
-- **[`AuthErrorCode`](../../lib/types/auth.ts:47)** - JWT-specific error codes
-- **[`JWTValidationResult`](../../lib/types/auth.ts:37)** - Token validation response interface
+- **[`AuthContext`](../../lib/types/auth.ts)** - Comprehensive authentication context interface
+- **[`FeatureFlags`](../../lib/types/auth.ts)** - Tier-based feature access control
+- **[`UserProfile`](../../lib/types/auth.ts)** - Extended user profile with subscription tiers
+- **[`AuthErrorCode`](../../lib/types/auth.ts)** - JWT-specific error codes
+- **[`JWTValidationResult`](../../lib/types/auth.ts)** - Token validation response interface
 
 #### 2. **Authentication Utilities** ([`lib/utils/auth.ts`](../../lib/utils/auth.ts))
 
-- **[`validateJWT()`](../../lib/utils/auth.ts:18)** - JWT token validation using Supabase
-- **[`extractAuthContext()`](../../lib/utils/auth.ts:75)** - Request authentication context extraction
-- **[`fetchUserProfile()`](../../lib/utils/auth.ts:103)** - User profile fetching with caching
-- **[`createFeatureFlags()`](../../lib/utils/auth.ts:186)** - Tier-based feature flag generation
-- **[`hasPermission()`](../../lib/utils/auth.ts:284)** - Permission validation utilities
+- **[`validateJWT()`](../../lib/utils/auth.ts)** - JWT token validation using Supabase
+- **[`extractAuthContext()`](../../lib/utils/auth.ts)** - Request authentication context extraction
+- **[`fetchUserProfile()`](../../lib/utils/auth.ts)** - User profile fetching with caching
+- **[`createFeatureFlags()`](../../lib/utils/auth.ts)** - Tier-based feature flag generation
+- **[`hasPermission()`](../../lib/utils/auth.ts)** - Permission validation utilities
 
 #### 3. **Enhanced Error Handling** ([`lib/utils/errors.ts`](../../lib/utils/errors.ts))
 
-- **Extended [`ErrorCode`](../../lib/utils/errors.ts:5)** enum with JWT-specific codes
-- **[`createAuthError()`](../../lib/utils/errors.ts:93)** - Authentication error factory
-- **[`handleAuthError()`](../../lib/utils/errors.ts:175)** - Specialized auth error handler
-- **[`authErrorToErrorCode()`](../../lib/utils/errors.ts:139)** - Error code mapping utilities
+- **Extended [`ErrorCode`](../../lib/utils/errors.ts)** enum with JWT-specific codes
+- **[`createAuthError()`](../../lib/utils/errors.ts)** - Authentication error factory
+- **[`handleAuthError()`](../../lib/utils/errors.ts)** - Specialized auth error handler
+- **[`authErrorToErrorCode()`](../../lib/utils/errors.ts)** - Error code mapping utilities
 
 #### 4. **Validation Utilities** ([`lib/utils/validation.ts`](../../lib/utils/validation.ts))
 
-- **[`validateModelAccess()`](../../lib/utils/validation.ts:9)** - Model access validation with fallbacks
-- **[`validateRequestLimits()`](../../lib/utils/validation.ts:56)** - Token and rate limit validation
-- **[`validateChatRequestWithAuth()`](../../lib/utils/validation.ts:149)** - Comprehensive request validation
+- **[`validateModelAccess()`](../../lib/utils/validation.ts)** - Model access validation with fallbacks
+- **[`validateRequestLimits()`](../../lib/utils/validation.ts)** - Token and rate limit validation
+- **[`validateChatRequestWithAuth()`](../../lib/utils/validation.ts)** - Comprehensive request validation
 - **Feature-specific validators** for system prompts, temperature, sync, etc.
 
 #### 5. **Authentication Middleware** ([`lib/middleware/auth.ts`](../../lib/middleware/auth.ts))
 
-- **[`withAuth()`](../../lib/middleware/auth.ts:18)** - Core authentication middleware
-- **[`withProtectedAuth()`](../../lib/middleware/auth.ts:85)** - Protected endpoint wrapper
-- **[`withEnhancedAuth()`](../../lib/middleware/auth.ts:94)** - Enhanced endpoint wrapper
-- **[`withTierAuth()`](../../lib/middleware/auth.ts:103)** - Tier-specific endpoint wrapper
-- **[`withConversationOwnership()`](../../lib/middleware/auth.ts:135)** - Conversation ownership validation
+- **[`withAuth()`](../../lib/middleware/auth.ts)** - Core authentication middleware
+- **[`withProtectedAuth()`](../../lib/middleware/auth.ts)** - Protected endpoint wrapper
+- **[`withEnhancedAuth()`](../../lib/middleware/auth.ts)** - Enhanced endpoint wrapper
+- **[`withTierAuth()`](../../lib/middleware/auth.ts)** - Tier-specific endpoint wrapper
+- **[`withConversationOwnership()`](../../lib/middleware/auth.ts)** - Conversation ownership validation
 
 ## Architecture Overview
 
