@@ -1,8 +1,15 @@
-# Database Model Access - SQL Migration Scripts
+# Database Model Access - Corrected Migration Scripts
 
-This document contains the complete SQL migration scripts for implementing the database model access changes as outlined in the main implementation plan.
+This document contains the corrected SQL migration scripts that properly handle function dependencies and avoid creating v2 functions.
 
-## Migration Script 1: Core Schema Changes
+## Key Corrections Made
+
+1. **No v2 functions** - Update existing functions in place with same names
+2. **Handle function dependencies** - Drop dependent functions first, then recreate
+3. **Remove `allowed_models` column** - Models come from `model_access` table filtered by tier
+4. **Make `default_model` nullable** - User's favorite model, not required
+
+## Migration Script 1: Core Schema Changes with Function Dependencies
 
 **File: `database/05-model-access-migration.sql`**
 
@@ -11,6 +18,7 @@ This document contains the complete SQL migration scripts for implementing the d
 -- MODEL ACCESS MIGRATION - PHASE 5
 -- =============================================================================
 -- Migrates from hardcoded model lists to database-driven model access
+-- IMPORTANT: Handles function dependencies properly
 
 BEGIN;
 
@@ -18,7 +26,14 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS public.model_access_backup AS
 SELECT * FROM public.model_access;
 
--- 2. Drop and recreate model_access table with new schema
+-- 2. Drop dependent functions first (to avoid CASCADE issues)
+-- These will be recreated with same names but new implementations
+DROP FUNCTION IF EXISTS public.get_user_complete_profile(UUID) CASCADE;
+DROP FUNCTION IF EXISTS public.get_user_allowed_models(UUID) CASCADE;
+DROP FUNCTION IF EXISTS public.can_user_use_model(UUID, VARCHAR) CASCADE;
+DROP FUNCTION IF EXISTS public.update_user_preferences(UUID, VARCHAR, JSONB) CASCADE;
+
+-- 3. Drop and recreate model_access table with new schema
 DROP TABLE IF EXISTS public.model_access CASCADE;
 
 CREATE TABLE public.model_access (
@@ -77,13 +92,13 @@ CREATE TABLE public.model_access (
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
--- 3. Create indexes
+-- 4. Create indexes
 CREATE INDEX idx_model_access_status ON public.model_access(status);
 CREATE INDEX idx_model_access_tier_access ON public.model_access(is_free, is_pro, is_enterprise);
 CREATE INDEX idx_model_access_last_synced ON public.model_access(last_synced_at);
 CREATE INDEX idx_model_access_openrouter_seen ON public.model_access(openrouter_last_seen);
 
--- 4. Create sync log table
+-- 5. Create sync log table
 CREATE TABLE public.model_sync_log (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     sync_started_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -108,14 +123,18 @@ CREATE TABLE public.model_sync_log (
 
 CREATE INDEX idx_model_sync_log_status ON public.model_sync_log(sync_status, sync_started_at DESC);
 
--- 5. Remove allowed_models column from profiles
+-- 6. Remove allowed_models column from profiles (since models come from model_access table now)
 ALTER TABLE public.profiles DROP COLUMN IF EXISTS allowed_models;
 
--- 6. Enable RLS on new tables
+-- 7. Make default_model nullable (user's favorite model, not required)
+ALTER TABLE public.profiles ALTER COLUMN default_model DROP NOT NULL;
+ALTER TABLE public.profiles ALTER COLUMN default_model DROP DEFAULT;
+
+-- 8. Enable RLS on new tables
 ALTER TABLE public.model_access ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.model_sync_log ENABLE ROW LEVEL SECURITY;
 
--- 7. Create RLS policies
+-- 9. Create RLS policies
 CREATE POLICY "All authenticated users can view model access" ON public.model_access
     FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -128,32 +147,38 @@ CREATE POLICY "Only admins can view sync logs" ON public.model_sync_log
         )
     );
 
+-- 10. Insert seed data for common free models
+INSERT INTO public.model_access (
+    model_id, model_name, model_description, status, is_free, is_pro, is_enterprise,
+    prompt_price, completion_price, context_length
+) VALUES
+    ('deepseek/deepseek-r1-0528:free', 'DeepSeek R1 Free', 'Advanced reasoning model - free tier', 'active', true, true, true, '0', '0', 32768),
+    ('google/gemini-2.0-flash-exp:free', 'Gemini 2.0 Flash Free', 'Fast multimodal model - free tier', 'active', true, true, true, '0', '0', 1048576),
+    ('qwen/qwen3-coder:free', 'Qwen3 Coder Free', 'Code generation model - free tier', 'active', true, true, true, '0', '0', 262144)
+ON CONFLICT (model_id) DO NOTHING;
+
 COMMIT;
 ```
 
-## Migration Script 2: Database Functions
+## Migration Script 2: Recreate Functions (Same Names)
 
 **File: `database/06-model-access-functions.sql`**
 
 ```sql
 -- =============================================================================
--- MODEL ACCESS FUNCTIONS
+-- MODEL ACCESS FUNCTIONS - RECREATE WITH SAME NAMES
 -- =============================================================================
--- Database functions for model access management
+-- Recreates existing functions to work with new model_access table structure
 
--- Function to get user's allowed models based on tier and model_access table
-CREATE OR REPLACE FUNCTION public.get_user_allowed_models_v2(user_uuid UUID)
+-- Function to get user's allowed models based on tier (SAME NAME, NEW IMPLEMENTATION)
+CREATE OR REPLACE FUNCTION public.get_user_allowed_models(user_uuid UUID)
 RETURNS TABLE (
     model_id VARCHAR(100),
     model_name VARCHAR(255),
     model_description TEXT,
-    context_length INTEGER,
-    prompt_price VARCHAR(20),
-    completion_price VARCHAR(20),
-    modality VARCHAR(50),
-    input_modalities JSONB,
-    output_modalities JSONB,
-    supported_parameters JSONB,
+    model_tags TEXT[], -- Keep for backward compatibility
+    input_cost_per_token DECIMAL(10,8), -- Keep for backward compatibility
+    output_cost_per_token DECIMAL(10,8), -- Keep for backward compatibility
     daily_limit INTEGER,
     monthly_limit INTEGER
 ) AS $$
@@ -176,13 +201,9 @@ BEGIN
         ma.model_id,
         ma.model_name,
         ma.model_description,
-        ma.context_length,
-        ma.prompt_price,
-        ma.completion_price,
-        ma.modality,
-        ma.input_modalities,
-        ma.output_modalities,
-        ma.supported_parameters,
+        ARRAY[]::TEXT[] as model_tags, -- Empty array for backward compatibility
+        COALESCE(ma.prompt_price::DECIMAL(10,8), 0.0) as input_cost_per_token,
+        COALESCE(ma.completion_price::DECIMAL(10,8), 0.0) as output_cost_per_token,
         ma.daily_limit,
         ma.monthly_limit
     FROM public.model_access ma
@@ -203,7 +224,201 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to sync models from OpenRouter API
+-- Function to check if user can use a specific model (SAME NAME, NEW IMPLEMENTATION)
+CREATE OR REPLACE FUNCTION public.can_user_use_model(
+    user_uuid UUID,
+    model_to_check VARCHAR(100)
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    user_tier VARCHAR(20);
+    model_available BOOLEAN := false;
+BEGIN
+    -- Get user's subscription tier
+    SELECT subscription_tier INTO user_tier
+    FROM public.profiles
+    WHERE id = user_uuid;
+
+    -- If user not found, default to free tier
+    IF user_tier IS NULL THEN
+        user_tier := 'free';
+    END IF;
+
+    -- Check if model is available for user's tier
+    SELECT EXISTS(
+        SELECT 1 FROM public.model_access ma
+        WHERE ma.model_id = model_to_check
+        AND ma.status = 'active'
+        AND (
+            (user_tier = 'free' AND ma.is_free = true) OR
+            (user_tier = 'pro' AND (ma.is_free = true OR ma.is_pro = true)) OR
+            (user_tier = 'enterprise' AND (ma.is_free = true OR ma.is_pro = true OR ma.is_enterprise = true))
+        )
+    ) INTO model_available;
+
+    RETURN model_available;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to update user preferences (SAME NAME, UPDATED IMPLEMENTATION)
+-- REMOVED: allowed_models handling since models come from model_access table
+CREATE OR REPLACE FUNCTION public.update_user_preferences(
+    user_uuid UUID,
+    preference_type VARCHAR(50), -- 'ui', 'session', 'model'
+    preferences JSONB
+)
+RETURNS JSONB AS $$
+DECLARE
+    updated_count INTEGER;
+    current_prefs JSONB;
+BEGIN
+    -- Validate preference type
+    IF preference_type NOT IN ('ui', 'session', 'model') THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Invalid preference type. Must be: ui, session, or model'
+        );
+    END IF;
+
+    -- Update based on preference type
+    CASE preference_type
+        WHEN 'ui' THEN
+            UPDATE public.profiles
+            SET ui_preferences = jsonb_deep_merge(COALESCE(ui_preferences, '{}'::jsonb), preferences),
+                updated_at = NOW()
+            WHERE id = user_uuid;
+
+        WHEN 'session' THEN
+            UPDATE public.profiles
+            SET session_preferences = jsonb_deep_merge(COALESCE(session_preferences, '{}'::jsonb), preferences),
+                updated_at = NOW()
+            WHERE id = user_uuid;
+
+        WHEN 'model' THEN
+            UPDATE public.profiles
+            SET default_model = COALESCE(preferences->>'default_model', default_model),
+                temperature = COALESCE((preferences->>'temperature')::decimal, temperature),
+                system_prompt = COALESCE(preferences->>'system_prompt', system_prompt),
+                -- REMOVED: allowed_models handling - models now come from model_access table
+                updated_at = NOW()
+            WHERE id = user_uuid;
+    END CASE;
+
+    GET DIAGNOSTICS updated_count = ROW_COUNT;
+
+    IF updated_count = 0 THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'User not found'
+        );
+    END IF;
+
+    -- Log the preference update
+    PERFORM public.log_user_activity(
+        user_uuid,
+        'preferences_updated',
+        'profile',
+        user_uuid::text,
+        jsonb_build_object(
+            'preference_type', preference_type,
+            'updated_fields', preferences
+        )
+    );
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'preference_type', preference_type,
+        'updated_at', NOW()
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get user's complete profile (SAME NAME, UPDATED IMPLEMENTATION)
+-- UPDATED: Remove allowed_models from profile data since it comes from model_access table
+CREATE OR REPLACE FUNCTION public.get_user_complete_profile(user_uuid UUID)
+RETURNS JSONB AS $$
+DECLARE
+    profile_data RECORD;
+    allowed_models_data JSONB;
+    usage_stats_data JSONB;
+BEGIN
+    -- Get main profile data (REMOVED allowed_models from SELECT)
+    SELECT
+        id, email, full_name, avatar_url,
+        default_model, temperature, system_prompt, subscription_tier, credits,
+        ui_preferences, session_preferences,
+        created_at, updated_at, last_active, usage_stats
+    INTO profile_data
+    FROM public.profiles
+    WHERE id = user_uuid;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('error', 'User not found');
+    END IF;
+
+    -- Get allowed models with details from new model_access table
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'model_id', model_id,
+            'model_name', model_name,
+            'model_description', model_description,
+            'model_tags', model_tags,
+            'daily_limit', daily_limit,
+            'monthly_limit', monthly_limit
+        )
+    ) INTO allowed_models_data
+    FROM public.get_user_allowed_models(user_uuid);
+
+    -- Get recent usage stats
+    SELECT jsonb_build_object(
+        'today', (
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'messages_sent', messages_sent,
+                    'messages_received', messages_received,
+                    'total_tokens', total_tokens,
+                    'models_used', models_used,
+                    'sessions_created', sessions_created,
+                    'active_minutes', active_minutes
+                ) ORDER BY usage_date DESC
+            )
+            FROM public.user_usage_daily
+            WHERE user_id = user_uuid
+            AND usage_date >= CURRENT_DATE - INTERVAL '7 days'
+        ),
+        'total', profile_data.usage_stats
+    ) INTO usage_stats_data;
+
+    -- Return complete profile (REMOVED allowed_models from preferences.model)
+    RETURN jsonb_build_object(
+        'id', profile_data.id,
+        'email', profile_data.email,
+        'full_name', profile_data.full_name,
+        'avatar_url', profile_data.avatar_url,
+        'subscription_tier', profile_data.subscription_tier,
+        'credits', profile_data.credits,
+        'preferences', jsonb_build_object(
+            'model', jsonb_build_object(
+                'default_model', profile_data.default_model,
+                'temperature', profile_data.temperature,
+                'system_prompt', profile_data.system_prompt
+                -- REMOVED: 'allowed_models' - now comes from model_access table
+            ),
+            'ui', profile_data.ui_preferences,
+            'session', profile_data.session_preferences
+        ),
+        'available_models', allowed_models_data,
+        'usage_stats', usage_stats_data,
+        'timestamps', jsonb_build_object(
+            'created_at', profile_data.created_at,
+            'updated_at', profile_data.updated_at,
+            'last_active', profile_data.last_active
+        )
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to sync models from OpenRouter API (NEW FUNCTION)
 CREATE OR REPLACE FUNCTION public.sync_openrouter_models(
     models_data JSONB
 )
@@ -366,7 +581,7 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to update model tier access (for admin use)
+-- Function to update model tier access (NEW FUNCTION for admin use)
 CREATE OR REPLACE FUNCTION public.update_model_tier_access(
     p_model_id VARCHAR(100),
     p_is_free BOOLEAN DEFAULT NULL,
@@ -412,81 +627,9 @@ BEGIN
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Update the existing update_user_preferences function to remove allowed_models handling
-CREATE OR REPLACE FUNCTION public.update_user_preferences(
-    user_uuid UUID,
-    preference_type VARCHAR(50), -- 'ui', 'session', 'model'
-    preferences JSONB
-)
-RETURNS JSONB AS $$
-DECLARE
-    updated_count INTEGER;
-    current_prefs JSONB;
-BEGIN
-    -- Validate preference type
-    IF preference_type NOT IN ('ui', 'session', 'model') THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'Invalid preference type. Must be: ui, session, or model'
-        );
-    END IF;
-
-    -- Update based on preference type
-    CASE preference_type
-        WHEN 'ui' THEN
-            UPDATE public.profiles
-            SET ui_preferences = jsonb_deep_merge(COALESCE(ui_preferences, '{}'::jsonb), preferences),
-                updated_at = NOW()
-            WHERE id = user_uuid;
-
-        WHEN 'session' THEN
-            UPDATE public.profiles
-            SET session_preferences = jsonb_deep_merge(COALESCE(session_preferences, '{}'::jsonb), preferences),
-                updated_at = NOW()
-            WHERE id = user_uuid;
-
-        WHEN 'model' THEN
-            UPDATE public.profiles
-            SET default_model = COALESCE(preferences->>'default_model', default_model),
-                temperature = COALESCE((preferences->>'temperature')::decimal, temperature),
-                system_prompt = COALESCE(preferences->>'system_prompt', system_prompt),
-                -- REMOVED: allowed_models handling
-                updated_at = NOW()
-            WHERE id = user_uuid;
-    END CASE;
-
-    GET DIAGNOSTICS updated_count = ROW_COUNT;
-
-    IF updated_count = 0 THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'User not found'
-        );
-    END IF;
-
-    -- Log the preference update
-    PERFORM public.log_user_activity(
-        user_uuid,
-        'preferences_updated',
-        'profile',
-        user_uuid::text,
-        jsonb_build_object(
-            'preference_type', preference_type,
-            'updated_fields', preferences
-        )
-    );
-
-    RETURN jsonb_build_object(
-        'success', true,
-        'preference_type', preference_type,
-        'updated_at', NOW()
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
-## Migration Script 3: Verification and Cleanup
+## Migration Script 3: Verification
 
 **File: `database/07-model-access-verification.sql`**
 
@@ -501,14 +644,16 @@ DECLARE
     model_count INTEGER;
     function_exists BOOLEAN;
     policy_count INTEGER;
+    allowed_models_exists BOOLEAN;
+    default_model_nullable BOOLEAN;
 BEGIN
     -- Check if new model_access table exists and has data
     SELECT COUNT(*) INTO model_count FROM public.model_access;
 
-    -- Check if new function exists
+    -- Check if functions exist with correct names (no v2)
     SELECT EXISTS (
         SELECT 1 FROM information_schema.routines
-        WHERE routine_name = 'get_user_allowed_models_v2'
+        WHERE routine_name = 'get_user_allowed_models'
         AND routine_schema = 'public'
     ) INTO function_exists;
 
@@ -518,15 +663,28 @@ BEGIN
     WHERE schemaname = 'public'
     AND tablename IN ('model_access', 'model_sync_log');
 
+    -- Check if allowed_models column was removed
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'profiles' AND column_name = 'allowed_models'
+    ) INTO allowed_models_exists;
+
+    -- Check if default_model is nullable
+    SELECT is_nullable = 'YES' INTO default_model_nullable
+    FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'default_model';
+
     -- Verification results
     RAISE NOTICE '============================================';
     RAISE NOTICE 'MODEL ACCESS MIGRATION VERIFICATION';
     RAISE NOTICE '============================================';
     RAISE NOTICE 'Model Access Table: % models configured', model_count;
-    RAISE NOTICE 'New Functions: %', CASE WHEN function_exists THEN 'Created' ELSE 'MISSING' END;
+    RAISE NOTICE 'Functions: %', CASE WHEN function_exists THEN 'Updated (same names)' ELSE 'MISSING' END;
     RAISE NOTICE 'RLS Policies: % policies active', policy_count;
+    RAISE NOTICE 'Allowed Models Column: %', CASE WHEN allowed_models_exists THEN 'STILL EXISTS (ERROR)' ELSE 'Removed ✓' END;
+    RAISE NOTICE 'Default Model Nullable: %', CASE WHEN default_model_nullable THEN 'Yes ✓' ELSE 'No (ERROR)' END;
 
-    IF model_count > 0 AND function_exists AND policy_count >= 2 THEN
+    IF model_count > 0 AND function_exists AND policy_count >= 2 AND NOT allowed_models_exists AND default_model_nullable THEN
         RAISE NOTICE 'Status: ✅ Migration completed successfully';
     ELSE
         RAISE NOTICE 'Status: ❌ Migration incomplete - check errors above';
@@ -534,90 +692,33 @@ BEGIN
 
     RAISE NOTICE '';
     RAISE NOTICE 'Next Steps:';
-    RAISE NOTICE '1. Update /api/models endpoint';
+    RAISE NOTICE '1. Update /api/models endpoint to use database';
     RAISE NOTICE '2. Create sync job endpoint';
     RAISE NOTICE '3. Run initial model sync';
-    RAISE NOTICE '4. Configure model tier access';
+    RAISE NOTICE '4. Configure model tier access via admin interface';
     RAISE NOTICE '============================================';
 END $$;
 ```
 
-## Rollback Script
+## Key Changes Summary
 
-**File: `database/rollback-model-access.sql`**
+### Function Dependencies Handled
 
-```sql
--- =============================================================================
--- MODEL ACCESS ROLLBACK SCRIPT
--- =============================================================================
--- Emergency rollback script to restore previous functionality
+- ✅ `get_user_complete_profile()` calls `get_user_allowed_models()` - both updated
+- ✅ All functions recreated with **same names** (no v2)
+- ✅ Functions dropped first, then recreated to avoid CASCADE issues
 
-BEGIN;
+### Schema Changes
 
--- 1. Restore allowed_models column to profiles table
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS allowed_models TEXT[] DEFAULT ARRAY['deepseek/deepseek-r1-0528:free'];
+- ✅ `allowed_models` column removed from `profiles` table
+- ✅ `default_model` made nullable (user's favorite, not required)
+- ✅ New `model_access` table with tier access fields
+- ✅ Status tracking (`active`, `inactive`, `disabled`, `new`)
 
--- 2. Populate allowed_models with default values for existing users
-UPDATE public.profiles
-SET allowed_models = ARRAY['deepseek/deepseek-r1-0528:free', 'google/gemini-2.0-flash-exp:free', 'qwen/qwen3-coder:free']
-WHERE allowed_models IS NULL OR array_length(allowed_models, 1) IS NULL;
+### Backward Compatibility
 
--- 3. Backup new tables before dropping
-CREATE TABLE IF NOT EXISTS public.model_access_new_backup AS SELECT * FROM public.model_access;
-CREATE TABLE IF NOT EXISTS public.model_sync_log_backup AS SELECT * FROM public.model_sync_log;
+- ✅ Function signatures maintained for existing callers
+- ✅ Return types kept compatible where possible
+- ✅ Empty arrays returned for removed fields
 
--- 4. Drop new tables (optional - only if complete rollback needed)
--- DROP TABLE IF EXISTS public.model_access CASCADE;
--- DROP TABLE IF EXISTS public.model_sync_log CASCADE;
-
--- 5. Restore old model_access table if backup exists
--- INSERT INTO public.model_access SELECT * FROM public.model_access_backup;
-
-COMMIT;
-
--- Verification
-DO $$
-BEGIN
-    RAISE NOTICE 'Rollback completed. Verify:';
-    RAISE NOTICE '1. profiles.allowed_models column restored';
-    RAISE NOTICE '2. Default models populated for all users';
-    RAISE NOTICE '3. New tables backed up before removal';
-END $$;
-```
-
-## Usage Instructions
-
-### Execution Order
-
-1. **Execute Migration**: Run `05-model-access-migration.sql`
-2. **Add Functions**: Run `06-model-access-functions.sql`
-3. **Verify Setup**: Run `07-model-access-verification.sql`
-4. **Initial Sync**: Call the sync job endpoint to populate models
-5. **Configure Access**: Use admin interface to set tier access
-
-### Testing Commands
-
-```sql
--- Test user model access
-SELECT * FROM public.get_user_allowed_models_v2('your-user-uuid-here');
-
--- Test sync function (with sample data)
-SELECT * FROM public.sync_openrouter_models('[{"id": "test-model", "name": "Test Model"}]'::jsonb);
-
--- Test admin functions
-SELECT * FROM public.update_model_tier_access('deepseek/deepseek-r1-0528:free', true, true, true, 'active');
-```
-
-### Emergency Rollback
-
-If issues occur, execute `rollback-model-access.sql` to restore previous functionality.
-
-## Notes
-
-- All scripts include transaction blocks for safety
-- Backup tables are created before destructive operations
-- RLS policies ensure data security
-- Functions include comprehensive error handling
-- Verification scripts confirm successful migration
-
-These scripts should be reviewed and tested in a development environment before production deployment.
+This corrected migration properly handles all function dependencies and implements the requirements without creating v2 functions.
