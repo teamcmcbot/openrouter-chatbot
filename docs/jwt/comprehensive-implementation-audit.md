@@ -434,3 +434,45 @@ The JWT authentication system implementation has **exceeded the original specifi
 - **Security**: Multiple layers of protection and validation
 
 The implementation provides a **robust, scalable, and secure authentication system** that exceeds the original requirements while maintaining excellent code quality and user experience.
+
+## API Endpoints
+
+- /api/chat/route.ts
+
+  - Uses: withEnhancedAuth
+  - JWT: Optional (anonymous access allowed, but uses JWT if present for enhanced features)
+
+- /api/chat/sync/route.ts
+
+  - Uses: withConversationOwnership (which wraps withProtectedAuth)
+  - JWT: Required (must be authenticated, user profile required, and conversation ownership validated)
+
+- /api/chat/clear-all/route.ts
+
+  - No middleware, but manually checks for authenticated user via Supabase
+  - JWT: Required (returns 401 if not authenticated)
+  - Need to add withProtectedAuth middleware for consistency
+
+- /api/chat/sessions/route.ts
+
+  - No middleware, but manually checks for authenticated user via Supabase
+  - JWT: Required (returns 401 if not authenticated)
+
+- /api/chat/messages/route.ts
+
+  - No middleware, but manually checks for authenticated user via Supabase
+  - JWT: Required (returns 401 if not authenticated)
+
+- /api/generation/[id]/route.ts
+
+  - No authentication middleware or user check
+  - JWT: Not required (public endpoint)
+
+- /api/models/route.ts
+
+  - No authentication middleware or user check
+  - JWT: Not required (public endpoint)
+
+- /api/health/cache/route.ts
+  - No authentication middleware or user check
+  - JWT: Not required (public endpoint)

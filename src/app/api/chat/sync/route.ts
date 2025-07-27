@@ -211,7 +211,7 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
       `)
       .eq('user_id', user!.id)
       .order('last_message_timestamp', { ascending: false })
-      .limit(10); // Latest 10 conversations
+      .limit(20); // Latest 20 conversations
 
     if (sessionsError) {
       throw sessionsError;
