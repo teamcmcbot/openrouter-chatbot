@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import MessageList from "../../components/chat/MessageList";
 import { ChatMessage } from "../../lib/types/chat";
+import { formatMessageTime } from "../../lib/utils/dateFormat";
 import { useAuthStore } from "../../stores/useAuthStore";
 
 // Mock Next.js Image component
@@ -177,9 +178,9 @@ describe("MessageList with Markdown Support", () => {
 
     render(<MessageList messages={[messageWithMetadata]} isLoading={false} />);
 
-    // Test that the timestamp appears (it will include date since it's not today)
-    // Use case-insensitive regex to handle both "PM" and "pm" formats
-    expect(screen.getByText(/01\/01\/2024.*08:00 pm/i)).toBeInTheDocument();
+    // Test that the timestamp appears using formatted value
+    const expectedTime = formatMessageTime(messageWithMetadata.timestamp);
+    expect(screen.getByText(expectedTime)).toBeInTheDocument();
     expect(screen.getByText(/Took 7 seconds/)).toBeInTheDocument();
     expect(screen.getByText(/Input: 34/)).toBeInTheDocument();
     expect(screen.getByText(/Output: 83/)).toBeInTheDocument();
