@@ -68,7 +68,6 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     console.log(`[Chat API] Message count: ${messages.length} messages`);
     console.log(`[Chat API] Current message: "${body.message}"`);
     console.log(`[Chat API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`);
-    console.log(`[Chat API] Model access: ${authContext.features.allowedModels.join(', ')}`);
     
     // Phase 4: Calculate model-aware max tokens
     const tokenStrategy = await getModelTokenLimits(enhancedData.model);

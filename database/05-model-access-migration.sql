@@ -122,8 +122,9 @@ ALTER TABLE public.model_access ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.model_sync_log ENABLE ROW LEVEL SECURITY;
 
 -- 9. Create RLS policies
-CREATE POLICY "All authenticated users can view model access" ON public.model_access
-    FOR SELECT USING (auth.role() = 'authenticated');
+-- Add a policy that allows all users to view model_access (unauthnticated users can still see free models)
+CREATE POLICY "All users can view model access" ON public.model_access
+    FOR SELECT USING (true);
 
 CREATE POLICY "Only admins can view sync logs" ON public.model_sync_log
     FOR SELECT USING (

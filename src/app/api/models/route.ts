@@ -124,6 +124,7 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
     // Now filter by actual user subscription tier
     let allowedModelIds: string[] = [];
     const tier = authContext.profile?.subscription_tier || 'free';
+    logger.info(`User subscription tier: ${tier}`);
     if (tier === 'free') {
       allowedModelIds = allActiveModels.filter(row => row.is_free).map(row => row.model_id);
     } else if (tier === 'pro') {
@@ -134,6 +135,7 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
       // fallback: treat as free
       allowedModelIds = allActiveModels.filter(row => row.is_free).map(row => row.model_id);
     }
+    logger.info(`Allowed models for tier ${tier}: ${allowedModelIds.length}`);
 
     if (isEnhancedRequested) {
       try {

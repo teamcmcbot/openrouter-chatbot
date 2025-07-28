@@ -1,6 +1,6 @@
 // lib/utils/validation.ts
 
-import { AuthContext, ModelAccessValidation, RequestLimitsValidation } from '../types/auth';
+import { AuthContext, RequestLimitsValidation } from '../types/auth';
 import { estimateTokenCount } from './tokens';
 import { logger } from './logger';
 import { ChatMessage } from '../types/chat';
@@ -119,69 +119,6 @@ export function validateChatRequest(body: unknown): {
   }
 }
 
-/**
- * Validate if user has access to a specific model
- */
-export function validateModelAccess(
-  model: string,
-  features: AuthContext['features']
-): ModelAccessValidation {
-  // If user has access to all models (enterprise tier)
-  if (features.allowedModels.includes('*')) {
-    return { allowed: true };
-  }
-
-  // Check if model is in allowed list
-  if (features.allowedModels.includes(model)) {
-    return { allowed: true };
-  }
-
-  // Check for pro models access
-  const proModels = [
-    'anthropic/claude-3-haiku',
-    'openai/gpt-4o-mini',
-    'google/gemini-pro',
-  ];
-
-  if (proModels.includes(model) && features.canUseProModels) {
-    return { allowed: true };
-  }
-
-  // Check for enterprise models access
-  const enterpriseModels = [
-    'anthropic/claude-3-opus',
-    'openai/gpt-4',
-    'openai/gpt-4-turbo',
-  ];
-
-  if (enterpriseModels.includes(model) && features.canUseEnterpriseModels) {
-    return { allowed: true };
-  }
-
-  // Model not allowed, provide fallback
-  const fallbackModel = getFallbackModel(features);
-  
-  logger.warn(`Model ${model} not allowed for user, falling back to ${fallbackModel}`);
-  
-  return {
-    allowed: false,
-    fallbackModel,
-    reason: `Model ${model} requires a higher subscription tier`,
-  };
-}
-
-/**
- * Get appropriate fallback model based on user's features
- */
-function getFallbackModel(features: AuthContext['features']): string {
-  // Return the first allowed model as fallback
-  if (features.allowedModels.length > 0 && features.allowedModels[0] !== '*') {
-    return features.allowedModels[0];
-  }
-  
-  // Default fallback
-  return 'deepseek/deepseek-r1-0528:free';
-}
 
 /**
  * Validate request limits (token count, etc.)
@@ -298,17 +235,6 @@ export function validateChatRequestWithAuth(
   const errors: string[] = [];
   const warnings: string[] = [];
   const enhancedData = { ...requestData };
-
-  // Validate model access
-  const modelValidation = validateModelAccess(requestData.model, authContext.features);
-  if (!modelValidation.allowed) {
-    if (modelValidation.fallbackModel) {
-      enhancedData.model = modelValidation.fallbackModel;
-      warnings.push(`Model changed to ${modelValidation.fallbackModel}: ${modelValidation.reason}`);
-    } else {
-      errors.push(modelValidation.reason || 'Model access denied');
-    }
-  }
 
   // Validate message content
   const contentValidation = validateMessageContent(requestData.messages, authContext.features);

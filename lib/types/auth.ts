@@ -36,7 +36,6 @@ export interface FeatureFlags {
   hasRateLimitBypass: boolean;
 
   // Model access
-  allowedModels: string[];
   canUseProModels: boolean;
   canUseEnterpriseModels: boolean;
 

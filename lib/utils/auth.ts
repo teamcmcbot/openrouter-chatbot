@@ -274,10 +274,6 @@ export function createFeatureFlags(
       maxRequestsPerHour: 10,
       maxTokensPerRequest: 1000,
       hasRateLimitBypass: false,
-      allowedModels: [
-        'deepseek/deepseek-r1-0528:free',
-        'google/gemini-2.5-flash-lite',
-      ],
       canUseProModels: false,
       canUseEnterpriseModels: false,
       showAdvancedSettings: false,
@@ -298,11 +294,6 @@ export function createFeatureFlags(
     maxRequestsPerHour: 100,
     maxTokensPerRequest: 2000,
     hasRateLimitBypass: false,
-    allowedModels: [
-      'deepseek/deepseek-r1-0528:free',
-      'google/gemini-2.5-flash-lite',
-      'meta-llama/llama-3.2-3b-instruct:free',
-    ],
     canUseProModels: false,
     canUseEnterpriseModels: false,
     showAdvancedSettings: true,
@@ -318,12 +309,6 @@ export function createFeatureFlags(
         canAccessAdvancedModels: true,
         maxRequestsPerHour: 500,
         maxTokensPerRequest: 4000,
-        allowedModels: [
-          ...baseFeatures.allowedModels,
-          'anthropic/claude-3-haiku',
-          'openai/gpt-4o-mini',
-          'google/gemini-pro',
-        ],
         canUseProModels: true,
         hasAnalyticsDashboard: true,
       };
@@ -335,7 +320,6 @@ export function createFeatureFlags(
         maxRequestsPerHour: 2000,
         maxTokensPerRequest: 8000,
         hasRateLimitBypass: true,
-        allowedModels: ['*'], // All models
         canUseProModels: true,
         canUseEnterpriseModels: true,
         hasAnalyticsDashboard: true,
