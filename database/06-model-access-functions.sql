@@ -298,9 +298,9 @@ RETURNS JSONB AS $$
 DECLARE
     model_record JSONB;
     sync_log_id UUID;
-    models_added INTEGER := 0;
-    models_updated INTEGER := 0;
-    models_marked_inactive INTEGER := 0;
+    count_models_added INTEGER := 0;
+    count_models_updated INTEGER := 0;
+    count_models_marked_inactive INTEGER := 0;
     total_models INTEGER;
     start_time TIMESTAMPTZ := NOW();
     current_model_ids TEXT[];
@@ -314,8 +314,8 @@ BEGIN
     total_models := jsonb_array_length(models_data);
 
     -- Collect all current model IDs from OpenRouter
-    SELECT array_agg(model_record->>'id') INTO current_model_ids
-    FROM jsonb_array_elements(models_data) AS model_record;
+    SELECT array_agg(model_element->>'id') INTO current_model_ids
+    FROM jsonb_array_elements(models_data) AS model_element;
 
     -- Process each model from OpenRouter
     FOR model_record IN SELECT * FROM jsonb_array_elements(models_data)
@@ -399,9 +399,9 @@ BEGIN
 
         -- Count if this was an insert or update
         IF FOUND THEN
-            models_updated := models_updated + 1;
+            count_models_updated := count_models_updated + 1;
         ELSE
-            models_added := models_added + 1;
+            count_models_added := count_models_added + 1;
         END IF;
     END LOOP;
 
@@ -411,16 +411,16 @@ BEGIN
     WHERE model_id NOT IN (SELECT unnest(current_model_ids))
     AND status != 'inactive';
 
-    GET DIAGNOSTICS models_marked_inactive = ROW_COUNT;
+    GET DIAGNOSTICS count_models_marked_inactive = ROW_COUNT;
 
     -- Complete sync log
     UPDATE public.model_sync_log
     SET
         sync_status = 'completed',
         sync_completed_at = NOW(),
-        models_added = sync_openrouter_models.models_added,
-        models_updated = sync_openrouter_models.models_updated,
-        models_marked_inactive = sync_openrouter_models.models_marked_inactive,
+        models_added = count_models_added,
+        models_updated = count_models_updated,
+        models_marked_inactive = count_models_marked_inactive,
         duration_ms = EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000
     WHERE id = sync_log_id;
 
@@ -428,9 +428,9 @@ BEGIN
         'success', true,
         'sync_log_id', sync_log_id,
         'total_processed', total_models,
-        'models_added', models_added,
-        'models_updated', models_updated,
-        'models_marked_inactive', models_marked_inactive,
+        'models_added', count_models_added,
+        'models_updated', count_models_updated,
+        'models_marked_inactive', count_models_marked_inactive,
         'duration_ms', EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000
     );
 
