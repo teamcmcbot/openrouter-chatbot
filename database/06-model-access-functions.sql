@@ -301,9 +301,11 @@ DECLARE
     count_models_added INTEGER := 0;
     count_models_updated INTEGER := 0;
     count_models_marked_inactive INTEGER := 0;
+    count_models_reactivated INTEGER := 0;
     total_models INTEGER;
     start_time TIMESTAMPTZ := NOW();
     current_model_ids TEXT[];
+    previous_status VARCHAR(20);
 BEGIN
     -- Start sync log
     INSERT INTO public.model_sync_log (sync_status, total_openrouter_models)
@@ -320,6 +322,11 @@ BEGIN
     -- Process each model from OpenRouter
     FOR model_record IN SELECT * FROM jsonb_array_elements(models_data)
     LOOP
+        -- Check if this model was previously inactive (for reactivation tracking)
+        SELECT status INTO previous_status
+        FROM public.model_access
+        WHERE model_id = model_record->>'id';
+
         -- Insert or update model
         INSERT INTO public.model_access (
             model_id,
@@ -395,11 +402,23 @@ BEGIN
             supported_parameters = EXCLUDED.supported_parameters,
             openrouter_last_seen = EXCLUDED.openrouter_last_seen,
             last_synced_at = EXCLUDED.last_synced_at,
+            -- Handle status transitions: inactive -> new (preserve tier access), others keep existing status
+            status = CASE 
+                WHEN public.model_access.status = 'inactive' THEN 'new'
+                WHEN public.model_access.status = 'disabled' THEN 'disabled'
+                ELSE public.model_access.status
+            END,
+            -- Preserve existing tier access flags (is_free, is_pro, is_enterprise) for all updates
+            -- These are not updated during sync - only via admin functions
             updated_at = NOW();
 
-        -- Count if this was an insert or update
+        -- Count if this was an insert or update, and track reactivations
         IF FOUND THEN
             count_models_updated := count_models_updated + 1;
+            -- Check if this was a reactivation from inactive status
+            IF previous_status = 'inactive' THEN
+                count_models_reactivated := count_models_reactivated + 1;
+            END IF;
         ELSE
             count_models_added := count_models_added + 1;
         END IF;
@@ -421,6 +440,7 @@ BEGIN
         models_added = count_models_added,
         models_updated = count_models_updated,
         models_marked_inactive = count_models_marked_inactive,
+        models_reactivated = count_models_reactivated,
         duration_ms = EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000
     WHERE id = sync_log_id;
 
@@ -431,6 +451,7 @@ BEGIN
         'models_added', count_models_added,
         'models_updated', count_models_updated,
         'models_marked_inactive', count_models_marked_inactive,
+        'models_reactivated', count_models_reactivated,
         'duration_ms', EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000
     );
 

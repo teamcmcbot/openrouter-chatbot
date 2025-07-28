@@ -95,6 +95,7 @@ CREATE TABLE public.model_sync_log (
     models_added INTEGER DEFAULT 0,
     models_updated INTEGER DEFAULT 0,
     models_marked_inactive INTEGER DEFAULT 0,
+    models_reactivated INTEGER DEFAULT 0,
 
     -- Status and error tracking
     sync_status VARCHAR(20) DEFAULT 'running' CHECK (sync_status IN ('running', 'completed', 'failed')),
