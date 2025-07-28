@@ -16,6 +16,8 @@ DROP FUNCTION IF EXISTS public.get_user_complete_profile(UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.get_user_allowed_models(UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.can_user_use_model(UUID, VARCHAR) CASCADE;
 DROP FUNCTION IF EXISTS public.update_user_preferences(UUID, VARCHAR, JSONB) CASCADE;
+-- View depending on profiles.allowed_models
+DROP VIEW IF EXISTS public.api_user_summary CASCADE;
 
 -- 3. Drop and recreate model_access table with new schema
 DROP TABLE IF EXISTS public.model_access CASCADE;

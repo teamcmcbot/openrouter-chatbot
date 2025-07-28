@@ -729,3 +729,9 @@ This corrected migration properly handles all function dependencies and implemen
 - `profiles.allowed_models` removal and `default_model` nullable change align with app code (no references found).
 - Added SQL scripts `05-model-access-migration.sql`, `06-model-access-functions.sql`, and `07-model-access-verification.sql` under `database/`.
 
+### July 28 Review Update
+
+- Detected dependency on `profiles.allowed_models` in `public.api_user_summary` view defined in `04-complete-system-final.sql`.
+- Updated migration to drop this view and recreate it using `get_user_allowed_models()` so the column continues to work.
+- Verification script now checks the view exists after migration.
+

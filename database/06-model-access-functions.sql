@@ -57,6 +57,45 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Recreate API user summary view using new function for allowed models
+CREATE OR REPLACE VIEW public.api_user_summary AS
+SELECT
+    p.id,
+    p.email,
+    p.full_name,
+    p.avatar_url,
+    p.subscription_tier,
+    p.credits,
+    p.default_model,
+    p.temperature,
+    p.system_prompt,
+    p.ui_preferences,
+    p.session_preferences,
+    ARRAY(
+        SELECT model_id FROM public.get_user_allowed_models(p.id)
+    ) AS allowed_models,
+    p.last_active,
+    COALESCE(recent_usage.messages_today, 0) as messages_today,
+    COALESCE(recent_usage.tokens_today, 0) as tokens_today,
+    COALESCE(session_count.total_sessions, 0) as total_sessions
+FROM public.profiles p
+LEFT JOIN (
+    SELECT
+        user_id,
+        SUM(messages_sent + messages_received) as messages_today,
+        SUM(total_tokens) as tokens_today
+    FROM public.user_usage_daily
+    WHERE usage_date = CURRENT_DATE
+    GROUP BY user_id
+) recent_usage ON p.id = recent_usage.user_id
+LEFT JOIN (
+    SELECT
+        user_id,
+        COUNT(*) as total_sessions
+    FROM public.chat_sessions
+    GROUP BY user_id
+) session_count ON p.id = session_count.user_id;
+
 -- Function to check if user can use a specific model (SAME NAME, NEW IMPLEMENTATION)
 CREATE OR REPLACE FUNCTION public.can_user_use_model(
     user_uuid UUID,

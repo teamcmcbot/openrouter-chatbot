@@ -8,6 +8,7 @@ DECLARE
     model_count INTEGER;
     function_exists BOOLEAN;
     policy_count INTEGER;
+    view_exists BOOLEAN;
     allowed_models_exists BOOLEAN;
     default_model_nullable BOOLEAN;
 BEGIN
@@ -27,6 +28,13 @@ BEGIN
     WHERE schemaname = 'public'
     AND tablename IN ('model_access', 'model_sync_log');
 
+    -- Check if API view was recreated
+    SELECT EXISTS (
+        SELECT 1 FROM pg_views
+        WHERE schemaname = 'public'
+          AND viewname = 'api_user_summary'
+    ) INTO view_exists;
+
     -- Check if allowed_models column was removed
     SELECT EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -45,6 +53,11 @@ BEGIN
     RAISE NOTICE 'Model Access Table: % models configured', model_count;
     RAISE NOTICE 'Functions: %', CASE WHEN function_exists THEN 'Updated (same names)' ELSE 'MISSING' END;
     RAISE NOTICE 'RLS Policies: % policies active', policy_count;
+    RAISE NOTICE 'API View Exists: %', CASE WHEN view_exists THEN 'Yes ✓' ELSE 'MISSING' END;
+    RAISE NOTICE 'Allowed Models Column: %', CASE WHEN allowed_models_exists THEN 'STILL EXISTS (ERROR)' ELSE 'Removed ✓' END;
+    RAISE NOTICE 'Default Model Nullable: %', CASE WHEN default_model_nullable THEN 'Yes ✓' ELSE 'No (ERROR)' END;
+
+    IF model_count > 0 AND function_exists AND policy_count >= 2 AND view_exists AND NOT allowed_models_exists AND default_model_nullable THEN
     RAISE NOTICE 'Allowed Models Column: %', CASE WHEN allowed_models_exists THEN 'STILL EXISTS (ERROR)' ELSE 'Removed ✓' END;
     RAISE NOTICE 'Default Model Nullable: %', CASE WHEN default_model_nullable THEN 'Yes ✓' ELSE 'No (ERROR)' END;
 
