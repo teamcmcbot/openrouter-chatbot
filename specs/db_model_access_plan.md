@@ -224,19 +224,16 @@ CREATE INDEX idx_model_sync_log_status ON public.model_sync_log(sync_status, syn
 ### Enhanced Model Access Functions
 
 ```sql
--- Function to get user's allowed models based on tier and model_access table
-CREATE OR REPLACE FUNCTION public.get_user_allowed_models_v2(user_uuid UUID)
+-- Function to get user's allowed models based on tier (as actually executed)
+-- NOTE: The function is named get_user_allowed_models (not v2) and returns a subset of metadata for backward compatibility.
+CREATE OR REPLACE FUNCTION public.get_user_allowed_models(user_uuid UUID)
 RETURNS TABLE (
     model_id VARCHAR(100),
     model_name VARCHAR(255),
     model_description TEXT,
-    context_length INTEGER,
-    prompt_price VARCHAR(20),
-    completion_price VARCHAR(20),
-    modality VARCHAR(50),
-    input_modalities JSONB,
-    output_modalities JSONB,
-    supported_parameters JSONB,
+    model_tags TEXT[], -- For backward compatibility
+    input_cost_per_token DECIMAL(10,8),
+    output_cost_per_token DECIMAL(10,8),
     daily_limit INTEGER,
     monthly_limit INTEGER
 ) AS $$
@@ -259,13 +256,9 @@ BEGIN
         ma.model_id,
         ma.model_name,
         ma.model_description,
-        ma.context_length,
-        ma.prompt_price,
-        ma.completion_price,
-        ma.modality,
-        ma.input_modalities,
-        ma.output_modalities,
-        ma.supported_parameters,
+        ARRAY[]::TEXT[] as model_tags,
+        COALESCE(ma.prompt_price::DECIMAL(10,8), 0.0) as input_cost_per_token,
+        COALESCE(ma.completion_price::DECIMAL(10,8), 0.0) as output_cost_per_token,
         ma.daily_limit,
         ma.monthly_limit
     FROM public.model_access ma
@@ -286,170 +279,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to sync models from OpenRouter API
+-- Function to sync models from OpenRouter API (matches plan)
 CREATE OR REPLACE FUNCTION public.sync_openrouter_models(
     models_data JSONB
 )
 RETURNS JSONB AS $$
-DECLARE
-    model_record JSONB;
-    sync_log_id UUID;
-    models_added INTEGER := 0;
-    models_updated INTEGER := 0;
-    models_marked_inactive INTEGER := 0;
-    total_models INTEGER;
-    start_time TIMESTAMPTZ := NOW();
-    current_model_ids TEXT[];
-BEGIN
-    -- Start sync log
-    INSERT INTO public.model_sync_log (sync_status, total_openrouter_models)
-    VALUES ('running', jsonb_array_length(models_data))
-    RETURNING id INTO sync_log_id;
-
-    -- Get total count
-    total_models := jsonb_array_length(models_data);
-
-    -- Collect all current model IDs from OpenRouter
-    SELECT array_agg(model_record->>'id') INTO current_model_ids
-    FROM jsonb_array_elements(models_data) AS model_record;
-
-    -- Process each model from OpenRouter
-    FOR model_record IN SELECT * FROM jsonb_array_elements(models_data)
-    LOOP
-        -- Insert or update model
-        INSERT INTO public.model_access (
-            model_id,
-            canonical_slug,
-            hugging_face_id,
-            model_name,
-            model_description,
-            context_length,
-            created_timestamp,
-            modality,
-            input_modalities,
-            output_modalities,
-            tokenizer,
-            prompt_price,
-            completion_price,
-            request_price,
-            image_price,
-            web_search_price,
-            internal_reasoning_price,
-            input_cache_read_price,
-            input_cache_write_price,
-            max_completion_tokens,
-            is_moderated,
-            supported_parameters,
-            openrouter_last_seen,
-            last_synced_at
-        ) VALUES (
-            model_record->>'id',
-            model_record->>'canonical_slug',
-            model_record->>'hugging_face_id',
-            model_record->>'name',
-            model_record->>'description',
-            COALESCE((model_record->>'context_length')::integer, 8192),
-            COALESCE((model_record->>'created')::bigint, extract(epoch from now())::bigint),
-            model_record->'architecture'->>'modality',
-            COALESCE(model_record->'architecture'->'input_modalities', '[]'::jsonb),
-            COALESCE(model_record->'architecture'->'output_modalities', '[]'::jsonb),
-            model_record->'architecture'->>'tokenizer',
-            COALESCE(model_record->'pricing'->>'prompt', '0'),
-            COALESCE(model_record->'pricing'->>'completion', '0'),
-            COALESCE(model_record->'pricing'->>'request', '0'),
-            COALESCE(model_record->'pricing'->>'image', '0'),
-            COALESCE(model_record->'pricing'->>'web_search', '0'),
-            COALESCE(model_record->'pricing'->>'internal_reasoning', '0'),
-            model_record->'pricing'->>'input_cache_read',
-            model_record->'pricing'->>'input_cache_write',
-            (model_record->'top_provider'->>'max_completion_tokens')::integer,
-            COALESCE((model_record->'top_provider'->>'is_moderated')::boolean, false),
-            COALESCE(model_record->'supported_parameters', '[]'::jsonb),
-            NOW(),
-            NOW()
-        )
-        ON CONFLICT (model_id) DO UPDATE SET
-            canonical_slug = EXCLUDED.canonical_slug,
-            hugging_face_id = EXCLUDED.hugging_face_id,
-            model_name = EXCLUDED.model_name,
-            model_description = EXCLUDED.model_description,
-            context_length = EXCLUDED.context_length,
-            modality = EXCLUDED.modality,
-            input_modalities = EXCLUDED.input_modalities,
-            output_modalities = EXCLUDED.output_modalities,
-            tokenizer = EXCLUDED.tokenizer,
-            prompt_price = EXCLUDED.prompt_price,
-            completion_price = EXCLUDED.completion_price,
-            request_price = EXCLUDED.request_price,
-            image_price = EXCLUDED.image_price,
-            web_search_price = EXCLUDED.web_search_price,
-            internal_reasoning_price = EXCLUDED.internal_reasoning_price,
-            input_cache_read_price = EXCLUDED.input_cache_read_price,
-            input_cache_write_price = EXCLUDED.input_cache_write_price,
-            max_completion_tokens = EXCLUDED.max_completion_tokens,
-            is_moderated = EXCLUDED.is_moderated,
-            supported_parameters = EXCLUDED.supported_parameters,
-            openrouter_last_seen = EXCLUDED.openrouter_last_seen,
-            last_synced_at = EXCLUDED.last_synced_at,
-            updated_at = NOW();
-
-        -- Count if this was an insert or update
-        IF FOUND THEN
-            models_updated := models_updated + 1;
-        ELSE
-            models_added := models_added + 1;
-        END IF;
-    END LOOP;
-
-    -- Mark models as inactive if they're no longer in OpenRouter
-    UPDATE public.model_access
-    SET status = 'inactive', updated_at = NOW()
-    WHERE model_id NOT IN (SELECT unnest(current_model_ids))
-    AND status != 'inactive';
-
-    GET DIAGNOSTICS models_marked_inactive = ROW_COUNT;
-
-    -- Complete sync log
-    UPDATE public.model_sync_log
-    SET
-        sync_status = 'completed',
-        sync_completed_at = NOW(),
-        models_added = sync_openrouter_models.models_added,
-        models_updated = sync_openrouter_models.models_updated,
-        models_marked_inactive = sync_openrouter_models.models_marked_inactive,
-        duration_ms = EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000
-    WHERE id = sync_log_id;
-
-    RETURN jsonb_build_object(
-        'success', true,
-        'sync_log_id', sync_log_id,
-        'total_processed', total_models,
-        'models_added', models_added,
-        'models_updated', models_updated,
-        'models_marked_inactive', models_marked_inactive,
-        'duration_ms', EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000
-    );
-
-EXCEPTION WHEN OTHERS THEN
-    -- Log error
-    UPDATE public.model_sync_log
-    SET
-        sync_status = 'failed',
-        sync_completed_at = NOW(),
-        error_message = SQLERRM,
-        error_details = jsonb_build_object('sqlstate', SQLSTATE),
-        duration_ms = EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000
-    WHERE id = sync_log_id;
-
-    RETURN jsonb_build_object(
-        'success', false,
-        'error', SQLERRM,
-        'sync_log_id', sync_log_id
-    );
-END;
+-- ...existing code as in migration...
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to update model tier access (for admin use)
+-- Function to update model tier access (matches plan)
 CREATE OR REPLACE FUNCTION public.update_model_tier_access(
     p_model_id VARCHAR(100),
     p_is_free BOOLEAN DEFAULT NULL,
@@ -458,42 +296,7 @@ CREATE OR REPLACE FUNCTION public.update_model_tier_access(
     p_status VARCHAR(20) DEFAULT NULL
 )
 RETURNS JSONB AS $$
-DECLARE
-    updated_count INTEGER;
-BEGIN
-    -- Validate status if provided
-    IF p_status IS NOT NULL AND p_status NOT IN ('active', 'inactive', 'disabled', 'new') THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'Invalid status. Must be: active, inactive, disabled, or new'
-        );
-    END IF;
-
-    -- Update model access
-    UPDATE public.model_access
-    SET
-        is_free = COALESCE(p_is_free, is_free),
-        is_pro = COALESCE(p_is_pro, is_pro),
-        is_enterprise = COALESCE(p_is_enterprise, is_enterprise),
-        status = COALESCE(p_status, status),
-        updated_at = NOW()
-    WHERE model_id = p_model_id;
-
-    GET DIAGNOSTICS updated_count = ROW_COUNT;
-
-    IF updated_count = 0 THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'Model not found'
-        );
-    END IF;
-
-    RETURN jsonb_build_object(
-        'success', true,
-        'model_id', p_model_id,
-        'updated_at', NOW()
-    );
-END;
+-- ...existing code as in migration...
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
@@ -577,9 +380,17 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ### Enhanced `/api/models` Endpoint
 
+- this endpoint is called to retrieve the models available to the user for population of the dropdown in the UI.
+
+Basic flow:
+
+1. Retrieve models from OpenRouter API via `fetchOpenRouterModels` utility
+2. Retrieve configured models from database `public.model_access` depending on user's tier, free/pro/enterprise (anonymous user will be treated as free tier) AND status is `active` (e.g. where status = 'active' and is_free = true for free tier)
+3. Filter models list from 1. based on user's allowed models from 2.
+
 **New Requirements:**
 
-1. Require authentication
+1. Require optional authentication
 2. Filter models based on user tier
 3. Use database instead of environment variables
 4. Maintain backward compatibility
@@ -627,7 +438,7 @@ export async function GET(request: NextRequest) {
 
     // Get user's allowed models from database
     const { data: allowedModels, error: modelsError } = await supabase.rpc(
-      "get_user_allowed_models_v2",
+      "get_user_allowed_models",
       { user_uuid: user.id }
     );
 
@@ -1000,24 +811,30 @@ END $$;
 
 ### Phase 1: Database Migration (Week 1)
 
-- [ ] Execute migration scripts
-- [ ] Create new database functions
-- [ ] Update existing functions
-- [ ] Test database changes
+- [x] Execute migration scripts
+- [x] Create new database functions
+- [x] Update existing functions
+- [x] Test database changes
 
-### Phase 2: API Updates (Week 1-2)
+Migration scripts in /database/ has been executed successfully:
 
-- [ ] Update `/api/models` endpoint
-- [ ] Add authentication middleware
-- [ ] Create admin API endpoints
-- [ ] Test API changes
+- `05-model-access-migration.sql`
+- `06-model-access-functions.sql`
+- `07-model-access-verification.sql`
 
-### Phase 3: Sync Job Implementation (Week 2)
+### Phase 2: Sync Job Implementation (Week 2)
 
 - [ ] Create sync job endpoint
 - [ ] Implement OpenRouter integration
 - [ ] Set up cron scheduling
 - [ ] Test sync functionality
+
+### Phase 3: API Updates (Week 1-2)
+
+- [ ] Update `/api/models` endpoint
+- [ ] Add authentication middleware
+- [ ] Create admin API endpoints
+- [ ] Test API changes
 
 ### Phase 4: Admin Interface (Week 3)
 
@@ -1039,7 +856,7 @@ END $$;
 
 ```sql
 -- Test user tier filtering
-SELECT * FROM public.get_user_allowed_models_v2('test-user-uuid');
+SELECT * FROM public.get_user_allowed_models('test-user-uuid');
 
 -- Test sync function with sample data
 SELECT * FROM public.sync_openrouter_models('[{"id": "test-model", "name": "Test Model", ...}]'::jsonb);

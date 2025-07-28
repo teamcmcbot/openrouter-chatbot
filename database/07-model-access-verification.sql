@@ -57,11 +57,8 @@ BEGIN
     RAISE NOTICE 'Allowed Models Column: %', CASE WHEN allowed_models_exists THEN 'STILL EXISTS (ERROR)' ELSE 'Removed ✓' END;
     RAISE NOTICE 'Default Model Nullable: %', CASE WHEN default_model_nullable THEN 'Yes ✓' ELSE 'No (ERROR)' END;
 
-    IF model_count > 0 AND function_exists AND policy_count >= 2 AND view_exists AND NOT allowed_models_exists AND default_model_nullable THEN
-    RAISE NOTICE 'Allowed Models Column: %', CASE WHEN allowed_models_exists THEN 'STILL EXISTS (ERROR)' ELSE 'Removed ✓' END;
-    RAISE NOTICE 'Default Model Nullable: %', CASE WHEN default_model_nullable THEN 'Yes ✓' ELSE 'No (ERROR)' END;
 
-    IF model_count > 0 AND function_exists AND policy_count >= 2 AND NOT allowed_models_exists AND default_model_nullable THEN
+    IF model_count > 0 AND function_exists AND policy_count >= 2 AND view_exists AND NOT allowed_models_exists AND default_model_nullable THEN
         RAISE NOTICE 'Status: ✅ Migration completed successfully';
     ELSE
         RAISE NOTICE 'Status: ❌ Migration incomplete - check errors above';
