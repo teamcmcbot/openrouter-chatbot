@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, ArrowPathIcon, CloudIcon, ComputerDesktopIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import Button from "./Button";
+import ConfirmModal from "./ConfirmModal";
 import { useChatStore } from "../../stores";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { formatConversationTimestamp } from "../../lib/utils/dateFormat";
@@ -52,6 +53,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Get recent conversations (limit to 20 for performance)
   // Only show conversations after hydration to prevent SSR mismatch
@@ -94,16 +96,17 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
 
   const handleClearAllConversations = async () => {
     if (conversations.length === 0) return;
-    
-    const confirmMessage = `Are you sure you want to delete all ${conversations.length} conversations? This action cannot be undone.`;
-    
-    if (window.confirm(confirmMessage)) {
-      try {
-        await clearAllConversations();
-      } catch (error) {
-        console.error('Failed to clear all conversations:', error);
-        alert('Failed to clear conversations. Please try again.');
-      }
+    setShowConfirmModal(true);
+  };
+
+  const confirmClearAll = async () => {
+    try {
+      await clearAllConversations();
+    } catch (error) {
+      console.error('Failed to clear all conversations:', error);
+      alert('Failed to clear conversations. Please try again.');
+    } finally {
+      setShowConfirmModal(false);
     }
   };
 
@@ -376,6 +379,15 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
           </div>
         </div>
       </aside>
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onConfirm={confirmClearAll}
+        onCancel={() => setShowConfirmModal(false)}
+        title="Delete all conversations?"
+        description={`Are you sure you want to delete all ${conversations.length} conversations? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
     </>
   );
 }
