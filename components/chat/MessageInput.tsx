@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, KeyboardEvent, useEffect } from "react";
-import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void
@@ -79,9 +79,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           aria-label="Send message"
         >
           {disabled ? (
-            <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0l4 4-4 4V4a4 4 0 00-4 4zm0 8a4 4 0 014-4v4H0l4-4z" />
-            </svg>
+            <ArrowPathIcon className="w-5 h-5 animate-spin" />
           ) : (
             <PaperAirplaneIcon className="w-5 h-5" />
           )}
