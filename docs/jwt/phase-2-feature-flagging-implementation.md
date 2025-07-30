@@ -81,14 +81,14 @@ graph TD
 
 ### Feature Flag Application
 
-| Feature           | Anonymous     | Free         | Pro          | Enterprise   | Implementation                                                      |
-| ----------------- | ------------- | ------------ | ------------ | ------------ | ------------------------------------------------------------------- |
-| **Model Access**  | 2 free models | 3 models     | 6+ models    | All models   | [`validateModelAccess()`](../../lib/utils/validation.ts:125)        |
-| **Token Limits**  | 1000/request  | 2000/request | 4000/request | 8000/request | [`validateRequestLimits()`](../../lib/utils/validation.ts:189)      |
-| **Rate Limits**   | 10/hour       | 100/hour     | 500/hour     | 2000/hour    | [`withRateLimit()`](../../lib/middleware/rateLimitMiddleware.ts:85) |
-| **System Prompt** | ❌            | ✅           | ✅           | ✅           | [`validateSystemPromptAccess()`](../../lib/utils/validation.ts:231) |
-| **Temperature**   | ❌            | ✅           | ✅           | ✅           | [`validateTemperatureAccess()`](../../lib/utils/validation.ts:238)  |
-| **Sync**          | ❌            | ✅           | ✅           | ✅           | [`validateSyncAccess()`](../../lib/utils/validation.ts:245)         |
+| Feature           | Anonymous     | Free          | Pro           | Enterprise    | Implementation                                                      |
+| ----------------- | ------------- | ------------- | ------------- | ------------- | ------------------------------------------------------------------- |
+| **Model Access**  | 2 free models | 3 models      | 6+ models     | All models    | [`validateModelAccess()`](../../lib/utils/validation.ts:125)        |
+| **Token Limits**  | 5000/request  | 10000/request | 20000/request | 50000/request | [`validateRequestLimits()`](../../lib/utils/validation.ts:189)      |
+| **Rate Limits**   | 20/hour       | 100/hour      | 500/hour      | 2000/hour     | [`withRateLimit()`](../../lib/middleware/rateLimitMiddleware.ts:85) |
+| **System Prompt** | ❌            | ✅            | ✅            | ✅            | [`validateSystemPromptAccess()`](../../lib/utils/validation.ts:231) |
+| **Temperature**   | ❌            | ✅            | ✅            | ✅            | [`validateTemperatureAccess()`](../../lib/utils/validation.ts:238)  |
+| **Sync**          | ❌            | ✅            | ✅            | ✅            | [`validateSyncAccess()`](../../lib/utils/validation.ts:245)         |
 
 ## API Endpoint Security Implementation
 
@@ -134,10 +134,17 @@ export const POST = withConversationOwnership(
 ```typescript
 // Rate limit configuration by tier
 const rateLimits = {
-  anonymous: 10, // requests per hour
+  anonymous: 20, // requests per hour
   free: 100, // requests per hour
   pro: 500, // requests per hour
   enterprise: 2000, // requests per hour (with bypass option)
+};
+// Max tokens per request by tier
+const maxTokensPerRequest = {
+  anonymous: 5000,
+  free: 10000,
+  pro: 20000,
+  enterprise: 50000,
 };
 ```
 
@@ -224,7 +231,7 @@ curl -X POST http://localhost:3000/api/chat \
   }'
 
 # Response: Model automatically downgraded to free tier model
-# Rate limit: 10 requests/hour
+# Rate limit: 20 requests/hour, 5000 tokens/request
 ```
 
 #### Authenticated Pro User Request
@@ -240,7 +247,7 @@ curl -X POST http://localhost:3000/api/chat \
   }'
 
 # Response: Full access to pro models and custom temperature
-# Rate limit: 500 requests/hour
+# Rate limit: 500 requests/hour, 20000 tokens/request
 ```
 
 #### Sync Request (Requires Authentication)

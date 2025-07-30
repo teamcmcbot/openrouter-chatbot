@@ -89,7 +89,11 @@ Enhanced the existing model store to cache model configurations (context lengths
 - **Reduced API Calls**: Eliminated redundant OpenRouter API calls
 - **Faster Message Sending**: Token limits available immediately from cache
 - **Lower Latency**: No network round-trip for token calculations
-- **Rate Limit Protection**: Fewer API calls reduce rate limit exposure
+- **Rate Limit Protection**: Fewer API calls reduce rate limit exposure. Per-tier limits:
+  - **Anonymous:** 20 requests/hour, 5000 tokens/request
+  - **Free:** 100 requests/hour, 10000 tokens/request
+  - **Pro:** 500 requests/hour, 20000 tokens/request
+  - **Enterprise:** 2000 requests/hour, 50000 tokens/request
 - **Offline Resilience**: Cached configurations work without network
 
 ## Backward Compatibility

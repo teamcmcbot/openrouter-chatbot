@@ -248,7 +248,12 @@ Authorization: Bearer <your-supabase-jwt-token>
 
 ## Rate Limiting
 
-- **Cooldown Period**: 5 minutes between sync attempts per user
+- **Cooldown Period**: 5 minutes between sync attempts per user (for this admin endpoint)
+- **Other Endpoints**: For chat and sync endpoints, per-tier rate limits apply:
+  - **Anonymous:** 20 requests/hour, 5000 tokens/request
+  - **Free:** 100 requests/hour, 10000 tokens/request
+  - **Pro:** 500 requests/hour, 20000 tokens/request
+  - **Enterprise:** 2000 requests/hour, 50000 tokens/request
 - **Concurrent Protection**: Only one sync can run at a time across all users
 - **Headers**: Rate limit info included in response headers:
   - `Retry-After`: Seconds until next attempt allowed

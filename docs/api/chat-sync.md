@@ -8,9 +8,13 @@ Synchronizes conversations between the client and the server. `POST` accepts an 
 
 ## Authentication & Authorization
 
-- **Authentication Required:** Wrapped by `withConversationOwnership`, which in turn uses `withProtectedAuth` to require a signed‑in user.
+- **Authentication Required:** Wrapped by `withConversationOwnership`, which in turn uses `withProtectedAuth` to require a signedin user.
 - **Feature Check:** Users must have `canSyncConversations` enabled in their feature flags.
-- **Rate Limiting:** All requests pass through `withRateLimit` using the user's tier limits.
+- **Rate Limiting:** All requests pass through `withRateLimit` using the user's tier limits:
+  - **Anonymous:** 20 requests/hour, 5000 tokens/request
+  - **Free:** 100 requests/hour, 10000 tokens/request
+  - **Pro:** 500 requests/hour, 20000 tokens/request
+  - **Enterprise:** 2000 requests/hour, 50000 tokens/request
 
 ## POST Request
 
@@ -37,7 +41,9 @@ Content-Type: application/json
   "results": {
     "synced": 1,
     "errors": 0,
-    "details": [ { "conversationId": "conv-1", "status": "synced", "messageCount": 1 } ]
+    "details": [
+      { "conversationId": "conv-1", "status": "synced", "messageCount": 1 }
+    ]
   },
   "syncTime": "2025-07-29T12:00:00Z"
 }
@@ -57,7 +63,7 @@ GET /api/chat/sync
     {
       "id": "conv-1",
       "title": "Example",
-      "messages": [ { "id": "msg-1", "role": "user", "content": "Hello" } ],
+      "messages": [{ "id": "msg-1", "role": "user", "content": "Hello" }],
       "createdAt": "2025-07-29T11:59:00Z",
       "updatedAt": "2025-07-29T12:00:00Z"
     }

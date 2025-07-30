@@ -9,7 +9,11 @@ Handles chat completion requests by sending user messages to the OpenRouter API 
 ## Authentication & Authorization
 
 - **Optional Authentication:** Wrapped by `withEnhancedAuth`, so anonymous requests are allowed.
-- **Rate Limiting:** `withRateLimit` applies per‑tier limits based on `maxRequestsPerHour`.
+- **Rate Limiting:** `withRateLimit` applies pertier limits:
+  - **Anonymous:** 20 requests/hour, 5000 tokens/request
+  - **Free:** 100 requests/hour, 10000 tokens/request
+  - **Pro:** 500 requests/hour, 20000 tokens/request
+  - **Enterprise:** 2000 requests/hour, 50000 tokens/request
 - **Feature Checks:** `validateChatRequestWithAuth` ensures optional features (custom system prompt, temperature, etc.) are only used if the user's subscription tier allows them.
 
 ## Request
