@@ -25,6 +25,7 @@ const customJestConfig = {
     "^rehype-highlight$": "<rootDir>/__mocks__/rehype-highlight.js",
     "^@supabase/(.*)$": "<rootDir>/__mocks__/@supabase/$1.js",
     "^isows$": "<rootDir>/__mocks__/isows.js",
+    "^react-hot-toast$": "<rootDir>/lib/vendor/react-hot-toast.tsx",
   },
   testPathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/node_modules/"],
   transformIgnorePatterns: [

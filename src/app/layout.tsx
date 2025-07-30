@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import ErrorBoundary from "../../components/ui/ErrorBoundary";
+import ToasterProvider from "../../components/ui/ToasterProvider";
 import "./globals.css";
 import { LogoWithText } from "../../components/ui/Logo";
 import { AuthProvider } from "../../components/auth/AuthProvider";
@@ -64,6 +65,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           <ErrorBoundary>
+            <ToasterProvider />
             <div className="flex flex-col h-mobile-screen">
               <nav className="sticky top-0 z-50 border-b border-gray-200 bg-gray-50 backdrop-blur-md dark:border-gray-800 dark:bg-gray-900/80 flex-shrink-0">
                 <div className="w-full px-4 sm:px-6 lg:px-8">

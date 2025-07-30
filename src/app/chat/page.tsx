@@ -1,15 +1,21 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { toast } from 'react-hot-toast'
 import ChatInterface from "../../../components/chat/ChatInterface";
-import AuthSuccessNotification from './AuthSuccessNotification'
 
 function ChatPageContent() {
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get('auth') === 'success') {
+      toast.success('🎉 Successfully signed in! Your chat history will now be saved.')
+    }
+  }, [searchParams])
+
   return (
     <div className="h-mobile-full bg-gray-100 dark:bg-gray-900 p-4 sm:p-6">
-      <Suspense fallback={null}>
-        <AuthSuccessNotification />
-      </Suspense>
       <div className="h-full max-w-full mx-auto">
         <ChatInterface />
       </div>
