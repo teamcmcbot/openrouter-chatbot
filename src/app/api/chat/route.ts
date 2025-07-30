@@ -88,7 +88,14 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       );
     }
     
-    const openRouterResponse = await getOpenRouterCompletion(messages, enhancedData.model, dynamicMaxTokens);
+    const openRouterResponse = await getOpenRouterCompletion(
+      messages,
+      enhancedData.model,
+      dynamicMaxTokens,
+      enhancedData.temperature,
+      enhancedData.systemPrompt,
+      authContext
+    );
     logger.debug('OpenRouter response received:', openRouterResponse);
     const assistantResponse = openRouterResponse.choices[0].message.content;
     const usage = openRouterResponse.usage;

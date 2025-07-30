@@ -279,15 +279,15 @@ export const POST = withRateLimit(
 
 ### Tier-Based Access Control
 
-| Feature               | Anonymous | Free | Pro  | Enterprise |
-| --------------------- | --------- | ---- | ---- | ---------- |
-| Custom System Prompt  | ❌        | ✅   | ✅   | ✅         |
-| Advanced Models       | ❌        | ❌   | ✅   | ✅         |
-| Custom Temperature    | ❌        | ✅   | ✅   | ✅         |
-| Conversation Sync     | ❌        | ✅   | ✅   | ✅         |
-| Rate Limit (req/hour) | 10        | 100  | 500  | 2000       |
-| Max Tokens/Request    | 1000      | 2000 | 4000 | 8000       |
-| Analytics Dashboard   | ❌        | ❌   | ✅   | ✅         |
+| Feature               | Anonymous | Free  | Pro   | Enterprise |
+| --------------------- | --------- | ----- | ----- | ---------- |
+| Custom System Prompt  | ❌        | ✅    | ✅    | ✅         |
+| Advanced Models       | ❌        | ❌    | ✅    | ✅         |
+| Custom Temperature    | ❌        | ✅    | ✅    | ✅         |
+| Conversation Sync     | ❌        | ✅    | ✅    | ✅         |
+| Rate Limit (req/hour) | 20        | 100   | 500   | 2000       |
+| Max Tokens/Request    | 5000      | 10000 | 20000 | 50000      |
+| Analytics Dashboard   | ❌        | ❌    | ✅    | ✅         |
 
 ### Model Access Control
 

@@ -232,9 +232,19 @@ export function validateChatRequestWithAuth(
   warnings: string[];
   enhancedData: typeof requestData;
 } {
+
   const errors: string[] = [];
   const warnings: string[] = [];
   const enhancedData = { ...requestData };
+
+  // Override systemPrompt and temperature from authContext.profile if present
+  if (authContext.profile?.system_prompt !== undefined) {
+    enhancedData.systemPrompt = authContext.profile.system_prompt;
+  }
+  if (authContext.profile?.temperature !== undefined) {
+    enhancedData.temperature = authContext.profile.temperature;
+  }
+
 
   // Validate message content
   const contentValidation = validateMessageContent(requestData.messages, authContext.features);
@@ -243,13 +253,13 @@ export function validateChatRequestWithAuth(
   }
 
   // Validate temperature access
-  if (requestData.temperature !== undefined && !validateTemperatureAccess(authContext.features)) {
+  if (enhancedData.temperature !== undefined && !validateTemperatureAccess(authContext.features)) {
     delete enhancedData.temperature;
     warnings.push('Custom temperature not allowed for your subscription tier');
   }
 
   // Validate system prompt access
-  if (requestData.systemPrompt && !validateSystemPromptAccess(authContext.features)) {
+  if (enhancedData.systemPrompt && !validateSystemPromptAccess(authContext.features)) {
     delete enhancedData.systemPrompt;
     warnings.push('Custom system prompt not allowed for your subscription tier');
   }
