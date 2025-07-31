@@ -363,27 +363,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- =============================================================================
--- SEED DATA - DEFAULT MODEL ACCESS
--- =============================================================================
-
--- Insert default model access rules
-INSERT INTO public.model_access (model_id, tier, model_name, model_description, model_tags, is_active)
-VALUES 
-    -- Free tier models
-    ('deepseek/deepseek-r1-0528:free', 'free', 'DeepSeek R1 Free', 'Advanced reasoning model - free tier', ARRAY['reasoning', 'free'], true),
-    ('google/gemini-flash-1.5:free', 'free', 'Gemini Flash 1.5 Free', 'Fast multimodal model - free tier', ARRAY['multimodal', 'fast', 'free'], true),
-    
-    -- Pro tier models
-    ('openai/gpt-4o-mini', 'pro', 'GPT-4o Mini', 'Efficient GPT-4 variant', ARRAY['reasoning', 'efficient'], true),
-    ('anthropic/claude-3-haiku', 'pro', 'Claude 3 Haiku', 'Fast and efficient Claude model', ARRAY['reasoning', 'fast'], true),
-    ('google/gemini-pro', 'pro', 'Gemini Pro', 'Advanced Google model', ARRAY['multimodal', 'advanced'], true),
-    
-    -- Enterprise tier models
-    ('openai/gpt-4o', 'enterprise', 'GPT-4o', 'Most capable GPT-4 model', ARRAY['reasoning', 'advanced'], true),
-    ('anthropic/claude-3-opus', 'enterprise', 'Claude 3 Opus', 'Most capable Claude model', ARRAY['reasoning', 'advanced'], true),
-    ('openai/o1', 'enterprise', 'OpenAI o1', 'Advanced reasoning model', ARRAY['reasoning', 'premium'], true)
-ON CONFLICT (model_id, tier) DO NOTHING;
 
 -- =============================================================================
 -- VERIFICATION & SETUP COMPLETE
