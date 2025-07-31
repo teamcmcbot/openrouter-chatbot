@@ -7,6 +7,7 @@ import ConfirmModal from "./ConfirmModal";
 import { useChatStore } from "../../stores";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { formatConversationTimestamp } from "../../lib/utils/dateFormat";
+import toast from "react-hot-toast";
 
 interface ChatSidebarProps {
   isOpen: boolean;
@@ -360,6 +361,9 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                       const user = useAuthStore.getState().user;
                       const userInfo = user?.id || user?.email || "unknown";
                       console.log(`Clicked settings button for user ${userInfo}`);
+                      toast.success("Settings button clicked! Toast is working!", {
+                        id: 'settings-debug',
+                      });
                     }}
                     className="p-1 text-gray-400 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors rounded"
                     title="Settings"
