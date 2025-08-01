@@ -226,3 +226,29 @@ if (user?.id && currentConv?.userId === user.id) {
 - Update session creation logic to use `/api/chat/messages` for the first message
 - Remove auto-sync from title updates if not needed
 - Consider keeping periodic sync for data consistency but with longer intervals
+
+### Draft Plan
+
+1. On successul response from the assistant, call `/api/chat/message` instead of `/api/chat/sync`.
+2. Update `/api/chat/message` to take an array of messages (user/assistant pairs) to be upserted.
+3. On failed response, it will also call `/api/chat/message` to log the error message with appropriate metadata.
+4. Must ensure that the function update_session_stats() and track_user_usage() does not count the token for failed messages. Maybe exclude calculation for total_tokens if chat_message.error_message is null or empty in the update to `public.chat_sessions` table in `update_session_stats()` function,
+   and also exclude the token count in `track_user_usage()` function if chat_message.error_message is null or empty.
+
+Sample response for failed message for `/api/chat/message`:
+
+```json
+{
+  "error": "The Google model is temporarily rate-limited. Please try again in a few moments or switch to a different model.",
+  "code": "too_many_requests",
+  "details": "google/gemini-2.0-flash-exp:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+  "timestamp": "2025-08-01T10:52:06.577Z",
+  "retryAfter": 60,
+  "suggestions": [
+    "Try again in a few minutes",
+    "Try one of these alternative models: google/gemma-3-27b-it:free, deepseek/deepseek-r1-0528:free, deepseek/deepseek-r1-0528-qwen3-8b:free"
+  ]
+}
+```
+
+5. If user retry the same message and is successful, it will also call `/api/chat/message` to log the successful message again, ensuring no duplicate entries for the same message. (current implementation, on retry success, sync is not called at all)
