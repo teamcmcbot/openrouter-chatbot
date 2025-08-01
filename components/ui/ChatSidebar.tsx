@@ -55,6 +55,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isSettingsSpinning, setIsSettingsSpinning] = useState(false);
 
   // Get recent conversations (limit to 20 for performance)
   // Only show conversations after hydration to prevent SSR mismatch
@@ -116,6 +117,23 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     const lastMessage = messages[messages.length - 1];
     const content = lastMessage.content;
     return content.length > 60 ? content.substring(0, 60) + "..." : content;
+  };
+
+  const handleSettingsClick = () => {
+    const user = useAuthStore.getState().user;
+    const userInfo = user?.id || user?.email || "unknown";
+    console.log(`Clicked settings button for user ${userInfo}`);
+    toast.success("Settings button clicked! Toast is working!", {
+      id: 'settings-debug',
+    });
+    
+    // Start spinning animation
+    setIsSettingsSpinning(true);
+    
+    // Stop spinning after 1 second
+    setTimeout(() => {
+      setIsSettingsSpinning(false);
+    }, 1000);
   };
 
   return (
@@ -353,24 +371,17 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
             <div className="text-xs text-gray-500 dark:text-gray-500">
               {isHydrated ? `${conversations.length} total conversations` : "Loading conversations..."}
             </div>
-            {isHydrated && conversations.length > 0 && (
-              <div className="flex items-center gap-2">
-                {isAuthenticated && (
-                  <button
-                    onClick={() => {
-                      const user = useAuthStore.getState().user;
-                      const userInfo = user?.id || user?.email || "unknown";
-                      console.log(`Clicked settings button for user ${userInfo}`);
-                      toast.success("Settings button clicked! Toast is working!", {
-                        id: 'settings-debug',
-                      });
-                    }}
-                    className="p-1 text-gray-400 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors rounded"
-                    title="Settings"
-                  >
-                    <Cog6ToothIcon className="w-4 h-4" />
-                  </button>
-                )}
+            <div className="flex items-center gap-2">
+              {isHydrated && isAuthenticated && (
+                <button
+                  onClick={handleSettingsClick}
+                  className="p-1 text-gray-400 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors rounded"
+                  title="Settings"
+                >
+                  <Cog6ToothIcon className={`w-4 h-4 ${isSettingsSpinning ? 'animate-spin' : ''}`} />
+                </button>
+              )}
+              {isHydrated && conversations.length > 0 && (
                 <button
                   onClick={handleClearAllConversations}
                   className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded"
@@ -378,8 +389,8 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                 >
                   <TrashIcon className="w-4 h-4" />
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </aside>
