@@ -14,6 +14,10 @@ export interface ChatMessage {
   contentType?: "text" | "markdown"; // New field to specify content type
   completion_id?: string; // OpenRouter response id for metadata lookup
   error?: boolean; // Flag to indicate if this message failed to send
+  error_message?: string; // Error message text
+  error_code?: string; // Error code for categorization
+  retry_after?: number; // Seconds to wait before retry
+  suggestions?: string[]; // Alternative suggestions for failed requests
   originalModel?: string; // Store the model used when this message was originally sent (for retry purposes)
 }
 

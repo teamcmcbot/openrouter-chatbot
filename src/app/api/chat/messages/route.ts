@@ -96,68 +96,144 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const messageData = await request.json() as {
-      message: ChatMessage;
+    const requestData = await request.json() as {
+      message?: ChatMessage; // Single message (backward compatibility)
+      messages?: ChatMessage[]; // Array of messages (new functionality)
       sessionId: string;
     };
 
-    // Verify session belongs to user
-    const { data: session, error: sessionError } = await supabase
+    // Check if session already exists first
+    const { data: existingSession } = await supabase
       .from('chat_sessions')
-      .select('id')
-      .eq('id', messageData.sessionId)
+      .select('id, title, message_count')
+      .eq('id', requestData.sessionId)
       .eq('user_id', user.id)
       .single();
 
-    if (sessionError || !session) {
+    if (!existingSession) {
+      // Session doesn't exist, create new one with title based on first message
+      let newTitle = 'New Chat'; // Default fallback
+      
+      // Generate title from first user message if available
+      const firstUserMessage = (requestData.messages || [requestData.message])
+        .find(m => m?.role === 'user');
+      if (firstUserMessage && firstUserMessage.content) {
+        newTitle = firstUserMessage.content.length > 50 
+          ? firstUserMessage.content.substring(0, 50) + "..."
+          : firstUserMessage.content;
+      }
+
+      const { data: newSession, error: createError } = await supabase
+        .from('chat_sessions')
+        .insert({
+          id: requestData.sessionId,
+          user_id: user.id,
+          title: newTitle,
+          updated_at: new Date().toISOString()
+        })
+        .select('id, title, message_count')
+        .single();
+
+      if (createError || !newSession) {
+        return NextResponse.json(
+          { error: 'Session creation failed' },
+          { status: 500 }
+        );
+      }
+    }
+
+    const insertedMessages = [];
+
+    // Handle both single message and message arrays
+    if (requestData.messages && Array.isArray(requestData.messages)) {
+      // Process multiple messages atomically
+      for (const message of requestData.messages) {
+        const { data: newMessage, error: messageError } = await supabase
+          .from('chat_messages')
+          .insert({
+            id: message.id,
+            session_id: requestData.sessionId,
+            role: message.role,
+            content: message.content,
+            model: message.model,
+            input_tokens: message.input_tokens || 0,
+            output_tokens: message.output_tokens || 0,
+            total_tokens: message.total_tokens || (message.input_tokens || 0) + (message.output_tokens || 0),
+            content_type: message.contentType || 'text',
+            elapsed_time: message.elapsed_time || 0,
+            completion_id: message.completion_id || null,
+            user_message_id: message.user_message_id || null,
+            message_timestamp: typeof message.timestamp === 'string' 
+              ? message.timestamp 
+              : message.timestamp.toISOString(),
+            error_message: message.error_message || (message.error ? 'Message failed' : null),
+            is_streaming: false
+          })
+          .select()
+          .single();
+
+        if (messageError) {
+          throw messageError;
+        }
+        
+        insertedMessages.push(newMessage);
+      }
+    } else if (requestData.message) {
+      // Process single message (existing logic)
+      const message = requestData.message;
+      const { data: newMessage, error: messageError } = await supabase
+        .from('chat_messages')
+        .insert({
+          id: message.id,
+          session_id: requestData.sessionId,
+          role: message.role,
+          content: message.content,
+          model: message.model,
+          input_tokens: message.input_tokens || 0,
+          output_tokens: message.output_tokens || 0,
+          total_tokens: message.total_tokens || (message.input_tokens || 0) + (message.output_tokens || 0),
+          content_type: message.contentType || 'text',
+          elapsed_time: message.elapsed_time || 0,
+          completion_id: message.completion_id || null,
+          user_message_id: message.user_message_id || null,
+          message_timestamp: typeof message.timestamp === 'string' 
+            ? message.timestamp 
+            : message.timestamp.toISOString(),
+          error_message: message.error_message || (message.error ? 'Message failed' : null),
+          is_streaming: false
+        })
+        .select()
+        .single();
+
+      if (messageError) {
+        throw messageError;
+      }
+      
+      insertedMessages.push(newMessage);
+    } else {
       return NextResponse.json(
-        { error: 'Session not found or access denied' },
-        { status: 404 }
+        { error: 'Either message or messages array is required' },
+        { status: 400 }
       );
     }
 
-    // Insert the new message
-    const { data: newMessage, error: messageError } = await supabase
-      .from('chat_messages')
-      .insert({
-        id: messageData.message.id,
-        session_id: messageData.sessionId,
-        role: messageData.message.role,
-        content: messageData.message.content,
-        model: messageData.message.model,
-        total_tokens: messageData.message.total_tokens || 0,
-        content_type: messageData.message.contentType || 'text', // New: content type
-        elapsed_time: messageData.message.elapsed_time || 0, // New: elapsed time
-        completion_id: messageData.message.completion_id || null, // New: completion ID
-        message_timestamp: typeof messageData.message.timestamp === 'string' 
-          ? messageData.message.timestamp 
-          : messageData.message.timestamp.toISOString(),
-        error_message: messageData.message.error ? 'Message failed' : undefined,
-        is_streaming: false
-      })
-      .select()
-      .single();
+    // Get current message count for session stats update  
+    const messageCount = await getMessageCount(supabase, requestData.sessionId);
 
-    if (messageError) {
-      throw messageError;
-    }
-
-    // Update session stats
+    // Update session stats (excluding title - title set during session creation)
     const { error: updateError } = await supabase
       .from('chat_sessions')
       .update({
-        message_count: await getMessageCount(supabase, messageData.sessionId),
-        total_tokens: await getTotalTokens(supabase, messageData.sessionId),
-        last_model: messageData.message.model,
-        last_message_preview: messageData.message.content.length > 100 
-          ? messageData.message.content.substring(0, 100) + "..."
-          : messageData.message.content,
-        last_message_timestamp: typeof messageData.message.timestamp === 'string' 
-          ? messageData.message.timestamp 
-          : messageData.message.timestamp.toISOString(),
+        message_count: messageCount,
+        total_tokens: await getTotalTokens(supabase, requestData.sessionId),
+        last_model: insertedMessages[insertedMessages.length - 1]?.model,
+        last_message_preview: insertedMessages[insertedMessages.length - 1]?.content?.length > 100 
+          ? insertedMessages[insertedMessages.length - 1].content.substring(0, 100) + "..."
+          : insertedMessages[insertedMessages.length - 1]?.content,
+        last_message_timestamp: insertedMessages[insertedMessages.length - 1]?.message_timestamp,
         updated_at: new Date().toISOString()
       })
-      .eq('id', messageData.sessionId);
+      .eq('id', requestData.sessionId);
 
     if (updateError) {
       console.error('Error updating session stats:', updateError);
@@ -165,7 +241,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      message: newMessage,
+      messages: insertedMessages,
+      count: insertedMessages.length,
       success: true
     }, { status: 201 });
 

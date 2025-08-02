@@ -125,7 +125,7 @@ describe('Chat Store - Auto Sync Functionality', () => {
       // Wait for async operations (auto-sync has 100ms timeout)
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Assert: Verify sync was called
+      // Assert: Verify message endpoint was called (Phase 3 behavior)
       expect(mockFetch).toHaveBeenCalledTimes(2);
       
       // First call: chat API
@@ -134,12 +134,22 @@ describe('Chat Store - Auto Sync Functionality', () => {
         headers: { 'Content-Type': 'application/json' },
       }));
 
-      // Second call: sync API (auto-sync)
-      expect(mockFetch).toHaveBeenNthCalledWith(2, '/api/chat/sync', expect.objectContaining({
+      // Second call: messages API (Phase 3 implementation - saves user/assistant pair)
+      expect(mockFetch).toHaveBeenNthCalledWith(2, '/api/chat/messages', expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: expect.stringContaining('test-user-123'),
+        body: expect.stringContaining('conv_'), // Session ID should be included (generated conversation ID)
       }));
+      
+      // Verify the message pair structure
+      const messagesCall = mockFetch.mock.calls[1];
+      if (messagesCall && messagesCall[1] && messagesCall[1].body) {
+        const messagesBody = JSON.parse(messagesCall[1].body as string);
+        expect(messagesBody).toHaveProperty('messages');
+        expect(messagesBody.messages).toHaveLength(2);
+        expect(messagesBody.messages[0].role).toBe('user');
+        expect(messagesBody.messages[1].role).toBe('assistant');
+      }
     });
 
     it('should NOT trigger sync for anonymous user conversations', async () => {
@@ -280,13 +290,12 @@ describe('Chat Store - Auto Sync Functionality', () => {
       console.log('Fetch call count:', mockFetch.mock.calls.length);
       console.log('Fetch calls:', mockFetch.mock.calls);
 
-      // Assert: Verify sync was called
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-      expect(mockFetch).toHaveBeenCalledWith('/api/chat/sync', expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: expect.stringContaining('test-user-123'),
-      }));
+      // Assert: Phase 3 - Title updates no longer trigger sync (by design)
+      expect(mockFetch).toHaveBeenCalledTimes(0);
+      
+      // Verify title was updated locally
+      const finalConversation = store.getConversationById(conversationId);
+      expect(finalConversation?.title).toBe('New Title');
 
       // Verify the title was actually updated
       const updatedConversation = store.getConversationById(conversationId);
@@ -336,22 +345,19 @@ describe('Chat Store - Auto Sync Functionality', () => {
       expect(conversation?.title).toBe('Updated Anonymous Title');
     });
 
-    it('should handle sync failure silently', async () => {
+    it('should handle title updates without sync calls (Phase 3)', async () => {
       // Setup: Create conversation with proper user context
       const store = useChatStore.getState();
       const conversationId = store.createConversation('Test Title'); // This will now have userId automatically
 
-      // Mock sync failure
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
-
       // Act: Update conversation title
       store.updateConversationTitle(conversationId, 'New Title');
 
-      // Wait for async operations
+      // Wait for any potential async operations
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Assert: Should not throw error, failure should be silent
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // Assert: Phase 3 - No sync calls should be made for title updates
+      expect(mockFetch).toHaveBeenCalledTimes(0);
       
       // Title should still be updated locally
       const conversation = store.getConversationById(conversationId);

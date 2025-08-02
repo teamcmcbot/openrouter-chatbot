@@ -441,15 +441,29 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 get().updateConversationTitle(currentConversationId, title);
               }
 
-              // Auto-sync for authenticated users after successful message exchange
+              // Save individual messages after successful response (Phase 3 implementation)
               const { user } = useAuthStore.getState();
               if (user?.id && currentConv?.userId === user.id) {
-                logger.debug("Triggering auto-sync after successful message", { conversationId: currentConversationId });
+                logger.debug("Saving user/assistant message pair", { conversationId: currentConversationId });
                 // Use setTimeout to avoid blocking the UI update
-                setTimeout(() => {
-                  get().syncConversations().catch(error => {
-                    logger.debug("Auto-sync after message failed (silent)", error);
-                  });
+                setTimeout(async () => {
+                  try {
+                    // Save user and assistant messages as a pair
+                    await fetch("/api/chat/messages", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        messages: [userMessage, assistantMessage],
+                        sessionId: currentConversationId,
+                      }),
+                    });
+                    logger.debug("Message pair saved successfully", { 
+                      userMessageId: userMessage.id, 
+                      assistantMessageId: assistantMessage.id 
+                    });
+                  } catch (error) {
+                    logger.debug("Message save failed (silent)", error);
+                  }
                 }, 100);
               }
 
@@ -510,6 +524,42 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   ),
                 }));
               }
+
+              // Phase 3: Save error message to database for authenticated users
+              const { user } = useAuthStore.getState();
+              if (user?.id && currentConversationId) {
+                const errorMessage: ChatMessage = {
+                  id: generateMessageId(),
+                  role: "assistant",
+                  content: "",
+                  timestamp: new Date(),
+                  error_message: chatError.message,
+                  error_code: chatError.code,
+                  retry_after: chatError.retryAfter,
+                  suggestions: chatError.suggestions,
+                  user_message_id: userMessage.id, // Link to the failed user message
+                };
+
+                // Save error message (silent failure)
+                setTimeout(async () => {
+                  try {
+                    await fetch("/api/chat/messages", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        message: errorMessage,
+                        sessionId: currentConversationId,
+                      }),
+                    });
+                    logger.debug("Error message saved to database", { 
+                      errorMessageId: errorMessage.id,
+                      linkedUserMessageId: userMessage.id 
+                    });
+                  } catch (saveError) {
+                    logger.debug("Error message save failed", saveError);
+                  }
+                }, 100);
+              }
             }
           },
 
@@ -528,15 +578,15 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               ),
             }));
 
-            // Auto-sync for authenticated users after title update
+            // Phase 3: Title updates no longer require full sync
+            // Session metadata like titles can be updated separately if needed
             if (user?.id && conversation?.userId === user.id) {
-              logger.debug("Triggering auto-sync after title update", { conversationId: id });
-              // Use setTimeout to avoid blocking the UI update
-              setTimeout(() => {
-                get().syncConversations().catch(error => {
-                  logger.debug("Auto-sync after title update failed (silent)", error);
-                });
-              }, 100);
+              logger.debug("Title updated for authenticated user", { 
+                conversationId: id, 
+                newTitle: title,
+                note: "Full sync no longer required for title updates" 
+              });
+              // TODO: Consider implementing separate session metadata endpoint if real-time title sync is needed
             }
           },
 

@@ -162,6 +162,7 @@ BEGIN
     -- Determine which session to update
     IF TG_OP = 'DELETE' THEN
         -- Use OLD record for DELETE operations
+        -- ENHANCEMENT: Exclude error messages from statistics
         SELECT
             COUNT(*) as msg_count,
             COALESCE(SUM(total_tokens), 0) as token_sum,
@@ -170,15 +171,18 @@ BEGIN
             MAX(message_timestamp) as last_msg_time,
             (SELECT content FROM public.chat_messages
              WHERE session_id = OLD.session_id
+             AND (error_message IS NULL OR error_message = '') -- Exclude error messages
              ORDER BY message_timestamp DESC
              LIMIT 1) as last_preview,
             (SELECT model FROM public.chat_messages
              WHERE session_id = OLD.session_id
+             AND (error_message IS NULL OR error_message = '') -- Exclude error messages
              ORDER BY message_timestamp DESC
              LIMIT 1) as last_model_used
         INTO session_stats
         FROM public.chat_messages
-        WHERE session_id = OLD.session_id;
+        WHERE session_id = OLD.session_id
+        AND (error_message IS NULL OR error_message = ''); -- EXCLUDE ERROR MESSAGES
 
         total_input_tokens := session_stats.input_sum;
         total_output_tokens := session_stats.output_sum;
@@ -196,6 +200,7 @@ BEGIN
         WHERE id = OLD.session_id;
     ELSE
         -- Use NEW record for INSERT/UPDATE operations
+        -- ENHANCEMENT: Exclude error messages from statistics
         SELECT
             COUNT(*) as msg_count,
             COALESCE(SUM(total_tokens), 0) as token_sum,
@@ -204,15 +209,18 @@ BEGIN
             MAX(message_timestamp) as last_msg_time,
             (SELECT content FROM public.chat_messages
              WHERE session_id = NEW.session_id
+             AND (error_message IS NULL OR error_message = '') -- Exclude error messages
              ORDER BY message_timestamp DESC
              LIMIT 1) as last_preview,
             (SELECT model FROM public.chat_messages
              WHERE session_id = NEW.session_id
+             AND (error_message IS NULL OR error_message = '') -- Exclude error messages
              ORDER BY message_timestamp DESC
              LIMIT 1) as last_model_used
         INTO session_stats
         FROM public.chat_messages
-        WHERE session_id = NEW.session_id;
+        WHERE session_id = NEW.session_id
+        AND (error_message IS NULL OR error_message = ''); -- EXCLUDE ERROR MESSAGES
 
         total_input_tokens := session_stats.input_sum;
         total_output_tokens := session_stats.output_sum;
@@ -229,8 +237,9 @@ BEGIN
             updated_at = NOW()
         WHERE id = NEW.session_id;
 
-        -- Update user_usage_daily with detailed token tracking
-        IF NEW.role IN ('user', 'assistant') THEN
+        -- ENHANCEMENT: Only track usage for successful messages (exclude error messages)
+        IF NEW.role IN ('user', 'assistant') 
+           AND (NEW.error_message IS NULL OR NEW.error_message = '') THEN
             PERFORM public.track_user_usage(
                 (SELECT user_id FROM public.chat_sessions WHERE id = NEW.session_id),
                 CASE WHEN NEW.role = 'user' THEN 1 ELSE 0 END, -- messages_sent
