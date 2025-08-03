@@ -66,9 +66,14 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     setEditTitle(currentTitle);
   };
 
-  const handleSaveEdit = (id: string) => {
+  const handleSaveEdit = async (id: string) => {
     if (editTitle.trim()) {
-      updateConversationTitle(id, editTitle.trim());
+      try {
+        await updateConversationTitle(id, editTitle.trim());
+      } catch (error) {
+        console.error('Failed to update conversation title:', error);
+        // Could show a toast notification here
+      }
     }
     setEditingId(null);
     setEditTitle("");

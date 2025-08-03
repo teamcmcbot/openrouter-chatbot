@@ -563,13 +563,14 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }
           },
 
-          updateConversationTitle: (id, title) => {
+          updateConversationTitle: async (id, title) => {
             logger.debug("Updating conversation title", { id, title });
             
             // Get conversation data before state update to avoid timing issues
             const { user } = useAuthStore.getState();
             const conversation = get().conversations.find(c => c.id === id);
             
+            // Update local state immediately for optimistic UI
             set((state) => ({
               conversations: state.conversations.map((conv) =>
                 conv.id === id
@@ -578,15 +579,41 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               ),
             }));
 
-            // Phase 3: Title updates no longer require full sync
-            // Session metadata like titles can be updated separately if needed
+            // Update session title on server for authenticated users
             if (user?.id && conversation?.userId === user.id) {
-              logger.debug("Title updated for authenticated user", { 
+              logger.debug("Updating session title on server", { 
                 conversationId: id, 
-                newTitle: title,
-                note: "Full sync no longer required for title updates" 
+                newTitle: title 
               });
-              // TODO: Consider implementing separate session metadata endpoint if real-time title sync is needed
+              
+              try {
+                const response = await fetch("/api/chat/session", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    id: id,
+                    title: title,
+                  }),
+                });
+
+                if (!response.ok) {
+                  throw new Error(`Failed to update session title: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                logger.debug("Session title updated successfully", { 
+                  sessionId: result.session?.id,
+                  updatedTitle: result.session?.title 
+                });
+              } catch (error) {
+                logger.error("Failed to update session title on server", { 
+                  error, 
+                  conversationId: id, 
+                  title 
+                });
+                // Note: Local state already updated optimistically, so UI shows the change
+                // Could add error handling/retry logic here if needed
+              }
             }
           },
 

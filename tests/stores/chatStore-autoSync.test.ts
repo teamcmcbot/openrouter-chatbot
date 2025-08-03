@@ -65,15 +65,28 @@ describe('Chat Store - Auto Sync Functionality', () => {
       signOut: jest.fn() as jest.MockedFunction<() => Promise<void>>,
     });
 
-    // Mock successful fetch response
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({
-        success: true,
-        results: { synced: 1, errors: 0 },
-        syncTime: new Date().toISOString(),
-      }),
-    } as Response);
+    // Mock successful fetch response - handle different endpoints
+    mockFetch.mockImplementation((url) => {
+      if (url === '/api/chat/session') {
+        // Mock session update response
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            session: { id: 'test-session', title: 'New Title' },
+            success: true,
+          }),
+        } as Response);
+      }
+      // Default sync response
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          results: { synced: 1, errors: 0 },
+          syncTime: new Date().toISOString(),
+        }),
+      } as Response);
+    });
 
     jest.clearAllMocks();
   });
@@ -94,7 +107,7 @@ describe('Chat Store - Auto Sync Functionality', () => {
     it('should trigger sync after assistant response for authenticated user', async () => {
       // Setup: Create conversation with proper user context
       const store = useChatStore.getState();
-      const conversationId = store.createConversation('Test Chat'); // This will now have userId automatically
+      store.createConversation('Test Chat'); // This will now have userId automatically
       
       // Mock the chat API response first, then sync response
       mockFetch
@@ -290,8 +303,16 @@ describe('Chat Store - Auto Sync Functionality', () => {
       console.log('Fetch call count:', mockFetch.mock.calls.length);
       console.log('Fetch calls:', mockFetch.mock.calls);
 
-      // Assert: Phase 3 - Title updates no longer trigger sync (by design)
-      expect(mockFetch).toHaveBeenCalledTimes(0);
+      // Assert: Title updates now make API calls to update session on server
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith('/api/chat/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: conversationId,
+          title: 'New Title',
+        }),
+      });
       
       // Verify title was updated locally
       const finalConversation = store.getConversationById(conversationId);
@@ -345,19 +366,27 @@ describe('Chat Store - Auto Sync Functionality', () => {
       expect(conversation?.title).toBe('Updated Anonymous Title');
     });
 
-    it('should handle title updates without sync calls (Phase 3)', async () => {
+    it('should handle title updates with API calls to session endpoint', async () => {
       // Setup: Create conversation with proper user context
       const store = useChatStore.getState();
       const conversationId = store.createConversation('Test Title'); // This will now have userId automatically
 
       // Act: Update conversation title
-      store.updateConversationTitle(conversationId, 'New Title');
+      await store.updateConversationTitle(conversationId, 'New Title');
 
       // Wait for any potential async operations
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Assert: Phase 3 - No sync calls should be made for title updates
-      expect(mockFetch).toHaveBeenCalledTimes(0);
+      // Assert: Title updates now make API calls to update session on server
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith('/api/chat/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: conversationId,
+          title: 'New Title',
+        }),
+      });
       
       // Title should still be updated locally
       const conversation = store.getConversationById(conversationId);
