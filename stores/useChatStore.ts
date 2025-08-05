@@ -521,7 +521,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         ...conv,
                         messages: conv.messages.map((msg) =>
                           msg.id === userMessage.id
-                            ? { ...msg, error: true, input_tokens: 0 } // Ensure input_tokens is 0 for failed requests
+                            ? { 
+                                ...msg, 
+                                error: true, 
+                                input_tokens: 0, // Ensure input_tokens is 0 for failed requests
+                                error_message: chatError.message, // Map error_message to user message
+                              }
                             : msg
                         ),
                       }
@@ -555,46 +560,29 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               // Phase 3: Save error message to database for authenticated users
               const { user } = useAuthStore.getState();
               if (user?.id && currentConversationId) {
-                // Save failed user message with input_tokens = 0 and error message
+                // Save failed user message with error_message mapped to it
                 setTimeout(async () => {
                   try {
-                    // Get the updated user message from state (with input_tokens: 0 and error: true)
+                    // Get the updated user message from state (with error_message, input_tokens: 0 and error: true)
                     const updatedConv = get().conversations.find(c => c.id === currentConversationId);
                     const failedUserMessage = updatedConv?.messages.find(m => m.id === userMessage.id);
                     
-                    const errorMessage: ChatMessage = {
-                      id: generateMessageId(),
-                      role: "assistant",
-                      content: "",
-                      timestamp: new Date(),
-                      error_message: chatError.message,
-                      error_code: chatError.code,
-                      retry_after: chatError.retryAfter,
-                      suggestions: chatError.suggestions,
-                      user_message_id: userMessage.id, // Link to the failed user message
-                    };
-
-                    // Save both the failed user message (with input_tokens: 0) and error message
-                    const messagesToSave = [];
                     if (failedUserMessage) {
-                      messagesToSave.push(failedUserMessage);
+                      // Save ONLY the user message with error details (no assistant error message)
+                      await fetch("/api/chat/messages", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          message: failedUserMessage, // Single message, not array
+                          sessionId: currentConversationId,
+                        }),
+                      });
+                      logger.debug("Failed user message saved to database", { 
+                        userMessageId: failedUserMessage.id,
+                        userInputTokens: failedUserMessage.input_tokens,
+                        errorMessage: failedUserMessage.error_message
+                      });
                     }
-                    messagesToSave.push(errorMessage);
-
-                    await fetch("/api/chat/messages", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        messages: messagesToSave,
-                        sessionId: currentConversationId,
-                      }),
-                    });
-                    logger.debug("Failed user message and error message saved to database", { 
-                      userMessageId: failedUserMessage?.id,
-                      userInputTokens: failedUserMessage?.input_tokens,
-                      errorMessageId: errorMessage.id,
-                      linkedUserMessageId: userMessage.id 
-                    });
                   } catch (saveError) {
                     logger.debug("Failed message save failed", saveError);
                   }
@@ -1038,7 +1026,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         ...conv,
                         messages: conv.messages.map((msg) =>
                           msg.id === messageId
-                            ? { ...msg, error: true, input_tokens: 0 } // Ensure input_tokens is 0 for failed retry
+                            ? { 
+                                ...msg, 
+                                error: true, 
+                                input_tokens: 0, // Ensure input_tokens is 0 for failed retry
+                                error_message: chatError.message, // Map error_message to user message
+                              }
                             : msg
                         ),
                       }
