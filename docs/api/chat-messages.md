@@ -7,15 +7,16 @@
 This endpoint provides CRUD operations for individual chat messages within a session.
 
 - **GET**: Fetches all messages for a given chat session. Verifies that the requesting user owns the session (via Supabase auth and session lookup). Returns an array of message objects, each including all metadata fields present in the database (`id`, `role`, `content`, `model`, `total_tokens`, `contentType`, `elapsed_time`, `completion_id`, `timestamp`, `error`, etc.).
-- **POST**: Inserts a new message or message array into the session. **Auto-creates sessions** if they don't exist with intelligent title generation. Supports both single message and message array formats for efficient batch operations. Updates session statistics in the `chat_sessions` table (message count, total tokens, last model, last message preview, last message timestamp, updated_at). Returns the newly created message object(s).
+- **POST**: Inserts a new message or message array into the session. **Auto-creates sessions** if they don't exist with intelligent title generation. Supports both single message and message array formats for efficient batch operations. **Enhanced with session title updates** to handle both auto-generated and explicit titles during message saving. Updates session statistics in the `chat_sessions` table (message count, total tokens, last model, last message preview, last message timestamp, updated_at). Returns the newly created message object(s).
 
 ### Enhanced Features
 
 - **Automatic Session Creation**: Sessions are created automatically if they don't exist, eliminating 404 errors
 - **Intelligent Title Generation**: New sessions get titles from the first user message content (50 char limit)
+- **Session Title Updates**: Supports explicit title updates during message saving to reduce API calls
 - **Message Array Support**: Process multiple messages atomically (user/assistant pairs)
 - **Error Message Handling**: Support for error messages with metadata (error_code, retry_after, suggestions)
-- **Session Title Preservation**: Existing sessions retain their original titles (no overwriting)
+- **Session Title Preservation**: Existing sessions retain their original titles unless explicitly updated
 
 ### Calls Made
 
@@ -42,6 +43,7 @@ This endpoint provides CRUD operations for individual chat messages within a ses
     ```json
     {
       "sessionId": "abc123",
+      "sessionTitle": "Optional title update",
       "message": {
         "id": "msg1",
         "content": "Hello, world!",
@@ -60,6 +62,7 @@ This endpoint provides CRUD operations for individual chat messages within a ses
     ```json
     {
       "sessionId": "abc123",
+      "sessionTitle": "Optional title for new or existing sessions",
       "messages": [
         {
           "id": "msg_user",
@@ -173,10 +176,43 @@ This endpoint provides CRUD operations for individual chat messages within a ses
 
 - **New Sessions**: Automatically created when `sessionId` doesn't exist
 - **Title Generation**:
-  - Uses first user message content (up to 50 characters)
-  - Fallback: "New Chat" if no user message content
-- **Existing Sessions**: Titles preserved, no modification of existing session data
+  - Prioritizes explicit `sessionTitle` parameter from request
+  - Falls back to first user message content (up to 50 characters)
+  - Default: "New Chat" if no user message content
+- **Existing Sessions**: Titles preserved unless `sessionTitle` parameter provided
+- **Title Updates**: Existing sessions can have titles updated via `sessionTitle` parameter
 - **Security**: Sessions always tied to authenticated user
+
+### Session Title Parameter (`sessionTitle`)
+
+**Optional Parameter**: `sessionTitle` (string)
+
+**Behavior**:
+- **New Sessions**: Used as the session title instead of auto-generation
+- **Existing Sessions**: Updates the session title if different from current title
+- **Priority**: Takes precedence over auto-generated titles from message content
+- **Use Cases**:
+  - Auto-generated titles during first message exchange
+  - Manual title updates combined with message saving
+  - Reducing API calls by combining session creation/update with message saving
+
+**Example Usage**:
+```json
+{
+  "sessionId": "new_session_123",
+  "sessionTitle": "Discussion about AI ethics",
+  "messages": [
+    {
+      "role": "user", 
+      "content": "What are the main ethical concerns with AI?"
+    },
+    {
+      "role": "assistant",
+      "content": "There are several key ethical concerns..."
+    }
+  ]
+}
+```
 
 ## Usage in the Codebase
 
