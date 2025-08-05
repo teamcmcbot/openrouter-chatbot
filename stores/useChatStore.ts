@@ -448,19 +448,46 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 // Use setTimeout to avoid blocking the UI update
                 setTimeout(async () => {
                   try {
-                    // Save user and assistant messages as a pair
-                    await fetch("/api/chat/messages", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        messages: [userMessage, assistantMessage],
-                        sessionId: currentConversationId,
-                      }),
-                    });
-                    logger.debug("Message pair saved successfully", { 
-                      userMessageId: userMessage.id, 
-                      assistantMessageId: assistantMessage.id 
-                    });
+                    // Get the updated conversation state with input_tokens applied to user message
+                    const updatedConv = get().conversations.find(c => c.id === currentConversationId);
+                    const updatedUserMessage = updatedConv?.messages.find(m => m.id === data.request_id && m.role === 'user');
+                    
+                    if (updatedUserMessage) {
+                      logger.debug("Using updated user message with input_tokens", { 
+                        messageId: updatedUserMessage.id,
+                        inputTokens: updatedUserMessage.input_tokens,
+                        hasInputTokens: updatedUserMessage.input_tokens !== undefined && updatedUserMessage.input_tokens > 0
+                      });
+                      
+                      // Save user and assistant messages as a pair - now with correct input_tokens
+                      await fetch("/api/chat/messages", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          messages: [updatedUserMessage, assistantMessage],
+                          sessionId: currentConversationId,
+                        }),
+                      });
+                      logger.debug("Message pair saved successfully with correct tokens", { 
+                        userMessageId: updatedUserMessage.id,
+                        userInputTokens: updatedUserMessage.input_tokens,
+                        assistantMessageId: assistantMessage.id 
+                      });
+                    } else {
+                      logger.warn("Could not find updated user message, falling back to original", {
+                        requestId: data.request_id,
+                        conversationId: currentConversationId
+                      });
+                      // Fallback to original userMessage if updated one not found
+                      await fetch("/api/chat/messages", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          messages: [userMessage, assistantMessage],
+                          sessionId: currentConversationId,
+                        }),
+                      });
+                    }
                   } catch (error) {
                     logger.debug("Message save failed (silent)", error);
                   }
@@ -494,7 +521,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         ...conv,
                         messages: conv.messages.map((msg) =>
                           msg.id === userMessage.id
-                            ? { ...msg, error: true }
+                            ? { ...msg, error: true, input_tokens: 0 } // Ensure input_tokens is 0 for failed requests
                             : msg
                         ),
                       }
@@ -528,35 +555,48 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               // Phase 3: Save error message to database for authenticated users
               const { user } = useAuthStore.getState();
               if (user?.id && currentConversationId) {
-                const errorMessage: ChatMessage = {
-                  id: generateMessageId(),
-                  role: "assistant",
-                  content: "",
-                  timestamp: new Date(),
-                  error_message: chatError.message,
-                  error_code: chatError.code,
-                  retry_after: chatError.retryAfter,
-                  suggestions: chatError.suggestions,
-                  user_message_id: userMessage.id, // Link to the failed user message
-                };
-
-                // Save error message (silent failure)
+                // Save failed user message with input_tokens = 0 and error message
                 setTimeout(async () => {
                   try {
+                    // Get the updated user message from state (with input_tokens: 0 and error: true)
+                    const updatedConv = get().conversations.find(c => c.id === currentConversationId);
+                    const failedUserMessage = updatedConv?.messages.find(m => m.id === userMessage.id);
+                    
+                    const errorMessage: ChatMessage = {
+                      id: generateMessageId(),
+                      role: "assistant",
+                      content: "",
+                      timestamp: new Date(),
+                      error_message: chatError.message,
+                      error_code: chatError.code,
+                      retry_after: chatError.retryAfter,
+                      suggestions: chatError.suggestions,
+                      user_message_id: userMessage.id, // Link to the failed user message
+                    };
+
+                    // Save both the failed user message (with input_tokens: 0) and error message
+                    const messagesToSave = [];
+                    if (failedUserMessage) {
+                      messagesToSave.push(failedUserMessage);
+                    }
+                    messagesToSave.push(errorMessage);
+
                     await fetch("/api/chat/messages", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
-                        message: errorMessage,
+                        messages: messagesToSave,
                         sessionId: currentConversationId,
                       }),
                     });
-                    logger.debug("Error message saved to database", { 
+                    logger.debug("Failed user message and error message saved to database", { 
+                      userMessageId: failedUserMessage?.id,
+                      userInputTokens: failedUserMessage?.input_tokens,
                       errorMessageId: errorMessage.id,
                       linkedUserMessageId: userMessage.id 
                     });
                   } catch (saveError) {
-                    logger.debug("Error message save failed", saveError);
+                    logger.debug("Failed message save failed", saveError);
                   }
                 }, 100);
               }
@@ -998,7 +1038,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         ...conv,
                         messages: conv.messages.map((msg) =>
                           msg.id === messageId
-                            ? { ...msg, error: true }
+                            ? { ...msg, error: true, input_tokens: 0 } // Ensure input_tokens is 0 for failed retry
                             : msg
                         ),
                       }
