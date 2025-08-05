@@ -437,8 +437,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               // Auto-generate title from first user message if it's still "New Chat"
               const currentConv = get().conversations.find(c => c.id === currentConversationId);
               if (currentConv && currentConv.title === "New Chat" && currentConv.messages.length === 2) {
-                const title = content.length > 50 ? content.substring(0, 50) + "..." : content;
-                get().updateConversationTitle(currentConversationId, title);
+                const autoTitle = content.length > 50 ? content.substring(0, 50) + "..." : content;
+                get().updateConversationTitle(currentConversationId, autoTitle, true); // Mark as auto-generated
               }
 
               // Save individual messages after successful response (Phase 3 implementation)
@@ -452,26 +452,45 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     const updatedConv = get().conversations.find(c => c.id === currentConversationId);
                     const updatedUserMessage = updatedConv?.messages.find(m => m.id === data.request_id && m.role === 'user');
                     
+                    // Check if this is a newly titled conversation (first successful exchange)
+                    const shouldIncludeTitle = updatedConv && 
+                      updatedConv.title !== "New Chat" && 
+                      updatedConv.messages.length === 2;
+                    
                     if (updatedUserMessage) {
                       logger.debug("Using updated user message with input_tokens", { 
                         messageId: updatedUserMessage.id,
                         inputTokens: updatedUserMessage.input_tokens,
-                        hasInputTokens: updatedUserMessage.input_tokens !== undefined && updatedUserMessage.input_tokens > 0
+                        hasInputTokens: updatedUserMessage.input_tokens !== undefined && updatedUserMessage.input_tokens > 0,
+                        includeTitle: shouldIncludeTitle,
+                        title: shouldIncludeTitle ? updatedConv?.title : undefined
                       });
                       
-                      // Save user and assistant messages as a pair - now with correct input_tokens
+                      // Save user and assistant messages as a pair - now with correct input_tokens and optional title
+                      const payload: {
+                        messages: ChatMessage[];
+                        sessionId: string;
+                        sessionTitle?: string;
+                      } = {
+                        messages: [updatedUserMessage, assistantMessage],
+                        sessionId: currentConversationId,
+                      };
+                      
+                      // Include title for newly titled conversations
+                      if (shouldIncludeTitle) {
+                        payload.sessionTitle = updatedConv?.title;
+                      }
+                      
                       await fetch("/api/chat/messages", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          messages: [updatedUserMessage, assistantMessage],
-                          sessionId: currentConversationId,
-                        }),
+                        body: JSON.stringify(payload),
                       });
                       logger.debug("Message pair saved successfully with correct tokens", { 
                         userMessageId: updatedUserMessage.id,
                         userInputTokens: updatedUserMessage.input_tokens,
-                        assistantMessageId: assistantMessage.id 
+                        assistantMessageId: assistantMessage.id,
+                        titleIncluded: shouldIncludeTitle
                       });
                     } else {
                       logger.warn("Could not find updated user message, falling back to original", {
@@ -479,13 +498,24 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         conversationId: currentConversationId
                       });
                       // Fallback to original userMessage if updated one not found
+                      const payload: {
+                        messages: ChatMessage[];
+                        sessionId: string;
+                        sessionTitle?: string;
+                      } = {
+                        messages: [userMessage, assistantMessage],
+                        sessionId: currentConversationId,
+                      };
+                      
+                      // Include title for newly titled conversations
+                      if (shouldIncludeTitle) {
+                        payload.sessionTitle = updatedConv?.title;
+                      }
+                      
                       await fetch("/api/chat/messages", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          messages: [userMessage, assistantMessage],
-                          sessionId: currentConversationId,
-                        }),
+                        body: JSON.stringify(payload),
                       });
                     }
                   } catch (error) {
@@ -591,8 +621,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }
           },
 
-          updateConversationTitle: async (id, title) => {
-            logger.debug("Updating conversation title", { id, title });
+          updateConversationTitle: async (id, title, isAutoGenerated = false) => {
+            logger.debug("Updating conversation title", { id, title, isAutoGenerated });
             
             // Get conversation data before state update to avoid timing issues
             const { user } = useAuthStore.getState();
@@ -608,8 +638,10 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }));
 
             // Update session title on server for authenticated users
-            if (user?.id && conversation?.userId === user.id) {
-              logger.debug("Updating session title on server", { 
+            // For auto-generated titles during message flow, we'll handle this in the message endpoint
+            // Only use the session endpoint for explicit manual title updates (e.g., from ChatSidebar)
+            if (user?.id && conversation?.userId === user.id && !isAutoGenerated) {
+              logger.debug("Updating session title on server via session endpoint", { 
                 conversationId: id, 
                 newTitle: title 
               });

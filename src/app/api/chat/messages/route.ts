@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
       message?: ChatMessage; // Single message (backward compatibility)
       messages?: ChatMessage[]; // Array of messages (new functionality)
       sessionId: string;
+      sessionTitle?: string; // NEW: Optional title update for session
     };
 
     // Check if session already exists first
@@ -114,13 +115,18 @@ export async function POST(request: NextRequest) {
       // Session doesn't exist, create new one with title based on first message
       let newTitle = 'New Chat'; // Default fallback
       
-      // Generate title from first user message if available
-      const firstUserMessage = (requestData.messages || [requestData.message])
-        .find(m => m?.role === 'user');
-      if (firstUserMessage && firstUserMessage.content) {
-        newTitle = firstUserMessage.content.length > 50 
-          ? firstUserMessage.content.substring(0, 50) + "..."
-          : firstUserMessage.content;
+      // Prioritize explicit sessionTitle from request
+      if (requestData.sessionTitle) {
+        newTitle = requestData.sessionTitle;
+      } else {
+        // Generate title from first user message if available
+        const firstUserMessage = (requestData.messages || [requestData.message])
+          .find(m => m?.role === 'user');
+        if (firstUserMessage && firstUserMessage.content) {
+          newTitle = firstUserMessage.content.length > 50 
+            ? firstUserMessage.content.substring(0, 50) + "..."
+            : firstUserMessage.content;
+        }
       }
 
       const { data: newSession, error: createError } = await supabase
@@ -139,6 +145,21 @@ export async function POST(request: NextRequest) {
           { error: 'Session creation failed' },
           { status: 500 }
         );
+      }
+    } else if (requestData.sessionTitle && existingSession.title !== requestData.sessionTitle) {
+      // Session exists but title needs updating
+      const { error: titleUpdateError } = await supabase
+        .from('chat_sessions')
+        .update({
+          title: requestData.sessionTitle,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', requestData.sessionId)
+        .eq('user_id', user.id);
+
+      if (titleUpdateError) {
+        console.error('Error updating session title:', titleUpdateError);
+        // Don't fail the request for title update errors
       }
     }
 
