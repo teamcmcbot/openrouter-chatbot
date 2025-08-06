@@ -135,9 +135,6 @@ This analysis shows how the sync endpoint currently writes every row, causing al
 
 ```sql
 select * from profiles;
--- f319ca56-4197-477c-92e7-e6e2d95884be teamcmcbot
--- bc764bc1-e02e-415e-97f3-36f5bdf7777e zhenwei
--- 6324e1ee-1a7b-450c-8c9f-130e895696c2 mcdvotes
 
 select * from chat_sessions where user_id='6324e1ee-1a7b-450c-8c9f-130e895696c2';
 -- created_at: ok..
