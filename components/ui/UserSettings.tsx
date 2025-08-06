@@ -13,7 +13,7 @@ interface UserSettingsProps {
 
 export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsProps>) {
   const { user, isLoading: authLoading } = useAuth();
-  const { data: userData, loading: dataLoading, error, refetch, updatePreferences } = useUserData({ enabled: isOpen });
+  const { data: userData, loading: dataLoading, error, updatePreferences, forceRefresh } = useUserData({ enabled: isOpen });
   
   // State for editing preferences
   const [isEditing, setIsEditing] = useState(false);
@@ -51,7 +51,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           <h2 className="text-xl font-semibold mb-4">User Settings</h2>
           <div className="flex flex-col items-center justify-center py-8 space-y-4">
             <div className="text-sm text-red-500">{error}</div>
-            <Button variant="secondary" onClick={refetch}>
+            <Button variant="secondary" onClick={forceRefresh}>
               Retry
             </Button>
           </div>
@@ -144,7 +144,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           <h2 className="text-xl font-semibold">User Settings</h2>
           {error && (
             <button
-              onClick={refetch}
+              onClick={forceRefresh}
               className="text-xs text-blue-500 hover:text-blue-600 underline"
               title="Refresh data"
             >
@@ -270,7 +270,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           <div className="flex items-center mb-2">
             <h3 className="text-lg font-medium">Analytics</h3>
             <button
-              onClick={refetch}
+              onClick={forceRefresh}
               disabled={dataLoading}
               className="ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50"
               title="Refresh analytics data"
