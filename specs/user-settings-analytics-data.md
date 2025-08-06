@@ -223,15 +223,15 @@ Refer to `/database/samples/get_user_complete_profile.json` for example data.
 - **500:** `{"error": "Internal server error", "message": "Database connection failed"}`
 
 - **Responsible**: AGENT
-- [ ] Create `/src/app/api/user/data/route.ts` (single endpoint for all user data)
-- [ ] Implement `GET` method with authentication check for reading all user data
-- [ ] Implement `PUT` method for updating profile preferences only
-- [ ] Use enhanced `public.get_user_complete_profile()` function
-- [ ] Extract today's data from function's `usage_stats.today` field
-- [ ] Extract all-time data from function's `usage_stats.all_time` field
-- [ ] Return structured JSON with analytics, profile, and preferences
-- [ ] Handle error cases (user not found, database errors)
-- [ ] Add validation for preference updates in PUT method
+- [x] Create `/src/app/api/user/data/route.ts` (single endpoint for all user data)
+- [x] Implement `GET` method with authentication check for reading all user data
+- [x] Implement `PUT` method for updating profile preferences only
+- [x] Use enhanced `public.get_user_complete_profile()` function
+- [x] Extract today's data from function's `usage_stats.today` field
+- [x] Extract all-time data from function's `usage_stats.all_time` field
+- [x] Return structured JSON with analytics, profile, and preferences
+- [x] Handle error cases (user not found, database errors)
+- [x] Add validation for preference updates in PUT method
 
 **Implementation Requirements:**
 
@@ -245,11 +245,11 @@ Refer to `/database/samples/get_user_complete_profile.json` for example data.
 #### Task 1.2: TypeScript Type Definitions
 
 - **Responsible**: AGENT
-- [ ] Create `/lib/types/user-data.ts` for comprehensive user data types
-- [ ] Define `UserDataResponse` interface matching API response
-- [ ] Define `UserPreferences` interface for preference updates
-- [ ] Update existing auth types if needed
-- [ ] Ensure compatibility with enhanced database function
+- [x] Create `/lib/types/user-data.ts` for comprehensive user data types
+- [x] Define `UserDataResponse` interface matching API response
+- [x] Define `UserPreferences` interface for preference updates
+- [x] Update existing auth types if needed
+- [x] Ensure compatibility with enhanced database function
 
 **Implementation Requirements:**
 
@@ -261,20 +261,20 @@ Refer to `/database/samples/get_user_complete_profile.json` for example data.
 
 **Phase 1 Summary & Testing**
 
-- [ ] **AGENT**: Summarize backend changes: unified endpoint created, types defined, enhanced function integrated
-- [ ] **USER**: Test API endpoint manually via browser dev tools, verify authentication works, confirm data structure includes today's analytics and preferences
+- [x] **AGENT**: Summarize backend changes: unified endpoint created, types defined, enhanced function integrated
+- [x] **USER**: Test API endpoint manually via browser dev tools, verify authentication works, confirm data structure includes today's analytics and preferences
 
 ### Phase 2: Frontend Integration
 
 #### Task 2.1: Create User Data Service
 
 - **Responsible**: AGENT
-- [ ] Create `/lib/services/user-data.ts`
-- [ ] Implement `fetchUserData()` function for comprehensive user data
-- [ ] Implement `updateUserPreferences()` function for preference updates
-- [ ] Add error handling and loading states
-- [ ] Include authentication headers
-- [ ] Add request caching/optimization if needed
+- [x] Create `/lib/services/user-data.ts`
+- [x] Implement `fetchUserData()` function for comprehensive user data
+- [x] Implement `updateUserPreferences()` function for preference updates
+- [x] Add error handling and loading states
+- [x] Include authentication headers
+- [x] Add request caching/optimization if needed
 
 **Implementation Requirements:**
 
@@ -288,12 +288,12 @@ Refer to `/database/samples/get_user_complete_profile.json` for example data.
 #### Task 2.2: Create User Data Hook
 
 - **Responsible**: AGENT
-- [ ] Create `/hooks/useUserData.ts`
-- [ ] Implement data fetching with proper loading states
-- [ ] Handle authentication requirements
-- [ ] Add error state management
-- [ ] Include data refetch capabilities
-- [ ] Follow existing hook patterns in codebase
+- [x] Create `/hooks/useUserData.ts`
+- [x] Implement data fetching with proper loading states
+- [x] Handle authentication requirements
+- [x] Add error state management
+- [x] Include data refetch capabilities
+- [x] Follow existing hook patterns in codebase
 
 **Implementation Requirements:**
 
@@ -307,16 +307,16 @@ Refer to `/database/samples/get_user_complete_profile.json` for example data.
 #### Task 2.3: Update UserSettings Component
 
 - **Responsible**: AGENT
-- [ ] Replace dummy data with real API calls using `useUserData()` hook
-- [ ] Update analytics section to show:
+- [x] Replace dummy data with real API calls using `useUserData()` hook
+- [x] Update analytics section to show:
   - Messages sent today (from `today.messages_sent`)
   - Tokens used today (from `today.total_tokens`)
   - Total messages all-time (from `allTime.total_messages`)
   - Total tokens all-time (from `allTime.total_tokens`)
-- [ ] Add loading states for data fetching
-- [ ] Handle error states gracefully
-- [ ] Improve UI layout for new data structure
-- [ ] Add refresh capability
+- [x] Add loading states for data fetching
+- [x] Handle error states gracefully
+- [x] Improve UI layout for new data structure
+- [x] Add refresh capability
 
 **Implementation Requirements:**
 
@@ -331,11 +331,11 @@ Refer to `/database/samples/get_user_complete_profile.json` for example data.
 #### Task 2.4: Profile Data Integration
 
 - **Responsible**: AGENT
-- [ ] Update profile section with real subscription tier
-- [ ] Show actual user preferences from database
-- [ ] Add ability to edit preferences (theme, default model, etc.)
-- [ ] Implement preference persistence using `updateUserPreferences()`
-- [ ] Handle validation and error feedback
+- [x] Update profile section with real subscription tier
+- [x] Show actual user preferences from database
+- [x] Add ability to edit preferences (theme, default model, etc.)
+- [x] Implement preference persistence using `updateUserPreferences()`
+- [x] Handle validation and error feedback
 
 **Implementation Requirements:**
 
@@ -349,8 +349,8 @@ Refer to `/database/samples/get_user_complete_profile.json` for example data.
 
 **Phase 2 Summary & Testing**
 
-- [ ] **AGENT**: Summarize frontend changes: components updated, real data integrated, user can see actual usage statistics
-- [ ] **USER**: Test UserSettings modal, verify real data appears, test preference changes persist, confirm loading states work properly
+- [x] **AGENT**: Summarize frontend changes: components updated, real data integrated, user can see actual usage statistics
+- [x] **USER**: Test UserSettings modal, verify real data appears, test preference changes persist, confirm loading states work properly
 
 ### Phase 3: Documentation & Cleanup
 
