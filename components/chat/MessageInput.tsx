@@ -1,19 +1,42 @@
 "use client";
 
-import { useState, KeyboardEvent } from "react";
+import { useState, KeyboardEvent, useEffect } from "react";
+import { PaperAirplaneIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void
   disabled?: boolean;
+  initialMessage?: string;
 }
 
-export default function MessageInput({ onSendMessage, disabled = false }: Readonly<MessageInputProps>) {
+export default function MessageInput({ onSendMessage, disabled = false, initialMessage }: Readonly<MessageInputProps>) {
   const [message, setMessage] = useState("");
+
+  // Update message when initialMessage prop changes
+  useEffect(() => {
+    if (initialMessage) {
+      setMessage(initialMessage);
+      // Focus and select the textarea
+      const textarea = document.getElementById('message-input') as HTMLTextAreaElement;
+      if (textarea) {
+        textarea.focus();
+        textarea.select();
+      }
+    }
+  }, [initialMessage]);
 
   const handleSend = () => {
     if (message.trim() && !disabled) {
       onSendMessage(message.trim());
       setMessage("");
+      // Reset textarea height responsively and focus/select
+      setTimeout(() => {
+        const textarea = document.getElementById('message-input') as HTMLTextAreaElement;
+        if (textarea) {
+          textarea.style.height = "auto";
+          textarea.style.height = textarea.scrollHeight + "px";
+        }
+      }, 0);
     }
   };
 
@@ -56,13 +79,9 @@ export default function MessageInput({ onSendMessage, disabled = false }: Readon
           aria-label="Send message"
         >
           {disabled ? (
-            <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0l4 4-4 4V4a4 4 0 00-4 4zm0 8a4 4 0 014-4v4H0l4-4z" />
-            </svg>
+            <ArrowPathIcon className="w-5 h-5 animate-spin" />
           ) : (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+            <PaperAirplaneIcon className="w-5 h-5" />
           )}
         </button>
       </div>

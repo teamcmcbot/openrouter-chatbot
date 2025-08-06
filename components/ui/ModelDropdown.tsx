@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+
+// Utility to detect mobile devices
+function isMobileDevice() {
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
 import { ModelInfo } from "../../lib/types/openrouter";
 
 interface ModelDropdownProps {
@@ -87,7 +92,7 @@ export default function ModelDropdown({
 
   // Focus search input when dropdown opens
   useEffect(() => {
-    if (isOpen && searchInputRef.current) {
+    if (isOpen && searchInputRef.current && !isMobileDevice()) {
       searchInputRef.current.focus();
     }
   }, [isOpen]);
@@ -206,7 +211,7 @@ export default function ModelDropdown({
             </span>
           </div>
         ) : (
-          <span className="text-gray-700 dark:text-violet-400 font-normal text-xs leading-tight">
+          <span className="text-violet-700 dark:text-violet-400 font-normal text-xs leading-tight">
             {getSelectedModelDisplay()}
           </span>
         )}
@@ -288,9 +293,9 @@ export default function ModelDropdown({
                     <div key={modelId} className="group">
                       <div
                         className={`w-full text-left px-3 py-2.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 ${
-                          isSelected
-                            ? "bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
-                            : "text-gray-700 dark:text-gray-300"
+                      isSelected
+                        ? "bg-violet-100 text-violet-800 dark:bg-violet-900/20 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
+                        : "text-gray-700 dark:text-gray-300"
                         } flex items-start justify-between gap-2`}
                       >
                         <button
@@ -319,7 +324,7 @@ export default function ModelDropdown({
                                 )}
                                 {/* Multimodal badge */}
                                 {(model as ModelInfo).input_modalities.length > 1 && (
-                                  <span className="text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-1 py-0.5 rounded">
+                              <span className="text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-1 py-0.5 rounded border border-purple-200 dark:border-purple-700">
                                     MM
                                   </span>
                                 )}

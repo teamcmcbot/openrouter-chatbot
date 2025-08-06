@@ -1,0 +1,95 @@
+{
+  "id": "f319ca56-4197-477c-92e7-e6e2d95884be",
+  "email": "txxxxxxxxt@gmail.com",
+  "credits": 0,
+  "full_name": "RoyalePros",
+  "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocKuKrmY5-3-9sC4mv09Z8_DOxbjsIV3sY27yE9UXgM_jjumvfk=s96-c",
+  "timestamps": {
+    "created_at": "2025-07-17T08:23:07.148825+00:00",
+    "updated_at": "2025-07-24T09:31:22.352508+00:00",
+    "last_active": "2025-07-24T09:31:22.352508+00:00"
+  },
+  "preferences": {
+    "ui": {
+      "theme": "dark",
+      "auto_save": true,
+      "sidebar_width": 280,
+      "show_token_count": true,
+      "code_highlighting": true
+    },
+    "model": {
+      "temperature": 0.7,
+      "default_model": "deepseek/deepseek-r1-0528:free",
+      "system_prompt": "You are a helpful AI assistant.",
+      "allowed_models": ["deepseek/deepseek-r1-0528:free"]
+    },
+    "session": {
+      "auto_title": true,
+      "max_history": 10,
+      "save_anonymous": false
+    }
+  },
+  "usage_stats": {
+    "today": [
+      {
+        "models_used": {
+          "qwen/qwen3-coder": 9,
+          "moonshotai/kimi-k2:free": 12,
+          "google/gemini-2.5-flash-lite": 5,
+          "deepseek/deepseek-r1-0528:free": 1,
+          "qwen/qwen3-235b-a22b-07-25:free": 18
+        },
+        "total_tokens": 37331,
+        "messages_sent": 47,
+        "active_minutes": 560,
+        "sessions_created": 0,
+        "messages_received": 45
+      },
+      {
+        "models_used": {
+          "qwen/qwen3-235b-a22b-07-25:free": 3
+        },
+        "total_tokens": 2666,
+        "messages_sent": 3,
+        "active_minutes": 32,
+        "sessions_created": 0,
+        "messages_received": 3
+      },
+      {
+        "models_used": {
+          "moonshotai/kimi-k2:free": 15
+        },
+        "total_tokens": 836,
+        "messages_sent": 15,
+        "active_minutes": 166,
+        "sessions_created": 0,
+        "messages_received": 15
+      }
+    ],
+    "total": {
+      "last_reset": "2025-07-17 08:23:07.148825+00",
+      "total_tokens": 40833,
+      "total_messages": 128,
+      "sessions_created": 0
+    }
+  },
+  "available_models": [
+    {
+      "model_id": "deepseek/deepseek-r1-0528:free",
+      "model_name": "DeepSeek R1 Free",
+      "model_tags": ["reasoning", "free"],
+      "daily_limit": null,
+      "monthly_limit": null,
+      "model_description": "Advanced reasoning model - free tier"
+    },
+    {
+      "model_id": "google/gemini-flash-1.5:free",
+      "model_name": "Gemini Flash 1.5 Free",
+      "model_tags": ["multimodal", "fast", "free"],
+      "daily_limit": null,
+      "monthly_limit": null,
+      "model_description": "Fast multimodal model - free tier"
+    }
+  ],
+  "subscription_tier": "free"
+}

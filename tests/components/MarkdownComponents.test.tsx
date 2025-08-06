@@ -72,10 +72,10 @@ describe("CustomTable", () => {
     );
     
     const tableWrapper = screen.getByText("Header 1").closest("div");
-    expect(tableWrapper).toHaveClass("overflow-x-auto", "my-4");
+    expect(tableWrapper).toHaveClass("responsive-table-container");
     
     const table = screen.getByRole("table");
-    expect(table).toHaveClass("min-w-full", "border-collapse", "border", "border-gray-300", "dark:border-gray-600");
+    expect(table).toHaveClass("responsive-table");
     
     expect(screen.getByText("Header 1")).toBeInTheDocument();
     expect(screen.getByText("Cell 1")).toBeInTheDocument();

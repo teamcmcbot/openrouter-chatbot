@@ -61,7 +61,11 @@ const isExpired = cacheAge > SERVER_CACHE_TTL;
 
 ### Reliability Improvements
 
-- **Rate Limit Protection**: Minimal external API dependencies
+- **Rate Limit Protection**: Minimal external API dependencies. Per-tier limits:
+  - **Anonymous:** 20 requests/hour, 5000 tokens/request
+  - **Free:** 100 requests/hour, 10000 tokens/request
+  - **Pro:** 500 requests/hour, 20000 tokens/request
+  - **Enterprise:** 2000 requests/hour, 50000 tokens/request
 - **Offline Resilience**: Cache works during network issues
 - **Graceful Degradation**: Falls back to API calls if cache fails
 

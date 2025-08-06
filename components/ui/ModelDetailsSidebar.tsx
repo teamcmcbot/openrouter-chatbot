@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ModelInfo } from "../../lib/types/openrouter";
 import { GenerationData } from "../../lib/types/generation";
 import Button from "./Button";
@@ -13,6 +13,7 @@ interface ModelDetailsSidebarProps {
   generationId?: string; // Add optional generation ID
   onGenerationHover?: (generationId: string | undefined) => void; // Add hover handler
   onGenerationClick?: (generationId: string) => void; // Add click handler for scrolling
+  variant?: 'desktop' | 'mobile'; // Add variant to distinguish between desktop and mobile versions
 }
 
 // Format numbers for display
@@ -64,21 +65,53 @@ const formatDate = (timestamp: number): string => {
   });
 };
 
-export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'overview', generationId, onGenerationHover, onGenerationClick }: ModelDetailsSidebarProps) {
+export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'overview', generationId, onGenerationHover, onGenerationClick, variant = 'desktop' }: ModelDetailsSidebarProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'capabilities'>(initialTab);
   const [generationData, setGenerationData] = useState<GenerationData | null>(null);
   const [loadingGeneration, setLoadingGeneration] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [isGenerationIdHovered, setIsGenerationIdHovered] = useState(false);
+  
+  // Check if we're on desktop to prevent mobile version from making API calls
+  const [isDesktop, setIsDesktop] = useState(false);
+  
+  // Track the last fetched generation ID to prevent duplicate calls - using ref for immediate updates
+  const lastFetchedGenerationIdRef = useRef<string | null>(null);
+  
+  useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.matchMedia('(min-width: 1280px)').matches);
+    };
+    
+    checkDesktop();
+    const mediaQuery = window.matchMedia('(min-width: 1280px)');
+    mediaQuery.addEventListener('change', checkDesktop);
+    
+    return () => mediaQuery.removeEventListener('change', checkDesktop);
+  }, []);
 
-  // Update active tab when initialTab changes or when model changes
+  // Update active tab when initialTab changes
   useEffect(() => {
     setActiveTab(initialTab);
-  }, [initialTab, model?.id]); // Add model?.id as dependency
+  }, [initialTab]);
 
-  // Fetch generation data when generationId changes
+  // Fetch generation data when generationId changes and we're on pricing tab
   useEffect(() => {
-    if (generationId && activeTab === 'pricing') {
+    // Use variant prop to determine which version should make API calls
+    // Only the desktop variant should make API calls when on desktop screens
+    // Only the mobile variant should make API calls when on mobile screens
+    const shouldAllowFetch = isDesktop ? (variant === 'desktop') : (variant === 'mobile');
+    
+    // Prevent duplicate calls for the same generation ID
+    const shouldFetch = generationId && 
+                       activeTab === 'pricing' && 
+                       isOpen && 
+                       shouldAllowFetch && 
+                       generationId !== lastFetchedGenerationIdRef.current;
+    
+    // Only fetch if all conditions are met and we haven't already fetched this generation ID
+    if (shouldFetch) {
+      lastFetchedGenerationIdRef.current = generationId;
       setLoadingGeneration(true);
       setGenerationError(null);
       
@@ -104,11 +137,13 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
           setLoadingGeneration(false);
         });
     } else {
-      // Clear generation data when not needed
-      setGenerationData(null);
-      setGenerationError(null);
+      // Clear generation data when generationId changes to a different one or conditions not met
+      if (generationId !== lastFetchedGenerationIdRef.current) {
+        setGenerationData(null);
+        setGenerationError(null);
+      }
     }
-  }, [generationId, activeTab]);
+  }, [generationId, activeTab, isOpen, isDesktop, model?.id, variant]);
 
   return (
     <>
@@ -121,8 +156,8 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
         />
       )}
       
-      <aside 
-        className={`h-full bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out overflow-hidden
+      <aside
+        className={`h-full mobile-safe-area bg-gray-100 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out overflow-hidden
           ${isOpen ? 'w-96' : 'w-0'}
           xl:relative xl:block xl:w-full
           ${isOpen ? 'fixed inset-y-0 right-0 z-50 xl:relative xl:z-auto' : 'hidden xl:block'}

@@ -11,13 +11,14 @@ import { ChatMessage } from "../lib/types/chat";
 import { ChatState, Conversation, ChatError, ChatSelectors } from "./types/chat";
 import { STORAGE_KEYS } from "../lib/constants";
 import { createLogger } from "./storeUtils";
+import { useAuthStore } from "./useAuthStore";
+import { syncManager } from "../lib/utils/syncManager";
 // Phase 3: Import token management utilities
 import { 
   estimateTokenCount, 
   estimateMessagesTokens, 
   getModelTokenLimits, 
-  isWithinInputBudget,
-  getMaxOutputTokens
+  isWithinInputBudget
 } from "../lib/utils/tokens";
 
 const logger = createLogger("ChatStore");
@@ -37,10 +38,11 @@ const deserializeDates = (conversations: Conversation[]): Conversation[] => {
   }));
 };
 
-const createNewConversation = (title = "New Chat"): Conversation => ({
+const createNewConversation = (title = "New Chat", userId?: string): Conversation => ({
   id: generateConversationId(),
   title,
   messages: [],
+  userId, // Include userId for authenticated users
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   messageCount: 0,
@@ -88,14 +90,21 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           error: null,
           isHydrated: false,
 
+          // Sync state
+          isSyncing: false,
+          lastSyncTime: null,
+          syncError: null,
+          syncInProgress: false,
+
           // Actions
           createConversation: (title = "New Chat") => {
             const id = generateConversationId();
-            const newConversation = createNewConversation(title);
+            const { user } = useAuthStore.getState();
+            const newConversation = createNewConversation(title, user?.id);
             newConversation.id = id;
             newConversation.isActive = true;
 
-            logger.debug("Creating new conversation", { id, title });
+            logger.debug("Creating new conversation", { id, title, userId: user?.id });
 
             set((state) => ({
               conversations: [newConversation, ...state.conversations.map(c => ({ ...c, isActive: false }))],
@@ -246,6 +255,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               content: content.trim(),
               role: "user",
               timestamp: new Date(),
+              originalModel: model, // Store the model used for this message (for retry purposes)
             };
 
             logger.debug("Sending message", { conversationId: currentConversationId, content: content.substring(0, 50) + "..." });
@@ -373,29 +383,145 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 timestamp: new Date(),
                 elapsed_time: data.elapsed_time ?? 0,
                 total_tokens: data.usage?.total_tokens ?? 0,
+                input_tokens: data.usage?.prompt_tokens ?? 0,
+                output_tokens: data.usage?.completion_tokens ?? 0,
+                user_message_id: data.request_id, // Link to the user message that triggered this response
                 model: data.model || model,
                 contentType: data.contentType || "text",
                 completion_id: data.id,
               };
 
               // Add assistant response and update conversation metadata
-              set((state) => ({
-                conversations: state.conversations.map((conv) =>
-                  conv.id === state.currentConversationId
-                    ? updateConversationFromMessages({
-                        ...conv,
-                        messages: [...conv.messages, assistantMessage],
-                      })
-                    : conv
-                ),
-                isLoading: false,
-              }));
+              // Also update the user message with input tokens if we have a request_id
+              set((state) => {
+                const currentConv = state.conversations.find(c => c.id === state.currentConversationId);
+                
+                // Validation: Check if request_id matches any user message
+                if (data.request_id && currentConv) {
+                  const matchingUserMessage = currentConv.messages.find(m => m.id === data.request_id && m.role === 'user');
+                  if (matchingUserMessage) {
+                    logger.debug("Updating user message with input tokens", { 
+                      messageId: data.request_id, 
+                      inputTokens: data.usage?.prompt_tokens,
+                      messageContent: matchingUserMessage.content.substring(0, 50) + "..."
+                    });
+                  } else {
+                    logger.warn("Warning: request_id not found in user messages", { 
+                      requestId: data.request_id,
+                      availableUserMessages: currentConv.messages.filter(m => m.role === 'user').map(m => ({ id: m.id, content: m.content.substring(0, 30) + "..." }))
+                    });
+                  }
+                }
+
+                return {
+                  conversations: state.conversations.map((conv) =>
+                    conv.id === state.currentConversationId
+                      ? updateConversationFromMessages({
+                          ...conv,
+                          messages: [
+                            ...conv.messages.map((msg) =>
+                              // Update the user message that triggered this response with input tokens
+                              msg.id === data.request_id && msg.role === 'user'
+                                ? { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 }
+                                : msg
+                            ),
+                            assistantMessage
+                          ],
+                        })
+                      : conv
+                  ),
+                  isLoading: false,
+                };
+              });
 
               // Auto-generate title from first user message if it's still "New Chat"
               const currentConv = get().conversations.find(c => c.id === currentConversationId);
               if (currentConv && currentConv.title === "New Chat" && currentConv.messages.length === 2) {
-                const title = content.length > 50 ? content.substring(0, 50) + "..." : content;
-                get().updateConversationTitle(currentConversationId, title);
+                const autoTitle = content.length > 50 ? content.substring(0, 50) + "..." : content;
+                get().updateConversationTitle(currentConversationId, autoTitle, true); // Mark as auto-generated
+              }
+
+              // Save individual messages after successful response (Phase 3 implementation)
+              const { user } = useAuthStore.getState();
+              if (user?.id && currentConv?.userId === user.id) {
+                logger.debug("Saving user/assistant message pair", { conversationId: currentConversationId });
+                // Use setTimeout to avoid blocking the UI update
+                setTimeout(async () => {
+                  try {
+                    // Get the updated conversation state with input_tokens applied to user message
+                    const updatedConv = get().conversations.find(c => c.id === currentConversationId);
+                    const updatedUserMessage = updatedConv?.messages.find(m => m.id === data.request_id && m.role === 'user');
+                    
+                    // Check if this is a newly titled conversation (first successful exchange)
+                    const shouldIncludeTitle = updatedConv && 
+                      updatedConv.title !== "New Chat" && 
+                      updatedConv.messages.length === 2;
+                    
+                    if (updatedUserMessage) {
+                      logger.debug("Using updated user message with input_tokens", { 
+                        messageId: updatedUserMessage.id,
+                        inputTokens: updatedUserMessage.input_tokens,
+                        hasInputTokens: updatedUserMessage.input_tokens !== undefined && updatedUserMessage.input_tokens > 0,
+                        includeTitle: shouldIncludeTitle,
+                        title: shouldIncludeTitle ? updatedConv?.title : undefined
+                      });
+                      
+                      // Save user and assistant messages as a pair - now with correct input_tokens and optional title
+                      const payload: {
+                        messages: ChatMessage[];
+                        sessionId: string;
+                        sessionTitle?: string;
+                      } = {
+                        messages: [updatedUserMessage, assistantMessage],
+                        sessionId: currentConversationId,
+                      };
+                      
+                      // Include title for newly titled conversations
+                      if (shouldIncludeTitle) {
+                        payload.sessionTitle = updatedConv?.title;
+                      }
+                      
+                      await fetch("/api/chat/messages", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload),
+                      });
+                      logger.debug("Message pair saved successfully with correct tokens", { 
+                        userMessageId: updatedUserMessage.id,
+                        userInputTokens: updatedUserMessage.input_tokens,
+                        assistantMessageId: assistantMessage.id,
+                        titleIncluded: shouldIncludeTitle
+                      });
+                    } else {
+                      logger.warn("Could not find updated user message, falling back to original", {
+                        requestId: data.request_id,
+                        conversationId: currentConversationId
+                      });
+                      // Fallback to original userMessage if updated one not found
+                      const payload: {
+                        messages: ChatMessage[];
+                        sessionId: string;
+                        sessionTitle?: string;
+                      } = {
+                        messages: [userMessage, assistantMessage],
+                        sessionId: currentConversationId,
+                      };
+                      
+                      // Include title for newly titled conversations
+                      if (shouldIncludeTitle) {
+                        payload.sessionTitle = updatedConv?.title;
+                      }
+                      
+                      await fetch("/api/chat/messages", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload),
+                      });
+                    }
+                  } catch (error) {
+                    logger.debug("Message save failed (silent)", error);
+                  }
+                }, 100);
               }
 
               logger.debug("Message sent successfully", { conversationId: currentConversationId });
@@ -425,7 +551,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         ...conv,
                         messages: conv.messages.map((msg) =>
                           msg.id === userMessage.id
-                            ? { ...msg, error: true }
+                            ? { 
+                                ...msg, 
+                                error: true, 
+                                input_tokens: 0, // Ensure input_tokens is 0 for failed requests
+                                error_message: chatError.message, // Map error_message to user message
+                              }
                             : msg
                         ),
                       }
@@ -455,12 +586,49 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   ),
                 }));
               }
+
+              // Phase 3: Save error message to database for authenticated users
+              const { user } = useAuthStore.getState();
+              if (user?.id && currentConversationId) {
+                // Save failed user message with error_message mapped to it
+                setTimeout(async () => {
+                  try {
+                    // Get the updated user message from state (with error_message, input_tokens: 0 and error: true)
+                    const updatedConv = get().conversations.find(c => c.id === currentConversationId);
+                    const failedUserMessage = updatedConv?.messages.find(m => m.id === userMessage.id);
+                    
+                    if (failedUserMessage) {
+                      // Save ONLY the user message with error details (no assistant error message)
+                      await fetch("/api/chat/messages", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          message: failedUserMessage, // Single message, not array
+                          sessionId: currentConversationId,
+                        }),
+                      });
+                      logger.debug("Failed user message saved to database", { 
+                        userMessageId: failedUserMessage.id,
+                        userInputTokens: failedUserMessage.input_tokens,
+                        errorMessage: failedUserMessage.error_message
+                      });
+                    }
+                  } catch (saveError) {
+                    logger.debug("Failed message save failed", saveError);
+                  }
+                }, 100);
+              }
             }
           },
 
-          updateConversationTitle: (id, title) => {
-            logger.debug("Updating conversation title", { id, title });
+          updateConversationTitle: async (id, title, isAutoGenerated = false) => {
+            logger.debug("Updating conversation title", { id, title, isAutoGenerated });
             
+            // Get conversation data before state update to avoid timing issues
+            const { user } = useAuthStore.getState();
+            const conversation = get().conversations.find(c => c.id === id);
+            
+            // Update local state immediately for optimistic UI
             set((state) => ({
               conversations: state.conversations.map((conv) =>
                 conv.id === id
@@ -468,23 +636,138 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   : conv
               ),
             }));
+
+            // Update session title on server for authenticated users
+            // For auto-generated titles during message flow, we'll handle this in the message endpoint
+            // Only use the session endpoint for explicit manual title updates (e.g., from ChatSidebar)
+            if (user?.id && conversation?.userId === user.id && !isAutoGenerated) {
+              logger.debug("Updating session title on server via session endpoint", { 
+                conversationId: id, 
+                newTitle: title 
+              });
+              
+              try {
+                const response = await fetch("/api/chat/session", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    id: id,
+                    title: title,
+                  }),
+                });
+
+                if (!response.ok) {
+                  throw new Error(`Failed to update session title: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                logger.debug("Session title updated successfully", { 
+                  sessionId: result.session?.id,
+                  updatedTitle: result.session?.title 
+                });
+              } catch (error) {
+                logger.error("Failed to update session title on server", { 
+                  error, 
+                  conversationId: id, 
+                  title 
+                });
+                // Note: Local state already updated optimistically, so UI shows the change
+                // Could add error handling/retry logic here if needed
+              }
+            }
           },
 
-          deleteConversation: (id) => {
-            logger.debug("Deleting conversation", { id });
+          deleteConversation: async (id) => {
+            const { user } = useAuthStore.getState();
             
-            set((state) => {
-              const newConversations = state.conversations.filter(c => c.id !== id);
-              const newCurrentId = state.currentConversationId === id
-                ? newConversations[0]?.id ?? null
-                : state.currentConversationId;
+            logger.debug("Deleting conversation", { id, authenticated: !!user });
+            
+            try {
+              // If user is authenticated, delete from backend first
+              if (user) {
+                logger.debug("Deleting conversation from server for authenticated user");
+                const response = await fetch(`/api/chat/sessions?id=${encodeURIComponent(id)}`, {
+                  method: 'DELETE',
+                });
 
-              return {
-                conversations: newConversations,
-                currentConversationId: newCurrentId,
+                if (!response.ok) {
+                  throw new Error(`Failed to delete conversation: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                logger.debug("Server conversation deleted", result);
+              }
+
+              // Delete from local store
+              set((state) => {
+                const newConversations = state.conversations.filter(c => c.id !== id);
+                const newCurrentId = state.currentConversationId === id
+                  ? newConversations[0]?.id ?? null
+                  : state.currentConversationId;
+
+                return {
+                  conversations: newConversations,
+                  currentConversationId: newCurrentId,
+                  error: null,
+                };
+              });
+
+              logger.debug("Conversation deleted successfully", { id });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to delete conversation';
+              logger.error("Failed to delete conversation", errorMessage);
+              
+              set({ 
+                error: { 
+                  message: errorMessage, 
+                  timestamp: new Date().toISOString() 
+                }
+              });
+              throw error; // Re-throw for UI handling
+            }
+          },
+
+          clearAllConversations: async () => {
+            const { user } = useAuthStore.getState();
+            
+            logger.debug("Clearing all conversations");
+
+            try {
+              // If user is authenticated, also clear from Supabase
+              if (user) {
+                logger.debug("Clearing all conversations from server for authenticated user");
+                const response = await fetch('/api/chat/clear-all', {
+                  method: 'DELETE',
+                });
+
+                if (!response.ok) {
+                  throw new Error(`Failed to clear server conversations: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                logger.debug("Server conversations cleared", result);
+              }
+
+              // Clear all conversations from local store
+              set({
+                conversations: [],
+                currentConversationId: null,
                 error: null,
-              };
-            });
+              });
+
+              logger.debug("All conversations cleared successfully");
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to clear conversations';
+              logger.error("Failed to clear all conversations", errorMessage);
+              
+              set({ 
+                error: { 
+                  message: errorMessage, 
+                  timestamp: new Date().toISOString() 
+                }
+              });
+              throw error;
+            }
           },
 
           clearCurrentMessages: () => {
@@ -532,21 +815,463 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
             if (!currentConversation) return;
 
-            const lastUserMessage = currentConversation.messages
+            // Find the last failed user message (with error flag)
+            const lastFailedMessage = currentConversation.messages
               .slice()
               .reverse()
-              .find((msg) => msg.role === "user");
+              .find((msg) => msg.role === "user" && msg.error);
 
-            if (lastUserMessage) {
-              logger.debug("Retrying last message", { messageId: lastUserMessage.id });
-              
-              // Clear error first
-              get().clearError();
-              get().clearMessageError(lastUserMessage.id);
-              
-              // Resend with the same content
-              await get().sendMessage(lastUserMessage.content);
+            if (!lastFailedMessage) {
+              logger.warn("No failed user message found to retry");
+              return;
             }
+
+            // Get the model to use for retry (priority: originalModel > conversation lastModel > fallback)
+            const modelToUse = lastFailedMessage.originalModel ||
+                              currentConversation.lastModel ||
+                              undefined; // Let sendMessage handle default
+
+            logger.debug("Retrying failed message", {
+              messageId: lastFailedMessage.id,
+              content: lastFailedMessage.content.substring(0, 50) + "...",
+              modelToUse
+            });
+            
+            // Clear error state first
+            get().clearError();
+            get().clearMessageError(lastFailedMessage.id);
+            
+            // Retry the message with the original model
+            // This will reuse the existing message instead of creating a new one
+            await get().retryMessage(lastFailedMessage.id, lastFailedMessage.content, modelToUse);
+          },
+
+          // New function to retry a specific message without creating duplicates
+          retryMessage: async (messageId: string, content: string, model?: string) => {
+            if (!content.trim() || get().isLoading) {
+              logger.warn("Cannot retry message: empty content or already loading");
+              return;
+            }
+
+            const { currentConversationId } = get();
+            if (!currentConversationId) return;
+
+            logger.debug("Retrying specific message", { messageId, model });
+
+            // Set loading state
+            set({ isLoading: true, error: null });
+
+            try {
+              // Phase 3: Check if context-aware mode is enabled
+              const isContextAwareEnabled = process.env.NEXT_PUBLIC_ENABLE_CONTEXT_AWARE === 'true';
+              
+              console.log(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
+              console.log(`[Retry Message] Model: ${model || 'default'}`);
+
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[] };
+
+              if (isContextAwareEnabled) {
+                // Phase 3: Get model-specific token limits and select context
+                const strategy = await getModelTokenLimits(model);
+                console.log(`[Retry Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
+
+                // Get context messages within token budget (excluding the message being retried)
+                const contextMessages = get().getContextMessages(strategy.maxInputTokens)
+                  .filter(msg => msg.id !== messageId); // Exclude the message being retried
+                
+                // Create a temporary message for the retry (not added to store yet)
+                const retryMessage: ChatMessage = {
+                  id: messageId, // Reuse the same ID
+                  content: content.trim(),
+                  role: "user",
+                  timestamp: new Date(),
+                  originalModel: model,
+                };
+                
+                // Build complete message array (context + retry message)
+                const allMessages = [...contextMessages, retryMessage];
+                
+                // Calculate total token usage
+                const totalTokens = estimateMessagesTokens(allMessages);
+                console.log(`[Retry Message] Total message tokens: ${totalTokens}/${strategy.maxInputTokens}`);
+                
+                // Validate budget with fallback logic (same as sendMessage)
+                if (!isWithinInputBudget(totalTokens, strategy)) {
+                  console.log(`[Retry Message] Token budget exceeded, falling back to progressive reduction`);
+                  
+                  const fallbackSizes = [
+                    Math.floor(strategy.maxInputTokens * 0.8),
+                    Math.floor(strategy.maxInputTokens * 0.6),
+                    Math.floor(strategy.maxInputTokens * 0.4),
+                    Math.floor(strategy.maxInputTokens * 0.2),
+                    estimateTokenCount(retryMessage.content) + 20
+                  ];
+                  
+                  let finalContextMessages = contextMessages;
+                  for (const fallbackSize of fallbackSizes) {
+                    const reducedContext = get().getContextMessages(fallbackSize)
+                      .filter(msg => msg.id !== messageId);
+                    const reducedTotal = estimateMessagesTokens([...reducedContext, retryMessage]);
+                    
+                    if (reducedTotal <= strategy.maxInputTokens) {
+                      finalContextMessages = reducedContext;
+                      console.log(`[Retry Message] Using fallback context: ${reducedContext.length} messages, ${reducedTotal} tokens`);
+                      break;
+                    }
+                  }
+                  
+                  requestBody = {
+                    message: content,
+                    messages: [...finalContextMessages, retryMessage]
+                  };
+                } else {
+                  requestBody = {
+                    message: content,
+                    messages: allMessages
+                  };
+                }
+                
+                if (model) {
+                  requestBody.model = model;
+                }
+                
+                console.log(`[Retry Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
+              } else {
+                // Legacy format
+                requestBody = { message: content };
+                if (model) {
+                  requestBody.model = model;
+                }
+                console.log(`[Retry Message] Sending LEGACY format (single message)`);
+              }
+
+              const response = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(requestBody),
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const chatError: ChatError = {
+                  message: errorData.error ?? `HTTP error! status: ${response.status}`,
+                  code: errorData.code,
+                  suggestions: errorData.suggestions,
+                  retryAfter: errorData.retryAfter,
+                  timestamp: errorData.timestamp ?? new Date().toISOString(),
+                };
+                throw chatError;
+              }
+
+              // Handle backend response
+              const raw = await response.json();
+              const data = raw.data ?? raw;
+
+              if (data.error) {
+                throw new Error(data.error);
+              }
+
+              const assistantMessage: ChatMessage = {
+                id: generateMessageId(),
+                content: data.response,
+                role: "assistant",
+                timestamp: new Date(),
+                elapsed_time: data.elapsed_time ?? 0,
+                total_tokens: data.usage?.total_tokens ?? 0,
+                input_tokens: data.usage?.prompt_tokens ?? 0,
+                output_tokens: data.usage?.completion_tokens ?? 0,
+                user_message_id: data.request_id, // Link to the user message that triggered this response
+                model: data.model || model,
+                contentType: data.contentType || "text",
+                completion_id: data.id,
+              };
+
+              // Update the conversation: clear error on retried message and add assistant response
+              // Also update the user message with input tokens if we have a request_id
+              set((state) => {
+                const currentConv = state.conversations.find(c => c.id === state.currentConversationId);
+                
+                // Validation: Check if request_id matches any user message
+                if (data.request_id && currentConv) {
+                  const matchingUserMessage = currentConv.messages.find(m => m.id === data.request_id && m.role === 'user');
+                  if (matchingUserMessage) {
+                    logger.debug("Updating user message with input tokens (retry)", { 
+                      messageId: data.request_id, 
+                      inputTokens: data.usage?.prompt_tokens,
+                      messageContent: matchingUserMessage.content.substring(0, 50) + "..."
+                    });
+                  } else {
+                    logger.warn("Warning: request_id not found in user messages (retry)", { 
+                      requestId: data.request_id,
+                      availableUserMessages: currentConv.messages.filter(m => m.role === 'user').map(m => ({ id: m.id, content: m.content.substring(0, 30) + "..." }))
+                    });
+                  }
+                }
+
+                return {
+                  conversations: state.conversations.map((conv) =>
+                    conv.id === state.currentConversationId
+                      ? updateConversationFromMessages({
+                          ...conv,
+                          messages: [
+                            ...conv.messages.map((msg) => {
+                              if (msg.id === messageId) {
+                                // Clear error flag on successful retry
+                                return { ...msg, error: false };
+                              } else if (msg.id === data.request_id && msg.role === 'user') {
+                                // Update the user message that triggered this response with input tokens
+                                return { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 };
+                              }
+                              return msg;
+                            }),
+                            assistantMessage // Add the assistant response
+                          ],
+                        })
+                      : conv
+                  ),
+                  isLoading: false,
+                };
+              });
+
+              logger.debug("Message retry successful", { messageId, conversationId: currentConversationId });
+
+            } catch (err) {
+              let chatError: ChatError;
+              
+              if (typeof err === 'object' && err !== null && 'code' in err && typeof (err as ChatError).code === 'string') {
+                chatError = err as ChatError;
+              } else {
+                const errorMessage = err instanceof Error ? err.message : "An error occurred";
+                chatError = {
+                  message: errorMessage,
+                  code: (errorMessage.includes("fetch") || errorMessage.includes("Network")) ? "network_error" : "unknown_error",
+                };
+              }
+
+              logger.error("Failed to retry message", { error: chatError, messageId });
+
+              // Mark the message as failed again and set error state
+              set((state) => ({
+                conversations: state.conversations.map((conv) =>
+                  conv.id === state.currentConversationId
+                    ? {
+                        ...conv,
+                        messages: conv.messages.map((msg) =>
+                          msg.id === messageId
+                            ? { 
+                                ...msg, 
+                                error: true, 
+                                input_tokens: 0, // Ensure input_tokens is 0 for failed retry
+                                error_message: chatError.message, // Map error_message to user message
+                              }
+                            : msg
+                        ),
+                      }
+                    : conv
+                ),
+                isLoading: false,
+                error: chatError,
+              }));
+            }
+          },
+
+          // Sync actions
+          syncConversations: async () => {
+            const { conversations } = get();
+            const { user } = useAuthStore.getState();
+            
+            if (!user) {
+              logger.debug("No authenticated user, skipping sync");
+              return;
+            }
+
+            // Use global sync manager to prevent multiple concurrent syncs
+            if (!syncManager.startSync()) {
+              return; // Sync was blocked by the manager
+            }
+
+            // Filter conversations that belong to the current user
+            const userConversations = conversations.filter(conv => conv.userId === user.id);
+            
+            if (userConversations.length === 0) {
+              logger.debug("No user conversations to sync");
+              syncManager.endSync();
+              return;
+            }
+
+            set({ isSyncing: true, syncError: null });
+
+            try {
+              logger.debug("Syncing conversations to server", { count: userConversations.length });
+              
+              // Log sample message metadata for verification
+              const sampleMessage = userConversations[0]?.messages.find(m => m.role === 'assistant');
+              if (sampleMessage) {
+                logger.debug("Sample assistant message metadata", {
+                  hasContentType: !!sampleMessage.contentType,
+                  hasElapsedTime: !!sampleMessage.elapsed_time,
+                  hasCompletionId: !!sampleMessage.completion_id,
+                  hasTotalTokens: !!sampleMessage.total_tokens
+                });
+              }
+              
+              const response = await fetch('/api/chat/sync', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ conversations: userConversations })
+              });
+
+              if (!response.ok) {
+                throw new Error(`Sync failed: ${response.statusText}`);
+              }
+
+              const result = await response.json();
+              
+              set({ 
+                isSyncing: false, 
+                lastSyncTime: result.syncTime,
+                syncError: null 
+              });
+              
+              logger.debug("Sync completed successfully", result.results);
+              
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Sync failed';
+              logger.error("Sync failed", errorMessage);
+              
+              set({ 
+                isSyncing: false, 
+                syncError: errorMessage 
+              });
+            } finally {
+              // Always clear the sync in progress flag
+              set({ syncInProgress: false });
+              syncManager.endSync();
+            }
+          },
+
+          loadUserConversations: async (userId: string) => {
+            const { isLoading } = get();
+            
+            // Prevent multiple concurrent loads
+            if (isLoading) {
+              logger.debug("Load already in progress, skipping");
+              return;
+            }
+
+            set({ isLoading: true, error: null });
+
+            try {
+              logger.debug("Loading user conversations from server", { userId });
+              
+              const response = await fetch('/api/chat/sync');
+              
+              if (!response.ok) {
+                throw new Error(`Failed to load conversations: ${response.statusText}`);
+              }
+
+              const result = await response.json();
+              const serverConversations = result.conversations || [];
+              
+              // Log sample message metadata for verification
+              const sampleMessage = serverConversations[0]?.messages?.find((m: ChatMessage) => m.role === 'assistant');
+              if (sampleMessage) {
+                logger.debug("Sample loaded assistant message metadata", {
+                  hasContentType: !!sampleMessage.contentType,
+                  hasElapsedTime: !!sampleMessage.elapsed_time,
+                  hasCompletionId: !!sampleMessage.completion_id,
+                  hasTotalTokens: !!sampleMessage.total_tokens
+                });
+              }
+              
+              // Merge with existing conversations, prioritizing server data
+              set((state) => {
+                const existingIds = new Set(state.conversations.map(c => c.id));
+                const newConversations = serverConversations.filter((conv: Conversation) => !existingIds.has(conv.id));
+                
+                // Sort merged conversations by updatedAt (most recent first)
+                const allConversations = [...newConversations, ...state.conversations]
+                  .sort((a, b) => new Date(b.last_message_timestamp).getTime() - new Date(a.last_message_timestamp).getTime());
+                
+                return {
+                  conversations: allConversations,
+                  isLoading: false,
+                  lastSyncTime: result.syncTime
+                };
+              });
+              
+              logger.debug("User conversations loaded successfully", { count: serverConversations.length });
+              
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to load conversations';
+              logger.error("Failed to load user conversations", errorMessage);
+              
+              set({ 
+                isLoading: false, 
+                error: { message: errorMessage, timestamp: new Date().toISOString() }
+              });
+            }
+          },
+
+          migrateAnonymousConversations: async (userId: string) => {
+            const { conversations } = get();
+            
+            // Find anonymous conversations (no userId)
+            const anonymousConversations = conversations.filter(conv => !conv.userId);
+            
+            if (anonymousConversations.length === 0) {
+              logger.debug("No anonymous conversations to migrate");
+              return;
+            }
+
+            logger.debug("Migrating anonymous conversations", { count: anonymousConversations.length });
+            
+            // Update conversations with userId in store
+            set((state) => ({
+              conversations: state.conversations.map(conv => 
+                anonymousConversations.some(anon => anon.id === conv.id)
+                  ? { ...conv, userId, updatedAt: new Date().toISOString() }
+                  : conv
+              )
+            }));
+
+            // Sync migrated conversations to server
+            try {
+              await get().syncConversations();
+              logger.debug("Anonymous conversations migrated successfully");
+            } catch (error) {
+              logger.error("Failed to sync migrated conversations", error);
+            }
+          },
+
+          filterConversationsByUser: (userId: string | null) => {
+            const { conversations } = get();
+            
+            const filteredConversations = conversations.filter(conv => {
+              if (!userId) {
+                // Anonymous mode: show only conversations without userId
+                return !conv.userId;
+              } else {
+                // Authenticated mode: show only current user's conversations
+                return conv.userId === userId;
+              }
+            });
+
+            // Find the current conversation in filtered list
+            const { currentConversationId } = get();
+            const isCurrentConversationVisible = filteredConversations.some(c => c.id === currentConversationId);
+            
+            set({
+              conversations: filteredConversations,
+              currentConversationId: isCurrentConversationVisible ? currentConversationId : null
+            });
+            
+            logger.debug("Conversations filtered by user", { 
+              userId, 
+              count: filteredConversations.length 
+            });
           },
 
           _hasHydrated: () => {
@@ -578,7 +1303,6 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
           getRecentConversations: (limit = 10) => {
             return get().conversations
-              .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
               .slice(0, limit);
           },
         }),

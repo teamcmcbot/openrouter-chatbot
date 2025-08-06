@@ -1,6 +1,7 @@
 // lib/utils/errors.ts
 import { NextResponse } from 'next/server';
 import { ApiError } from '../types';
+import { AuthErrorCode, AuthError } from '../types/auth';
 
 export enum ErrorCode {
   // Client Errors
@@ -19,6 +20,22 @@ export enum ErrorCode {
   BAD_GATEWAY = 'bad_gateway',
   SERVICE_UNAVAILABLE = 'service_unavailable',
   GATEWAY_TIMEOUT = 'gateway_timeout',
+
+  // JWT Authentication Errors (mapped from AuthErrorCode)
+  TOKEN_MISSING = 'token_missing',
+  TOKEN_INVALID = 'token_invalid',
+  TOKEN_EXPIRED = 'token_expired',
+  TOKEN_MALFORMED = 'token_malformed',
+  AUTH_REQUIRED = 'auth_required',
+  AUTH_FAILED = 'auth_failed',
+  USER_NOT_FOUND = 'user_not_found',
+  INSUFFICIENT_PERMISSIONS = 'insufficient_permissions',
+  TIER_UPGRADE_REQUIRED = 'tier_upgrade_required',
+  FEATURE_NOT_AVAILABLE = 'feature_not_available',
+  RATE_LIMIT_EXCEEDED = 'rate_limit_exceeded',
+  TOKEN_LIMIT_EXCEEDED = 'token_limit_exceeded',
+  AUTH_SERVICE_UNAVAILABLE = 'auth_service_unavailable',
+  PROFILE_FETCH_FAILED = 'profile_fetch_failed',
 }
 
 const errorStatusMap: Record<ErrorCode, number> = {
@@ -35,6 +52,22 @@ const errorStatusMap: Record<ErrorCode, number> = {
   [ErrorCode.BAD_GATEWAY]: 502,
   [ErrorCode.SERVICE_UNAVAILABLE]: 503,
   [ErrorCode.GATEWAY_TIMEOUT]: 504,
+
+  // JWT Authentication Error Status Mappings
+  [ErrorCode.TOKEN_MISSING]: 401,
+  [ErrorCode.TOKEN_INVALID]: 401,
+  [ErrorCode.TOKEN_EXPIRED]: 401,
+  [ErrorCode.TOKEN_MALFORMED]: 400,
+  [ErrorCode.AUTH_REQUIRED]: 401,
+  [ErrorCode.AUTH_FAILED]: 401,
+  [ErrorCode.USER_NOT_FOUND]: 404,
+  [ErrorCode.INSUFFICIENT_PERMISSIONS]: 403,
+  [ErrorCode.TIER_UPGRADE_REQUIRED]: 402, // Payment Required
+  [ErrorCode.FEATURE_NOT_AVAILABLE]: 403,
+  [ErrorCode.RATE_LIMIT_EXCEEDED]: 429,
+  [ErrorCode.TOKEN_LIMIT_EXCEEDED]: 413, // Payload Too Large
+  [ErrorCode.AUTH_SERVICE_UNAVAILABLE]: 503,
+  [ErrorCode.PROFILE_FETCH_FAILED]: 500,
 };
 
 export class ApiErrorResponse extends Error {
@@ -85,6 +118,121 @@ export function handleError(error: unknown): NextResponse<ApiError> {
     };
     status = 500;
   }
+
+  return NextResponse.json(errorResponse, { status });
+}
+
+/**
+ * Create an AuthError from an AuthErrorCode
+ */
+export function createAuthError(
+  code: AuthErrorCode,
+  message?: string,
+  details?: string,
+  retryable: boolean = false,
+  suggestedAction?: string
+): AuthError {
+  return {
+    code,
+    message: message || getDefaultAuthErrorMessage(code),
+    details,
+    retryable,
+    suggestedAction,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
+ * Get default error message for AuthErrorCode
+ */
+function getDefaultAuthErrorMessage(code: AuthErrorCode): string {
+  switch (code) {
+    case AuthErrorCode.TOKEN_MISSING:
+      return 'Authentication token is missing';
+    case AuthErrorCode.TOKEN_INVALID:
+      return 'Authentication token is invalid';
+    case AuthErrorCode.TOKEN_EXPIRED:
+      return 'Authentication token has expired';
+    case AuthErrorCode.TOKEN_MALFORMED:
+      return 'Authentication token is malformed';
+    case AuthErrorCode.AUTH_REQUIRED:
+      return 'Authentication is required for this operation';
+    case AuthErrorCode.AUTH_FAILED:
+      return 'Authentication failed';
+    case AuthErrorCode.USER_NOT_FOUND:
+      return 'User not found';
+    case AuthErrorCode.INSUFFICIENT_PERMISSIONS:
+      return 'Insufficient permissions for this operation';
+    case AuthErrorCode.TIER_UPGRADE_REQUIRED:
+      return 'Subscription tier upgrade required';
+    case AuthErrorCode.FEATURE_NOT_AVAILABLE:
+      return 'Feature not available for your subscription tier';
+    case AuthErrorCode.RATE_LIMIT_EXCEEDED:
+      return 'Rate limit exceeded';
+    case AuthErrorCode.TOKEN_LIMIT_EXCEEDED:
+      return 'Token limit exceeded for this request';
+    case AuthErrorCode.AUTH_SERVICE_UNAVAILABLE:
+      return 'Authentication service is temporarily unavailable';
+    case AuthErrorCode.PROFILE_FETCH_FAILED:
+      return 'Failed to fetch user profile';
+    default:
+      return 'Authentication error occurred';
+  }
+}
+
+/**
+ * Convert AuthErrorCode to ErrorCode for API responses
+ */
+export function authErrorToErrorCode(authCode: AuthErrorCode): ErrorCode {
+  switch (authCode) {
+    case AuthErrorCode.TOKEN_MISSING:
+      return ErrorCode.TOKEN_MISSING;
+    case AuthErrorCode.TOKEN_INVALID:
+      return ErrorCode.TOKEN_INVALID;
+    case AuthErrorCode.TOKEN_EXPIRED:
+      return ErrorCode.TOKEN_EXPIRED;
+    case AuthErrorCode.TOKEN_MALFORMED:
+      return ErrorCode.TOKEN_MALFORMED;
+    case AuthErrorCode.AUTH_REQUIRED:
+      return ErrorCode.AUTH_REQUIRED;
+    case AuthErrorCode.AUTH_FAILED:
+      return ErrorCode.AUTH_FAILED;
+    case AuthErrorCode.USER_NOT_FOUND:
+      return ErrorCode.USER_NOT_FOUND;
+    case AuthErrorCode.INSUFFICIENT_PERMISSIONS:
+      return ErrorCode.INSUFFICIENT_PERMISSIONS;
+    case AuthErrorCode.TIER_UPGRADE_REQUIRED:
+      return ErrorCode.TIER_UPGRADE_REQUIRED;
+    case AuthErrorCode.FEATURE_NOT_AVAILABLE:
+      return ErrorCode.FEATURE_NOT_AVAILABLE;
+    case AuthErrorCode.RATE_LIMIT_EXCEEDED:
+      return ErrorCode.RATE_LIMIT_EXCEEDED;
+    case AuthErrorCode.TOKEN_LIMIT_EXCEEDED:
+      return ErrorCode.TOKEN_LIMIT_EXCEEDED;
+    case AuthErrorCode.AUTH_SERVICE_UNAVAILABLE:
+      return ErrorCode.AUTH_SERVICE_UNAVAILABLE;
+    case AuthErrorCode.PROFILE_FETCH_FAILED:
+      return ErrorCode.PROFILE_FETCH_FAILED;
+    default:
+      return ErrorCode.INTERNAL_SERVER_ERROR;
+  }
+}
+
+/**
+ * Handle authentication errors specifically
+ */
+export function handleAuthError(authError: AuthError): NextResponse<ApiError> {
+  const errorCode = authErrorToErrorCode(authError.code);
+  const status = errorStatusMap[errorCode];
+
+  const errorResponse: ApiError = {
+    error: authError.message,
+    code: errorCode,
+    details: authError.details,
+    timestamp: authError.timestamp,
+    retryAfter: authError.retryable ? 60 : undefined, // Retry after 60 seconds if retryable
+    suggestions: authError.suggestedAction ? [authError.suggestedAction] : undefined,
+  };
 
   return NextResponse.json(errorResponse, { status });
 }

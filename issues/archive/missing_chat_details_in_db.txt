@@ -1,0 +1,79 @@
+Please analyze the below issue carefully and come up with a comprehensive plan on how to resolve the issue.
+
+Issue: Currently when getting the assistance response, the content returned can be in markdown with tables etc..
+Missing details not saved in DB, and not populated on next sign in after syncing chat-histories:
+1) contentType
+2) totalTokens
+3) elapsed_time
+4) completion_id
+
+LocalStorage: openrouter-chat-storage
+
+{
+  "conversations": [
+    {
+      "id": "conv_1752820346457_ya0hh84pp",
+      "title": "Singapore local favourites food in table format.",
+      "messages": [
+        {
+          "id": "msg_1752820400242_rddy9abrj",
+          "content": "Singapore local favourites food in table format.",
+          "role": "user",
+          "timestamp": "2025-07-18T06:33:20.242Z"
+        },
+        {
+          "id": "msg_1752820471813_t4le7xh9l",
+          "content": "Singapore Local Favourites – Quick Reference Table\n\n| No. | Dish | Main Ingredients | Typical Meal Time | Where to Try | Fun Fact |\n|----|------|------------------|------------------|--------------|----------|\n| 1 | Hainanese Chicken Rice | Poached chicken, fragrant rice cooked in chicken stock, chilli-ginger-garlic sauces | All day | Tian Tian Hainanese Chicken Rice (Maxwell), Boon Tong Kee (multiple outlets) | Often rated as Singapore’s “national dish” by travel magazines. |\n| 2 | Chilli Crab | Sri Lankan mud crab, thick sweet-spicy tomato-chilli sauce, mantou buns | Dinner | Jumbo Seafood (East Coast), Red House Seafood (Prinsep St) | Created in 1956 by local hawker Cher Yam Tian. |\n| 3 | Laksa | Thick rice noodles, coconut curry broth, prawns, fish cake, cockles | Breakfast / Lunch | 328 Katong Laksa, Sungei Road Laksa | Short noodles are served with a spoon—no chopsticks needed! |\n| 4 | Char Kway Teow | Flat rice noodles, egg, Chinese sausage, cockles, bean sprouts, dark soy | Lunch / Dinner | Hill Street Char Kway Teow (Bedok), Outram Park Fried Kway Teow | “Wok-hei” (breath of the wok) is the hallmark of a good plate. |\n| 5 | Hokkien Mee | Yellow noodles + thick bee hoon, prawn stock, squid, pork belly, lime & sambal | Supper | Geylang Lor 29, Kim’s Hokkien Mee (Changi Village) | Traditionally fried over charcoal for extra smokiness. |\n| 6 | Satay | Skewered grilled meat (chicken, beef, mutton), peanut sauce, rice cakes, cucumber & onion | Evening | Lau Pa Sat Satay Street (7 pm road closure), Chomp Chomp | Satay Club (1930s) was the first dedicated hawker area. |\n| 7 | Roti Prata | Flaky pan-fried flatbread, fish or mutton curry | Breakfast / Supper | Springleaf Prata Place (Upper Thomson), The Roti Prata House (Casuarina) | “Tissue prata” version is paper-thin and shaped like a cone. |\n| 8 | Nasi Lemak | Coconut rice, fried chicken wing, ikan bilis, egg, sambal | Breakfast / Brunch | Selera Rasa (Adam Rd), Boon Lay Power Nasi Lemak | Royal version served at the Istana open house uses blue pea rice. |\n| 9 | Bak Chor Mee | Minced pork, pork liver, vinegar-chilli sauce, mee pok noodles, fish balls | Lunch | Tai Hwa Pork Noodle (Crawford Lane), Hill Street Tai Hwa (Michelin-starred) | The queue starts before 9 a.m. on weekends. |\n|10 | Kaya Toast & Soft-Boiled Eggs | Toasted bread with kaya & butter, runny eggs, kopi | Breakfast | Ya Kun Kaya Toast, Killiney Kopitiam | Dipping kaya toast into the eggs is the local ritual. |\n|11 | Carrot Cake (Chai Tow Kway) | Steamed radish cake cubes, egg, preserved radish, sweet dark soy or white version | Breakfast / Supper | Bukit Merah View Carrot Cake, Chey Sua (Toa Payoh) | No carrots—radish gives it the name in Hokkien. |\n|12 | Rojak | Mixed fruits & vegetables, you tiao, shrimp paste, crushed peanuts | Snack / Afternoon | Toa Payoh Rojak, Lau Pa Sat Stall 27 | Name means “mixture” in Malay—apt for the dish. |\n|13 | Murtabak | Stuffed prata with minced mutton, egg, onion, served with curry | Supper | Zam Zam Restaurant (North Bridge Rd), Victory | Singapore’s giant coin-murtabak challenge weighs 2 kg! |\n|14 | Oyster Omelette (Orh Luak) | Eggs, tapioca starch batter, fresh oysters, chilli-vinegar dip | Dinner | Ah Chuan Oyster Omelette (Toa Payoh), Hougang Oyster Omelette | The crisp edges vs gooey center debate is eternal. |\n|15 | Ice Kachang | Shaved ice, red beans, grass jelly, attap chee, rose syrup & evaporated milk | Dessert | Jin Jin Hot/Cold Desserts (ABC Brickworks), Mei Heong Yuen | Modern versions include durian and Milo toppings. |",
+          "role": "assistant",
+          "timestamp": "2025-07-18T06:34:31.813Z",
+          "elapsed_time": 67,
+          "total_tokens": 1033,
+          "model": "moonshotai/kimi-k2:free",
+          "contentType": "markdown",
+          "completion_id": "gen-1752820403-YmjU0CtXh8hjZTzBHzQd"
+        }
+      ],
+      "userId": "f319ca56-4197-477c-92e7-e6e2d95884be",
+      "createdAt": "2025-07-18T06:32:26.458Z",
+      "updatedAt": "2025-07-18T06:34:31.814Z",
+      "messageCount": 2,
+      "totalTokens": 1033,
+      "isActive": true,
+      "lastMessagePreview": "Singapore Local Favourites – Quick Reference Table\n\n| No. | Dish | Main Ingredients | Typical Meal T...",
+      "lastMessageTimestamp": "2025-07-18T06:34:31.813Z",
+      "lastModel": "moonshotai/kimi-k2:free"
+    }
+  ],
+  "currentConversationId": "conv_1752820346457_ya0hh84pp"
+}
+
+
+Supabase, chat_messages.content:
+Singapore Local Favourites – Quick Reference Table
+
+| No. | Dish | Main Ingredients | Typical Meal Time | Where to Try | Fun Fact |
+|----|------|------------------|------------------|--------------|----------|
+| 1 | Hainanese Chicken Rice | Poached chicken, fragrant rice cooked in chicken stock, chilli-ginger-garlic sauces | All day | Tian Tian Hainanese Chicken Rice (Maxwell), Boon Tong Kee (multiple outlets) | Often rated as Singapore’s “national dish” by travel magazines. |
+| 2 | Chilli Crab | Sri Lankan mud crab, thick sweet-spicy tomato-chilli sauce, mantou buns | Dinner | Jumbo Seafood (East Coast), Red House Seafood (Prinsep St) | Created in 1956 by local hawker Cher Yam Tian. |
+| 3 | Laksa | Thick rice noodles, coconut curry broth, prawns, fish cake, cockles | Breakfast / Lunch | 328 Katong Laksa, Sungei Road Laksa | Short noodles are served with a spoon—no chopsticks needed! |
+| 4 | Char Kway Teow | Flat rice noodles, egg, Chinese sausage, cockles, bean sprouts, dark soy | Lunch / Dinner | Hill Street Char Kway Teow (Bedok), Outram Park Fried Kway Teow | “Wok-hei” (breath of the wok) is the hallmark of a good plate. |
+| 5 | Hokkien Mee | Yellow noodles + thick bee hoon, prawn stock, squid, pork belly, lime & sambal | Supper | Geylang Lor 29, Kim’s Hokkien Mee (Changi Village) | Traditionally fried over charcoal for extra smokiness. |
+| 6 | Satay | Skewered grilled meat (chicken, beef, mutton), peanut sauce, rice cakes, cucumber & onion | Evening | Lau Pa Sat Satay Street (7 pm road closure), Chomp Chomp | Satay Club (1930s) was the first dedicated hawker area. |
+| 7 | Roti Prata | Flaky pan-fried flatbread, fish or mutton curry | Breakfast / Supper | Springleaf Prata Place (Upper Thomson), The Roti Prata House (Casuarina) | “Tissue prata” version is paper-thin and shaped like a cone. |
+| 8 | Nasi Lemak | Coconut rice, fried chicken wing, ikan bilis, egg, sambal | Breakfast / Brunch | Selera Rasa (Adam Rd), Boon Lay Power Nasi Lemak | Royal version served at the Istana open house uses blue pea rice. |
+| 9 | Bak Chor Mee | Minced pork, pork liver, vinegar-chilli sauce, mee pok noodles, fish balls | Lunch | Tai Hwa Pork Noodle (Crawford Lane), Hill Street Tai Hwa (Michelin-starred) | The queue starts before 9 a.m. on weekends. |
+|10 | Kaya Toast & Soft-Boiled Eggs | Toasted bread with kaya & butter, runny eggs, kopi | Breakfast | Ya Kun Kaya Toast, Killiney Kopitiam | Dipping kaya toast into the eggs is the local ritual. |
+|11 | Carrot Cake (Chai Tow Kway) | Steamed radish cake cubes, egg, preserved radish, sweet dark soy or white version | Breakfast / Supper | Bukit Merah View Carrot Cake, Chey Sua (Toa Payoh) | No carrots—radish gives it the name in Hokkien. |
+|12 | Rojak | Mixed fruits & vegetables, you tiao, shrimp paste, crushed peanuts | Snack / Afternoon | Toa Payoh Rojak, Lau Pa Sat Stall 27 | Name means “mixture” in Malay—apt for the dish. |
+|13 | Murtabak | Stuffed prata with minced mutton, egg, onion, served with curry | Supper | Zam Zam Restaurant (North Bridge Rd), Victory | Singapore’s giant coin-murtabak challenge weighs 2 kg! |
+|14 | Oyster Omelette (Orh Luak) | Eggs, tapioca starch batter, fresh oysters, chilli-vinegar dip | Dinner | Ah Chuan Oyster Omelette (Toa Payoh), Hougang Oyster Omelette | The crisp edges vs gooey center debate is eternal. |
+|15 | Ice Kachang | Shaved ice, red beans, grass jelly, attap chee, rose syrup & evaporated milk | Dessert | Jin Jin Hot/Cold Desserts (ABC Brickworks), Mei Heong Yuen | Modern versions include durian and Milo toppings. |
+
+
+
+
+
+
+
+
+

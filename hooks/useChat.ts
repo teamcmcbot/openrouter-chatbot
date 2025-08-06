@@ -30,7 +30,7 @@ export function useChat(): UseChatReturn {
     if (!content.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       content: content.trim(),
       role: "user",
       timestamp: new Date(),
@@ -41,7 +41,14 @@ export function useChat(): UseChatReturn {
     setError(null);
 
     try {
-      const requestBody: { message: string; model?: string } = { message: content };
+      const requestBody: {
+        message: string;
+        model?: string;
+        messages?: ChatMessage[];
+      } = {
+        message: content,
+        messages: [userMessage] // Send the user message with its ID
+      };
       if (model) {
         requestBody.model = model;
       }
@@ -74,19 +81,52 @@ export function useChat(): UseChatReturn {
         throw new Error(data.error);
       }
 
+      console.log('Raw API response data:', data);
+      console.log('Usage object:', data.usage);
+      console.log('Individual token values:', {
+        prompt_tokens: data.usage?.prompt_tokens,
+        completion_tokens: data.usage?.completion_tokens,
+        total_tokens: data.usage?.total_tokens
+      });
+
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         content: data.response,
         role: "assistant",
         timestamp: new Date(),
-        elapsed_time: data.elapsed_time ?? 0, // Assuming elapsed_time is part of the response
-        total_tokens: data.usage?.total_tokens ?? 0, // Assuming usage is part of the response
-        model: data.model || model, // Prefer backend model, fallback to selected
-        contentType: data.contentType || "text", // Use detected content type from API
-        completion_id: data.id, // Use OpenRouter response id for metadata lookup
+        elapsed_time: data.elapsed_time ?? 0,
+        total_tokens: data.usage?.total_tokens ?? 0,
+        input_tokens: data.usage?.prompt_tokens ?? 0, // NEW: input tokens from API
+        output_tokens: data.usage?.completion_tokens ?? 0, // NEW: output tokens from API
+        user_message_id: data.request_id, // NEW: link to user message that triggered this response
+        model: data.model || model,
+        contentType: data.contentType || "text",
+        completion_id: data.id,
       };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      console.log('Created assistant message:', assistantMessage);
+      console.log('Assistant message tokens:', {
+        input_tokens: assistantMessage.input_tokens,
+        output_tokens: assistantMessage.output_tokens,
+        total_tokens: assistantMessage.total_tokens
+      });
+
+      // Update user message with input tokens when assistant response arrives
+      setMessages(prev => {
+        console.log('Token mapping debug:', {
+          request_id: data.request_id,
+          prompt_tokens: data.usage?.prompt_tokens,
+          completion_tokens: data.usage?.completion_tokens,
+          user_messages: prev.filter(m => m.role === 'user').map(m => ({ id: m.id, input_tokens: m.input_tokens }))
+        });
+        
+        const updatedMessages = prev.map(msg =>
+          msg.id === data.request_id
+            ? { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 }
+            : msg
+        );
+        return [...updatedMessages, assistantMessage];
+      });
     } catch (err) {
       let chatError: ChatError;
       

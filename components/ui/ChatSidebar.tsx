@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, ArrowPathIcon, CloudIcon, ComputerDesktopIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import Button from "./Button";
+import ConfirmModal from "./ConfirmModal";
+import UserSettings from "./UserSettings";
 import { useChatStore } from "../../stores";
+import { useAuthStore } from "../../stores/useAuthStore";
+import { formatConversationTimestamp } from "../../lib/utils/dateFormat";
 
 interface ChatSidebarProps {
   isOpen: boolean;
@@ -21,11 +25,37 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     deleteConversation,
     updateConversationTitle,
     getRecentConversations,
+    clearAllConversations,
     isHydrated,
   } = useChatStore();
   
+  // Get auth state
+  const { isAuthenticated } = useAuthStore();
+  
+  // Get sync state from chat store
+  const { isSyncing, lastSyncTime, syncError, syncConversations } = useChatStore();
+  
+  // Create sync status object and manual sync function for the UI
+  const syncStatus = {
+    isSyncing,
+    lastSyncTime: lastSyncTime ? new Date(lastSyncTime) : null,
+    syncError,
+    canSync: isAuthenticated
+  };
+  
+  const manualSync = async () => {
+    if (!isAuthenticated) {
+      console.warn('[ChatSidebar] Cannot sync: user not authenticated');
+      return;
+    }
+    console.log('[ChatSidebar] Manual sync triggered');
+    await syncConversations();
+  };
+  
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Get recent conversations (limit to 20 for performance)
   // Only show conversations after hydration to prevent SSR mismatch
@@ -36,9 +66,14 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     setEditTitle(currentTitle);
   };
 
-  const handleSaveEdit = (id: string) => {
+  const handleSaveEdit = async (id: string) => {
     if (editTitle.trim()) {
-      updateConversationTitle(id, editTitle.trim());
+      try {
+        await updateConversationTitle(id, editTitle.trim());
+      } catch (error) {
+        console.error('Failed to update conversation title:', error);
+        // Could show a toast notification here
+      }
     }
     setEditingId(null);
     setEditTitle("");
@@ -49,8 +84,13 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     setEditTitle("");
   };
 
-  const handleDeleteChat = (id: string) => {
-    deleteConversation(id);
+  const handleDeleteChat = async (id: string) => {
+    try {
+      await deleteConversation(id);
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+      alert('Failed to delete conversation. Please try again.');
+    }
   };
 
   const handleConversationClick = (id: string) => {
@@ -61,20 +101,19 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     }
   };
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      return "Today";
-    } else if (diffDays === 1) {
-      return "Yesterday";
-    } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
-    } else {
-      return date.toLocaleDateString();
+  const handleClearAllConversations = async () => {
+    if (conversations.length === 0) return;
+    setShowConfirmModal(true);
+  };
+
+  const confirmClearAll = async () => {
+    try {
+      await clearAllConversations();
+    } catch (error) {
+      console.error('Failed to clear all conversations:', error);
+      alert('Failed to clear conversations. Please try again.');
+    } finally {
+      setShowConfirmModal(false);
     }
   };
 
@@ -83,6 +122,10 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     const lastMessage = messages[messages.length - 1];
     const content = lastMessage.content;
     return content.length > 60 ? content.substring(0, 60) + "..." : content;
+  };
+
+  const handleSettingsClick = () => {
+    setShowSettingsModal(true);
   };
 
   return (
@@ -102,11 +145,11 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
       )}
       
       {/* Sidebar */}
-      <aside 
+      <aside
         className={`
           fixed xl:static inset-y-0 left-0 z-50 xl:z-0
-          w-64 xl:w-full h-full
-          bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+          w-64 xl:w-full h-full mobile-safe-area
+          bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
           transform transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'}
           flex flex-col
@@ -122,14 +165,78 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
             <PlusIcon className="w-4 h-4" />
             New Chat
           </Button>
+          
+          
         </div>
 
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto">
-          <div className="p-4">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          
+          <div className="ml-2 p-4">
+            
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Recent Chats
             </h3>
+
+            {/* Sync Status */}
+          {isAuthenticated && (
+            <div className="mb-3 px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {syncStatus.isSyncing ? (
+                    <>
+                      <ArrowPathIcon className="w-4 h-4 text-blue-500 animate-spin" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Syncing...</span>
+                    </>
+                  ) : syncStatus.syncError ? (
+                    <>
+                      <ComputerDesktopIcon className="w-4 h-4 text-red-500" />
+                      <span className="text-xs text-red-600 dark:text-red-400">Sync failed</span>
+                    </>
+                  ) : syncStatus.lastSyncTime ? (
+                    <>
+                      <CloudIcon className="w-4 h-4 text-green-500" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        Synced {syncStatus.lastSyncTime.toLocaleTimeString()}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ComputerDesktopIcon className="w-4 h-4 text-gray-400" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Local only</span>
+                    </>
+                  )}
+                </div>
+                
+                {!syncStatus.isSyncing && (
+                  <button
+                    onClick={manualSync}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                    title="Sync now"
+                  >
+                    Sync
+                  </button>
+                )}
+              </div>
+              
+              {syncStatus.syncError && (
+                <div className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {syncStatus.syncError}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Non-authenticated prompt */}
+          {!isAuthenticated && (
+            <div className="mt-1 mb-3 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="text-xs text-blue-700 dark:text-blue-300">
+                <span className="font-medium">Sign in to sync across devices</span>
+                <br />
+                Your chats are saved locally only
+              </div>
+            </div>
+          )}
             
             <div className="space-y-1">
               {recentConversations.map((conversation, index) => (
@@ -139,8 +246,8 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                     conversation.id === currentConversationId
                       ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 shadow-sm'
                       : index % 2 === 0
-                        ? 'bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
-                        : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
+                        ? 'bg-gray-100/30 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
+                        : 'bg-gray-200 dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
                   }`}
                   onClick={() => handleConversationClick(conversation.id)}
                 >
@@ -222,7 +329,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                           </p>
                           <div className="flex items-center justify-between mt-2">
                             <span className="text-xs text-gray-500 dark:text-gray-500">
-                              {formatTimestamp(conversation.updatedAt)}
+                              {formatConversationTimestamp(conversation.lastMessageTimestamp || "")}
                             </span>
                             <div className="flex items-center gap-1">
                               
@@ -252,11 +359,46 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-500 dark:text-gray-500 text-center">
-            {isHydrated ? `${conversations.length} total conversations` : "Loading conversations..."}
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-gray-500 dark:text-gray-500">
+              {isHydrated ? `${conversations.length} total conversations` : "Loading conversations..."}
+            </div>
+            <div className="flex items-center gap-2">
+              {isHydrated && isAuthenticated && (
+                <button
+                  onClick={handleSettingsClick}
+                  className="p-1 text-gray-400 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors rounded"
+                  title="Settings"
+                >
+                  <Cog6ToothIcon className="w-4 h-4" />
+                </button>
+              )}
+              {isHydrated && conversations.length > 0 && (
+                <button
+                  onClick={handleClearAllConversations}
+                  className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded"
+                  title="Clear all conversations"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </aside>
+      <UserSettings
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onConfirm={confirmClearAll}
+        onCancel={() => setShowConfirmModal(false)}
+        title="Delete all conversations?"
+        description={`Are you sure you want to delete all ${conversations.length} conversations? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
     </>
   );
 }

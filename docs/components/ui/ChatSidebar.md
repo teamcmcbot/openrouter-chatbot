@@ -3,6 +3,8 @@
 ## Purpose
 - Mobile-friendly panel listing previous chat sessions.
 - Allows creating, editing and deleting chat titles.
+- Shows sync status when a user is signed in.
+- Provides access to user settings.
 
 ## Props
 | Prop | Type | Required? | Description |
@@ -13,9 +15,8 @@
 | `className` | `string` | No | Extra CSS classes.
 
 ## State Variables
-- `chatHistory`: sample chats list used for the sidebar.
-- `editingId`: `null` – ID of the chat currently being renamed.
-- `editTitle`: `""` – text for the new title.
+- `editingId`: `null` – ID of the conversation currently being renamed.
+- `editTitle`: `""` – new title value while editing.
 
 ## useEffect Hooks
 - None
@@ -25,12 +26,19 @@
 - `handleSaveEdit` – applies the edited title.
 - `handleCancelEdit` – exits edit mode without saving.
 - `handleDeleteChat` – removes a chat from the list.
+- `manualSync` – manually syncs conversations to the server.
+- `handleClearAllConversations` – deletes all saved conversations.
+- `handleConversationClick` – switches the active conversation and closes the panel on mobile.
+- `handleSettingsClick` – opens the `UserSettings` modal.
 
 ## Data Flow
-- Maintains local chat history and displays it with edit controls.
+- Reads conversations from `useChatStore` and displays them with edit controls.
+- Uses `useChatSync` to sync conversations when authenticated.
+- Relative timestamps are formatted with `formatConversationTimestamp`.
+- When not authenticated, a prompt encourages the user to sign in for sync.
 
 ## Usage Locations
 - `components/chat/ChatInterface.tsx`
 
 ## Notes for Juniors
-- The chat history here is mock data; in a real app you would load it from storage.
+- Conversations come from `useChatStore` and may be synced to the backend when signed in.

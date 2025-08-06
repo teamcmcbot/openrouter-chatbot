@@ -48,19 +48,21 @@ export const CustomCodeBlock = ({
 };
 
 export const CustomTable = ({ children, ...props }: CustomTableProps) => (
-  <div className="overflow-x-auto my-4">
-    <table
-      className="min-w-full border-collapse border border-gray-300 dark:border-gray-600"
-      {...props}
-    >
-      {children}
-    </table>
+  <div className="responsive-table-wrapper">
+    <div className="responsive-table-container">
+      <table
+        className="responsive-table"
+        {...props}
+      >
+        {children}
+      </table>
+    </div>
   </div>
 );
 
 export const CustomBlockquote = ({ children, ...props }: CustomBlockquoteProps) => (
   <blockquote
-    className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 py-2 my-4 italic text-gray-700 dark:text-gray-300"
+    className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 py-2 my-4 italic text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800"
     {...props}
   >
     {children}

@@ -7,16 +7,19 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test": "NODE_OPTIONS='--no-deprecation' jest",
+    "test:watch": "NODE_OPTIONS='--no-deprecation' jest --watch",
+    "test:coverage": "NODE_OPTIONS='--no-deprecation' jest --coverage"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.51.0",
     "highlight.js": "^11.11.1",
     "next": "15.3.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.5.2",
     "react-markdown": "^10.1.0",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",

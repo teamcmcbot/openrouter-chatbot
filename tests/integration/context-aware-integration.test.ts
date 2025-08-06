@@ -18,11 +18,12 @@ import type { Conversation } from '../../stores/types/chat';
 const originalEnv = process.env;
 
 describe('Context-Aware Chat Integration Tests', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     // Reset stores
-    useChatStore.getState().conversations.forEach(conv => {
-      useChatStore.getState().deleteConversation(conv.id);
-    });
+    const conversations = useChatStore.getState().conversations;
+    await Promise.all(conversations.map(conv => 
+      useChatStore.getState().deleteConversation(conv.id)
+    ));
     
     // Mock environment
     process.env = {

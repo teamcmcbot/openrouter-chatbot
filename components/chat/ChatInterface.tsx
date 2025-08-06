@@ -47,6 +47,8 @@ export default function ChatInterface() {
 
   // Local state for scroll behavior (transient, doesn't need to be in store)
   const [scrollToCompletionId, setScrollToCompletionId] = useState<string | undefined>(undefined);
+  // Local state for prompt selection
+  const [selectedPrompt, setSelectedPrompt] = useState<string>("");
 
   // Retry function to resend the last user message
   const handleRetry = () => {
@@ -118,8 +120,12 @@ export default function ChatInterface() {
     toggleChatSidebar();
   };
 
+  const handlePromptSelect = (prompt: string) => {
+    setSelectedPrompt(prompt);
+  };
+
   return (
-    <div className="flex h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+    <div className="flex h-full bg-gray-300 dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden mobile-safe-area">
       {/* Left Sidebar - Chat History (15%) */}
       <div className="hidden xl:block w-[15%] min-w-[200px]">
         <ChatSidebar
@@ -132,7 +138,7 @@ export default function ChatInterface() {
       {/* Main Chat Area (70%) */}
       <div className="flex flex-col flex-1 xl:w-[70%] min-w-0">
         {/* Header */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {/* Mobile menu button */}
@@ -144,14 +150,14 @@ export default function ChatInterface() {
                 <Bars3Icon className="w-5 h-5" />
               </button>
               
-              <div>
+                <div className="hidden sm:block">
                 <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                   AI Assistant
                 </h1>
                 <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                   Powered by OpenRouter
                 </p>
-              </div>
+                </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               {availableModels.length > 0 && (
@@ -184,6 +190,7 @@ export default function ChatInterface() {
             onModelClick={handleModelClickFromMessage}
             hoveredGenerationId={hoveredGenerationId}
             scrollToCompletionId={scrollToCompletionId}
+            onPromptSelect={handlePromptSelect}
           />
         </div>
 
@@ -204,10 +211,14 @@ export default function ChatInterface() {
         )}
 
         {/* Input Area */}
-        <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
           <MessageInput 
-            onSendMessage={(message) => sendMessage(message, selectedModel)}
+            onSendMessage={(message) => {
+              sendMessage(message, selectedModel);
+              setSelectedPrompt(""); // Clear the selected prompt after sending
+            }}
             disabled={isLoading}
+            initialMessage={selectedPrompt}
           />
         </div>
       </div>
@@ -222,6 +233,7 @@ export default function ChatInterface() {
           generationId={selectedGenerationId}
           onGenerationHover={handleGenerationHover}
           onGenerationClick={handleGenerationClick}
+          variant="desktop"
         />
       </div>
 
@@ -243,6 +255,7 @@ export default function ChatInterface() {
           generationId={selectedGenerationId}
           onGenerationHover={handleGenerationHover}
           onGenerationClick={handleGenerationClick}
+          variant="mobile"
         />
       </div>
     </div>

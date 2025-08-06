@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, memo, useState } from "react";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { ChatMessage } from "../../lib/types/chat";
+import { formatMessageTime } from "../../lib/utils/dateFormat";
+import { useAuthStore } from "../../stores/useAuthStore";
 import { 
   CustomCodeBlock, 
   CustomTable, 
@@ -12,6 +15,7 @@ import {
   CustomLink, 
   CustomPreBlock 
 } from "./markdown/MarkdownComponents";
+import PromptTabs from "./PromptTabs";
 
 // Memoized markdown component for better performance
 const MemoizedMarkdown = memo(({ children }: { children: string }) => (
@@ -38,12 +42,17 @@ interface MessageListProps {
   onModelClick?: (modelId: string, tab?: 'overview' | 'pricing' | 'capabilities', generationId?: string) => void;
   hoveredGenerationId?: string;
   scrollToCompletionId?: string; // Add scroll trigger prop
+  onPromptSelect?: (prompt: string) => void;
 }
 
-export default function MessageList({ messages, isLoading, onModelClick, hoveredGenerationId, scrollToCompletionId }: Readonly<MessageListProps>) {
+export default function MessageList({ messages, isLoading, onModelClick, hoveredGenerationId, scrollToCompletionId, onPromptSelect }: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
+  
+  // Get user from auth store
+  const user = useAuthStore((state) => state.user);
 
   const handleCopyMessage = async (messageId: string, content: string) => {
     try {
@@ -53,6 +62,10 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
     } catch (error) {
       console.error('Failed to copy message:', error);
     }
+  };
+
+  const handleAvatarError = (avatarUrl: string) => {
+    setFailedAvatars(prev => new Set(prev).add(avatarUrl));
   };
 
   const scrollToBottom = () => {
@@ -92,10 +105,6 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
 
-  const formatTime = (date: Date | string) => {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
 
   return (
     <div 
@@ -104,16 +113,17 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
     >
       <div className="space-y-4">
         {messages.length === 0 && !isLoading && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+          <div className="flex flex-col items-center justify-center h-full">
             <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
             <p className="text-lg mb-2">Start a conversation</p>
-            <p className="text-sm text-center max-w-md">
-              Type a message below to begin chatting with the AI assistant.
+            <p className="text-sm text-center max-w-md mb-6">
+              Type a message to chat with the AI.
             </p>
+            <PromptTabs onPromptSelect={onPromptSelect || (() => {})} />
           </div>
         )}
 
@@ -123,18 +133,33 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
             className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             data-completion-id={message.completion_id} // Add data attribute for scrolling
           >
-            <div className={`flex max-w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-              {/* Avatar */}
-              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                message.role === "user" 
-                  ? "bg-emerald-600 text-white ml-3" 
+            <div className={`flex w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+              {/* Avatar - Hidden on mobile (< sm breakpoint) */}
+              <div className={`hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full items-center justify-center text-sm font-medium overflow-hidden ${
+                message.role === "user"
+                  ? "bg-emerald-600 text-white ml-3"
                   : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 mr-3"
               }`}>
-                {message.role === "user" ? "ME" : "AI"}
+                {message.role === "user" ? (
+                  user?.user_metadata?.avatar_url && !failedAvatars.has(user.user_metadata.avatar_url) ? (
+                    <Image
+                      src={user.user_metadata.avatar_url}
+                      alt="User Avatar"
+                      width={32}
+                      height={32}
+                      className="w-full h-full rounded-full object-cover"
+                      onError={() => handleAvatarError(user.user_metadata.avatar_url)}
+                    />
+                  ) : (
+                    "ME"
+                  )
+                ) : (
+                  "AI"
+                )}
               </div>
 
               {/* Message Content */}
-              <div className={`rounded-lg px-4 py-2 transition-all duration-200 relative ${
+              <div className={`rounded-lg px-3 sm:px-4 py-2 transition-all duration-200 relative flex-1 sm:flex-initial ${
                 message.role === "user"
                   ? `bg-emerald-600 text-white`
                   : `bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${
@@ -147,7 +172,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                 {message.role === "assistant" && message.model && (
                   <button
                     onClick={() => onModelClick?.(message.model!, 'overview', undefined)}
-                    className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-gray-800 dark:text-purple-300 align-middle hover:bg-gray-400 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                    className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-purple-800 dark:text-purple-300 align-middle hover:bg-gray-400 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                     title={`View details for ${message.model}`}
                   >
                     {message.model}
@@ -174,50 +199,78 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                   </div>
                 )}
                 
-                <div className="flex justify-between items-center mt-1">
-                  <p className={`text-xs ${
-                    message.role === "user" 
-                      ? "text-emerald-100" 
-                      : "text-gray-400 dark:text-gray-300"
-                  }`}>
-                    {formatTime(message.timestamp)}{" "}
-                    {message.elapsed_time && (
-                      <span className="text-gray-300 dark:text-gray-400">
-                        (Took {message.elapsed_time} seconds, {message.total_tokens} tokens - 
-                        <button
-                          onClick={() => onModelClick?.(message.model!, 'pricing', message.completion_id)}
-                          className={`underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer ml-1 ${
-                            hoveredGenerationId === message.completion_id
-                              ? 'text-blue-500 dark:text-blue-400 font-medium'
-                              : ''
-                          }`}
-                          title={`View pricing details for ${message.model}`}
-                        >
-                          {message.completion_id}
-                        </button>
-                        )
-                      </span>
+                <div className="mt-2 flex flex-wrap items-start w-full gap-x-2 gap-y-1">
+                  {/* Left column (Group 1 + Group 2) */}
+                  <div className="flex flex-wrap items-center gap-x-1 gap-y-1 flex-grow min-w-0">
+                    {/* Group 1: Time + Elapsed Time */}
+                    <div className={`flex items-center text-xs ${message.role === "user" ? "text-white/80" : "text-gray-600 dark:text-gray-300"}`}> 
+                      <span>{formatMessageTime(message.timestamp)}</span>
+                      {message.role === "assistant" && message.elapsed_time && (
+                        <span className="ml-1">(Took {message.elapsed_time} seconds)</span>
+                      )}
+                      {message.role === "user" && typeof message.input_tokens === 'number' && message.input_tokens > 0 && (
+                        <span className="ml-1">
+                          ({message.input_tokens} input tokens)
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Group 2: Tokens Info */}
+                    {message.role === "assistant" && (
+                      <div className="flex items-center text-xs text-gray-600 dark:text-gray-300">
+                        Input: {message.input_tokens || 0}, Output: {message.output_tokens || 0}, 
+                        Total: {message.total_tokens} tokens
+                      </div>
                     )}
-                  </p>
-                  <button
-                    onClick={() => handleCopyMessage(message.id, message.content)}
-                    className={`ml-2 p-1 rounded transition-colors ${
-                      message.role === "user" 
-                        ? "hover:bg-emerald-700 text-emerald-100 hover:text-white" 
-                        : "hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-300"
-                    }`}
-                    title={copiedMessageId === message.id ? "Copied!" : "Copy message"}
-                  >
-                    {copiedMessageId === message.id ? (
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    )}
-                  </button>
+                  </div>
+
+                  {/* Group 3 (always on the far right or its own row) */}
+                  {message.role === "assistant" && message.completion_id && (
+                    <div className="flex items-center justify-between w-full md:w-auto md:flex-grow-0 md:ml-auto">
+                      <button
+                        onClick={() => onModelClick?.(message.model!, 'pricing', message.completion_id)}
+                        className="text-xs underline hover:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer truncate max-w-[120px] md:max-w-[220px] block overflow-hidden whitespace-nowrap text-ellipsis"
+                        title={message.completion_id} // Optional: show full ID on hover
+                      >
+                        {message.completion_id}
+                      </button>
+                      <button
+                        onClick={() => handleCopyMessage(message.id, message.content)}
+                        className="ml-2 p-1 rounded transition-colors hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-300"
+                        title={copiedMessageId === message.id ? "Copied!" : "Copy message"}
+                      >
+                        {copiedMessageId === message.id ? (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                  {/* Copy button for user messages (green bubble) */}
+                  {message.role === "user" && (
+                    <div className="flex items-center justify-end w-full md:w-auto md:flex-grow-0 md:ml-auto">
+                      <button
+                        onClick={() => handleCopyMessage(message.id, message.content)}
+                        className="ml-2 p-1 rounded transition-colors hover:bg-emerald-700 text-white/80"
+                        title={copiedMessageId === message.id ? "Copied!" : "Copy message"}
+                      >
+                        {copiedMessageId === message.id ? (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -227,11 +280,12 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
         {/* Loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="flex max-w-[70%]">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 flex items-center justify-center text-sm font-medium mr-3">
+            <div className="flex w-full sm:max-w-[70%]">
+              {/* Avatar - Hidden on mobile (< sm breakpoint) */}
+              <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 items-center justify-center text-sm font-medium mr-3">
                 AI
               </div>
-              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2">
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 sm:flex-initial">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
