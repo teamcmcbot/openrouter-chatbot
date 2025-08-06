@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import Button from "./Button";
 import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
@@ -266,25 +267,18 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         </section>
 
         <section className="mb-6">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center mb-2">
             <h3 className="text-lg font-medium">Analytics</h3>
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={refetch}
               disabled={dataLoading}
-              className="h-8 w-8 p-0"
+              className="ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50"
               title="Refresh analytics data"
             >
-              <svg 
-                className={`h-4 w-4 ${dataLoading ? 'animate-spin' : ''}`} 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </Button>
+              <ArrowPathIcon 
+                className={`w-5 h-5 ${dataLoading ? 'animate-spin' : ''}`}
+              />
+            </button>
           </div>
           
           <div className="grid grid-cols-2 gap-3 mb-3">
