@@ -469,6 +469,27 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Function to track session creation
+CREATE OR REPLACE FUNCTION public.track_session_creation()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Call track_user_usage with session_created = true
+    -- All other parameters are set to 0/default since this is just session creation
+    PERFORM public.track_user_usage(
+        NEW.user_id,           -- p_user_id
+        0,                     -- p_messages_sent (0 for new session)
+        0,                     -- p_messages_received (0 for new session)
+        0,                     -- p_input_tokens (0 for new session)
+        0,                     -- p_output_tokens (0 for new session)
+        NULL,                  -- p_model_used (NULL for new session)
+        true,                  -- p_session_created (TRUE - this is the key parameter)
+        0                      -- p_active_minutes (0 for new session)
+    );
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- =============================================================================
 -- TRIGGERS
 -- =============================================================================
@@ -482,3 +503,9 @@ CREATE TRIGGER on_message_change
 CREATE TRIGGER on_session_updated
     BEFORE UPDATE ON public.chat_sessions
     FOR EACH ROW EXECUTE FUNCTION public.update_session_timestamp();
+
+-- Trigger to track session creation for usage analytics
+CREATE TRIGGER on_session_created
+    AFTER INSERT ON public.chat_sessions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.track_session_creation();
