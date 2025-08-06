@@ -30,7 +30,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   const handleRefresh = async () => {
     if (refreshing || isRefreshAnimating) return;
     
-    const MINIMUM_SPIN_DURATION = 1000; // 1 second minimum
+    const SPIN_DURATION_MS = 1000; // One full rotation takes 1 second in Tailwind's animate-spin
     const startTime = Date.now();
     
     setIsRefreshAnimating(true);
@@ -42,17 +42,26 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
       // Calculate how long the API call took
       const apiDuration = Date.now() - startTime;
       
-      // If API was faster than minimum spin duration, wait for the remainder
-      if (apiDuration < MINIMUM_SPIN_DURATION) {
-        const remainingTime = MINIMUM_SPIN_DURATION - apiDuration;
-        await new Promise(resolve => setTimeout(resolve, remainingTime));
+      // Calculate how many complete rotations have occurred
+      const completeRotations = Math.floor(apiDuration / SPIN_DURATION_MS);
+      
+      // Calculate the next complete rotation point
+      const nextCompleteRotation = (completeRotations + 1) * SPIN_DURATION_MS;
+      
+      // If we haven't reached the next complete rotation, wait for it
+      if (apiDuration < nextCompleteRotation) {
+        const timeToNextRotation = nextCompleteRotation - apiDuration;
+        await new Promise(resolve => setTimeout(resolve, timeToNextRotation));
       }
     } catch {
-      // Even on error, ensure minimum spin duration
+      // Even on error, ensure we stop at a complete rotation
       const apiDuration = Date.now() - startTime;
-      if (apiDuration < MINIMUM_SPIN_DURATION) {
-        const remainingTime = MINIMUM_SPIN_DURATION - apiDuration;
-        await new Promise(resolve => setTimeout(resolve, remainingTime));
+      const completeRotations = Math.floor(apiDuration / SPIN_DURATION_MS);
+      const nextCompleteRotation = (completeRotations + 1) * SPIN_DURATION_MS;
+      
+      if (apiDuration < nextCompleteRotation) {
+        const timeToNextRotation = nextCompleteRotation - apiDuration;
+        await new Promise(resolve => setTimeout(resolve, timeToNextRotation));
       }
     } finally {
       setIsRefreshAnimating(false);
