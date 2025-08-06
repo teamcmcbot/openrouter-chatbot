@@ -1,151 +1,153 @@
-// hooks/useUserData.ts
-'use client'
-
 import { useState, useEffect, useCallback } from 'react';
-import { UserDataResponse, UserPreferencesUpdate } from '../lib/types/user-data';
-import { fetchUserData, updateUserPreferences, validatePreferencesUpdate } from '../lib/services/user-data';
-import { useAuthStore } from '../stores/useAuthStore';
+import { useAuth } from '../stores/useAuthStore';
+import { fetchUserData, updateUserPreferences } from '../lib/services/user-data';
+import type { UserDataResponse, UserPreferencesUpdate } from '../lib/types/user-data';
 
-interface UserDataError {
-  message: string;
-  code?: string;
-  timestamp?: string;
+interface UseUserDataOptions {
+  enabled?: boolean;
 }
 
 interface UseUserDataReturn {
-  /** Complete user data including analytics, profile, and preferences */
   data: UserDataResponse | null;
-  /** Loading state for initial data fetch */
   loading: boolean;
-  /** Error state for data operations */
-  error: UserDataError | null;
-  /** Loading state for preference updates */
-  updating: boolean;
-  /** Manually refetch user data */
+  error: string | null;
   refetch: () => Promise<void>;
-  /** Update user preferences */
   updatePreferences: (preferences: UserPreferencesUpdate) => Promise<void>;
-  /** Clear error state */
-  clearError: () => void;
+  forceRefresh: () => Promise<void>;
 }
 
 /**
- * Hook for managing user data including analytics and preferences
- * Automatically fetches data when user is authenticated
- * Provides methods for updating preferences with optimistic updates
+ * Custom hook for managing user data fetching and updates
+ * Includes caching to prevent duplicate API calls for the same user
+ * 
+ * @param options - Configuration options for the hook
+ * @param options.enabled - Whether the hook should automatically fetch data (default: true)
+ * @returns Object containing data, loading state, error state, and update functions
  */
-export function useUserData(): UseUserDataReturn {
-  const { user, session, isAuthenticated } = useAuthStore();
+export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn {
+  const { enabled = true } = options;
+  const { user } = useAuth();
   const [data, setData] = useState<UserDataResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [updating, setUpdating] = useState(false);
-  const [error, setError] = useState<UserDataError | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lastFetchedUserId, setLastFetchedUserId] = useState<string | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
 
-  /**
-   * Fetches user data from API
-   */
   const fetchData = useCallback(async () => {
-    if (!user || !session || !isAuthenticated) {
-      setData(null);
-      setError(null);
-      setLoading(false);
+    if (!user?.id || !enabled) {
       return;
     }
 
+    // Prevent duplicate fetches for the same user
+    if (isFetching) {
+      return;
+    }
+
+    // Check if we already have data for this user
+    if (lastFetchedUserId === user.id && data) {
+      return;
+    }
+
+    setIsFetching(true);
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
+      const currentUserId = user.id;
       
+      // Only proceed if user hasn't changed during the async operation
+      if (!user?.id || user.id !== currentUserId) {
+        return;
+      }
+
       const userData = await fetchUserData();
-      setData(userData);
+      
+      // Double-check user hasn't changed during fetch
+      if (user?.id === currentUserId) {
+        setData(userData);
+        setLastFetchedUserId(currentUserId);
+        setError(null);
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch user data';
-      setError({
-        message: errorMessage,
-        timestamp: new Date().toISOString()
-      });
-      console.error('Error fetching user data:', err);
+      setError(errorMessage);
+      setData(null);
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
-  }, [user, session, isAuthenticated]);
+  }, [user?.id, enabled, data, lastFetchedUserId, isFetching]);
 
-  /**
-   * Manual refetch function
-   */
+  // Force refresh function that bypasses cache
+  const forceRefresh = useCallback(async () => {
+    if (!user?.id) {
+      return;
+    }
+
+    // Clear cache and force new fetch
+    setLastFetchedUserId(null);
+    setData(null);
+    setIsFetching(false);
+    
+    // Trigger fresh fetch
+    await fetchData();
+  }, [user?.id, fetchData]);
+
   const refetch = useCallback(async () => {
     await fetchData();
   }, [fetchData]);
 
-  /**
-   * Updates user preferences with optimistic updates
-   */
   const updatePreferences = useCallback(async (preferences: UserPreferencesUpdate) => {
-    if (!user || !session || !isAuthenticated || !data) {
-      throw new Error('User must be authenticated to update preferences');
+    if (!user?.id) {
+      throw new Error('User not authenticated');
     }
+
+    setLoading(true);
+    setError(null);
 
     try {
-      // Validate preferences before sending
-      validatePreferencesUpdate(preferences);
-      
-      setUpdating(true);
-      setError(null);
-
-      // Optimistic update - update local state immediately
-      const optimisticData: UserDataResponse = {
-        ...data,
-        preferences: {
-          ...data.preferences,
-          ...(preferences.ui && { ui: { ...data.preferences.ui, ...preferences.ui } }),
-          ...(preferences.session && { session: { ...data.preferences.session, ...preferences.session } }),
-          ...(preferences.model && { model: { ...data.preferences.model, ...preferences.model } })
-        }
-      };
-      setData(optimisticData);
-
-      // Send update to server
       const updatedData = await updateUserPreferences(preferences);
-      
-      // Use server response as source of truth
       setData(updatedData);
+      setError(null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update preferences';
-      setError({
-        message: errorMessage,
-        code: 'UPDATE_FAILED',
-        timestamp: new Date().toISOString()
-      });
-      
-      // Revert optimistic update by refetching data
-      await fetchData();
-      
-      console.error('Error updating preferences:', err);
-      throw err; // Re-throw so calling component can handle it
+      setError(errorMessage);
+      throw err; // Re-throw to allow component-level error handling
     } finally {
-      setUpdating(false);
+      setLoading(false);
     }
-  }, [user, session, isAuthenticated, data, fetchData]);
+  }, [user?.id]);
 
-  /**
-   * Clears error state
-   */
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
-
-  // Fetch data when user authentication state changes
+  // Effect to handle user changes and authentication state
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (!enabled) {
+      return;
+    }
+
+    const currentUserId = user?.id;
+
+    if (currentUserId) {
+      // User is authenticated
+      if (lastFetchedUserId !== currentUserId) {
+        // User changed or first load - fetch data
+        fetchData();
+      }
+    } else {
+      // User logged out - clear data
+      setData(null);
+      setError(null);
+      setLastFetchedUserId(null);
+      setLoading(false);
+      setIsFetching(false);
+    }
+  }, [user?.id, enabled, fetchData, lastFetchedUserId]);
 
   return {
     data,
     loading,
     error,
-    updating,
     refetch,
     updatePreferences,
-    clearError
+    forceRefresh,
   };
 }

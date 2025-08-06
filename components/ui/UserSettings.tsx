@@ -12,7 +12,7 @@ interface UserSettingsProps {
 
 export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsProps>) {
   const { user, isLoading: authLoading } = useAuth();
-  const { data: userData, loading: dataLoading, error, updating, refetch, updatePreferences } = useUserData();
+  const { data: userData, loading: dataLoading, error, refetch, updatePreferences } = useUserData({ enabled: isOpen });
   
   // State for editing preferences
   const [isEditing, setIsEditing] = useState(false);
@@ -49,7 +49,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         <div className="relative bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl w-full max-w-lg p-6">
           <h2 className="text-xl font-semibold mb-4">User Settings</h2>
           <div className="flex flex-col items-center justify-center py-8 space-y-4">
-            <div className="text-sm text-red-500">{error.message}</div>
+            <div className="text-sm text-red-500">{error}</div>
             <Button variant="secondary" onClick={refetch}>
               Retry
             </Button>
@@ -182,7 +182,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
             <Button 
               variant="secondary" 
               onClick={handleEditToggle}
-              disabled={updating}
+              disabled={dataLoading}
               className="text-xs px-2 py-1"
             >
               {isEditing ? 'Cancel' : 'Edit'}
@@ -213,7 +213,8 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                   onChange={(e) => setEditedPreferences(prev => ({ ...prev, defaultModel: e.target.value }))}
                   className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 >
-                  {availableModels.map((model) => (
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {availableModels.map((model: any) => (
                     <option key={model.model_id} value={model.model_id}>
                       {model.model_name}
                     </option>
@@ -246,10 +247,10 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                 <Button
                   variant="primary"
                   onClick={handleSave}
-                  disabled={updating}
+                  disabled={dataLoading}
                   className="flex-1"
                 >
-                  {updating ? 'Saving...' : 'Save'}
+                  {dataLoading ? 'Saving...' : 'Save'}
                 </Button>
               </div>
             </div>
@@ -265,7 +266,26 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         </section>
 
         <section className="mb-6">
-          <h3 className="text-lg font-medium mb-2">Analytics</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-medium">Analytics</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={refetch}
+              disabled={dataLoading}
+              className="h-8 w-8 p-0"
+              title="Refresh analytics data"
+            >
+              <svg 
+                className={`h-4 w-4 ${dataLoading ? 'animate-spin' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </Button>
+          </div>
           
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
