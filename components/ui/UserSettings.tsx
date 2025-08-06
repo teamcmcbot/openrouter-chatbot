@@ -24,6 +24,40 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   });
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isRefreshAnimating, setIsRefreshAnimating] = useState(false);
+
+  // Enhanced refresh handler with animation timing
+  const handleRefresh = async () => {
+    if (refreshing || isRefreshAnimating) return;
+    
+    const MINIMUM_SPIN_DURATION = 1000; // 1 second minimum
+    const startTime = Date.now();
+    
+    setIsRefreshAnimating(true);
+    
+    try {
+      // Start the API call
+      await forceRefresh();
+      
+      // Calculate how long the API call took
+      const apiDuration = Date.now() - startTime;
+      
+      // If API was faster than minimum spin duration, wait for the remainder
+      if (apiDuration < MINIMUM_SPIN_DURATION) {
+        const remainingTime = MINIMUM_SPIN_DURATION - apiDuration;
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
+      }
+    } catch {
+      // Even on error, ensure minimum spin duration
+      const apiDuration = Date.now() - startTime;
+      if (apiDuration < MINIMUM_SPIN_DURATION) {
+        const remainingTime = MINIMUM_SPIN_DURATION - apiDuration;
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
+      }
+    } finally {
+      setIsRefreshAnimating(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -51,7 +85,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           <h2 className="text-xl font-semibold mb-4">User Settings</h2>
           <div className="flex flex-col items-center justify-center py-8 space-y-4">
             <div className="text-sm text-red-500">{error}</div>
-            <Button variant="secondary" onClick={forceRefresh}>
+            <Button variant="secondary" onClick={handleRefresh}>
               Retry
             </Button>
           </div>
@@ -270,13 +304,13 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           <div className="flex items-center mb-2">
             <h3 className="text-lg font-medium">Analytics</h3>
             <button
-              onClick={forceRefresh}
-              disabled={refreshing}
+              onClick={handleRefresh}
+              disabled={refreshing || isRefreshAnimating}
               className="ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50"
               title="Refresh analytics data"
             >
               <ArrowPathIcon 
-                className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`}
+                className={`w-5 h-5 ${(refreshing || isRefreshAnimating) ? 'animate-spin' : ''}`}
               />
             </button>
           </div>
