@@ -4,10 +4,10 @@ import { useState } from "react";
 import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, ArrowPathIcon, CloudIcon, ComputerDesktopIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import Button from "./Button";
 import ConfirmModal from "./ConfirmModal";
+import UserSettings from "./UserSettings";
 import { useChatStore } from "../../stores";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { formatConversationTimestamp } from "../../lib/utils/dateFormat";
-import toast from "react-hot-toast";
 
 interface ChatSidebarProps {
   isOpen: boolean;
@@ -55,7 +55,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [isSettingsSpinning, setIsSettingsSpinning] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Get recent conversations (limit to 20 for performance)
   // Only show conversations after hydration to prevent SSR mismatch
@@ -125,20 +125,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   };
 
   const handleSettingsClick = () => {
-    const user = useAuthStore.getState().user;
-    const userInfo = user?.id || user?.email || "unknown";
-    console.log(`Clicked settings button for user ${userInfo}`);
-    toast.success("Settings button clicked! Toast is working!", {
-      id: 'settings-debug',
-    });
-    
-    // Start spinning animation
-    setIsSettingsSpinning(true);
-    
-    // Stop spinning after 1 second
-    setTimeout(() => {
-      setIsSettingsSpinning(false);
-    }, 1000);
+    setShowSettingsModal(true);
   };
 
   return (
@@ -383,7 +370,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                   className="p-1 text-gray-400 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors rounded"
                   title="Settings"
                 >
-                  <Cog6ToothIcon className={`w-4 h-4 ${isSettingsSpinning ? 'animate-spin' : ''}`} />
+                  <Cog6ToothIcon className="w-4 h-4" />
                 </button>
               )}
               {isHydrated && conversations.length > 0 && (
@@ -399,6 +386,10 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
           </div>
         </div>
       </aside>
+      <UserSettings
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
       <ConfirmModal
         isOpen={showConfirmModal}
         onConfirm={confirmClearAll}
