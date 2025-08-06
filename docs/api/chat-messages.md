@@ -188,6 +188,7 @@ This endpoint provides CRUD operations for individual chat messages within a ses
 **Optional Parameter**: `sessionTitle` (string)
 
 **Behavior**:
+
 - **New Sessions**: Used as the session title instead of auto-generation
 - **Existing Sessions**: Updates the session title if different from current title
 - **Priority**: Takes precedence over auto-generated titles from message content
@@ -197,13 +198,14 @@ This endpoint provides CRUD operations for individual chat messages within a ses
   - Reducing API calls by combining session creation/update with message saving
 
 **Example Usage**:
+
 ```json
 {
   "sessionId": "new_session_123",
   "sessionTitle": "Discussion about AI ethics",
   "messages": [
     {
-      "role": "user", 
+      "role": "user",
       "content": "What are the main ethical concerns with AI?"
     },
     {
