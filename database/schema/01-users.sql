@@ -608,13 +608,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to get user's complete profile with preferences
+-- Function to get user's complete profile with enhanced analytics
 CREATE OR REPLACE FUNCTION public.get_user_complete_profile(user_uuid UUID)
 RETURNS JSONB AS $$
 DECLARE
     profile_data RECORD;
     allowed_models_data JSONB;
     usage_stats_data JSONB;
+    today_usage_data JSONB;
 BEGIN
     -- Get main profile data
     SELECT
@@ -643,11 +644,41 @@ BEGIN
     ) INTO allowed_models_data
     FROM public.get_user_allowed_models(user_uuid);
 
-    -- Get recent usage stats
+    -- Get today's usage data specifically
     SELECT jsonb_build_object(
-        'today', (
+        'messages_sent', COALESCE(messages_sent, 0),
+        'messages_received', COALESCE(messages_received, 0),
+        'total_tokens', COALESCE(total_tokens, 0),
+        'input_tokens', COALESCE(input_tokens, 0),
+        'output_tokens', COALESCE(output_tokens, 0),
+        'models_used', COALESCE(models_used, '{}'::jsonb),
+        'sessions_created', COALESCE(sessions_created, 0),
+        'active_minutes', COALESCE(active_minutes, 0)
+    ) INTO today_usage_data
+    FROM public.user_usage_daily
+    WHERE user_id = user_uuid
+    AND usage_date = CURRENT_DATE;
+
+    -- If no data for today, return zeros
+    IF today_usage_data IS NULL THEN
+        today_usage_data := jsonb_build_object(
+            'messages_sent', 0,
+            'messages_received', 0,
+            'total_tokens', 0,
+            'input_tokens', 0,
+            'output_tokens', 0,
+            'models_used', '{}'::jsonb,
+            'sessions_created', 0,
+            'active_minutes', 0
+        );
+    END IF;
+
+    -- Get recent usage stats (last 7 days for backwards compatibility)
+    SELECT jsonb_build_object(
+        'recent_days', (
             SELECT jsonb_agg(
                 jsonb_build_object(
+                    'usage_date', usage_date,
                     'messages_sent', messages_sent,
                     'messages_received', messages_received,
                     'total_tokens', total_tokens,
@@ -660,10 +691,11 @@ BEGIN
             WHERE user_id = user_uuid
             AND usage_date >= CURRENT_DATE - INTERVAL '7 days'
         ),
-        'total', profile_data.usage_stats
+        'today', today_usage_data,
+        'all_time', profile_data.usage_stats
     ) INTO usage_stats_data;
 
-    -- Return complete profile
+    -- Return complete profile with enhanced analytics
     RETURN jsonb_build_object(
         'id', profile_data.id,
         'email', profile_data.email,
