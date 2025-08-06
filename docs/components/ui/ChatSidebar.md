@@ -4,6 +4,7 @@
 - Mobile-friendly panel listing previous chat sessions.
 - Allows creating, editing and deleting chat titles.
 - Shows sync status when a user is signed in.
+- Provides access to user settings.
 
 ## Props
 | Prop | Type | Required? | Description |
@@ -28,6 +29,7 @@
 - `manualSync` – manually syncs conversations to the server.
 - `handleClearAllConversations` – deletes all saved conversations.
 - `handleConversationClick` – switches the active conversation and closes the panel on mobile.
+- `handleSettingsClick` – opens the `UserSettings` modal.
 
 ## Data Flow
 - Reads conversations from `useChatStore` and displays them with edit controls.
