@@ -10,6 +10,7 @@ interface UseUserDataOptions {
 interface UseUserDataReturn {
   data: UserDataResponse | null;
   loading: boolean;
+  refreshing: boolean;
   error: string | null;
   refetch: () => Promise<void>;
   updatePreferences: (preferences: UserPreferencesUpdate) => Promise<void>;
@@ -29,6 +30,7 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
   const { user } = useAuth();
   const [data, setData] = useState<UserDataResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetchedUserId, setLastFetchedUserId] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);
@@ -78,20 +80,49 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
     }
   }, [user?.id, enabled, data, lastFetchedUserId, isFetching]);
 
+  // Separate fetch function for refreshes that doesn't trigger the main loading state
+  const fetchDataForRefresh = useCallback(async () => {
+    if (!user?.id || !enabled) {
+      return;
+    }
+
+    setRefreshing(true);
+    setError(null);
+
+    try {
+      const currentUserId = user.id;
+      
+      // Only proceed if user hasn't changed during the async operation
+      if (!user?.id || user.id !== currentUserId) {
+        return;
+      }
+
+      const userData = await fetchUserData();
+      
+      // Double-check user hasn't changed during fetch
+      if (user?.id === currentUserId) {
+        setData(userData);
+        setLastFetchedUserId(currentUserId);
+        setError(null);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch user data';
+      setError(errorMessage);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [user?.id, enabled]);
+
   // Force refresh function that bypasses cache
   const forceRefresh = useCallback(async () => {
     if (!user?.id) {
       return;
     }
 
-    // Clear cache and force new fetch
-    setLastFetchedUserId(null);
-    setData(null);
-    setIsFetching(false);
-    
-    // Trigger fresh fetch
-    await fetchData();
-  }, [user?.id, fetchData]);
+    // Just call the refresh function directly - don't clear cache
+    // since fetchDataForRefresh already bypasses cache by not checking lastFetchedUserId
+    await fetchDataForRefresh();
+  }, [user?.id, fetchDataForRefresh]);
 
   const refetch = useCallback(async () => {
     await fetchData();
@@ -145,6 +176,7 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
   return {
     data,
     loading,
+    refreshing,
     error,
     refetch,
     updatePreferences,

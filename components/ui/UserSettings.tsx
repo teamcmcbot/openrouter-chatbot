@@ -13,7 +13,7 @@ interface UserSettingsProps {
 
 export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsProps>) {
   const { user, isLoading: authLoading } = useAuth();
-  const { data: userData, loading: dataLoading, error, updatePreferences, forceRefresh } = useUserData({ enabled: isOpen });
+  const { data: userData, loading, refreshing, error, updatePreferences, forceRefresh } = useUserData({ enabled: isOpen });
   
   // State for editing preferences
   const [isEditing, setIsEditing] = useState(false);
@@ -27,8 +27,8 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
   if (!isOpen) return null;
 
-  // Show loading state if auth is still loading or data is loading
-  if (authLoading || dataLoading) {
+  // Show loading state if auth is still loading or initial data is loading (not refreshing)
+  if (authLoading || (loading && !userData)) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="fixed inset-0 bg-black/50" onClick={onClose} />
@@ -183,7 +183,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
             <Button 
               variant="secondary" 
               onClick={handleEditToggle}
-              disabled={dataLoading}
+              disabled={loading}
               className="text-xs px-2 py-1"
             >
               {isEditing ? 'Cancel' : 'Edit'}
@@ -248,10 +248,10 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                 <Button
                   variant="primary"
                   onClick={handleSave}
-                  disabled={dataLoading}
+                  disabled={loading}
                   className="flex-1"
                 >
-                  {dataLoading ? 'Saving...' : 'Save'}
+                  {loading ? 'Saving...' : 'Save'}
                 </Button>
               </div>
             </div>
@@ -271,12 +271,12 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
             <h3 className="text-lg font-medium">Analytics</h3>
             <button
               onClick={forceRefresh}
-              disabled={dataLoading}
+              disabled={refreshing}
               className="ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50"
               title="Refresh analytics data"
             >
               <ArrowPathIcon 
-                className={`w-5 h-5 ${dataLoading ? 'animate-spin' : ''}`}
+                className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`}
               />
             </button>
           </div>
