@@ -4,13 +4,24 @@ import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/uti
 import { createSuccessResponse } from '../../../../../lib/utils/response';
 import { logger } from '../../../../../lib/utils/logger';
 import { GenerationResponse } from '../../../../../lib/types/generation';
+import { withEnhancedAuth } from '../../../../../lib/middleware/auth';
+import { AuthContext } from '../../../../../lib/types/auth';
 
-export async function GET(
+async function generationHandler(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  authContext: AuthContext
 ) {
-  const { id } = await params;
-  logger.info('Generation details request received', { id });
+  // Extract the ID from the URL path
+  const url = new URL(req.url);
+  const pathSegments = url.pathname.split('/');
+  const id = pathSegments[pathSegments.length - 1];
+  
+  logger.info('Generation details request received', { 
+    id,
+    isAuthenticated: authContext.isAuthenticated,
+    userId: authContext.user?.id,
+    tier: authContext.profile?.subscription_tier
+  });
   
   try {
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -19,10 +30,10 @@ export async function GET(
       throw new ApiErrorResponse('OpenRouter API key not configured', ErrorCode.INTERNAL_SERVER_ERROR);
     }
 
-    const url = `https://openrouter.ai/api/v1/generation?id=${id}`;
-    logger.debug('Fetching from OpenRouter generation API', { url, id });
+    const generationUrl = `https://openrouter.ai/api/v1/generation?id=${id}`;
+    logger.debug('Fetching from OpenRouter generation API', { url: generationUrl, id });
 
-    const response = await fetch(url, {
+    const response = await fetch(generationUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -48,7 +59,10 @@ export async function GET(
     }
 
     const data: GenerationResponse = await response.json();
-    logger.info('Generation details retrieved successfully', { id });
+    logger.info('Generation details retrieved successfully', { 
+      id,
+      userId: authContext.user?.id
+    });
     
     return createSuccessResponse(data);
   } catch (error) {
@@ -56,3 +70,5 @@ export async function GET(
     return handleError(error);
   }
 }
+
+export const GET = withEnhancedAuth(generationHandler);
