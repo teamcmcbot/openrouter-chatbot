@@ -1,30 +1,27 @@
 // src/app/api/chat/clear-all/route.ts
 
 import { createClient } from '../../../../../lib/supabase/server';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { AuthContext } from '../../../../../lib/types/auth';
+import { logger } from '../../../../../lib/utils/logger';
+import { handleError } from '../../../../../lib/utils/errors';
 
-export async function DELETE() {
+async function clearAllHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const { user } = authContext;
+
+    logger.info('Clear all conversations request', { userId: user!.id });
 
     // First, get all session IDs for the user
     const { data: userSessions, error: getSessionsError } = await supabase
       .from('chat_sessions')
       .select('id')
-      .eq('user_id', user.id);
+      .eq('user_id', user!.id);
 
     if (getSessionsError) {
-      console.error('Error getting user sessions:', getSessionsError);
+      logger.error('Error getting user sessions:', getSessionsError);
       throw getSessionsError;
     }
 
@@ -45,7 +42,7 @@ export async function DELETE() {
       .in('session_id', sessionIds);
 
     if (messagesError) {
-      console.error('Error deleting messages:', messagesError);
+      logger.error('Error deleting messages:', messagesError);
       throw messagesError;
     }
 
@@ -53,12 +50,17 @@ export async function DELETE() {
     const { error: sessionsError } = await supabase
       .from('chat_sessions')
       .delete()
-      .eq('user_id', user.id);
+      .eq('user_id', user!.id);
 
     if (sessionsError) {
-      console.error('Error deleting sessions:', sessionsError);
+      logger.error('Error deleting sessions:', sessionsError);
       throw sessionsError;
     }
+
+    logger.info('All conversations cleared successfully', { 
+      userId: user!.id, 
+      deletedCount: sessionIds.length 
+    });
 
     return NextResponse.json({
       success: true,
@@ -67,10 +69,10 @@ export async function DELETE() {
     });
 
   } catch (error) {
-    console.error('Clear all conversations error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Clear all conversations error:', error);
+    return handleError(error);
   }
 }
+
+// Apply middleware to handler
+export const DELETE = withProtectedAuth(clearAllHandler);

@@ -3,20 +3,17 @@
 import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ChatMessage } from '../../../../../lib/types/chat';
+import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { AuthContext } from '../../../../../lib/types/auth';
+import { logger } from '../../../../../lib/utils/logger';
+import { handleError } from '../../../../../lib/utils/errors';
 
-export async function GET(request: NextRequest) {
+async function getMessagesHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const { user } = authContext;
+
+    logger.info('Get messages request', { userId: user!.id });
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('session_id');
@@ -33,7 +30,7 @@ export async function GET(request: NextRequest) {
       .from('chat_sessions')
       .select('id')
       .eq('id', sessionId)
-      .eq('user_id', user.id)
+      .eq('user_id', user!.id)
       .single();
 
     if (sessionError || !session) {
@@ -74,27 +71,17 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Get messages error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Get messages error:', error);
+    return handleError(error);
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postMessagesHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const { user } = authContext;
+
+    logger.info('Create messages request', { userId: user!.id });
 
     const requestData = await request.json() as {
       message?: ChatMessage; // Single message (backward compatibility)
@@ -108,7 +95,7 @@ export async function POST(request: NextRequest) {
       .from('chat_sessions')
       .select('id, title, message_count')
       .eq('id', requestData.sessionId)
-      .eq('user_id', user.id)
+      .eq('user_id', user!.id)
       .single();
 
     if (!existingSession) {
@@ -133,7 +120,7 @@ export async function POST(request: NextRequest) {
         .from('chat_sessions')
         .insert({
           id: requestData.sessionId,
-          user_id: user.id,
+          user_id: user!.id,
           title: newTitle,
           updated_at: new Date().toISOString()
         })
@@ -155,10 +142,10 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString()
         })
         .eq('id', requestData.sessionId)
-        .eq('user_id', user.id);
+        .eq('user_id', user!.id);
 
       if (titleUpdateError) {
-        console.error('Error updating session title:', titleUpdateError);
+        logger.error('Error updating session title:', titleUpdateError);
         // Don't fail the request for title update errors
       }
     }
@@ -268,13 +255,14 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
-    console.error('Create message error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Create message error:', error);
+    return handleError(error);
   }
 }
+
+// Apply middleware to handlers
+export const GET = withProtectedAuth(getMessagesHandler);
+export const POST = withProtectedAuth(postMessagesHandler);
 
 // Helper functions
 async function getMessageCount(supabase: Awaited<ReturnType<typeof createClient>>, sessionId: string): Promise<number> {

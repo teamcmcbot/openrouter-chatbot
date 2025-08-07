@@ -2,8 +2,10 @@
 
 import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-
 import { logger } from '../../../../../lib/utils/logger';
+import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { AuthContext } from '../../../../../lib/types/auth';
+import { handleError } from '../../../../../lib/utils/errors';
 
 interface SessionUpdateData {
   title?: string;
@@ -16,23 +18,15 @@ interface SessionUpdateData {
   updated_at: string;
 }
 
-export async function GET(request: NextRequest) {
+async function getSessionHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     const supabase = await createClient();
-    logger.info('[GET] /api/chat/session - Request received', { url: request.url });
+    const { user } = authContext;
 
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError) {
-      logger.warn('[GET] Auth error', { error: authError });
-    }
-    if (!user) {
-      logger.warn('[GET] No authenticated user found');
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    logger.info('[GET] /api/chat/session - Request received', { 
+      url: request.url, 
+      userId: user!.id 
+    });
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('id');
@@ -51,14 +45,14 @@ export async function GET(request: NextRequest) {
       .from('chat_sessions')
       .select('*')
       .eq('id', sessionId)
-      .eq('user_id', user.id)
+      .eq('user_id', user!.id)
       .single();
 
     if (sessionError) {
       logger.error('[GET] Session lookup error', { error: sessionError });
     }
     if (!session) {
-      logger.warn('[GET] Session not found or access denied', { userId: user.id, sessionId });
+      logger.warn('[GET] Session not found or access denied', { userId: user!.id, sessionId });
       return NextResponse.json(
         { error: 'Session not found or access denied' },
         { status: 404 }
@@ -72,30 +66,16 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     logger.error('[GET] Get session error', { error });
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleError(error);
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postSessionHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     const supabase = await createClient();
-    logger.info('[POST] /api/chat/session - Request received');
+    const { user } = authContext;
 
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError) {
-      logger.warn('[POST] Auth error', { error: authError });
-    }
-    if (!user) {
-      logger.warn('[POST] No authenticated user found');
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    logger.info('[POST] /api/chat/session - Request received', { userId: user!.id });
 
     const sessionData = await request.json();
     const { id: sessionId, title, is_active, ...otherFields } = sessionData;
@@ -114,14 +94,14 @@ export async function POST(request: NextRequest) {
       .from('chat_sessions')
       .select('id, user_id')
       .eq('id', sessionId)
-      .eq('user_id', user.id)
+      .eq('user_id', user!.id)
       .single();
 
     if (checkError) {
       logger.error('[POST] Session lookup error', { error: checkError });
     }
     if (!existingSession) {
-      logger.warn('[POST] Session not found or access denied', { userId: user.id, sessionId });
+      logger.warn('[POST] Session not found or access denied', { userId: user!.id, sessionId });
       return NextResponse.json(
         { error: 'Session not found or access denied' },
         { status: 404 }
@@ -130,11 +110,11 @@ export async function POST(request: NextRequest) {
 
     // Check for special active session update (requires atomic operation)
     if (is_active === true) {
-      logger.info('[POST] Processing active session update', { sessionId, userId: user.id });
+      logger.info('[POST] Processing active session update', { sessionId, userId: user!.id });
       
       // Use the database function for atomic active session management
       const { error: setActiveError } = await supabase.rpc('set_active_session', {
-        target_user_id: user.id,
+        target_user_id: user!.id,
         target_session_id: sessionId
       });
 
@@ -151,7 +131,7 @@ export async function POST(request: NextRequest) {
         .from('chat_sessions')
         .select()
         .eq('id', sessionId)
-        .eq('user_id', user.id)
+        .eq('user_id', user!.id)
         .single();
 
       if (fetchError) {
@@ -207,7 +187,7 @@ export async function POST(request: NextRequest) {
       .from('chat_sessions')
       .update(updateData)
       .eq('id', sessionId)
-      .eq('user_id', user.id) // Double-check user ownership
+      .eq('user_id', user!.id) // Double-check user ownership
       .select()
       .single();
 
@@ -224,9 +204,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     logger.error('[POST] Update session error', { error });
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleError(error);
   }
 }
+
+// Apply middleware to handlers
+export const GET = withProtectedAuth(getSessionHandler);
+export const POST = withProtectedAuth(postSessionHandler);
