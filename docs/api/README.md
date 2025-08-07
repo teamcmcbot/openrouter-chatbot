@@ -65,7 +65,7 @@ These endpoints require user authentication and implement full rate limiting:
 These endpoints work for both anonymous and authenticated users with graceful degradation:
 
 - [`/api/chat`](./chat.md) - Chat completions (basic for anonymous, enhanced for authenticated)
-- [`/api/models`](./models.md) - Available models (filtered by tier)
+- [`/api/models`](./models.md) - Available models (filtered by tier, with **default model prioritization** for authenticated users)
 - [`/api/generation/[id]`](./generation-id.md) - Generation status checking
 - [`/api/admin/sync-models`](./admin-sync-models.md) - Admin model sync (enterprise only)
 
@@ -104,13 +104,14 @@ These endpoints are intentionally public and have no rate limiting:
 
 ### Feature Availability
 
-| Feature              | Anonymous | Free | Pro | Enterprise |
-| -------------------- | --------- | ---- | --- | ---------- |
-| Custom System Prompt | ❌        | ✅   | ✅  | ✅         |
-| Advanced Models      | ❌        | ❌   | ✅  | ✅         |
-| Conversation Sync    | ❌        | ✅   | ✅  | ✅         |
-| Analytics Dashboard  | ❌        | ❌   | ✅  | ✅         |
-| Admin Functions      | ❌        | ❌   | ❌  | ✅         |
+| Feature                      | Anonymous | Free | Pro | Enterprise |
+| ---------------------------- | --------- | ---- | --- | ---------- |
+| Custom System Prompt        | ❌        | ✅   | ✅  | ✅         |
+| Advanced Models              | ❌        | ❌   | ✅  | ✅         |
+| Conversation Sync            | ❌        | ✅   | ✅  | ✅         |
+| **Default Model Prioritization** | ❌        | ✅   | ✅  | ✅         |
+| Analytics Dashboard          | ❌        | ❌   | ✅  | ✅         |
+| Admin Functions              | ❌        | ❌   | ❌  | ✅         |
 
 ## Security Features
 

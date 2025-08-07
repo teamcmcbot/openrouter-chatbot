@@ -145,33 +145,108 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
         // Filter to only allowed models
         const filteredModels = filterAllowedModels(allModels, allowedModelIds);
 
-        // Prioritize user's default model if authenticated and model exists
+        // ========================================
+        // DEFAULT MODEL PRIORITIZATION FEATURE
+        // ========================================
+        // This feature prioritizes the user's preferred default model by moving it 
+        // to the first position in the filtered models array when:
+        // 1. User is authenticated (has valid session)
+        // 2. User has a default_model set in their profile
+        // 3. The default model exists in the user's allowed models list
+        //
+        // Purpose: Improves UX by showing user's preferred model first in dropdowns
+        // Fallback: If default model isn't available, natural ordering is preserved
+        // Performance: O(n) array search + O(n) array reordering, minimal impact
+        // ========================================
+        
         if (authContext.isAuthenticated && authContext.profile?.default_model) {
           try {
             const defaultModelId = authContext.profile.default_model.trim();
+            const userId = authContext.user?.id;
+            const totalModels = filteredModels.length;
+            
+            // Enhanced logging for monitoring default model usage patterns
+            logger.info('Processing default model prioritization', {
+              userId,
+              defaultModelId,
+              totalAvailableModels: totalModels,
+              userTier: authContext.profile?.subscription_tier,
+              timestamp: new Date().toISOString()
+            });
             
             if (defaultModelId && typeof defaultModelId === 'string' && defaultModelId.length > 0) {
-              // Find the default model in filteredModels
+              // Search for the user's default model in available models
+              // Uses findIndex for efficient single-pass array search
               const defaultModelIndex = filteredModels.findIndex(model => model && model.id === defaultModelId);
               
-              if (defaultModelIndex > 0) { // Only reorder if found and not already first
+              if (defaultModelIndex > 0) { 
+                // Model found but not in first position - reorder array
                 // Remove from current position and add to beginning
                 const [defaultModel] = filteredModels.splice(defaultModelIndex, 1);
                 if (defaultModel) {
                   filteredModels.unshift(defaultModel);
-                  logger.info(`Default model ${defaultModelId} moved to first position for user ${authContext.user?.id}`);
+                  
+                  // Log successful reordering with metrics for analytics
+                  logger.info('Default model prioritized successfully', {
+                    userId,
+                    defaultModelId,
+                    previousPosition: defaultModelIndex,
+                    newPosition: 0,
+                    totalModels,
+                    action: 'reordered',
+                    performance: 'optimal'
+                  });
                 }
               } else if (defaultModelIndex === 0) {
-                logger.info(`Default model ${defaultModelId} already at first position for user ${authContext.user?.id}`);
+                // Model already at first position - no action needed
+                logger.info('Default model already prioritized', {
+                  userId,
+                  defaultModelId,
+                  position: 'first',
+                  action: 'no_change_required',
+                  totalModels
+                });
               } else {
-                logger.info(`Default model ${defaultModelId} not found in available models for user ${authContext.user?.id}`);
+                // Model not found in available models - user may have downgraded tier
+                // or model may have been deprecated
+                logger.warn('Default model not accessible to user', {
+                  userId,
+                  defaultModelId,
+                  userTier: authContext.profile?.subscription_tier,
+                  totalAvailableModels: totalModels,
+                  action: 'model_not_found',
+                  suggestion: 'user_should_update_default'
+                });
               }
             } else {
-              logger.debug(`Invalid default model value for user ${authContext.user?.id}: ${JSON.stringify(authContext.profile.default_model)}`);
+              // Invalid or empty default model value detected
+              logger.debug('Invalid default model configuration detected', {
+                userId,
+                defaultModelValue: JSON.stringify(authContext.profile.default_model),
+                valueType: typeof authContext.profile.default_model,
+                action: 'skipped_invalid_value'
+              });
             }
           } catch (error) {
-            logger.error(`Error processing default model for user ${authContext.user?.id}:`, error);
+            // Comprehensive error handling to prevent API disruption
+            logger.error('Default model prioritization failed', {
+              userId: authContext.user?.id,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              stack: error instanceof Error ? error.stack : undefined,
+              action: 'graceful_fallback',
+              impact: 'feature_disabled_for_request'
+            });
             // Continue with normal flow - don't disrupt API response
+          }
+        } else {
+          // Log cases where default model prioritization doesn't apply
+          if (!authContext.isAuthenticated) {
+            logger.debug('Default model prioritization skipped - user not authenticated');
+          } else if (!authContext.profile?.default_model) {
+            logger.debug('Default model prioritization skipped - no default model set', {
+              userId: authContext.user?.id,
+              hasProfile: !!authContext.profile
+            });
           }
         }
 
