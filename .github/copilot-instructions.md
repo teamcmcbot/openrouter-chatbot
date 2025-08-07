@@ -107,4 +107,136 @@ When the user drops a file in `/issues`, `/specs`, or `/backlog`:
 
 ---
 
+## 7. API Endpoint Security Standards
+
+When creating new API endpoints, **ALWAYS** follow these standardized authentication patterns. **DO NOT** manually implement authentication checks.
+
+### Required Authentication Middleware Patterns
+
+Choose the appropriate middleware pattern based on endpoint requirements:
+
+#### 🔒 **PROTECTED** - Requires Authentication
+
+```typescript
+import { withProtectedAuth } from "../../../../lib/middleware/auth";
+import { AuthContext } from "../../../../lib/types/auth";
+
+async function myHandler(request: NextRequest, authContext: AuthContext) {
+  // User guaranteed to be authenticated with profile
+  const { user, profile, features } = authContext;
+  // Handler implementation...
+}
+
+export const GET = withProtectedAuth(myHandler);
+```
+
+#### 🔓 **ENHANCED** - Optional Authentication with Feature Flags
+
+```typescript
+import { withEnhancedAuth } from "../../../../lib/middleware/auth";
+
+async function myHandler(request: NextRequest, authContext: AuthContext) {
+  // Anonymous users get limited access, authenticated users get tier-based features
+  if (authContext.isAuthenticated) {
+    // Enhanced functionality for authenticated users
+  } else {
+    // Limited functionality for anonymous users
+  }
+}
+
+export const GET = withEnhancedAuth(myHandler);
+```
+
+#### 🎯 **TIER-SPECIFIC** - Requires Specific Subscription Tier
+
+```typescript
+import { withTierAuth } from "../../../../lib/middleware/auth";
+
+async function myHandler(request: NextRequest, authContext: AuthContext) {
+  // Only users with 'pro' tier or higher can access
+}
+
+export const GET = withTierAuth(myHandler, "pro");
+```
+
+#### 🛡️ **CONVERSATION-PROTECTED** - Authentication + Ownership Validation
+
+```typescript
+import { withConversationOwnership } from "../../../../lib/middleware/auth";
+
+async function myHandler(request: NextRequest, authContext: AuthContext) {
+  // User authentication and conversation ownership automatically validated
+}
+
+export const POST = withConversationOwnership(myHandler);
+```
+
+#### 🌐 **PUBLIC** - Rate Limiting Only (Use Sparingly)
+
+```typescript
+import { withRateLimit } from "../../../../lib/middleware/rateLimitMiddleware";
+
+async function myHandler(request: NextRequest) {
+  // Public endpoint with rate limiting - document security implications
+}
+
+export const GET = withRateLimit(myHandler);
+```
+
+### AuthContext Interface
+
+All protected handlers receive an `AuthContext` object:
+
+```typescript
+interface AuthContext {
+  isAuthenticated: boolean; // Whether user is authenticated
+  user: User | null; // Supabase user object
+  profile: UserProfile | null; // User profile from database
+  accessLevel: "anonymous" | "authenticated";
+  features: FeatureFlags; // Tier-based permissions and limits
+}
+```
+
+### Authentication Method
+
+- **Primary**: Supabase cookies (automatic, handles web browsers)
+- **Fallback**: Authorization Bearer headers (for API clients)
+- **Implementation**: Handled automatically by middleware - no manual parsing required
+
+### ❌ **NEVER DO THIS** - Manual Authentication
+
+```typescript
+// DON'T: Manual authentication checks
+const {
+  data: { user },
+} = await supabase.auth.getUser();
+if (!user) {
+  return NextResponse.json({ error: "Auth required" }, { status: 401 });
+}
+```
+
+### ✅ **ALWAYS DO THIS** - Use Middleware
+
+```typescript
+// DO: Use standardized middleware
+export const GET = withProtectedAuth(myHandler);
+```
+
+### Security Benefits of Middleware
+
+- **Consistent Authentication** across all endpoints
+- **Automatic Rate Limiting** for abuse prevention
+- **Tier-based Feature Flags** for subscription control
+- **Standardized Error Handling** with proper error codes
+- **Audit Logging** for security monitoring
+- **Type Safety** with TypeScript interfaces
+
+### Reference Documentation
+
+- See `/specs/endpoint-protection.md` for comprehensive security analysis
+- See `/lib/middleware/auth.ts` for middleware implementation details
+- See `/lib/types/auth.ts` for type definitions
+
+---
+
 _End of Copilot custom instructions._
