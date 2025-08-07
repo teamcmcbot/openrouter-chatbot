@@ -74,8 +74,8 @@ export interface UserPreferences {
   };
   /** Model preferences for AI responses */
   model: {
-    /** Default model to use for new chats */
-    default_model: string;
+    /** Default model to use for new chats (null for no default) */
+    default_model: string | null;
     /** Temperature setting for model responses (0-2) */
     temperature: number;
     /** System prompt for model behavior */

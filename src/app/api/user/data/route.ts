@@ -71,7 +71,7 @@ async function getUserDataHandler(request: NextRequest, authContext: AuthContext
         ui: profileData.preferences?.ui || {},
         session: profileData.preferences?.session || {},
         model: {
-          default_model: profileData.preferences?.model?.default_model || 'gpt-4o-mini',
+          default_model: profileData.preferences?.model?.default_model || '',
           temperature: profileData.preferences?.model?.temperature || 0.7,
           system_prompt: profileData.preferences?.model?.system_prompt || 'You are a helpful assistant'
         }
@@ -128,12 +128,13 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
       }
     }
 
-    // Validate default_model if provided
+    // Validate default_model if provided (allow null/empty for "None" selection)
     if (preferencesUpdate.model?.default_model !== undefined) {
       const model = preferencesUpdate.model.default_model;
-      if (typeof model !== 'string' || model.trim().length === 0) {
+      // Allow null, empty string, or valid non-empty string
+      if (model !== null && model !== '' && (typeof model !== 'string' || model.trim().length === 0)) {
         return NextResponse.json(
-          { error: 'Invalid request', message: 'Default model must be a non-empty string' },
+          { error: 'Invalid request', message: 'Default model must be a valid string, empty string, or null' },
           { status: 400 }
         );
       }
@@ -220,7 +221,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
         ui: updatedProfileData.preferences?.ui || {},
         session: updatedProfileData.preferences?.session || {},
         model: {
-          default_model: updatedProfileData.preferences?.model?.default_model || 'gpt-4o-mini',
+          default_model: updatedProfileData.preferences?.model?.default_model || '',
           temperature: updatedProfileData.preferences?.model?.temperature || 0.7,
           system_prompt: updatedProfileData.preferences?.model?.system_prompt || 'You are a helpful assistant'
         }

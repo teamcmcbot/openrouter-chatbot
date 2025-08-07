@@ -19,7 +19,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   const [isEditing, setIsEditing] = useState(false);
   const [editedPreferences, setEditedPreferences] = useState({
     theme: '',
-    defaultModel: '',
+    defaultModel: '' as string | null, // Allow null for "None" selection
     temperature: 0.7,
   });
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -113,7 +113,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
   const preferences = {
     theme: userData?.preferences.ui.theme || "dark",
-    defaultModel: userData?.preferences.model.default_model || "deepseek/deepseek-r1-0528:free",
+    defaultModel: userData?.preferences.model.default_model || null, // Allow null instead of hardcoded fallback
     temperature: userData?.preferences.model.temperature || 0.7,
   };
 
@@ -253,10 +253,15 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
               <div>
                 <label className="block text-sm font-medium mb-1">Default Model</label>
                 <select
-                  value={editedPreferences.defaultModel}
-                  onChange={(e) => setEditedPreferences(prev => ({ ...prev, defaultModel: e.target.value }))}
+                  value={editedPreferences.defaultModel || ''} // Convert null to empty string for select
+                  onChange={(e) => setEditedPreferences(prev => ({ 
+                    ...prev, 
+                    defaultModel: e.target.value === '' ? null : e.target.value // Convert empty string back to null
+                  }))}
                   className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 >
+                  {/* "None" option as first item */}
+                  <option value="">None</option>
                   {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {availableModels.map((model: any) => (
                     <option key={model.model_id} value={model.model_id}>
@@ -303,7 +308,18 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
               <p className="text-sm mb-1">
                 Theme: <span className="capitalize">{preferences.theme}</span>
               </p>
-              <p className="text-sm mb-1">Default Model: {preferences.defaultModel}</p>
+              <p className="text-sm mb-1">
+                Default Model: {
+                  preferences.defaultModel === null || preferences.defaultModel === '' 
+                    ? 'None' 
+                    : (
+                      // Check if current model exists in available models
+                      availableModels.some((model: { model_id: string }) => model.model_id === preferences.defaultModel)
+                        ? preferences.defaultModel
+                        : `${preferences.defaultModel} (Not available)`
+                    )
+                }
+              </p>
               <p className="text-sm">Temperature: {preferences.temperature}</p>
             </div>
           )}
