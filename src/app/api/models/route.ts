@@ -145,6 +145,28 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
         // Filter to only allowed models
         const filteredModels = filterAllowedModels(allModels, allowedModelIds);
 
+        // Prioritize user's default model if authenticated and model exists
+        if (authContext.isAuthenticated && authContext.profile?.default_model) {
+          const defaultModelId = authContext.profile.default_model.trim();
+          
+          if (defaultModelId) {
+            // Find the default model in filteredModels
+            const defaultModelIndex = filteredModels.findIndex(model => model.id === defaultModelId);
+            
+            if (defaultModelIndex > 0) { // Only reorder if found and not already first
+              // Remove from current position and add to beginning
+              const [defaultModel] = filteredModels.splice(defaultModelIndex, 1);
+              filteredModels.unshift(defaultModel);
+              
+              logger.info(`Default model ${defaultModelId} moved to first position for user ${authContext.user?.id}`);
+            } else if (defaultModelIndex === 0) {
+              logger.info(`Default model ${defaultModelId} already at first position for user ${authContext.user?.id}`);
+            } else {
+              logger.info(`Default model ${defaultModelId} not found in available models for user ${authContext.user?.id}`);
+            }
+          }
+        }
+
         // Transform to ModelInfo format for frontend
         const transformedModels: ModelInfo[] = filteredModels.map(transformOpenRouterModel);
 
