@@ -87,14 +87,14 @@ The current `UserSettings.tsx` implementation has several issues related to hand
 - [x] Verify no console errors or UI breaks
 - [x] **User Verification**: Complete end-to-end testing - change default model to "None", refresh page, verify persistence
 
-### Phase 5: Documentation Updates ☑
+### Phase 5: Documentation Updates ✅
 
 #### Sub-tasks:
 
-- [ ] Update component documentation
-- [ ] Add user guide section for default model management
-- [ ] Document API changes if any
-- [ ] **User Verification**: Review documentation accuracy and completeness
+- [x] Update component documentation (UserSettings.md)
+- [x] Add user guide section for default model management (user-settings-guide.md)
+- [x] Document API changes for null model support (user-data-endpoint.md)
+- [x] **User Verification**: Review documentation accuracy and completeness
 
 ## Exit Criteria
 

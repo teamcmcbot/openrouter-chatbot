@@ -60,8 +60,12 @@ The component now integrates with actual database analytics through:
 
 - **UI Preferences**: Theme selection, language settings
 - **Session Preferences**: Auto-save, history limits, session management
-- **Model Settings**: Default model selection, temperature slider, system prompt
-- **Persistence**: Real-time saving to database with validation
+- **Model Settings**:
+  - Default model selection with "None" option for automatic selection
+  - Availability indicators for unavailable models (shows "(Not available)")
+  - Temperature slider for response creativity control
+  - System prompt configuration
+- **Persistence**: Real-time saving to database with validation including null default model support
 - **Error Handling**: User-friendly error messages for failed updates
 
 ### 4. Available Models Section
@@ -113,10 +117,12 @@ The component now integrates with actual database analytics through:
 - **Real User Data Integration**: Pulls actual user profile from authentication session
 - **Live Analytics**: Displays real usage statistics from database
 - **Database Preferences**: Reads and writes user preferences to/from database
-- **API Integration**: Uses unified `/api/user/data` endpoint
+- **Null Default Model Support**: Handles null/empty default models with "None" option
+- **Model Availability Indicators**: Shows "(Not available)" for inaccessible default models
+- **API Integration**: Uses unified `/api/user/data` endpoint with null value support
 - **Error Handling**: Comprehensive error states and retry mechanisms
 - **Loading States**: Proper loading indicators during data fetch/update
-- **Type Safety**: Full TypeScript integration with proper interfaces
+- **Type Safety**: Full TypeScript integration with proper interfaces including string | null support
 - **Authentication**: Secure access via JWT token validation
 
 ### 🔄 ENHANCEMENT OPPORTUNITIES

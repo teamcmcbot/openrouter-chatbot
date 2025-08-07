@@ -109,6 +109,32 @@ Content-Type: application/json
 }
 ```
 
+**Setting Default Model to None:**
+
+```http
+PUT /api/user/data
+Content-Type: application/json
+
+{
+  "model": {
+    "default_model": null
+  }
+}
+```
+
+or
+
+```http
+PUT /api/user/data
+Content-Type: application/json
+
+{
+  "model": {
+    "default_model": ""
+  }
+}
+```
+
 _Note: Authentication is handled automatically via cookies by the `withProtectedAuth` middleware._
 
 #### Response
@@ -134,6 +160,9 @@ _Note: Authentication is handled automatically via cookies by the `withProtected
 - **UI Preferences**: Stored in `profiles.ui_preferences` JSONB field
 - **Session Preferences**: Stored in `profiles.session_preferences` JSONB field
 - **Model Defaults**: Stored in individual `profiles` columns
+  - `default_model`: Can be string (model ID) or null (automatic selection)
+  - Null/empty values are allowed and handled by automatic model selection
+  - Invalid model IDs are rejected with validation error
 
 ### Available Models
 
@@ -188,6 +217,21 @@ _Note: Authentication is handled automatically via cookies by the `withProtected
   "message": "Invalid preference data"
 }
 ```
+
+**Invalid Model ID:**
+
+```json
+{
+  "error": "Invalid model",
+  "message": "Model 'invalid-model-id' is not available or accessible"
+}
+```
+
+**Valid Model Values:**
+
+- `null` or empty string: Enables automatic model selection
+- Valid model ID string: Sets specific default model
+- Invalid model ID: Returns 400 error
 
 ### 500 Internal Server Error
 
@@ -274,6 +318,29 @@ if (response.ok) {
   console.log("Preferences updated successfully");
 } else {
   console.error("Failed to update preferences");
+}
+```
+
+### Setting Default Model to None (JavaScript)
+
+```javascript
+// Set default model to automatic selection
+const preferences = {
+  model: { default_model: null },
+};
+
+const response = await fetch("/api/user/data", {
+  method: "PUT",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify(preferences),
+});
+
+if (response.ok) {
+  console.log("Default model set to automatic selection");
+} else {
+  console.error("Failed to update default model");
 }
 ```
 

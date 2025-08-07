@@ -67,6 +67,9 @@ Customize your experience with these preference categories:
 #### Model Settings
 
 - **Default Model**: Your preferred AI model for new conversations
+  - Select from available models based on your subscription tier
+  - Choose "None" to let the system select the best available model for each conversation
+  - If your current default model becomes unavailable, it will be marked with "(Not available)"
 - **Temperature**: Controls randomness in AI responses (0.0 = focused, 2.0 = creative)
 - **System Prompt**: Default instructions given to the AI model
 
@@ -107,6 +110,36 @@ See which AI models you can access based on your subscription tier:
 - **Free Tier**: Access to basic models with usage limits
 - **Pro Tier**: Access to advanced models with higher limits
 - **Enterprise**: Unlimited access to all available models
+
+### Default Model Management
+
+The default model setting determines which AI model is automatically selected for new conversations. You have several options:
+
+#### Setting Your Default Model
+
+1. **Specific Model**: Choose a particular model that will be used for all new conversations
+
+   - Best for consistent experience with a preferred model
+   - Ensures predictable behavior across sessions
+   - May become unavailable if your subscription changes or model is deprecated
+
+2. **None (Automatic Selection)**: Let the system choose the best available model
+   - System selects optimal model based on your tier and availability
+   - Automatically adapts when new models are added or removed
+   - Recommended for users who want the latest and best available options
+
+#### Handling Model Availability
+
+- **Available Models**: Models shown in dropdown are accessible with your current subscription
+- **Unavailable Default**: If your current default model is no longer available, it will display with "(Not available)" indicator
+- **Model Transitions**: When models are deprecated or subscription changes, you can easily switch to "None" or select a new specific model
+
+#### Best Practices
+
+- **Regular Review**: Periodically check if your default model is still available and suitable
+- **Tier Changes**: When upgrading/downgrading subscription, review and update your default model
+- **New Features**: Consider switching to "None" to automatically benefit from newly released models
+- **Backup Plan**: If you prefer a specific model, have a backup choice in mind
 
 ### Optimizing Temperature Settings
 
@@ -183,6 +216,27 @@ See which AI models you can access based on your subscription tier:
 2. Check if you've exceeded usage limits
 3. Try refreshing your browser
 4. Contact support for billing issues
+
+### Default Model Problems
+
+1. **Model Shows "(Not available)"**:
+
+   - Your saved default model is no longer accessible
+   - Select a new model from the available options or choose "None"
+   - Contact support if you believe this is an error
+
+2. **"None" Option Not Working**:
+
+   - Refresh the settings page
+   - Clear browser cache
+   - Verify you're signed in properly
+   - Contact support if the issue persists
+
+3. **Changes Not Saving**:
+   - Check your internet connection
+   - Ensure you clicked "Save Changes" button
+   - Try selecting "None" first, save, then select your preferred model
+   - Clear browser cache and try again
 
 ### Performance Issues
 
