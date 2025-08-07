@@ -5,6 +5,7 @@ import { createSuccessResponse } from '../../../../../lib/utils/response';
 import { logger } from '../../../../../lib/utils/logger';
 import { GenerationResponse } from '../../../../../lib/types/generation';
 import { withEnhancedAuth } from '../../../../../lib/middleware/auth';
+import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 
 async function generationHandler(
@@ -71,4 +72,6 @@ async function generationHandler(
   }
 }
 
-export const GET = withEnhancedAuth(generationHandler);
+export const GET = withEnhancedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(generationHandler)(req, authContext)
+);

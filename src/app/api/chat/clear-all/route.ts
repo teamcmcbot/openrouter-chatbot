@@ -3,6 +3,7 @@
 import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
@@ -75,4 +76,6 @@ async function clearAllHandler(request: NextRequest, authContext: AuthContext): 
 }
 
 // Apply middleware to handler
-export const DELETE = withProtectedAuth(clearAllHandler);
+export const DELETE = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(clearAllHandler)(req, authContext)
+);

@@ -8,6 +8,7 @@ import {
   UserDataError 
 } from '../../../../../lib/types/user-data';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 
@@ -244,5 +245,9 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
 }
 
 // Apply middleware to handlers
-export const GET = withProtectedAuth(getUserDataHandler);
-export const PUT = withProtectedAuth(putUserDataHandler);
+export const GET = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(getUserDataHandler)(req, authContext)
+);
+export const PUT = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(putUserDataHandler)(req, authContext)
+);

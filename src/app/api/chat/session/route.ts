@@ -4,6 +4,7 @@ import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '../../../../../lib/utils/logger';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { handleError } from '../../../../../lib/utils/errors';
 
@@ -209,5 +210,9 @@ async function postSessionHandler(request: NextRequest, authContext: AuthContext
 }
 
 // Apply middleware to handlers
-export const GET = withProtectedAuth(getSessionHandler);
-export const POST = withProtectedAuth(postSessionHandler);
+export const GET = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(getSessionHandler)(req, authContext)
+);
+export const POST = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(postSessionHandler)(req, authContext)
+);
