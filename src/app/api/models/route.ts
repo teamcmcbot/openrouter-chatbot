@@ -147,23 +147,31 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
 
         // Prioritize user's default model if authenticated and model exists
         if (authContext.isAuthenticated && authContext.profile?.default_model) {
-          const defaultModelId = authContext.profile.default_model.trim();
-          
-          if (defaultModelId) {
-            // Find the default model in filteredModels
-            const defaultModelIndex = filteredModels.findIndex(model => model.id === defaultModelId);
+          try {
+            const defaultModelId = authContext.profile.default_model.trim();
             
-            if (defaultModelIndex > 0) { // Only reorder if found and not already first
-              // Remove from current position and add to beginning
-              const [defaultModel] = filteredModels.splice(defaultModelIndex, 1);
-              filteredModels.unshift(defaultModel);
+            if (defaultModelId && typeof defaultModelId === 'string' && defaultModelId.length > 0) {
+              // Find the default model in filteredModels
+              const defaultModelIndex = filteredModels.findIndex(model => model && model.id === defaultModelId);
               
-              logger.info(`Default model ${defaultModelId} moved to first position for user ${authContext.user?.id}`);
-            } else if (defaultModelIndex === 0) {
-              logger.info(`Default model ${defaultModelId} already at first position for user ${authContext.user?.id}`);
+              if (defaultModelIndex > 0) { // Only reorder if found and not already first
+                // Remove from current position and add to beginning
+                const [defaultModel] = filteredModels.splice(defaultModelIndex, 1);
+                if (defaultModel) {
+                  filteredModels.unshift(defaultModel);
+                  logger.info(`Default model ${defaultModelId} moved to first position for user ${authContext.user?.id}`);
+                }
+              } else if (defaultModelIndex === 0) {
+                logger.info(`Default model ${defaultModelId} already at first position for user ${authContext.user?.id}`);
+              } else {
+                logger.info(`Default model ${defaultModelId} not found in available models for user ${authContext.user?.id}`);
+              }
             } else {
-              logger.info(`Default model ${defaultModelId} not found in available models for user ${authContext.user?.id}`);
+              logger.debug(`Invalid default model value for user ${authContext.user?.id}: ${JSON.stringify(authContext.profile.default_model)}`);
             }
+          } catch (error) {
+            logger.error(`Error processing default model for user ${authContext.user?.id}:`, error);
+            // Continue with normal flow - don't disrupt API response
           }
         }
 
