@@ -2,26 +2,24 @@
 
 import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
+import { AuthContext } from '../../../../../lib/types/auth';
+import { logger } from '../../../../../lib/utils/logger';
+import { handleError } from '../../../../../lib/utils/errors';
 
-export async function GET() {
+async function getSessionsHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const { user } = authContext;
+
+    logger.info('Get sessions request', { userId: user!.id });
 
     // Get user's chat sessions (without messages for performance)
     const { data: sessions, error: sessionsError } = await supabase
       .from('chat_sessions')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', user!.id)
       .order('updated_at', { ascending: false });
 
     if (sessionsError) {
@@ -34,27 +32,17 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error('Get sessions error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Get sessions error:', error);
+    return handleError(error);
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postSessionsHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const { user } = authContext;
+
+    logger.info('Create session request', { userId: user!.id });
 
     const sessionData = await request.json();
 
@@ -63,7 +51,7 @@ export async function POST(request: NextRequest) {
       .from('chat_sessions')
       .insert({
         id: sessionData.id,
-        user_id: user.id,
+        user_id: user!.id,
         title: sessionData.title || 'New Chat',
         message_count: 0,
         total_tokens: 0,
@@ -83,27 +71,17 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
-    console.error('Create session error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Create session error:', error);
+    return handleError(error);
   }
 }
 
-export async function DELETE(request: NextRequest) {
+async function deleteSessionsHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const { user } = authContext;
+
+    logger.info('Delete session request', { userId: user!.id });
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('id');
@@ -130,7 +108,7 @@ export async function DELETE(request: NextRequest) {
       .from('chat_sessions')
       .delete()
       .eq('id', sessionId)
-      .eq('user_id', user.id); // Ensure user can only delete their own sessions
+      .eq('user_id', user!.id); // Ensure user can only delete their own sessions
 
     if (sessionError) {
       throw sessionError;
@@ -142,10 +120,18 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Delete session error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Delete session error:', error);
+    return handleError(error);
   }
 }
+
+// Apply middleware to handlers
+export const GET = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(getSessionsHandler)(req, authContext)
+);
+export const POST = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(postSessionsHandler)(req, authContext)
+);
+export const DELETE = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(deleteSessionsHandler)(req, authContext)
+);

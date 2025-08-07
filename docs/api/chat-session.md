@@ -4,6 +4,17 @@
 
 The Chat Session API provides endpoints for managing chat sessions, including updating session metadata such as titles and active status.
 
+## Authentication & Authorization
+
+- **Authentication Required**: Uses `withProtectedAuth` middleware - requires valid user authentication
+- **Rate Limiting**: Tier-based rate limits applied via `withRateLimit` middleware:
+  - **Anonymous**: 20 requests/hour _(N/A - authentication required)_
+  - **Free**: 100 requests/hour
+  - **Pro**: 500 requests/hour
+  - **Enterprise**: 2000 requests/hour
+- **Ownership Validation**: Users can only update their own sessions
+- **Feature Flags**: Automatic tier-based access control applied
+
 ## Update Session Title
 
 ### Endpoint
@@ -22,8 +33,9 @@ Updates session metadata including title and active status. This endpoint is use
 
 ### Authentication
 
-- Requires authenticated user
+- Requires authenticated user via standardized `withProtectedAuth` middleware
 - Only allows updates to sessions owned by the current user
+- Automatic rate limiting applied based on user's subscription tier
 
 ### Request Format
 
@@ -87,7 +99,27 @@ Content-Type: application/json
 
 ```json
 {
-  "error": "Unauthorized"
+  "error": "Unauthorized",
+  "message": "Authentication required"
+}
+```
+
+**403 Forbidden - Access Denied**
+
+```json
+{
+  "error": "Forbidden",
+  "message": "Access denied to this session"
+}
+```
+
+**429 Too Many Requests - Rate Limit Exceeded**
+
+```json
+{
+  "error": "Too Many Requests",
+  "message": "Rate limit exceeded. Please try again later.",
+  "retryAfter": 3600
 }
 ```
 
@@ -275,11 +307,23 @@ CREATE TABLE chat_sessions (
 
 ## Security Considerations
 
-1. **Authentication Required**: All requests must be from authenticated users
-2. **User Ownership**: Users can only update their own sessions
+1. **Standardized Authentication**: Uses `withProtectedAuth` middleware for consistent security
+2. **User Ownership**: Users can only update their own sessions via AuthContext validation
 3. **Input Validation**: Session ID is validated and sanitized
-4. **Rate Limiting**: Consider implementing rate limiting for production use
+4. **Rate Limiting**: Automatic tier-based rate limiting prevents abuse
 5. **SQL Injection Protection**: Parameterized queries prevent SQL injection
+6. **Audit Logging**: All authentication and authorization events are logged
+
+## Rate Limiting
+
+All responses include rate limit headers:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 2025-08-07T09:30:00.000Z
+Retry-After: 3600 (when rate limit exceeded)
+```
 
 ## Error Handling
 

@@ -1,4 +1,13 @@
-# Endpoint: `/api/chat/sync`
+# Endpoi## Authentication & Authorization
+
+- **Authentication Required:** Uses `withConversationOwnership` middleware, which requires valid user authentication via `withProtectedAuth`
+- **Feature Check:** Users must have `canSyncConversations` enabled in their feature flags
+- **Rate Limiting:** Tier-based rate limits applied via `withRateLimit` middleware:
+  - **Anonymous:** 20 requests/hour _(N/A - authentication required)_
+  - **Free:** 100 requests/hour
+  - **Pro:** 500 requests/hour
+  - **Enterprise:** 2000 requests/hour
+- **Conversation Ownership:** Automatic validation that all conversations belong to the authenticated user/chat/sync`
 
 **Methods:** `POST`, `GET`
 
@@ -79,6 +88,25 @@ GET /api/chat/sync
 3. **Stats Update** – Message counts and token totals are updated for each session.
 4. **Fetch Conversations (GET)** – Retrieves up to 20 most recent sessions with their messages sorted by timestamp.
 5. **Rate Limit Headers** – Responses include `X-RateLimit-*` headers added by the middleware.
+
+## Rate Limit Headers
+
+All responses include rate limiting information:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 98
+X-RateLimit-Reset: 2025-08-07T09:30:00.000Z
+Retry-After: 3600 (when rate limit exceeded)
+```
+
+## Error Responses
+
+- `401 Unauthorized` if user is not authenticated
+- `403 Forbidden` if user lacks sync permissions or tries to sync conversations they don't own
+- `429 Too Many Requests` if rate limit is exceeded (with `Retry-After` header)
+- `400 Bad Request` for invalid payload or malformed conversation data
+- `500 Internal Server Error` for database errors or unexpected server errors
 
 ## Usage in the Codebase
 

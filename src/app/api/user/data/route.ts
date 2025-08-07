@@ -7,31 +7,28 @@ import {
   UserPreferencesUpdate, 
   UserDataError 
 } from '../../../../../lib/types/user-data';
+import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
+import { AuthContext } from '../../../../../lib/types/auth';
+import { logger } from '../../../../../lib/utils/logger';
 
 /**
  * GET /api/user/data
  * Retrieves comprehensive user data including analytics, profile, and preferences
  */
-export async function GET(): Promise<NextResponse<UserDataResponse | UserDataError>> {
+async function getUserDataHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse<UserDataResponse | UserDataError>> {
   try {
     const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized', message: 'Invalid or missing token' },
-        { status: 401 }
-      );
-    }
+    const { user } = authContext;
+
+    logger.info('Get user data request', { userId: user!.id });
 
     // Call the enhanced database function to get complete user profile
     const { data: profileData, error: profileError } = await supabase
-      .rpc('get_user_complete_profile', { user_uuid: user.id });
+      .rpc('get_user_complete_profile', { user_uuid: user!.id });
 
     if (profileError) {
-      console.error('Database error fetching user profile:', profileError);
+      logger.error('Database error fetching user profile:', profileError);
       return NextResponse.json(
         { error: 'Internal server error', message: 'Database connection failed' },
         { status: 500 }
@@ -90,7 +87,7 @@ export async function GET(): Promise<NextResponse<UserDataResponse | UserDataErr
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('Get user data error:', error);
+    logger.error('Get user data error:', error);
     return NextResponse.json(
       { error: 'Internal server error', message: 'Unexpected server error' },
       { status: 500 }
@@ -102,19 +99,12 @@ export async function GET(): Promise<NextResponse<UserDataResponse | UserDataErr
  * PUT /api/user/data
  * Updates user preferences (UI, session, model settings)
  */
-export async function PUT(request: NextRequest): Promise<NextResponse<UserDataResponse | UserDataError>> {
+async function putUserDataHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse<UserDataResponse | UserDataError>> {
   try {
     const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized', message: 'Invalid or missing token' },
-        { status: 401 }
-      );
-    }
+    const { user } = authContext;
+
+    logger.info('Update user preferences request', { userId: user!.id });
 
     // Parse request body
     let preferencesUpdate: UserPreferencesUpdate;
@@ -179,10 +169,10 @@ export async function PUT(request: NextRequest): Promise<NextResponse<UserDataRe
     const { error: updateError } = await supabase
       .from('profiles')
       .update(updateData)
-      .eq('id', user.id);
+      .eq('id', user!.id);
 
     if (updateError) {
-      console.error('Database error updating preferences:', updateError);
+      logger.error('Database error updating preferences:', updateError);
       return NextResponse.json(
         { error: 'Internal server error', message: 'Failed to update preferences' },
         { status: 500 }
@@ -191,10 +181,10 @@ export async function PUT(request: NextRequest): Promise<NextResponse<UserDataRe
 
     // Get updated profile data
     const { data: updatedProfileData, error: profileError } = await supabase
-      .rpc('get_user_complete_profile', { user_uuid: user.id });
+      .rpc('get_user_complete_profile', { user_uuid: user!.id });
 
     if (profileError || !updatedProfileData) {
-      console.error('Database error fetching updated profile:', profileError);
+      logger.error('Database error fetching updated profile:', profileError);
       return NextResponse.json(
         { error: 'Internal server error', message: 'Failed to fetch updated profile' },
         { status: 500 }
@@ -246,10 +236,18 @@ export async function PUT(request: NextRequest): Promise<NextResponse<UserDataRe
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('Update user preferences error:', error);
+    logger.error('Update user preferences error:', error);
     return NextResponse.json(
       { error: 'Internal server error', message: 'Unexpected server error' },
       { status: 500 }
     );
   }
 }
+
+// Apply middleware to handlers
+export const GET = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(getUserDataHandler)(req, authContext)
+);
+export const PUT = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
+  withRateLimit(putUserDataHandler)(req, authContext)
+);

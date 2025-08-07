@@ -8,9 +8,11 @@ The Admin Model Sync API provides enterprise-level users with the ability to man
 
 ### Requirements
 
-- **Authentication**: Must be signed in via Supabase
+- **Authentication Required**: Uses `withEnhancedAuth` middleware - requires valid user authentication
 - **Authorization**: Requires `enterprise` subscription tier
-- **Rate Limiting**: 5-minute cooldown between sync attempts per user
+- **Rate Limiting**: 5-minute cooldown between sync attempts per user (specific to this endpoint)
+- **Feature Access**: Only enterprise users can access admin functionality
+- **Automatic Validation**: AuthContext middleware handles all authentication and authorization checks
 
 ### Setting Up Admin Access
 
@@ -40,8 +42,9 @@ Manually trigger model synchronization from OpenRouter API.
 ```http
 POST /api/admin/sync-models
 Content-Type: application/json
-Authorization: Bearer <your-supabase-jwt-token>
 ```
+
+_Note: Authentication is handled automatically via cookies by the `withEnhancedAuth` middleware._
 
 #### Response (Success)
 
@@ -96,8 +99,9 @@ Get sync status and statistics.
 
 ```http
 GET /api/admin/sync-models
-Authorization: Bearer <your-supabase-jwt-token>
 ```
+
+_Note: Authentication is handled automatically via cookies by the `withEnhancedAuth` middleware._
 
 #### Response
 
@@ -248,16 +252,18 @@ Authorization: Bearer <your-supabase-jwt-token>
 
 ## Rate Limiting
 
-- **Cooldown Period**: 5 minutes between sync attempts per user (for this admin endpoint)
-- **Other Endpoints**: For chat and sync endpoints, per-tier rate limits apply:
-  - **Anonymous:** 20 requests/hour, 5000 tokens/request
-  - **Free:** 100 requests/hour, 10000 tokens/request
-  - **Pro:** 500 requests/hour, 20000 tokens/request
-  - **Enterprise:** 2000 requests/hour, 50000 tokens/request
+- **Admin Endpoint Cooldown**: 5 minutes between sync attempts per user (specific to admin sync endpoint)
+- **Standard Rate Limits**: All other rate limits apply based on user tier:
+  - **Anonymous**: 20 requests/hour _(N/A - enterprise authentication required)_
+  - **Free**: 100 requests/hour _(N/A - enterprise tier required)_
+  - **Pro**: 500 requests/hour _(N/A - enterprise tier required)_
+  - **Enterprise**: 2000 requests/hour
 - **Concurrent Protection**: Only one sync can run at a time across all users
 - **Headers**: Rate limit info included in response headers:
   - `Retry-After`: Seconds until next attempt allowed
   - `X-RateLimit-Reset`: Unix timestamp when rate limit resets
+  - `X-RateLimit-Limit`: Current rate limit for user tier
+  - `X-RateLimit-Remaining`: Remaining requests in current window
 
 ## Monitoring
 
@@ -303,11 +309,13 @@ LIMIT 20;
 
 ## Security Considerations
 
-1. **Enterprise-Only Access**: Only enterprise tier users can trigger syncs
-2. **Rate Limiting**: Prevents abuse with cooldown periods
-3. **Audit Trail**: All sync operations are logged with user attribution
-4. **Concurrent Protection**: Prevents multiple simultaneous syncs
-5. **Error Handling**: Secure error messages without sensitive data exposure
+1. **Enterprise-Only Access**: Only enterprise tier users can trigger syncs (validated by AuthContext middleware)
+2. **Standardized Authentication**: Uses `withEnhancedAuth` middleware for consistent security
+3. **Rate Limiting**: Prevents abuse with cooldown periods and tier-based limits
+4. **Audit Trail**: All sync operations are logged with user attribution
+5. **Concurrent Protection**: Prevents multiple simultaneous syncs
+6. **Error Handling**: Secure error messages without sensitive data exposure
+7. **Automatic Cookie Handling**: Authentication handled seamlessly via browser cookies
 
 ## Integration with Existing System
 
