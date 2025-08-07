@@ -2,11 +2,22 @@
 
 **Methods:** `GET`, `POST`
 
+## Authentication & Authorization
+
+- **Authentication Required**: Uses `withProtectedAuth` middleware - requires valid user authentication
+- **Rate Limiting**: Tier-based rate limits applied via `withRateLimit` middleware:
+  - **Anonymous**: 20 requests/hour _(N/A - authentication required)_
+  - **Free**: 100 requests/hour
+  - **Pro**: 500 requests/hour
+  - **Enterprise**: 2000 requests/hour
+- **Ownership Validation**: Users can only access messages from their own sessions
+- **Feature Flags**: Automatic tier-based access control applied
+
 ## Description
 
 This endpoint provides CRUD operations for individual chat messages within a session.
 
-- **GET**: Fetches all messages for a given chat session. Verifies that the requesting user owns the session (via Supabase auth and session lookup). Returns an array of message objects, each including all metadata fields present in the database (`id`, `role`, `content`, `model`, `total_tokens`, `contentType`, `elapsed_time`, `completion_id`, `timestamp`, `error`, etc.).
+- **GET**: Fetches all messages for a given chat session. Verifies that the requesting user owns the session (via AuthContext middleware). Returns an array of message objects, each including all metadata fields present in the database (`id`, `role`, `content`, `model`, `total_tokens`, `contentType`, `elapsed_time`, `completion_id`, `timestamp`, `error`, etc.).
 - **POST**: Inserts a new message or message array into the session. **Auto-creates sessions** if they don't exist with intelligent title generation. Supports both single message and message array formats for efficient batch operations. **Enhanced with session title updates** to handle both auto-generated and explicit titles during message saving. Updates session statistics in the `chat_sessions` table (message count, total tokens, last model, last message preview, last message timestamp, updated_at). Returns the newly created message object(s).
 
 ### Enhanced Features
@@ -168,9 +179,22 @@ This endpoint provides CRUD operations for individual chat messages within a ses
     ```
 
 - **Error Responses**:
-  - `401 Unauthorized` if user is not authenticated.
-  - `400 Bad Request` for missing or invalid payload, or when neither `message` nor `messages` is provided.
-  - `500 Internal Server Error` for session creation failures or unexpected errors.
+  - `401 Unauthorized` if user is not authenticated
+  - `403 Forbidden` if user tries to access another user's session
+  - `429 Too Many Requests` if rate limit is exceeded (with `Retry-After` header)
+  - `400 Bad Request` for missing or invalid payload, or when neither `message` nor `messages` is provided
+  - `500 Internal Server Error` for session creation failures or unexpected errors
+
+### Rate Limit Headers
+
+All responses include rate limiting information:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 2025-08-07T09:30:00.000Z
+Retry-After: 3600 (when rate limit exceeded)
+```
 
 ### Session Auto-Creation Behavior
 

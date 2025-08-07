@@ -8,8 +8,14 @@ Provides the client with the list of models that are currently allowed for the u
 
 ## Authentication & Authorization
 
-- **Optional Authentication:** The endpoint is wrapped by `withEnhancedAuth`, meaning requests are allowed without signing in.
-- **Tier Checks:** If the user is authenticated, their `subscription_tier` from Supabase determines which models are returned (`is_free`, `is_pro`, `is_enterprise`). Anonymous users are treated as `free` tier.
+- **Optional Authentication:** Uses `withEnhancedAuth` middleware - works for both authenticated and anonymous users
+- **Rate Limiting**: Tier-based rate limits applied automatically:
+  - **Anonymous:** 20 requests/hour
+  - **Free:** 100 requests/hour
+  - **Pro:** 500 requests/hour
+  - **Enterprise:** 2000 requests/hour
+- **Tier Checks:** If the user is authenticated, their `subscription_tier` from Supabase determines which models are returned (`is_free`, `is_pro`, `is_enterprise`). Anonymous users are treated as `free` tier
+- **Graceful Degradation**: Enhanced features for authenticated users, basic access for anonymous users
 
 ## Request
 
@@ -61,7 +67,23 @@ GET /api/models?enhanced=true
 4. **Fallback**  
    Should the OpenRouter request fail, the endpoint falls back to legacy mode and returns only the model IDs.
 5. **Headers**  
-   Monitoring headers such as `X-Enhanced-Mode`, `X-Response-Time`, `X-Cache-Status`, and `X-Fallback-Used` are included for observability.
+   Monitoring headers such as `X-Enhanced-Mode`, `X-Response-Time`, `X-Cache-Status`, and `X-Fallback-Used` are included for observability. Rate limit headers are also included.
+
+## Rate Limit Headers
+
+All responses include rate limiting information:
+
+```
+X-RateLimit-Limit: 20 (anonymous) / 100+ (authenticated)
+X-RateLimit-Remaining: 19
+X-RateLimit-Reset: 2025-08-07T09:30:00.000Z
+Retry-After: 3600 (when rate limit exceeded)
+```
+
+## Error Responses
+
+- `429 Too Many Requests` if rate limit is exceeded (with `Retry-After` header)
+- `500 Internal Server Error` if database connection fails or OpenRouter API is unavailable
 
 ## Usage in the Codebase
 

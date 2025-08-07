@@ -6,11 +6,18 @@ The `/api/user/data` endpoint provides a unified interface for retrieving and up
 
 ## Authentication
 
-All requests to this endpoint require authentication via JWT token in the Authorization header.
+All requests to this endpoint require authentication via standardized `withProtectedAuth` middleware.
 
-```
-Authorization: Bearer <jwt-token>
-```
+## Authentication & Authorization
+
+- **Authentication Required**: Uses `withProtectedAuth` middleware - requires valid user authentication
+- **Rate Limiting**: Tier-based rate limits applied via `withRateLimit` middleware:
+  - **Anonymous**: 20 requests/hour _(N/A - authentication required)_
+  - **Free**: 100 requests/hour
+  - **Pro**: 500 requests/hour
+  - **Enterprise**: 2000 requests/hour
+- **Data Access**: Users can only access their own data
+- **Feature Flags**: Automatic tier-based access control applied
 
 ## Endpoints
 
@@ -22,8 +29,9 @@ Retrieves comprehensive user data including today's analytics, all-time statisti
 
 ```http
 GET /api/user/data
-Authorization: Bearer <jwt-token>
 ```
+
+_Note: Authentication is handled automatically via cookies by the `withProtectedAuth` middleware._
 
 #### Response
 
@@ -89,7 +97,6 @@ Updates user preferences (UI, session, and model settings). Only preference fiel
 
 ```http
 PUT /api/user/data
-Authorization: Bearer <jwt-token>
 Content-Type: application/json
 
 {
@@ -101,6 +108,8 @@ Content-Type: application/json
   }
 }
 ```
+
+_Note: Authentication is handled automatically via cookies by the `withProtectedAuth` middleware._
 
 #### Response
 
@@ -139,7 +148,26 @@ Content-Type: application/json
 ```json
 {
   "error": "Unauthorized",
-  "message": "Invalid or missing token"
+  "message": "Authentication required"
+}
+```
+
+### 403 Forbidden
+
+```json
+{
+  "error": "Forbidden",
+  "message": "Access denied"
+}
+```
+
+### 429 Too Many Requests
+
+```json
+{
+  "error": "Too Many Requests",
+  "message": "Rate limit exceeded. Please try again later.",
+  "retryAfter": 3600
 }
 ```
 
@@ -189,21 +217,30 @@ The endpoint uses the enhanced `get_user_complete_profile()` function which:
 
 ### Security Considerations
 
-- All requests require valid JWT authentication
-- User can only access their own data (enforced by token validation)
+- All requests require valid authentication via `withProtectedAuth` middleware
+- User can only access their own data (enforced by AuthContext validation)
 - Preference updates are validated before database persistence
+- Rate limiting prevents abuse with tier-based limits
 - Error responses don't expose sensitive system information
+- Automatic audit logging for all authentication events
+
+## Rate Limiting
+
+All responses include rate limit headers:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 2025-08-07T09:30:00.000Z
+Retry-After: 3600 (when rate limit exceeded)
+```
 
 ## Usage Examples
 
 ### Fetching User Data (JavaScript)
 
 ```javascript
-const response = await fetch("/api/user/data", {
-  headers: {
-    Authorization: `Bearer ${userToken}`,
-  },
-});
+const response = await fetch("/api/user/data");
 
 if (response.ok) {
   const userData = await response.json();
@@ -213,6 +250,8 @@ if (response.ok) {
   console.error("Failed to fetch user data");
 }
 ```
+
+_Note: Authentication is handled automatically via cookies._
 
 ### Updating Preferences (JavaScript)
 
@@ -225,7 +264,6 @@ const preferences = {
 const response = await fetch("/api/user/data", {
   method: "PUT",
   headers: {
-    Authorization: `Bearer ${userToken}`,
     "Content-Type": "application/json",
   },
   body: JSON.stringify(preferences),
@@ -238,6 +276,8 @@ if (response.ok) {
   console.error("Failed to update preferences");
 }
 ```
+
+_Note: Authentication is handled automatically via cookies._
 
 ## Related Documentation
 

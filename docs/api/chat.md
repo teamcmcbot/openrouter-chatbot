@@ -1,4 +1,13 @@
-# Endpoint: `/api/chat`
+# Endpoi## Authentication & Authorization
+
+- **Optional Authentication:** Uses `withEnhancedAuth` middleware - works for both authenticated and anonymous users
+- **Rate Limiting**: Tier-based rate limits applied via `withRateLimit` middleware:
+  - **Anonymous:** 20 requests/hour, 5000 tokens/request
+  - **Free:** 100 requests/hour, 10000 tokens/request
+  - **Pro:** 500 requests/hour, 20000 tokens/request
+  - **Enterprise:** 2000 requests/hour, 50000 tokens/request
+- **Feature Checks:** `validateChatRequestWithAuth` ensures optional features (custom system prompt, temperature, etc.) are only used if the user's subscription tier allows them
+- **Graceful Degradation**: Anonymous users get limited access, authenticated users get enhanced features/chat`
 
 **Method:** `POST`
 
@@ -52,6 +61,27 @@ Content-Type: application/json
 }
 ```
 
+## Rate Limit Headers
+
+All responses include rate limiting information:
+
+```
+X-RateLimit-Limit: 20 (anonymous) / 100+ (authenticated)
+X-RateLimit-Remaining: 18
+X-RateLimit-Reset: 2025-08-07T09:30:00.000Z
+Retry-After: 3600 (when rate limit exceeded)
+```
+
+## Error Responses
+
+- `429 Too Many Requests` if rate limit is exceeded (with `Retry-After` header)
+- `400 Bad Request` for invalid requests (feature not available for tier, token limits exceeded, etc.)
+- `401 Unauthorized` for invalid authentication tokens (when provided)
+- `403 Forbidden` for requests that exceed user's tier permissions
+- `500 Internal Server Error` if OpenRouter API is unavailable or other server errors
+
+```
+
 ## Data Flow
 
 1. **Validation** – `validateChatRequestWithAuth` checks message content, feature access and token counts.
@@ -63,3 +93,4 @@ Content-Type: application/json
 ## Usage in the Codebase
 
 - Called from `stores/useChatStore.ts` when sending a new message.
+```
