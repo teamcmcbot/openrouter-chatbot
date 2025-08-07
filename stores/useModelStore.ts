@@ -7,8 +7,51 @@ import { ModelInfo } from '../lib/types/openrouter';
 import { ModelState, ModelSelectors, CachedModelData, isEnhancedModels } from './types/model';
 import { STORAGE_KEYS, CACHE_CONFIG } from '../lib/constants';
 import { createLogger } from './storeUtils';
+import { useAuth } from './useAuthStore';
+import { useUserData } from '../hooks/useUserData';
 
 const logger = createLogger('ModelStore');
+
+// Utility function to reorder models putting user's default model first
+const reorderModelsWithDefault = (
+  models: ModelInfo[] | string[],
+  defaultModel: string | null
+): ModelInfo[] | string[] => {
+  if (!defaultModel || models.length === 0) {
+    return models;
+  }
+
+  // Check if default model exists in the current model list
+  const modelExists = isEnhancedModels(models)
+    ? models.some(model => model.id === defaultModel)
+    : models.includes(defaultModel);
+
+  if (!modelExists) {
+    logger.info('User default model not found in current model list', { 
+      defaultModel, 
+      availableModels: models.length 
+    });
+    return models;
+  }
+
+  // Move default model to the front
+  if (isEnhancedModels(models)) {
+    const enhancedModels = models as ModelInfo[];
+    const defaultModelData = enhancedModels.find(model => model.id === defaultModel);
+    const otherModels = enhancedModels.filter(model => model.id !== defaultModel);
+    
+    if (defaultModelData) {
+      logger.info('Reordered models with user default model first', { defaultModel });
+      return [defaultModelData, ...otherModels];
+    }
+    return models;
+  } else {
+    const stringModels = models as string[];
+    const otherModels = stringModels.filter(modelId => modelId !== defaultModel);
+    logger.info('Reordered models with user default model first', { defaultModel });
+    return [defaultModel, ...otherModels];
+  }
+};
 
 // Cache utilities
 const getCachedData = (): CachedModelData | null => {
@@ -166,7 +209,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
           modelConfigs: {},
 
           // Actions
-          fetchModels: async () => {
+          fetchModels: async (userDefaultModel?: string | null) => {
             const state = get();
             if (state.isLoading) {
               logger.info('Fetch already in progress, skipping duplicate request');
@@ -182,22 +225,39 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               if (cachedData && cachedData.isEnhanced === state.isEnhanced) {
                 logger.info('Using cached model data');
                 
-                // Auto-select first model if none is selected and models are available
-                const shouldAutoSelect = !state.selectedModel && cachedData.models.length > 0;
-                const firstModelId = cachedData.models.length > 0 ? 
-                  (typeof cachedData.models[0] === 'string' ? cachedData.models[0] : cachedData.models[0].id) : '';
+                // Apply user default model reordering to cached data
+                let orderedModels = cachedData.models;
+                if (userDefaultModel) {
+                  orderedModels = reorderModelsWithDefault(cachedData.models, userDefaultModel);
+                  logger.info('Applied user default model ordering to cached data', { userDefaultModel });
+                }
+                
+                // Auto-select user's default model if authenticated and model exists, otherwise first model
+                let selectedModelId = state.selectedModel;
+                
+                if (userDefaultModel && orderedModels.length > 0) {
+                  // Check if user's default model exists in the list
+                  const defaultModelExists = isEnhancedModels(orderedModels)
+                    ? orderedModels.some(model => model.id === userDefaultModel)
+                    : orderedModels.includes(userDefaultModel);
+                  
+                  if (defaultModelExists) {
+                    selectedModelId = userDefaultModel;
+                    logger.info('Auto-selected user default model', { defaultModel: userDefaultModel });
+                  }
+                } else if (!selectedModelId && orderedModels.length > 0) {
+                  // Fallback to first model if no selection exists
+                  selectedModelId = typeof orderedModels[0] === 'string' ? orderedModels[0] : orderedModels[0].id;
+                  logger.info('Auto-selected first model from cache', { modelId: selectedModelId });
+                }
                 
                 set({
-                  models: cachedData.models,
-                  selectedModel: shouldAutoSelect ? firstModelId : state.selectedModel,
+                  models: orderedModels,
+                  selectedModel: selectedModelId,
                   isLoading: false,
                   lastUpdated: new Date(cachedData.timestamp),
                   modelConfigs: cachedData.modelConfigs || {},
                 });
-                
-                if (shouldAutoSelect) {
-                  logger.info('Auto-selected first model from cache', { modelId: firstModelId });
-                }
                 
                 // If we have cached data but it's getting old, refresh in background
                 const cacheAge = Date.now() - cachedData.timestamp;
@@ -205,7 +265,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
                 
                 if (cacheAge > refreshThreshold && state.isOnline) {
                   logger.info('Cache is getting old, refreshing in background');
-                  setTimeout(() => get().refreshModels(), 100); // Refresh after current operation
+                  setTimeout(() => get().refreshModels(userDefaultModel), 100); // Pass userDefaultModel to refresh too
                 }
                 
                 return;
@@ -215,13 +275,34 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               logger.info('Fetching fresh model data');
               const result = await fetchModelsFromAPI();
               
-              // Cache the data
+              // Apply user default model reordering to fresh data
+              let orderedModels = result.models;
+              if (userDefaultModel) {
+                orderedModels = reorderModelsWithDefault(result.models, userDefaultModel);
+                logger.info('Applied user default model ordering to fresh data', { userDefaultModel });
+              }
+              
+              // Cache the original (non-reordered) data to maintain consistency
               setCachedData(result.models, result.isEnhanced);
               
-              // Auto-select first model if none is selected and models are available
-              const shouldAutoSelect = !state.selectedModel && result.models.length > 0;
-              const firstModelId = result.models.length > 0 ? 
-                (typeof result.models[0] === 'string' ? result.models[0] : result.models[0].id) : '';
+              // Auto-select user's default model if authenticated and model exists, otherwise first model
+              let selectedModelId = state.selectedModel;
+              
+              if (userDefaultModel && orderedModels.length > 0) {
+                // Check if user's default model exists in the list
+                const defaultModelExists = isEnhancedModels(orderedModels)
+                  ? orderedModels.some(model => model.id === userDefaultModel)
+                  : orderedModels.includes(userDefaultModel);
+                
+                if (defaultModelExists) {
+                  selectedModelId = userDefaultModel;
+                  logger.info('Auto-selected user default model', { defaultModel: userDefaultModel });
+                }
+              } else if (!selectedModelId && orderedModels.length > 0) {
+                // Fallback to first model if no selection exists
+                selectedModelId = typeof orderedModels[0] === 'string' ? orderedModels[0] : orderedModels[0].id;
+                logger.info('Auto-selected first model', { modelId: selectedModelId });
+              }
               
               // Extract model configurations for token limits from fresh data
               const modelConfigs: Record<string, { context_length: number; description: string }> = {};
@@ -235,8 +316,8 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               }
               
               set({
-                models: result.models,
-                selectedModel: shouldAutoSelect ? firstModelId : state.selectedModel,
+                models: orderedModels, // Use reordered models for display
+                selectedModel: selectedModelId,
                 isEnhanced: result.isEnhanced,
                 isLoading: false,
                 lastUpdated: new Date(),
@@ -244,14 +325,11 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
                 modelConfigs,
               });
 
-              if (shouldAutoSelect) {
-                logger.info('Auto-selected first model', { modelId: firstModelId });
-              }
-
               logger.info('Models fetched successfully', {
-                count: result.models.length,
+                count: orderedModels.length,
                 isEnhanced: result.isEnhanced,
-                selectedModel: shouldAutoSelect ? firstModelId : state.selectedModel
+                selectedModel: selectedModelId,
+                userDefaultApplied: !!userDefaultModel
               });
 
             } catch (error) {
@@ -263,23 +341,38 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               if (cachedData) {
                 logger.info('Using expired cache as fallback');
                 
-                // Auto-select first model if none is selected and models are available
-                const shouldAutoSelect = !state.selectedModel && cachedData.models.length > 0;
-                const firstModelId = cachedData.models.length > 0 ? 
-                  (typeof cachedData.models[0] === 'string' ? cachedData.models[0] : cachedData.models[0].id) : '';
+                // Apply user default model reordering to fallback cached data
+                let orderedModels = cachedData.models;
+                if (userDefaultModel) {
+                  orderedModels = reorderModelsWithDefault(cachedData.models, userDefaultModel);
+                  logger.info('Applied user default model ordering to fallback cache', { userDefaultModel });
+                }
+                
+                // Auto-select user's default model if authenticated and model exists, otherwise first model
+                let selectedModelId = state.selectedModel;
+                
+                if (userDefaultModel && orderedModels.length > 0) {
+                  const defaultModelExists = isEnhancedModels(orderedModels)
+                    ? orderedModels.some(model => model.id === userDefaultModel)
+                    : orderedModels.includes(userDefaultModel);
+                  
+                  if (defaultModelExists) {
+                    selectedModelId = userDefaultModel;
+                    logger.info('Auto-selected user default model from fallback', { defaultModel: userDefaultModel });
+                  }
+                } else if (!selectedModelId && orderedModels.length > 0) {
+                  selectedModelId = typeof orderedModels[0] === 'string' ? orderedModels[0] : orderedModels[0].id;
+                  logger.info('Auto-selected first model from fallback cache', { modelId: selectedModelId });
+                }
                 
                 set({
-                  models: cachedData.models,
-                  selectedModel: shouldAutoSelect ? firstModelId : state.selectedModel,
+                  models: orderedModels,
+                  selectedModel: selectedModelId,
                   isLoading: false,
                   error: errorMessage,
                   lastUpdated: new Date(cachedData.timestamp),
                   modelConfigs: cachedData.modelConfigs || {},
                 });
-                
-                if (shouldAutoSelect) {
-                  logger.info('Auto-selected first model from fallback cache', { modelId: firstModelId });
-                }
               } else {
                 set({
                   isLoading: false,
@@ -289,7 +382,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
             }
           },
 
-          refreshModels: async () => {
+          refreshModels: async (userDefaultModel?: string | null) => {
             const state = get();
             
             if (!state.isOnline) {
@@ -302,6 +395,15 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
 
             try {
               const result = await fetchModelsFromAPI();
+              
+              // Apply user default model reordering to refreshed data
+              let orderedModels = result.models;
+              if (userDefaultModel) {
+                orderedModels = reorderModelsWithDefault(result.models, userDefaultModel);
+                logger.info('Applied user default model ordering to refreshed data', { userDefaultModel });
+              }
+              
+              // Cache the original (non-reordered) data
               setCachedData(result.models, result.isEnhanced);
               
               // Extract model configurations for token limits from refresh data
@@ -316,7 +418,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               }
               
               set({
-                models: result.models,
+                models: orderedModels, // Use reordered models for display
                 isEnhanced: result.isEnhanced,
                 lastUpdated: new Date(),
                 error: null,
@@ -324,7 +426,8 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               });
 
               logger.info('Models refreshed successfully', {
-                count: result.models.length
+                count: orderedModels.length,
+                userDefaultApplied: !!userDefaultModel
               });
 
             } catch (error) {
@@ -524,13 +627,30 @@ export const useModelData = () => {
     fetchModels,
   } = useModelStore();
 
-  // Initialize models when hydrated (similar to the original useModelData behavior)
+  const { user } = useAuth();
+  const { data: userData } = useUserData({ enabled: !!user });
+
+  // Get user's default model from profile
+  const userDefaultModel = userData?.preferences?.model?.default_model || null;
+
+  // Initialize models when hydrated with user default model consideration
   useEffect(() => {
     if (isHydrated && models.length === 0 && !isLoading) {
-      logger.info('Initializing model data on mount');
-      fetchModels();
+      logger.info('Initializing model data on mount', { 
+        isAuthenticated: !!user, 
+        userDefaultModel 
+      });
+      fetchModels(userDefaultModel);
     }
-  }, [isHydrated, models.length, isLoading, fetchModels]);
+  }, [isHydrated, models.length, isLoading, fetchModels, user, userDefaultModel]);
+
+  // Re-fetch and reorder when user's default model changes
+  useEffect(() => {
+    if (isHydrated && models.length > 0 && user && userDefaultModel) {
+      logger.info('User default model changed, re-ordering models', { userDefaultModel });
+      fetchModels(userDefaultModel);
+    }
+  }, [userDefaultModel, isHydrated, user, fetchModels, models.length]);
 
   // Don't return data until hydrated to prevent SSR mismatch
   if (!isHydrated) {
@@ -549,7 +669,7 @@ export const useModelData = () => {
     loading: isLoading,
     error: error ? new Error(error) : null,
     isEnhanced,
-    refresh: refreshModels,
+    refresh: () => refreshModels(userDefaultModel),
     lastUpdated,
   };
 };
@@ -568,13 +688,30 @@ export const useModelSelection = () => {
     fetchModels,
   } = useModelStore();
 
-  // Auto-fetch models when hydrated (similar to useModelData behavior)
+  const { user } = useAuth();
+  const { data: userData } = useUserData({ enabled: !!user });
+
+  // Get user's default model from profile
+  const userDefaultModel = userData?.preferences?.model?.default_model || null;
+
+  // Auto-fetch models when hydrated with user default model consideration
   useEffect(() => {
     if (isHydrated && availableModels.length === 0 && !isLoading) {
-      logger.info('Initializing model data on mount');
-      fetchModels();
+      logger.info('Initializing model data on mount', { 
+        isAuthenticated: !!user, 
+        userDefaultModel 
+      });
+      fetchModels(userDefaultModel);
     }
-  }, [isHydrated, availableModels.length, isLoading, fetchModels]);
+  }, [isHydrated, availableModels.length, isLoading, fetchModels, user, userDefaultModel]);
+
+  // Re-fetch and reorder when user's default model changes
+  useEffect(() => {
+    if (isHydrated && availableModels.length > 0 && user && userDefaultModel) {
+      logger.info('User default model changed, re-ordering models', { userDefaultModel });
+      fetchModels(userDefaultModel);
+    }
+  }, [userDefaultModel, isHydrated, user, fetchModels, availableModels.length]);
 
   // Don't return data until hydrated to prevent SSR mismatch
   if (!isHydrated) {
@@ -597,7 +734,7 @@ export const useModelSelection = () => {
     isLoading,
     error: error ? new Error(error) : null,
     isEnhanced,
-    refreshModels,
+    refreshModels: () => refreshModels(userDefaultModel),
     lastUpdated,
   };
 };

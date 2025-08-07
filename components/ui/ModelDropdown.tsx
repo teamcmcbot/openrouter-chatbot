@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import { useAuth } from "../../stores/useAuthStore";
+import { useUserData } from "../../hooks/useUserData";
 
 // Utility to detect mobile devices
 function isMobileDevice() {
@@ -35,6 +37,11 @@ export default function ModelDropdown({
   const [filterBy, setFilterBy] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Get user data for default model checking
+  const { user } = useAuth();
+  const { data: userData } = useUserData({ enabled: !!user });
+  const userDefaultModel = userData?.preferences?.model?.default_model || null;
 
   // Determine if we have enhanced data
   const hasEnhancedData = enhanced ?? isEnhancedModels(models);
@@ -160,14 +167,25 @@ export default function ModelDropdown({
     return typeof model === 'string' ? model : model.id;
   };
 
-  const getSelectedModelDisplay = (): string => {
+  // Check if a model is the user's default model
+  const isUserDefaultModel = (model: ModelInfo | string): boolean => {
+    if (!userDefaultModel) return false;
+    const modelId = getModelId(model);
+    return modelId === userDefaultModel;
+  };
+
+  const getSelectedModelDisplay = (): { name: string; isDefault: boolean } => {
     if (hasEnhancedData && isEnhancedModels(models)) {
       const selectedModelData = models.find(model => model.id === selectedModel);
-      return selectedModelData ? selectedModelData.name : "Select Model";
+      const name = selectedModelData ? selectedModelData.name : "Select Model";
+      const isDefault = selectedModelData ? isUserDefaultModel(selectedModelData) : false;
+      return { name, isDefault };
     }
     
     // Legacy mode
-    return getDisplayName(selectedModel) || "Select Model";
+    const name = getDisplayName(selectedModel) || "Select Model";
+    const isDefault = selectedModel ? isUserDefaultModel(selectedModel) : false;
+    return { name, isDefault };
   };
 
   const getModelDescription = (model: ModelInfo | string): string | null => {
@@ -211,9 +229,16 @@ export default function ModelDropdown({
             </span>
           </div>
         ) : (
-          <span className="text-violet-700 dark:text-violet-400 font-normal text-xs leading-tight">
-            {getSelectedModelDisplay()}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-violet-700 dark:text-violet-400 font-normal text-xs leading-tight">
+              {getSelectedModelDisplay().name}
+            </span>
+            {getSelectedModelDisplay().isDefault && (
+              <span className="text-[8px] bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-1 py-0.5 rounded text-[8px]">
+                DEFAULT
+              </span>
+            )}
+          </div>
         )}
         <svg
           className={`w-2.5 h-2.5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${
@@ -288,6 +313,7 @@ export default function ModelDropdown({
                   const contextLength = getContextLength(model);
                   const isSelected = modelId === selectedModel;
                   const isEnhanced = hasEnhancedData && typeof model === 'object';
+                  const isDefault = isUserDefaultModel(model);
 
                   return (
                     <div key={modelId} className="group">
@@ -311,6 +337,12 @@ export default function ModelDropdown({
                             {contextLength && (
                               <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] font-mono">
                                 {formatContextLength(contextLength)}
+                              </span>
+                            )}
+                            {/* User default model indicator */}
+                            {isDefault && (
+                              <span className="text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-1 py-0.5 rounded border border-blue-200 dark:border-blue-700">
+                                DEFAULT
                               </span>
                             )}
                             {isEnhanced && (

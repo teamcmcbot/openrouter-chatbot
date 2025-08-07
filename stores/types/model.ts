@@ -24,8 +24,8 @@ export interface ModelState {
   modelConfigs: Record<string, { context_length: number; description: string }>;
 
   // Actions
-  fetchModels: () => Promise<void>;
-  refreshModels: () => Promise<void>;
+  fetchModels: (userDefaultModel?: string | null) => Promise<void>;
+  refreshModels: (userDefaultModel?: string | null) => Promise<void>;
   setSelectedModel: (modelId: string) => void;
   clearError: () => void;
   setOnlineStatus: (online: boolean) => void;
