@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 // Added icons for section headers and controls
-import { ArrowPathIcon, UserCircleIcon, AdjustmentsHorizontalIcon, ChartBarIcon, XMarkIcon, ShieldCheckIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, UserCircleIcon, AdjustmentsHorizontalIcon, ChartBarIcon, XMarkIcon, ShieldCheckIcon, Cog6ToothIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import Button from "./Button";
 import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
@@ -29,6 +29,10 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   });
   const [isRefreshAnimating, setIsRefreshAnimating] = useState(false);
   
+  // New: profile field visibility toggles (default masked)
+  const [showEmail, setShowEmail] = useState(false);
+  const [showName, setShowName] = useState(false);
+  
   // System prompt specific state
   const [systemPromptError, setSystemPromptError] = useState<string | null>(null);
   const [lastKnownGoodSystemPrompt, setLastKnownGoodSystemPrompt] = useState<string>('');
@@ -47,6 +51,29 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
       setLastKnownGoodSystemPrompt(currentPrefs.systemPrompt);
     }
   }, [userData?.preferences, isEditing]);
+
+  // Helper: mask email and name
+  const maskEmail = (email: string) => {
+    if (!email || !email.includes('@')) return '••••••••••';
+    const [local, domain] = email.split('@');
+    const maskedLocal = local.length <= 2
+      ? local[0] + '•'.repeat(Math.max(0, local.length - 1))
+      : local[0] + '•'.repeat(local.length - 2) + local[local.length - 1];
+    const domainParts = domain.split('.');
+    const d0 = domainParts[0] || '';
+    const maskedD0 = d0 ? d0[0] + '•'.repeat(Math.max(1, d0.length - 1)) : '•'.repeat(3);
+    const rest = domainParts.slice(1).join('.');
+    return `${maskedLocal}@${maskedD0}${rest ? '.' + rest : ''}`;
+  };
+
+  const maskName = (name: string) => {
+    if (!name) return '••••••';
+    return name
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(part => part[0] + (part.length > 1 ? '•'.repeat(Math.min(3, part.length - 1)) : ''))
+      .join(' ');
+  };
 
   // Enhanced refresh handler with animation timing
   const handleRefresh = async () => {
@@ -136,7 +163,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   // Subscription badge style
   const tierLower = (userProfile.subscription || '').toLowerCase();
   const subscriptionBadgeClass = tierLower === 'enterprise'
-    ? 'bg-indigo-500/15 text-indigo-300 ring-1 ring-inset ring-indigo-500/30'
+    ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30'
     : tierLower === 'pro'
       ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30'
       : 'bg-gray-500/15 text-gray-300 ring-1 ring-inset ring-gray-500/30';
@@ -268,7 +295,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           </div>
           <button
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/60 dark:hover:bg-white/10 transition-colors"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/60 dark:hover:bg白/10 transition-colors"
             aria-label="Close settings"
             title="Close"
           >
@@ -294,11 +321,31 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div className="space-y-1">
                 <p className="text-gray-500 dark:text-gray-400">Email</p>
-                <p className="font-medium break-all">{userProfile.email}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium break-all">{showEmail ? userProfile.email : maskEmail(userProfile.email)}</p>
+                  <button
+                    onClick={() => setShowEmail(v => !v)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/60 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400"
+                    aria-label={showEmail ? 'Hide email' : 'Show email'}
+                    title={showEmail ? 'Hide email' : 'Show email'}
+                  >
+                    {showEmail ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-1">
                 <p className="text-gray-500 dark:text-gray-400">Name</p>
-                <p className="font-medium">{userProfile.fullName}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium">{showName ? userProfile.fullName : maskName(userProfile.fullName)}</p>
+                  <button
+                    onClick={() => setShowName(v => !v)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/60 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400"
+                    aria-label={showName ? 'Hide name' : 'Show name'}
+                    title={showName ? 'Hide name' : 'Show name'}
+                  >
+                    {showName ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               {userProfile.credits > 0 && (
                 <div className="space-y-1">
