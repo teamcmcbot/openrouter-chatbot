@@ -261,7 +261,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         {/* Sticky header (aligned with section padding) */}
         <div className="sticky top-0 z-10 px-6 py-4 md:py-5 bg-gradient-to-b from-white/95 to-white/80 dark:from-gray-900/90 dark:to-gray-900/70 border-b border-gray-200/70 dark:border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
               <Cog6ToothIcon className="h-5 w-5" />
             </span>
             <h2 className="text-xl font-semibold">User Settings</h2>
@@ -334,7 +334,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                   <select
                     value={editedPreferences.theme}
                     onChange={(e) => setEditedPreferences(prev => ({ ...prev, theme: e.target.value }))}
-                    className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   >
                     <option value="light">Light</option>
                     <option value="dark">Dark</option>
@@ -351,7 +351,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                       ...prev,
                       defaultModel: e.target.value === '' ? null : e.target.value,
                     }))}
-                    className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   >
                     <option value="">None</option>
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -375,7 +375,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                     step="0.1"
                     value={editedPreferences.temperature}
                     onChange={(e) => setEditedPreferences(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
-                    className="w-full accent-blue-600"
+                    className="w-full accent-emerald-600"
                   />
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
                     <span>More focused</span>
@@ -424,7 +424,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                         : editedPreferences.systemPrompt.length > 0 && systemPromptError === null
                         ? 'border border-green-500 bg-green-50 dark:bg-green-900/20'
                         : 'border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50'
-                    } text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50`}
+                    } text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50`}
                     rows={4}
                     placeholder="Enter your system prompt to guide AI responses..."
                     aria-invalid={systemPromptError ? 'true' : 'false'}
@@ -487,7 +487,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                         ? 'opacity-50 cursor-not-allowed'
                         : (loading || isSaving)
                         ? 'opacity-75'
-                        : 'hover:bg-blue-600'
+                        : 'hover:bg-emerald-600'
                     }`}
                     title={
                       systemPromptError 
