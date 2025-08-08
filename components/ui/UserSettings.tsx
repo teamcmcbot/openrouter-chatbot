@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
+// Added icons for section headers and controls
+import { ArrowPathIcon, UserCircleIcon, AdjustmentsHorizontalIcon, ChartBarIcon, XMarkIcon, ShieldCheckIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import Button from "./Button";
 import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
@@ -132,6 +133,14 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
     credits: userData?.profile.credits || 0,
   };
 
+  // Subscription badge style
+  const tierLower = (userProfile.subscription || '').toLowerCase();
+  const subscriptionBadgeClass = tierLower === 'enterprise'
+    ? 'bg-indigo-500/15 text-indigo-300 ring-1 ring-inset ring-indigo-500/30'
+    : tierLower === 'pro'
+      ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30'
+      : 'bg-gray-500/15 text-gray-300 ring-1 ring-inset ring-gray-500/30';
+
   const preferences = {
     theme: userData?.preferences.ui.theme || "dark",
     defaultModel: userData?.preferences.model.default_model || null, // Allow null instead of hardcoded fallback
@@ -244,322 +253,333 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">User Settings</h2>
+      {/* Modern, slightly blurred overlay */}
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Modal container with sticky header/footer and internal scroll */}
+      <div className="relative w-full max-w-2xl rounded-2xl border border-gray-200/60 dark:border-white/10 bg-white/95 dark:bg-gray-900/90 text-gray-900 dark:text-gray-100 shadow-2xl backdrop-blur-xl overflow-hidden">
+        {/* Sticky header (aligned with section padding) */}
+        <div className="sticky top-0 z-10 px-6 py-4 md:py-5 bg-gradient-to-b from-white/95 to-white/80 dark:from-gray-900/90 dark:to-gray-900/70 border-b border-gray-200/70 dark:border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+              <Cog6ToothIcon className="h-5 w-5" />
+            </span>
+            <h2 className="text-xl font-semibold">User Settings</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/60 dark:hover:bg-white/10 transition-colors"
+            aria-label="Close settings"
+            title="Close"
+          >
+            <XMarkIcon className="h-5 w-5" />
+          </button>
         </div>
 
-        <section className="mb-6">
-          <h3 className="text-lg font-medium mb-2">Profile</h3>
-          <p className="text-sm mb-1">Email: {userProfile.email}</p>
-          <p className="text-sm mb-1">Name: {userProfile.fullName}</p>
-          <p className="text-sm mb-1">
-            Subscription: <span className="capitalize">{userProfile.subscription}</span>
-          </p>
-          {userProfile.credits > 0 && (
-            <p className="text-sm">Credits: {userProfile.credits}</p>
-          )}
-        </section>
-
-        <section className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-medium">Preferences</h3>
-            <Button 
-              variant="secondary" 
-              onClick={handleEditToggle}
-              disabled={loading || isSaving}
-              className="text-xs px-2 py-1"
-            >
-              {isEditing ? 'Cancel' : 'Edit'}
-            </Button>
-          </div>
-
-          {isEditing ? (
-            <div className="space-y-4">
-              {/* Theme Selection */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Theme</label>
-                <select
-                  value={editedPreferences.theme}
-                  onChange={(e) => setEditedPreferences(prev => ({ ...prev, theme: e.target.value }))}
-                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                >
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
-                  <option value="system">System</option>
-                </select>
+        {/* Scrollable content */}
+        <div className="px-6 py-5 space-y-6 overflow-y-auto max-h-[80vh] md:max-h-[75vh]">
+          {/* Profile */}
+          <section className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-gray-50/70 dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <UserCircleIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                <h3 className="text-base font-semibold">Profile</h3>
               </div>
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${subscriptionBadgeClass}`}>
+                <ShieldCheckIcon className="h-4 w-4" />
+                <span className="capitalize">{userProfile.subscription}</span>
+              </span>
+            </div>
 
-              {/* Model Selection */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Default Model</label>
-                <select
-                  value={editedPreferences.defaultModel || ''} // Convert null to empty string for select
-                  onChange={(e) => setEditedPreferences(prev => ({ 
-                    ...prev, 
-                    defaultModel: e.target.value === '' ? null : e.target.value // Convert empty string back to null
-                  }))}
-                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                >
-                  {/* "None" option as first item */}
-                  <option value="">None</option>
-                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                  {availableModels.map((model: any) => (
-                    <option key={model.model_id} value={model.model_id}>
-                      {model.model_name}
-                    </option>
-                  ))}
-                </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="space-y-1">
+                <p className="text-gray-500 dark:text-gray-400">Email</p>
+                <p className="font-medium break-all">{userProfile.email}</p>
               </div>
-
-              {/* Temperature Slider */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Temperature: {editedPreferences.temperature}
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value={editedPreferences.temperature}
-                  onChange={(e) => setEditedPreferences(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>More focused</span>
-                  <span>More creative</span>
+              <div className="space-y-1">
+                <p className="text-gray-500 dark:text-gray-400">Name</p>
+                <p className="font-medium">{userProfile.fullName}</p>
+              </div>
+              {userProfile.credits > 0 && (
+                <div className="space-y-1">
+                  <p className="text-gray-500 dark:text-gray-400">Credits</p>
+                  <p className="font-medium">{userProfile.credits}</p>
                 </div>
-              </div>
+              )}
+            </div>
+          </section>
 
-              {/* System Prompt Editor */}
-              <div>
-                <label htmlFor="system-prompt-textarea" className="block text-sm font-medium mb-1">
-                  System Prompt
-                </label>
-                <textarea
-                  id="system-prompt-textarea"
-                  value={editedPreferences.systemPrompt}
-                  onChange={(e) => {
-                    // Prevent typing beyond max length
-                    const newValue = e.target.value;
-                    if (newValue.length <= SYSTEM_PROMPT_LIMITS.MAX_LENGTH) {
-                      setEditedPreferences(prev => ({ ...prev, systemPrompt: newValue }));
-                    }
-                    
-                    // Real-time validation as user types
-                    const validation = validateSystemPrompt(newValue);
-                    setSystemPromptError(validation.isValid ? null : validation.error || null);
-                  }}
-                  onPaste={(e) => {
-                    // Handle paste with automatic truncation
-                    e.preventDefault();
-                    const pastedText = e.clipboardData.getData('text');
-                    const currentValue = editedPreferences.systemPrompt;
-                    const cursorPosition = e.currentTarget.selectionStart;
-                    
-                    // Calculate what the new value would be after paste
-                    const newValue = currentValue.slice(0, cursorPosition) + pastedText + currentValue.slice(e.currentTarget.selectionEnd);
-                    
-                    // Truncate if necessary
-                    const truncatedValue = newValue.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH
-                      ? newValue.slice(0, SYSTEM_PROMPT_LIMITS.MAX_LENGTH)
-                      : newValue;
-                    
-                    setEditedPreferences(prev => ({ ...prev, systemPrompt: truncatedValue }));
-                    
-                    // Validate the pasted content
-                    const validation = validateSystemPrompt(truncatedValue);
-                    setSystemPromptError(validation.isValid ? null : validation.error || null);
-                    
-                    // Show toast if content was truncated
-                    if (newValue.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH) {
-                      toast(`Content truncated to ${SYSTEM_PROMPT_LIMITS.MAX_LENGTH} characters`, {
-                        icon: '⚠️',
-                        style: {
-                          background: '#fef3c7',
-                          color: '#92400e',
-                        }
-                      });
-                    }
-                  }}
-                  className={`w-full p-2 border rounded resize-none transition-colors ${
-                    systemPromptError 
-                      ? 'border-red-500 bg-red-50 dark:bg-red-900/20' 
-                      : editedPreferences.systemPrompt.length > 0 && systemPromptError === null
-                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                      : 'border-gray-300 dark:border-gray-600'
-                  } bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100`}
-                  rows={4}
-                  placeholder="Enter your system prompt to guide AI responses..."
-                  aria-invalid={systemPromptError ? 'true' : 'false'}
-                  aria-describedby={systemPromptError ? 'system-prompt-error' : 'system-prompt-help'}
-                />
-                
-                {/* Enhanced Character Counter */}
-                <div className="flex justify-between text-xs mt-1">
-                  <div className="flex space-x-3">
-                    <span className={`${
-                      editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.9 
-                        ? 'text-yellow-600 dark:text-yellow-400' 
-                        : editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.8
-                        ? 'text-orange-600 dark:text-orange-400'
-                        : 'text-gray-500'
-                    } font-mono`}>
-                      {editedPreferences.systemPrompt.length} / {SYSTEM_PROMPT_LIMITS.MAX_LENGTH} chars
-                    </span>
-                    
-                    {/* Word Count */}
-                    <span className="text-gray-500">
-                      {editedPreferences.systemPrompt.trim().split(/\s+/).filter(word => word.length > 0).length} words
-                    </span>
-                  </div>
-                  
-                  {/* Visual Warning Indicators */}
-                  <div className="flex items-center space-x-2">
-                    {editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.9 && (
-                      <span className="flex items-center text-yellow-600 dark:text-yellow-400">
-                        ⚠️ <span className="ml-1">90%</span>
-                      </span>
-                    )}
-                    
-                    {editedPreferences.systemPrompt.length >= SYSTEM_PROMPT_LIMITS.MAX_LENGTH && (
-                      <span className="flex items-center text-red-600 dark:text-red-400">
-                        🚫 <span className="ml-1">Max</span>
-                      </span>
-                    )}
-                    
-                    {editedPreferences.systemPrompt.length > 0 && systemPromptError === null && (
-                      <span className="text-green-600 dark:text-green-400">✓</span>
-                    )}
+          {/* Preferences */}
+          <section className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-gray-50/70 dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <AdjustmentsHorizontalIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                <h3 className="text-base font-semibold">Preferences</h3>
+              </div>
+              <Button 
+                variant="secondary" 
+                onClick={handleEditToggle}
+                disabled={loading || isSaving}
+                className="text-xs px-3 py-1.5"
+              >
+                {isEditing ? 'Cancel' : 'Edit'}
+              </Button>
+            </div>
+
+            {isEditing ? (
+              <div className="space-y-4">
+                {/* Theme Selection */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Theme</label>
+                  <select
+                    value={editedPreferences.theme}
+                    onChange={(e) => setEditedPreferences(prev => ({ ...prev, theme: e.target.value }))}
+                    className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  >
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="system">System</option>
+                  </select>
+                </div>
+
+                {/* Model Selection */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Default Model</label>
+                  <select
+                    value={editedPreferences.defaultModel || ''}
+                    onChange={(e) => setEditedPreferences(prev => ({
+                      ...prev,
+                      defaultModel: e.target.value === '' ? null : e.target.value,
+                    }))}
+                    className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  >
+                    <option value="">None</option>
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {availableModels.map((model: any) => (
+                      <option key={model.model_id} value={model.model_id}>
+                        {model.model_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Temperature Slider */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Temperature: {editedPreferences.temperature}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    value={editedPreferences.temperature}
+                    onChange={(e) => setEditedPreferences(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>More focused</span>
+                    <span>More creative</span>
                   </div>
                 </div>
 
-                {/* Inline Error and Help Messages */}
-                {systemPromptError ? (
-                  <div id="system-prompt-error" className="text-red-600 dark:text-red-400 text-xs mt-1 flex items-start">
-                    <span className="mr-1">❌</span>
-                    <span>{systemPromptError}</span>
-                  </div>
-                ) : (
-                  <div id="system-prompt-help" className="text-gray-500 dark:text-gray-400 text-xs mt-1">
-                    System prompt guides AI behavior and responses. Use clear, specific instructions.
-                  </div>
-                )}
-              </div>
+                {/* System Prompt Editor */}
+                <div>
+                  <label htmlFor="system-prompt-textarea" className="block text-sm font-medium mb-1">
+                    System Prompt
+                  </label>
+                  <textarea
+                    id="system-prompt-textarea"
+                    value={editedPreferences.systemPrompt}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      if (newValue.length <= SYSTEM_PROMPT_LIMITS.MAX_LENGTH) {
+                        setEditedPreferences(prev => ({ ...prev, systemPrompt: newValue }));
+                      }
+                      const validation = validateSystemPrompt(newValue);
+                      setSystemPromptError(validation.isValid ? null : validation.error || null);
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const pastedText = e.clipboardData.getData('text');
+                      const currentValue = editedPreferences.systemPrompt;
+                      const cursorPosition = e.currentTarget.selectionStart;
+                      const newValue = currentValue.slice(0, cursorPosition) + pastedText + currentValue.slice(e.currentTarget.selectionEnd);
+                      const truncatedValue = newValue.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH
+                        ? newValue.slice(0, SYSTEM_PROMPT_LIMITS.MAX_LENGTH)
+                        : newValue;
+                      setEditedPreferences(prev => ({ ...prev, systemPrompt: truncatedValue }));
+                      const validation = validateSystemPrompt(truncatedValue);
+                      setSystemPromptError(validation.isValid ? null : validation.error || null);
+                      if (newValue.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH) {
+                        toast(`Content truncated to ${SYSTEM_PROMPT_LIMITS.MAX_LENGTH} characters`, {
+                          icon: '⚠️',
+                          style: { background: '#fef3c7', color: '#92400e' }
+                        });
+                      }
+                    }}
+                    className={`w-full p-3 rounded-xl resize-none transition-colors shadow-sm ${
+                      systemPromptError 
+                        ? 'border border-red-500 bg-red-50 dark:bg-red-900/20' 
+                        : editedPreferences.systemPrompt.length > 0 && systemPromptError === null
+                        ? 'border border-green-500 bg-green-50 dark:bg-green-900/20'
+                        : 'border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50'
+                    } text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50`}
+                    rows={4}
+                    placeholder="Enter your system prompt to guide AI responses..."
+                    aria-invalid={systemPromptError ? 'true' : 'false'}
+                    aria-describedby={systemPromptError ? 'system-prompt-error' : 'system-prompt-help'}
+                  />
 
-              {/* Save/Cancel Buttons */}
-              <div className="flex space-x-2 pt-2">
-                <Button
-                  variant="primary"
-                  onClick={handleSave}
-                  disabled={loading || isSaving || systemPromptError !== null || editedPreferences.systemPrompt.trim().length === 0}
-                  className={`flex-1 transition-all ${
-                    systemPromptError !== null || editedPreferences.systemPrompt.trim().length === 0
-                      ? 'opacity-50 cursor-not-allowed'
-                      : (loading || isSaving)
-                      ? 'opacity-75'
-                      : 'hover:bg-blue-600'
-                  }`}
-                  title={
-                    systemPromptError 
-                      ? `Cannot save: ${systemPromptError}` 
-                      : editedPreferences.systemPrompt.trim().length === 0
-                      ? 'Cannot save: System prompt is empty'
-                      : (loading || isSaving)
-                      ? 'Saving changes...'
-                      : 'Save all preferences'
-                  }
-                >
-                  {(loading || isSaving) ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                      {isSaving ? 'Saving...' : 'Loading...'}
+                  {/* Enhanced Character Counter */}
+                  <div className="flex justify-between text-xs mt-1">
+                    <div className="flex space-x-3">
+                      <span className={`${
+                        editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.9 
+                          ? 'text-yellow-600 dark:text-yellow-400' 
+                          : editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.8
+                          ? 'text-orange-600 dark:text-orange-400'
+                          : 'text-gray-500'
+                      } font-mono`}>
+                        {editedPreferences.systemPrompt.length} / {SYSTEM_PROMPT_LIMITS.MAX_LENGTH} chars
+                      </span>
+                      <span className="text-gray-500">
+                        {editedPreferences.systemPrompt.trim().split(/\s+/).filter(word => word.length > 0).length} words
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.9 && (
+                        <span className="flex items-center text-yellow-600 dark:text-yellow-400">
+                          ⚠️ <span className="ml-1">90%</span>
+                        </span>
+                      )}
+                      {editedPreferences.systemPrompt.length >= SYSTEM_PROMPT_LIMITS.MAX_LENGTH && (
+                        <span className="flex items-center text-red-600 dark:text-red-400">
+                          🚫 <span className="ml-1">Max</span>
+                        </span>
+                      )}
+                      {editedPreferences.systemPrompt.length > 0 && systemPromptError === null && (
+                        <span className="text-green-600 dark:text-green-400">✓</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {systemPromptError ? (
+                    <div id="system-prompt-error" className="text-red-600 dark:text-red-400 text-xs mt-1 flex items-start">
+                      <span className="mr-1">❌</span>
+                      <span>{systemPromptError}</span>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center">
-                      {systemPromptError === null && editedPreferences.systemPrompt.trim().length > 0 && (
-                        <span className="mr-2">✓</span>
-                      )}
-                      Save
+                    <div id="system-prompt-help" className="text-gray-500 dark:text-gray-400 text-xs mt-1">
+                      System prompt guides AI behavior and responses. Use clear, specific instructions.
                     </div>
                   )}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <p className="text-sm mb-1">
-                Theme: <span className="capitalize">{preferences.theme}</span>
-              </p>
-              <p className="text-sm mb-1">
-                Default Model: {
-                  preferences.defaultModel === null || preferences.defaultModel === '' 
-                    ? 'None' 
-                    : (
-                      // Check if current model exists in available models
-                      availableModels.some((model: { model_id: string }) => model.model_id === preferences.defaultModel)
-                        ? preferences.defaultModel
-                        : `${preferences.defaultModel} (Not available)`
-                    )
-                }
-              </p>
-              <p className="text-sm mb-1">Temperature: {preferences.temperature}</p>
-              <div className="text-sm">
-                <span className="font-medium">System Prompt:</span>
-                <div className="mt-1 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs leading-relaxed">
-                  {truncateAtWordBoundary(preferences.systemPrompt)}
+                </div>
+
+                {/* Save Button */}
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    variant="primary"
+                    onClick={handleSave}
+                    disabled={loading || isSaving || systemPromptError !== null || editedPreferences.systemPrompt.trim().length === 0}
+                    className={`min-w-[120px] transition-all ${
+                      systemPromptError !== null || editedPreferences.systemPrompt.trim().length === 0
+                        ? 'opacity-50 cursor-not-allowed'
+                        : (loading || isSaving)
+                        ? 'opacity-75'
+                        : 'hover:bg-blue-600'
+                    }`}
+                    title={
+                      systemPromptError 
+                        ? `Cannot save: ${systemPromptError}` 
+                        : editedPreferences.systemPrompt.trim().length === 0
+                        ? 'Cannot save: System prompt is empty'
+                        : (loading || isSaving)
+                        ? 'Saving changes...'
+                        : 'Save all preferences'
+                    }
+                  >
+                    {(loading || isSaving) ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                        {isSaving ? 'Saving...' : 'Loading...'}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center">
+                        {systemPromptError === null && editedPreferences.systemPrompt.trim().length > 0 && (
+                          <span className="mr-2">✓</span>
+                        )}
+                        Save
+                      </div>
+                    )}
+                  </Button>
                 </div>
               </div>
-            </div>
-          )}
-        </section>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm">Theme: <span className="capitalize font-medium">{preferences.theme}</span></p>
+                <p className="text-sm">
+                  Default Model: {
+                    preferences.defaultModel === null || preferences.defaultModel === '' 
+                      ? 'None' 
+                      : (
+                        availableModels.some((model: { model_id: string }) => model.model_id === preferences.defaultModel)
+                          ? preferences.defaultModel
+                          : `${preferences.defaultModel} (Not available)`
+                      )
+                  }
+                </p>
+                <p className="text-sm">Temperature: {preferences.temperature}</p>
+                <div className="text-sm">
+                  <span className="font-medium">System Prompt:</span>
+                  <div className="mt-1 p-3 bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 rounded-lg text-xs leading-relaxed">
+                    {truncateAtWordBoundary(preferences.systemPrompt)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
 
-        <section className="mb-6">
-          <div className="flex items-center mb-2">
-            <h3 className="text-lg font-medium">Analytics</h3>
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing || isRefreshAnimating}
-              className="ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50"
-              title="Refresh analytics data"
-            >
-              <ArrowPathIcon 
-                className={`w-5 h-5 ${(refreshing || isRefreshAnimating) ? 'animate-spin' : ''}`}
-              />
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
-              <p className="text-xs text-gray-600 dark:text-gray-400">Today</p>
-              <p className="text-sm font-medium">{analytics.messagesToday} messages</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                {analytics.tokensToday.toLocaleString()} tokens
-              </p>
+          {/* Analytics */}
+          <section className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-gray-50/70 dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <ChartBarIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                <h3 className="text-base font-semibold">Analytics</h3>
+              </div>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing || isRefreshAnimating}
+                className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50 hover:bg-white/60 dark:hover:bg-white/10"
+                title="Refresh analytics data"
+              >
+                <ArrowPathIcon 
+                  className={`w-5 h-5 ${(refreshing || isRefreshAnimating) ? 'animate-spin' : ''}`}
+                />
+              </button>
             </div>
-            
-            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
-              <p className="text-xs text-gray-600 dark:text-gray-400">All Time</p>
-              <p className="text-sm font-medium">{analytics.messagesAllTime} messages</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                {analytics.tokensAllTime.toLocaleString()} tokens
-              </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+              <div className="rounded-lg p-4 bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 shadow-sm">
+                <p className="text-xs text-gray-600 dark:text-gray-400">Today</p>
+                <p className="text-sm font-semibold">{analytics.messagesToday} messages</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">{analytics.tokensToday.toLocaleString()} tokens</p>
+              </div>
+              <div className="rounded-lg p-4 bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 shadow-sm">
+                <p className="text-xs text-gray-600 dark:text-gray-400">All Time</p>
+                <p className="text-sm font-semibold">{analytics.messagesAllTime} messages</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">{analytics.tokensAllTime.toLocaleString()} tokens</p>
+              </div>
             </div>
-          </div>
 
-          <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-            <p>Sessions today: {analytics.sessionsToday}</p>
-            <p>Active time today: {analytics.activeMinutesToday} minutes</p>
-          </div>
-        </section>
-
-        <div className="mt-6 flex justify-end">
-          <Button variant="primary" onClick={onClose}>
-            Close
-          </Button>
+            <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+              <p>Sessions today: {analytics.sessionsToday}</p>
+              <p>Active time today: {analytics.activeMinutesToday} minutes</p>
+            </div>
+          </section>
         </div>
+
+        {/* Removed footer close button; header X handles closing */}
       </div>
     </div>
   );
