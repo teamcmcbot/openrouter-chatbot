@@ -68,6 +68,21 @@ The component now integrates with actual database analytics through:
 - **Persistence**: Real-time saving to database with validation including null default model support
 - **Error Handling**: User-friendly error messages for failed updates
 
+#### System Prompt Editor UX
+
+- Inline textarea appears under Temperature when Edit mode is active
+- Real-time validation mirrors server rules (authoritative on server)
+- Character counter and word count with color-coded warnings at 80%/90%
+- Prevents typing beyond 2000 characters; smart paste truncates and warns via toast
+- Save disabled when invalid or empty; input is trimmed before save
+- Success: green toast + preview update + exit edit mode
+- Failure: red toast + revert to last known good + stay in edit mode
+- Accessibility: `aria-invalid` and `aria-describedby` for error/help text
+
+#### System Prompt Preview
+
+- Read-only preview uses word-boundary truncation at ~200 characters for readability
+
 ### 4. Available Models Section
 
 - **Model List**: Dynamic list based on subscription tier
@@ -170,3 +185,8 @@ await updatePreferences({
 - All tests passing after recent fixes
 - Implements optimized state management to prevent multiple API calls
 - Uses conditional fetching to only load data when modal is open
+
+## Related
+
+- API: `/docs/api/user-data-endpoint.md` (includes system prompt validation and examples)
+- Validation: `lib/utils/validation/systemPrompt.ts`

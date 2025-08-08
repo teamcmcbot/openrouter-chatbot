@@ -104,7 +104,8 @@ Content-Type: application/json
   "session": { "auto_save": false },
   "model": {
     "default_model": "gpt-4",
-    "temperature": 0.8
+    "temperature": 0.8,
+    "system_prompt": "You are a helpful AI assistant. Answer concisely and cite sources when possible."
   }
 }
 ```
@@ -137,6 +138,17 @@ Content-Type: application/json
 
 _Note: Authentication is handled automatically via cookies by the `withProtectedAuth` middleware._
 
+#### Validation Rules (server-authoritative)
+
+- Temperature must be a number between 0 and 2 (inclusive)
+- Default model may be a valid model id string, empty string, or null (enables automatic selection)
+- System prompt (if provided):
+  - Trimmed length must be between 1 and 2000 characters
+  - Rejects unsafe HTML/script content: `<script>`, `<iframe>`, `<object>`, `<embed>`, `on*=` handlers, `javascript:`, `data:text/html`
+  - Rejects control characters: `[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]`
+  - Rejects excessive whitespace: more than 50 consecutive spaces or 10+ consecutive newlines
+  - Input is trimmed before validation and storage
+
 #### Response
 
 **Success (200 OK):** Returns the same structure as GET with updated preferences.
@@ -161,7 +173,9 @@ _Note: Authentication is handled automatically via cookies by the `withProtected
 - **Session Preferences**: Stored in `profiles.session_preferences` JSONB field
 - **Model Defaults**: Stored in individual `profiles` columns
   - `default_model`: Can be string (model ID) or null (automatic selection)
-  - Null/empty values are allowed and handled by automatic model selection
+  - `system_prompt`: User-configurable system prompt text with 2000-char limit and security validation
+  - `temperature`: Number between 0 and 2
+  - Null/empty default model values are allowed and handled by automatic model selection
   - Invalid model IDs are rejected with validation error
 
 ### Available Models
@@ -225,6 +239,17 @@ _Note: Authentication is handled automatically via cookies by the `withProtected
   "error": "Invalid model",
   "message": "Model 'invalid-model-id' is not available or accessible"
 }
+```
+
+**System Prompt Validation Failed (examples):**
+
+```json
+{ "error": "Validation failed", "message": "System prompt cannot be empty" }
+{ "error": "Validation failed", "message": "System prompt must be 2000 characters or less" }
+{ "error": "Validation failed", "message": "System prompt contains unsafe content" }
+{ "error": "Validation failed", "message": "System prompt contains invalid characters" }
+{ "error": "Validation failed", "message": "Too many consecutive line breaks" }
+{ "error": "Validation failed", "message": "Too many consecutive spaces" }
 ```
 
 **Valid Model Values:**
@@ -344,6 +369,28 @@ if (response.ok) {
 }
 ```
 
+### Updating System Prompt (JavaScript)
+
+```javascript
+const preferences = {
+  model: {
+    system_prompt:
+      "You are a helpful AI assistant. Keep answers concise and actionable.",
+  },
+};
+
+const response = await fetch("/api/user/data", {
+  method: "PUT",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(preferences),
+});
+
+if (!response.ok) {
+  const err = await response.json();
+  console.error("Failed to update system prompt:", err.message);
+}
+```
+
 _Note: Authentication is handled automatically via cookies._
 
 ## Related Documentation
@@ -355,6 +402,14 @@ _Note: Authentication is handled automatically via cookies._
 - [Authentication](../jwt/jwt-authentication.md) - JWT token handling
 
 ## Changelog
+
+### v1.1.0 (2025-08-08)
+
+- Added support and documentation for `model.system_prompt` updates via PUT
+- Implemented server-authoritative validation with 2000-character limit
+- Added security checks: script/HTML filtering, control character rejection
+- Added excessive whitespace prevention rules and error examples
+- Added usage example for updating system prompt
 
 ### v1.0.0 (2025-08-07)
 

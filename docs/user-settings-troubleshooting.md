@@ -96,7 +96,7 @@ Contact support with your browser version and error message details.
 
    - Ensure temperature is between 0.0 and 2.0
    - Verify model selection is valid
-   - Check system prompt is not empty
+   - Check system prompt is not empty and under 2000 characters
 
 2. **Network Troubleshooting**
 
@@ -111,12 +111,18 @@ Contact support with your browser version and error message details.
    - Disable conflicting extensions
    - Clear local storage and cookies
 
-**Validation Rules:**
+**Validation Rules Summary (System Prompt):**
 
-- **Temperature**: Must be 0.0 - 2.0
-- **Model**: Must be available to your subscription tier
-- **System Prompt**: Cannot be empty
-- **UI/Session Settings**: Must be valid JSON objects
+- 1–2000 characters after trimming
+- Blocks unsafe content (<script>, <iframe>, on\*=, javascript:, data:text/html)
+- Blocks control characters (ASCII 0–8, 11–12, 14–31, 127)
+- Blocks excessive whitespace (>50 spaces or >10 newlines in a row)
+
+**What Happens on Error:**
+
+- A red toast appears with the error message
+- The value reverts to your last saved prompt
+- Edit mode remains open so you can correct and retry
 
 ---
 
@@ -236,7 +242,7 @@ Contact support with your browser version and error message details.
 **"Validation failed"**
 
 - Input data doesn't meet requirements
-- Check and correct invalid values
+- Check and correct invalid values (see System Prompt rules above)
 
 **"Database connection failed"**
 
@@ -471,5 +477,9 @@ Contact support with your browser version and error message details.
 - Note down custom preferences
 - Keep subscription information handy
 - Document any custom configurations
+
+## Changelog
+
+- 2025-08-08: Added troubleshooting for System Prompt validation and save failures.
 
 This troubleshooting guide should help resolve most common issues. For problems not covered here, don't hesitate to contact our support team with detailed information about your issue.

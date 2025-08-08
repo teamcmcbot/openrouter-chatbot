@@ -103,7 +103,7 @@ const validateSystemPrompt = (prompt: string): string | null => {
   }
 
   // Control characters
-  if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(prompt)) {
+  if (/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/.test(prompt)) {
     return "System prompt contains invalid characters";
   }
 
@@ -231,15 +231,15 @@ const truncateAtWordBoundary = (
 
 **Estimated Time**: 3 hours
 
-### Phase 6 — Documentation & Polish ✅ READY
+### Phase 6 — Documentation & Polish ✅ COMPLETED
 
 **Tasks**:
 
-- [ ] Update API documentation with new validat ion rules
-- [ ] Create user guide with screenshots
-- [ ] Add troubleshooting section
-- [ ] Update changelog
-- [ ] Code review and cleanup
+- [x] Update API documentation with new validation rules
+- [x] Create user guide with screenshots
+- [x] Add troubleshooting section
+- [x] Update changelog
+- [x] Code review and cleanup
 
 **Estimated Time**: 1 hour
 

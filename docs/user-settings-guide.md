@@ -72,6 +72,43 @@ Customize your experience with these preference categories:
   - If your current default model becomes unavailable, it will be marked with "(Not available)"
 - **Temperature**: Controls randomness in AI responses (0.0 = focused, 2.0 = creative)
 - **System Prompt**: Default instructions given to the AI model
+  - Inline editor appears under Temperature when you click "Edit"
+  - 2000-character limit with real-time counter and word count
+  - Visual indicators: ✓ valid, ⚠️ 90% capacity, 🚫 at max length
+  - Inline validation messages and accessible aria attributes
+  - Save is disabled when invalid or empty; input is trimmed before save
+
+##### System Prompt Preview
+
+When not in edit mode, a preview shows the beginning of your system prompt using word-boundary truncation (~200 chars) for readability.
+
+##### Editing and Saving
+
+1. Click "Edit" in Preferences
+2. Modify the System Prompt in the textarea
+3. Watch the character counter and validation indicators
+4. Click "Save" to persist changes
+   - Success: green toast, preview updates, edit mode closes
+   - Failure: red toast, value reverts to last known good, stays in edit mode
+
+##### Validation Rules
+
+- 1–2000 characters after trimming
+- Rejects unsafe content:
+  - HTML/script patterns: <script>, <iframe>, <object>, <embed>, on\*=, javascript:, data:text/html
+  - Control characters: ASCII 0–8, 11–12, 14–31, 127
+  - Excessive whitespace: >50 consecutive spaces or >10 consecutive newlines
+
+##### Accessibility
+
+- Textarea uses `aria-invalid` and `aria-describedby` for errors/help
+- Keyboard accessible controls and clear focus styles
+
+##### Tips for Effective Prompts
+
+- Be specific about tone, role, and style
+- Include constraints (formatting, brevity, citation rules)
+- Keep it concise; long prompts may reduce response efficiency
 
 ### 4. Available Models
 
@@ -292,5 +329,9 @@ We value your feedback! Help us improve by:
 - **Strong Passwords**: Use secure authentication methods
 - **Privacy Awareness**: Understand what data is collected and how it's used
 - **Session Security**: Log out from shared or public computers
+
+## Changelog
+
+- 2025-08-08: Added System Prompt editor documentation (limits, validation, UX) and preview behavior.
 
 This guide covers all aspects of the User Settings panel. For additional help or questions not covered here, please contact our support team.
