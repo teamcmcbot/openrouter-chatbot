@@ -11,6 +11,7 @@ import { withProtectedAuth } from '../../../../../lib/middleware/auth';
 import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
+import { validateSystemPrompt } from '../../../../../lib/utils/validation/systemPrompt';
 
 /**
  * GET /api/user/data
@@ -135,6 +136,34 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
       if (model !== null && model !== '' && (typeof model !== 'string' || model.trim().length === 0)) {
         return NextResponse.json(
           { error: 'Invalid request', message: 'Default model must be a valid string, empty string, or null' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate system_prompt if provided with enhanced security validation
+    if (preferencesUpdate.model?.system_prompt !== undefined) {
+      const systemPrompt = preferencesUpdate.model.system_prompt;
+      
+      // Only validate if it's a string (allow null to skip validation)
+      if (systemPrompt !== null && typeof systemPrompt === 'string') {
+        const validation = validateSystemPrompt(systemPrompt);
+        
+        if (!validation.isValid) {
+          return NextResponse.json(
+            { 
+              error: 'Validation failed', 
+              message: validation.error || 'System prompt validation failed'
+            },
+            { status: 400 }
+          );
+        }
+        
+        // Use the trimmed value for storage
+        preferencesUpdate.model.system_prompt = validation.trimmedValue;
+      } else if (systemPrompt !== null) {
+        return NextResponse.json(
+          { error: 'Invalid request', message: 'System prompt must be a string or null' },
           { status: 400 }
         );
       }
