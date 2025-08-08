@@ -32,6 +32,9 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   const [systemPromptError, setSystemPromptError] = useState<string | null>(null);
   const [lastKnownGoodSystemPrompt, setLastKnownGoodSystemPrompt] = useState<string>('');
 
+  // Tab state to separate sections for better UX
+  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'analytics'>('profile');
+
   // State synchronization: Update edited preferences when userData changes (after successful save)
   useEffect(() => {
     if (userData?.preferences && !isEditing) {
@@ -250,7 +253,28 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           <h2 className="text-xl font-semibold">User Settings</h2>
         </div>
 
-        <section className="mb-6">
+        {/* Tab Navigation for clearer separation */}
+        <nav className="flex mb-4 border-b border-gray-200 dark:border-gray-700 text-sm">
+          {([
+            { id: 'profile', label: 'Profile' },
+            { id: 'preferences', label: 'Preferences' },
+            { id: 'analytics', label: 'Analytics' }
+          ] as const).map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2 font-medium capitalize border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
+        <section className={`mb-6 ${activeTab === 'profile' ? '' : 'hidden'}`}>
           <h3 className="text-lg font-medium mb-2">Profile</h3>
           <p className="text-sm mb-1">Email: {userProfile.email}</p>
           <p className="text-sm mb-1">Name: {userProfile.fullName}</p>
@@ -262,7 +286,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           )}
         </section>
 
-        <section className="mb-6">
+        <section className={`mb-6 ${activeTab === 'preferences' ? '' : 'hidden'}`}>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-medium">Preferences</h3>
             <Button 
@@ -516,7 +540,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           )}
         </section>
 
-        <section className="mb-6">
+        <section className={`mb-6 ${activeTab === 'analytics' ? '' : 'hidden'}`}>
           <div className="flex items-center mb-2">
             <h3 className="text-lg font-medium">Analytics</h3>
             <button

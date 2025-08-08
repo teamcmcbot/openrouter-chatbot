@@ -38,6 +38,8 @@ The component now integrates with actual database analytics through:
 
 ## Component Sections
 
+The modal now uses a tabbed interface (Profile, Preferences, Analytics) so only one section is visible at a time, providing a cleaner experience on both desktop and mobile.
+
 ### 1. Profile Section
 
 - **Email**: User's authenticated email address
@@ -46,17 +48,7 @@ The component now integrates with actual database analytics through:
 - **Subscription Tier**: Current subscription level (free, pro, enterprise)
 - **Credits**: Available credits for premium features
 
-### 2. Analytics Section ✅ ENHANCED
-
-- **Messages Sent Today**: Real count from current day's activity
-- **Tokens Used Today**: Actual token consumption for current date
-- **Total Messages (All-time)**: Cumulative message count across all sessions
-- **Total Tokens (All-time)**: Cumulative token usage since account creation
-- **Session Analytics**: Sessions created today and total
-- **Model Usage**: Breakdown of models used with counts
-- **Refresh Capability**: Manual refresh of analytics data
-
-### 3. Preferences Section ✅ ENHANCED
+### 2. Preferences Section ✅ ENHANCED
 
 - **UI Preferences**: Theme selection, language settings
 - **Session Preferences**: Auto-save, history limits, session management
@@ -82,6 +74,16 @@ The component now integrates with actual database analytics through:
 #### System Prompt Preview
 
 - Read-only preview uses word-boundary truncation at ~200 characters for readability
+
+### 3. Analytics Section ✅ ENHANCED
+
+- **Messages Sent Today**: Real count from current day's activity
+- **Tokens Used Today**: Actual token consumption for current date
+- **Total Messages (All-time)**: Cumulative message count across all sessions
+- **Total Tokens (All-time)**: Cumulative token usage since account creation
+- **Session Analytics**: Sessions created today and total
+- **Model Usage**: Breakdown of models used with counts
+- **Refresh Capability**: Manual refresh of analytics data
 
 ### 4. Available Models Section
 
