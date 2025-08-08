@@ -140,7 +140,9 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   };
 
   const analytics = {
-    messagesToday: userData?.today.messages_sent || 0,
+    messagesToday: 
+      (userData?.today.messages_sent || 0) + 
+      (userData?.today.messages_received || 0),
     tokensToday: userData?.today.total_tokens || 0,
     messagesAllTime: userData?.allTime.total_messages || 0,
     tokensAllTime: userData?.allTime.total_tokens || 0,
@@ -246,15 +248,6 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
       <div className="relative bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">User Settings</h2>
-          {error && (
-            <button
-              onClick={forceRefresh}
-              className="text-xs text-blue-500 hover:text-blue-600 underline"
-              title="Refresh data"
-            >
-              Refresh
-            </button>
-          )}
         </div>
 
         <section className="mb-6">

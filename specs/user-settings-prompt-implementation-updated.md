@@ -223,11 +223,11 @@ const truncateAtWordBoundary = (
 
 **Tasks**:
 
-- [ ] API tests: valid input, empty, too long, unsafe content, unauthenticated
-- [ ] UI tests: render, edit mode, validation, save flows, accessibility
-- [ ] Integration tests: full user journey
-- [ ] Mobile viewport testing
-- [ ] Accessibility audit (screen readers, keyboard navigation)
+- [x] API tests: valid input, empty, too long, unsafe content, unauthenticated
+- [x] UI tests: render, edit mode, validation, save flows, accessibility
+- [x] Integration tests: full user journey
+- [x] Mobile viewport testing
+- [x] Accessibility audit (screen readers, keyboard navigation)
 
 **Estimated Time**: 3 hours
 
@@ -235,7 +235,7 @@ const truncateAtWordBoundary = (
 
 **Tasks**:
 
-- [ ] Update API documentation with new validation rules
+- [ ] Update API documentation with new validat ion rules
 - [ ] Create user guide with screenshots
 - [ ] Add troubleshooting section
 - [ ] Update changelog
