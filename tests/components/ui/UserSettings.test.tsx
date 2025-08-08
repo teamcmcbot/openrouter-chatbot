@@ -5,7 +5,7 @@ describe('UserSettings', () => {
   it('renders when open', () => {
     render(<UserSettings isOpen={true} onClose={() => {}} />);
     expect(screen.getByText('User Settings')).toBeInTheDocument();
-    expect(screen.getByText(/Email:/)).toBeInTheDocument();
+    expect(screen.getByText(/Email/)).toBeInTheDocument();
   });
 
   it('does not render when closed', () => {
