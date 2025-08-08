@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import Button from "./Button";
 import { useAuth } from "../../stores/useAuthStore";
@@ -19,19 +19,33 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   
   // State for editing preferences
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // Separate saving state for better UX
   const [editedPreferences, setEditedPreferences] = useState({
     theme: '',
     defaultModel: '' as string | null, // Allow null for "None" selection
     temperature: 0.7,
     systemPrompt: '', // Add system prompt to edited state
   });
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [isRefreshAnimating, setIsRefreshAnimating] = useState(false);
   
   // System prompt specific state
   const [systemPromptError, setSystemPromptError] = useState<string | null>(null);
   const [lastKnownGoodSystemPrompt, setLastKnownGoodSystemPrompt] = useState<string>('');
+
+  // State synchronization: Update edited preferences when userData changes (after successful save)
+  useEffect(() => {
+    if (userData?.preferences && !isEditing) {
+      const currentPrefs = {
+        theme: userData.preferences.ui.theme || "dark",
+        defaultModel: userData.preferences.model.default_model || null,
+        temperature: userData.preferences.model.temperature || 0.7,
+        systemPrompt: userData.preferences.model.system_prompt || "You are a helpful AI assistant.",
+      };
+      
+      setEditedPreferences(currentPrefs);
+      setLastKnownGoodSystemPrompt(currentPrefs.systemPrompt);
+    }
+  }, [userData?.preferences, isEditing]);
 
   // Enhanced refresh handler with animation timing
   const handleRefresh = async () => {
@@ -148,8 +162,6 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         systemPrompt: preferences.systemPrompt,
       });
       setIsEditing(false);
-      setSaveError(null);
-      setSaveSuccess(false);
       setSystemPromptError(null);
     } else {
       // Start editing - initialize with current values
@@ -161,8 +173,6 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
       });
       setLastKnownGoodSystemPrompt(preferences.systemPrompt);
       setIsEditing(true);
-      setSaveError(null);
-      setSaveSuccess(false);
       setSystemPromptError(null);
     }
   };
@@ -170,44 +180,63 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   // Handle preference save
   const handleSave = async () => {
     try {
-      setSaveError(null);
-      setSaveSuccess(false);
       setSystemPromptError(null);
+      setIsSaving(true);
 
       // Validate system prompt before saving
       const validation = validateSystemPrompt(editedPreferences.systemPrompt);
       if (!validation.isValid) {
         setSystemPromptError(validation.error || 'Invalid system prompt');
         toast.error(validation.error || 'Invalid system prompt');
+        setIsSaving(false);
         return;
       }
 
-      await updatePreferences({
-        ui: { theme: editedPreferences.theme },
-        model: {
-          default_model: editedPreferences.defaultModel,
-          temperature: editedPreferences.temperature,
-          system_prompt: validation.trimmedValue, // Use validated and trimmed value
-        }
-      });
+      // Optimistic update: Show loading state immediately
+      const loadingToast = toast.loading('Saving preferences...', { id: 'save-preferences' });
 
-      setIsEditing(false);
-      setSaveSuccess(true);
-      toast.success('Preferences saved successfully!');
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => setSaveSuccess(false), 3000);
+      try {
+        await updatePreferences({
+          ui: { theme: editedPreferences.theme },
+          model: {
+            default_model: editedPreferences.defaultModel,
+            temperature: editedPreferences.temperature,
+            system_prompt: validation.trimmedValue, // Use validated and trimmed value
+          }
+        });
+
+        // Success flow: Update UI state and show success message
+        setIsEditing(false);
+        setLastKnownGoodSystemPrompt(validation.trimmedValue || editedPreferences.systemPrompt); // Update last known good value
+        
+        // Update toast to success
+        toast.success('Preferences saved successfully!', { id: 'save-preferences' });
+        
+      } catch (updateError) {
+        // Dismiss loading toast first
+        toast.dismiss(loadingToast);
+        throw updateError; // Re-throw to be caught by outer catch
+      }
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save preferences';
-      setSaveError(errorMessage);
-      toast.error(errorMessage);
+      toast.error(errorMessage, { id: 'save-preferences' });
       
-      // Revert system prompt to last known good value on error
+      // Enhanced error recovery: Revert to last known good state
       setEditedPreferences(prev => ({
         ...prev,
-        systemPrompt: lastKnownGoodSystemPrompt
+        systemPrompt: lastKnownGoodSystemPrompt,
+        // Keep other fields as they were to allow user to retry
+        theme: prev.theme,
+        defaultModel: prev.defaultModel,
+        temperature: prev.temperature,
       }));
       setSystemPromptError(null);
+      
+      // Stay in edit mode to allow user to retry
+      // setIsEditing remains true so user can correct and retry
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -228,18 +257,6 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           )}
         </div>
 
-        {/* Success/Error Messages */}
-        {saveSuccess && (
-          <div className="mb-4 p-3 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-sm">
-            Preferences saved successfully!
-          </div>
-        )}
-        {saveError && (
-          <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded text-sm">
-            {saveError}
-          </div>
-        )}
-
         <section className="mb-6">
           <h3 className="text-lg font-medium mb-2">Profile</h3>
           <p className="text-sm mb-1">Email: {userProfile.email}</p>
@@ -258,7 +275,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
             <Button 
               variant="secondary" 
               onClick={handleEditToggle}
-              disabled={loading}
+              disabled={loading || isSaving}
               className="text-xs px-2 py-1"
             >
               {isEditing ? 'Cancel' : 'Edit'}
@@ -332,49 +349,109 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                   id="system-prompt-textarea"
                   value={editedPreferences.systemPrompt}
                   onChange={(e) => {
-                    setEditedPreferences(prev => ({ ...prev, systemPrompt: e.target.value }));
-                    setSystemPromptError(null); // Clear error on input
+                    // Prevent typing beyond max length
+                    const newValue = e.target.value;
+                    if (newValue.length <= SYSTEM_PROMPT_LIMITS.MAX_LENGTH) {
+                      setEditedPreferences(prev => ({ ...prev, systemPrompt: newValue }));
+                    }
+                    
+                    // Real-time validation as user types
+                    const validation = validateSystemPrompt(newValue);
+                    setSystemPromptError(validation.isValid ? null : validation.error || null);
                   }}
-                  onBlur={() => {
-                    // Validate on blur for immediate feedback
-                    const validation = validateSystemPrompt(editedPreferences.systemPrompt);
-                    if (!validation.isValid) {
-                      setSystemPromptError(validation.error || null);
-                    } else {
-                      setSystemPromptError(null);
+                  onPaste={(e) => {
+                    // Handle paste with automatic truncation
+                    e.preventDefault();
+                    const pastedText = e.clipboardData.getData('text');
+                    const currentValue = editedPreferences.systemPrompt;
+                    const cursorPosition = e.currentTarget.selectionStart;
+                    
+                    // Calculate what the new value would be after paste
+                    const newValue = currentValue.slice(0, cursorPosition) + pastedText + currentValue.slice(e.currentTarget.selectionEnd);
+                    
+                    // Truncate if necessary
+                    const truncatedValue = newValue.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH
+                      ? newValue.slice(0, SYSTEM_PROMPT_LIMITS.MAX_LENGTH)
+                      : newValue;
+                    
+                    setEditedPreferences(prev => ({ ...prev, systemPrompt: truncatedValue }));
+                    
+                    // Validate the pasted content
+                    const validation = validateSystemPrompt(truncatedValue);
+                    setSystemPromptError(validation.isValid ? null : validation.error || null);
+                    
+                    // Show toast if content was truncated
+                    if (newValue.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH) {
+                      toast(`Content truncated to ${SYSTEM_PROMPT_LIMITS.MAX_LENGTH} characters`, {
+                        icon: '⚠️',
+                        style: {
+                          background: '#fef3c7',
+                          color: '#92400e',
+                        }
+                      });
                     }
                   }}
-                  className={`w-full p-2 border rounded resize-none ${
+                  className={`w-full p-2 border rounded resize-none transition-colors ${
                     systemPromptError 
                       ? 'border-red-500 bg-red-50 dark:bg-red-900/20' 
+                      : editedPreferences.systemPrompt.length > 0 && systemPromptError === null
+                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                       : 'border-gray-300 dark:border-gray-600'
                   } bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100`}
                   rows={4}
                   placeholder="Enter your system prompt to guide AI responses..."
                   aria-invalid={systemPromptError ? 'true' : 'false'}
-                  aria-describedby={systemPromptError ? 'system-prompt-error' : undefined}
+                  aria-describedby={systemPromptError ? 'system-prompt-error' : 'system-prompt-help'}
                 />
                 
-                {/* Character Counter */}
+                {/* Enhanced Character Counter */}
                 <div className="flex justify-between text-xs mt-1">
-                  <span className={`${
-                    editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.9 
-                      ? 'text-yellow-600 dark:text-yellow-400' 
-                      : 'text-gray-500'
-                  }`}>
-                    {editedPreferences.systemPrompt.length} / {SYSTEM_PROMPT_LIMITS.MAX_LENGTH}
-                  </span>
-                  {editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.9 && (
-                    <span className="text-yellow-600 dark:text-yellow-400 text-xs">
-                      Approaching limit
+                  <div className="flex space-x-3">
+                    <span className={`${
+                      editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.9 
+                        ? 'text-yellow-600 dark:text-yellow-400' 
+                        : editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.8
+                        ? 'text-orange-600 dark:text-orange-400'
+                        : 'text-gray-500'
+                    } font-mono`}>
+                      {editedPreferences.systemPrompt.length} / {SYSTEM_PROMPT_LIMITS.MAX_LENGTH} chars
                     </span>
-                  )}
+                    
+                    {/* Word Count */}
+                    <span className="text-gray-500">
+                      {editedPreferences.systemPrompt.trim().split(/\s+/).filter(word => word.length > 0).length} words
+                    </span>
+                  </div>
+                  
+                  {/* Visual Warning Indicators */}
+                  <div className="flex items-center space-x-2">
+                    {editedPreferences.systemPrompt.length > SYSTEM_PROMPT_LIMITS.MAX_LENGTH * 0.9 && (
+                      <span className="flex items-center text-yellow-600 dark:text-yellow-400">
+                        ⚠️ <span className="ml-1">90%</span>
+                      </span>
+                    )}
+                    
+                    {editedPreferences.systemPrompt.length >= SYSTEM_PROMPT_LIMITS.MAX_LENGTH && (
+                      <span className="flex items-center text-red-600 dark:text-red-400">
+                        🚫 <span className="ml-1">Max</span>
+                      </span>
+                    )}
+                    
+                    {editedPreferences.systemPrompt.length > 0 && systemPromptError === null && (
+                      <span className="text-green-600 dark:text-green-400">✓</span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Inline Error Message */}
-                {systemPromptError && (
-                  <div id="system-prompt-error" className="text-red-600 dark:text-red-400 text-xs mt-1">
-                    {systemPromptError}
+                {/* Inline Error and Help Messages */}
+                {systemPromptError ? (
+                  <div id="system-prompt-error" className="text-red-600 dark:text-red-400 text-xs mt-1 flex items-start">
+                    <span className="mr-1">❌</span>
+                    <span>{systemPromptError}</span>
+                  </div>
+                ) : (
+                  <div id="system-prompt-help" className="text-gray-500 dark:text-gray-400 text-xs mt-1">
+                    System prompt guides AI behavior and responses. Use clear, specific instructions.
                   </div>
                 )}
               </div>
@@ -384,10 +461,37 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                 <Button
                   variant="primary"
                   onClick={handleSave}
-                  disabled={loading || systemPromptError !== null}
-                  className="flex-1"
+                  disabled={loading || isSaving || systemPromptError !== null || editedPreferences.systemPrompt.trim().length === 0}
+                  className={`flex-1 transition-all ${
+                    systemPromptError !== null || editedPreferences.systemPrompt.trim().length === 0
+                      ? 'opacity-50 cursor-not-allowed'
+                      : (loading || isSaving)
+                      ? 'opacity-75'
+                      : 'hover:bg-blue-600'
+                  }`}
+                  title={
+                    systemPromptError 
+                      ? `Cannot save: ${systemPromptError}` 
+                      : editedPreferences.systemPrompt.trim().length === 0
+                      ? 'Cannot save: System prompt is empty'
+                      : (loading || isSaving)
+                      ? 'Saving changes...'
+                      : 'Save all preferences'
+                  }
                 >
-                  {loading ? 'Saving...' : 'Save'}
+                  {(loading || isSaving) ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      {isSaving ? 'Saving...' : 'Loading...'}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center">
+                      {systemPromptError === null && editedPreferences.systemPrompt.trim().length > 0 && (
+                        <span className="mr-2">✓</span>
+                      )}
+                      Save
+                    </div>
+                  )}
                 </Button>
               </div>
             </div>
