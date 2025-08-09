@@ -119,6 +119,14 @@ CREATE POLICY "All users can view model access" ON public.model_access
 CREATE POLICY "Only admins can view sync logs" ON public.model_sync_log
     FOR SELECT USING (public.is_admin(auth.uid()));
 
+-- Allow admins to insert sync logs (used by sync function invoked under user context)
+CREATE POLICY "Admins can insert sync logs" ON public.model_sync_log
+    FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
+
+-- Allow admins to update sync logs (to mark completed/failed)
+CREATE POLICY "Admins can update sync logs" ON public.model_sync_log
+    FOR UPDATE USING (public.is_admin(auth.uid())) WITH CHECK (public.is_admin(auth.uid()));
+
 -- =============================================================================
 -- UTILITY FUNCTIONS
 -- =============================================================================
@@ -215,7 +223,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to sync models from OpenRouter API
 CREATE OR REPLACE FUNCTION public.sync_openrouter_models(
-    models_data JSONB
+    models_data JSONB,
+    p_added_by_user_id UUID DEFAULT NULL
 )
 RETURNS JSONB AS $$
 DECLARE
@@ -231,8 +240,8 @@ DECLARE
     previous_status VARCHAR(20);
 BEGIN
     -- Start sync log
-    INSERT INTO public.model_sync_log (sync_status, total_openrouter_models)
-    VALUES ('running', jsonb_array_length(models_data))
+    INSERT INTO public.model_sync_log (sync_status, total_openrouter_models, added_by_user_id)
+    VALUES ('running', jsonb_array_length(models_data), p_added_by_user_id)
     RETURNING id INTO sync_log_id;
 
     -- Get total count

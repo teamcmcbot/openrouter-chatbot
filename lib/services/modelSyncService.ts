@@ -36,7 +36,7 @@ export class ModelSyncService {
   /**
    * Main sync method that orchestrates the entire model synchronization process
    */
-  async syncModels(): Promise<SyncResult> {
+  async syncModels(triggeredByUserId?: string): Promise<SyncResult> {
     const startTime = Date.now();
     
     try {
@@ -46,7 +46,7 @@ export class ModelSyncService {
       const models = await this.fetchAndValidateModels();
       
       // Step 2: Call database sync function
-      const result = await this.syncModelsToDatabase(models);
+  const result = await this.syncModelsToDatabase(models, triggeredByUserId);
       
       const durationMs = Date.now() - startTime;
       
@@ -119,7 +119,7 @@ export class ModelSyncService {
   /**
    * Sync models to database using the database function
    */
-  private async syncModelsToDatabase(models: OpenRouterModel[]): Promise<{
+  private async syncModelsToDatabase(models: OpenRouterModel[], triggeredByUserId?: string): Promise<{
     success: boolean;
     sync_log_id: string;
     total_processed: number;
@@ -136,7 +136,8 @@ export class ModelSyncService {
       
       // Call the database function with the models data
       const { data, error } = await supabase.rpc('sync_openrouter_models', {
-        models_data: models
+        models_data: models,
+        p_added_by_user_id: triggeredByUserId ?? null,
       });
 
       if (error) {

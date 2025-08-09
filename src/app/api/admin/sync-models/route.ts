@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { modelSyncService } from '../../../../../lib/services/modelSyncService';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
-import { withEnhancedAuth } from '../../../../../lib/middleware/auth';
+import { withAdminAuth } from '../../../../../lib/middleware/auth';
 import { AuthContext } from '../../../../../lib/types/auth';
 
 // Rate limiting configuration
@@ -36,19 +36,7 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
       );
     }
 
-    // Step 2: Check if user has admin privileges (only enterprise tier for now)
-    const userTier = authContext.profile?.subscription_tier;
-    if (userTier !== 'enterprise') {
-      logger.warn(`Non-admin user attempted to access sync endpoint: ${authContext.user?.id}, tier: ${userTier}`);
-      return NextResponse.json(
-        { 
-          error: 'Insufficient privileges',
-          code: 'FORBIDDEN',
-          message: 'Enterprise tier required to perform model synchronization'
-        },
-        { status: 403 }
-      );
-    }
+  // Step 2: Admin authorization handled by withAdminAuth middleware
 
     const userId = authContext.user!.id;
     logger.info(`Admin sync request from user: ${userId}`);
@@ -101,7 +89,7 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
 
     // Step 6: Trigger the sync
     logger.info('Starting manual model sync');
-    const syncResult = await modelSyncService.syncModels();
+  const syncResult = await modelSyncService.syncModels(userId);
 
     const responseTime = Date.now() - startTime;
 
@@ -221,7 +209,8 @@ async function getSyncStatusHandler(request: NextRequest, authContext: AuthConte
       );
     }
 
-    // Step 2: Get sync status and statistics
+  // Step 2: Admin authorization handled by withAdminAuth middleware
+  // Step 3: Get sync status and statistics
     const [lastSyncStatus, syncStats, isSyncRunning] = await Promise.all([
       modelSyncService.getLastSyncStatus(),
       modelSyncService.getSyncStatistics(7), // Last 7 days
@@ -300,5 +289,5 @@ export async function OPTIONS() {
 }
 
 // Apply enhanced authentication middleware to both endpoints
-export const POST = withEnhancedAuth(postSyncHandler);
-export const GET = withEnhancedAuth(getSyncStatusHandler);
+export const POST = withAdminAuth(postSyncHandler);
+export const GET = withAdminAuth(getSyncStatusHandler);

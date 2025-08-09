@@ -144,6 +144,32 @@ export function withTierAuth<T extends NextRequest>(
 }
 
 /**
+ * Middleware for admin-only endpoints (requires account_type = 'admin')
+ */
+export function withAdminAuth<T extends NextRequest>(
+  handler: (req: T, context: AuthContext) => Promise<NextResponse>
+) {
+  return withAuth(async (req: T, context: AuthContext) => {
+    if (!context.profile || context.profile.account_type !== 'admin') {
+      logger.warn('Admin access denied', {
+        userId: context.user?.id,
+      });
+
+      return NextResponse.json(
+        {
+          error: 'Insufficient privileges',
+          code: 'FORBIDDEN',
+          message: 'Admin access required',
+        },
+        { status: 403 }
+      );
+    }
+
+    return handler(req, context);
+  }, { required: true, requireProfile: true });
+}
+
+/**
  * Utility to check conversation ownership
  */
 export function validateConversationOwnership(

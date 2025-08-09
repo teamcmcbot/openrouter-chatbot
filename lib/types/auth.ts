@@ -13,7 +13,8 @@ export interface UserProfile {
   default_model: string;
   temperature: number;
   system_prompt: string;
-  subscription_tier: "free" | "pro" | "enterprise"; // Note: "enterprise" tier includes admin privileges
+  subscription_tier: "free" | "pro" | "enterprise";
+  account_type?: "user" | "admin"; // Admin role independent of subscription tier
   credits: number;
   created_at: string;
   updated_at: string;
