@@ -111,9 +111,32 @@ export default function ChatInterface() {
     setTimeout(() => setScrollToCompletionId(undefined), 500);
   };
 
+  const focusMessageInput = () => {
+    // Focus and select the message input if present
+    if (typeof document !== 'undefined') {
+      const textarea = document.getElementById('message-input') as HTMLTextAreaElement | null;
+      if (textarea) {
+        textarea.focus();
+        textarea.select();
+      }
+    }
+  };
+
   const handleNewChat = () => {
     // Create a new conversation using the store
     createConversation();
+
+    // On mobile, dismiss the chat sidebar and focus the input
+    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 1280; // matches xl breakpoint
+    let delay = 0;
+    if (isMobileViewport && isChatSidebarOpen) {
+      toggleChatSidebar();
+      // Wait for sidebar transition (~300ms) before focusing to avoid iOS focus glitches
+      delay = 320;
+    }
+
+    // Defer focus slightly to ensure the input is mounted and visible
+    window.setTimeout(focusMessageInput, delay);
   };
 
   const handleToggleChatSidebar = () => {
