@@ -135,110 +135,87 @@ _Note: Authentication is handled automatically via cookies by the `withEnhancedA
 }
 ```
 
-## Testing the API
+## How it works (implementation details)
 
-### Method 1: Using curl
+This section maps the API behavior to the actual implementation in the repository so you can understand the exact flow and safeguards.
 
-1. **Get your JWT token** from browser dev tools:
+- Files involved:
+  - API route: `src/app/api/admin/sync-models/route.ts`
+  - Sync service: `lib/services/modelSyncService.ts`
+  - Auth middleware: `lib/middleware/auth.ts` (specifically `withEnhancedAuth`)
+  - OpenRouter client/utils: `lib/utils/openrouter.ts`
 
-   - Sign in to your app
-   - Open browser dev tools → Application/Storage → Local Storage
-   - Find the Supabase session token
+### Authentication and authorization
 
-2. **Test GET endpoint**:
+- Both GET and POST handlers are exported through `withEnhancedAuth(handler)`.
+- Inside each handler, the code still enforces:
+  - Signed-in user check: `authContext.isAuthenticated` must be true → else 401.
+  - Tier check: `profile.subscription_tier === 'enterprise'` → else 403.
+- Result: anonymous requests are rejected by the handler even though the wrapper is “enhanced” (optional auth). Cookie-based auth (Supabase) is preferred; Bearer token fallback works too.
 
-   ```bash
-   curl -X GET "http://localhost:3000/api/admin/sync-models" \
-     -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     -H "Content-Type: application/json"
-   ```
+### POST flow (manual sync)
 
-3. **Test POST endpoint**:
-   ```bash
-   curl -X POST "http://localhost:3000/api/admin/sync-models" \
-     -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     -H "Content-Type: application/json"
-   ```
+1. Start timer for response metrics.
+2. Enforce authentication and enterprise tier.
+3. Per-user cooldown: in-memory Map keyed by userId enforces a 5-minute wait (`SYNC_COOLDOWN_MS = 300000`). If hit, returns 429 with `Retry-After` and `X-RateLimit-Reset`.
+4. Concurrency guard: `modelSyncService.isSyncRunning()` checks `model_sync_log` for any row with `sync_status = 'running'`. If found, returns 409.
+5. Record current attempt time in the cooldown Map.
+6. Load context: `getLastSyncStatus()` to include prior sync info in the response.
+7. Trigger sync: `modelSyncService.syncModels()` which:
 
-### Method 2: Using Postman
+- Fetches models from OpenRouter with retries/timeouts (`fetchOpenRouterModels()` in `lib/utils/openrouter.ts`).
+- Validates model payload shape (`validateSyncData()` ensures fields like `id`, `name`, `pricing.prompt/completion` as strings, `architecture` object, `context_length` number). First 10 issues are logged, then fail.
+- Writes to DB via Supabase RPC: `rpc('sync_openrouter_models', { models_data: models })`. The database function is expected to:
+  - Upsert into `model_access` (add/update/mark inactive).
+  - Write a log row into `model_sync_log` with status, counts, and timings.
 
-1. **Set up authentication**:
+8. On success: respond 200 with
 
-   - Method: Bearer Token
-   - Token: Your Supabase JWT token
+- Body: `syncLogId`, counts, durationMs, `previousSync` snapshot.
+- Headers: `X-Response-Time`, `X-Sync-Log-ID`, `X-Models-Processed`.
 
-2. **Create GET request**:
+9. On failure: respond 500 with
 
-   - URL: `http://localhost:3000/api/admin/sync-models`
-   - Method: GET
-   - Headers: `Authorization: Bearer YOUR_TOKEN`
+- Body: `code: "SYNC_FAILED"`, `errors`, and timing details.
+- Headers: `X-Response-Time`, `X-Sync-Log-ID` (if available).
 
-3. **Create POST request**:
-   - URL: `http://localhost:3000/api/admin/sync-models`
-   - Method: POST
-   - Headers: `Authorization: Bearer YOUR_TOKEN`
+10. Any uncaught error goes through `handleError()` and still adds `X-Response-Time`.
 
-### Method 3: Using the Test Script (Recommended)
+Notes:
 
-1. **Make sure you're signed in** to your app via Supabase
-2. **Copy the test script** from `scripts/test-admin-sync.js` and paste it into browser console
-3. **Run the automated tests**:
+- The cooldown Map is process-local and resets on server restart or across serverless instances; the globally-effective protection is the DB-backed “running” status check.
 
-   ```javascript
-   // The script uses cookie-based authentication automatically
-   adminSyncTester.runAllTests();
-   ```
+### GET flow (status + stats)
 
-4. **Check prerequisites first** (optional):
-   ```javascript
-   adminSyncTester.checkPrerequisites();
-   ```
+1. Enforce authentication and enterprise tier.
+2. In parallel, load:
 
-**Note**: The API now uses cookie-based authentication (same as `/api/chat`), so no manual JWT token handling is required.
+- `getLastSyncStatus()` → last run timestamp, status, total models, last duration, error message.
+- `getSyncStatistics(7)` → last-7-day totals, success/failure counts, average duration, last successful sync timestamp.
+- `isSyncRunning()` → whether any `model_sync_log` row is currently `running`.
 
-### Method 4: Manual Browser Dev Tools
+3. Respond 200 with the combined structure shown above. Headers include `X-Response-Time` and `Cache-Control: no-cache, no-store, must-revalidate`.
 
-1. **Open browser dev tools** → Console
-2. **Find your JWT token**:
+### OpenRouter fetch and robustness
 
-   ```javascript
-   // Check all localStorage keys for Supabase auth
-   for (let i = 0; i < localStorage.length; i++) {
-     const key = localStorage.key(i);
-     if (key && key.includes("auth")) {
-       console.log(key, localStorage.getItem(key));
-     }
-   }
-   ```
+- Requests include API key and a 30s timeout. There are up to 4 total attempts (initial + 3 retries) with exponential backoff and jitter for transient errors and 429s, respecting `Retry-After`/`X-RateLimit-Reset` when present.
+- For chat completions (used elsewhere), the util implements a distinct retry path for “no content generated” scenarios; for the model list here, the models API retry policy applies.
 
-3. **Test GET request**:
+### Data persistence and audit trail
 
-   ```javascript
-   fetch("/api/admin/sync-models", {
-     method: "GET",
-     headers: {
-       Authorization: `Bearer YOUR_TOKEN_HERE`,
-       "Content-Type": "application/json",
-     },
-   })
-     .then((response) => response.json())
-     .then((data) => console.log("GET Response:", data))
-     .catch((error) => console.error("Error:", error));
-   ```
+- `model_access` holds the synchronized catalog with fields like `status`, `is_free/pro/enterprise`, and `last_synced_at`.
+- `model_sync_log` keeps a row per sync attempt (running/completed/failed), start/end timestamps, counts, duration, and error message.
 
-4. **Test POST request**:
-   ```javascript
-   fetch("/api/admin/sync-models", {
-     method: "POST",
-     headers: {
-       Authorization: `Bearer YOUR_TOKEN_HERE`,
-       "Content-Type": "application/json",
-     },
-   })
-     .then((response) => response.json())
-     .then((data) => console.log("POST Response:", data))
-     .catch((error) => console.error("Error:", error));
-   ```
+### CORS
+
+- `OPTIONS` handler responds with `Allow: GET, POST, OPTIONS` and `Access-Control-Allow-Methods: GET, POST, OPTIONS` and allows `Content-Type, Authorization` headers.
+
+### Response headers summary
+
+- Success (POST): `X-Response-Time`, `X-Sync-Log-ID`, `X-Models-Processed`.
+- Failure (POST): `X-Response-Time`, `X-Sync-Log-ID` (if available).
+- Status (GET): `X-Response-Time`, `Cache-Control: no-cache, no-store, must-revalidate`.
+- Cooldown hit (POST 429): `Retry-After`, `X-RateLimit-Reset`.
 
 ## Error Codes
 
@@ -259,11 +236,10 @@ _Note: Authentication is handled automatically via cookies by the `withEnhancedA
   - **Pro**: 500 requests/hour _(N/A - enterprise tier required)_
   - **Enterprise**: 2000 requests/hour
 - **Concurrent Protection**: Only one sync can run at a time across all users
-- **Headers**: Rate limit info included in response headers:
-  - `Retry-After`: Seconds until next attempt allowed
-  - `X-RateLimit-Reset`: Unix timestamp when rate limit resets
-  - `X-RateLimit-Limit`: Current rate limit for user tier
-  - `X-RateLimit-Remaining`: Remaining requests in current window
+- **Headers (from this endpoint)**:
+  - `Retry-After`: Seconds until next attempt allowed (sent on 429 cooldown)
+  - `X-RateLimit-Reset`: Unix timestamp (seconds) when cooldown ends (sent on 429 cooldown)
+  - Additional rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`) are not set by this route currently.
 
 ## Monitoring
 

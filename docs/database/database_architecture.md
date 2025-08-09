@@ -16,27 +16,40 @@ Each phase should be executed in order to create the full schema.
 ## Core Tables
 
 ### `profiles`
+
 User profile information extended from `auth.users`.
+
 - Synced automatically when a user signs in.
 - Tracks subscription tier, credits and various preferences.
+- Includes `account_type` ('user' | 'admin') to represent administrative role separately from `subscription_tier`.
 - `update_profiles_updated_at` trigger keeps timestamps current.
 
 ### `user_activity_log`
+
 Audit trail of user actions. Populated via the `log_user_activity` function.
 
 ### `chat_sessions`
+
 Represents a conversation. Uses text IDs so the client can generate them. Triggers update statistics whenever messages change.
 
 ### `chat_messages`
+
 Individual messages within a session. Uses text IDs and stores metadata such as tokens and completion IDs.
 
 ### `user_usage_daily`
+
 Per‑day statistics for each user. Filled by `track_user_usage`.
 
 ### `model_access`
+
 Defines which AI models are available to each subscription tier and associated limits.
 
+### `model_sync_log`
+
+Audit table for model synchronization runs (manual or scheduled). Stores start/end timestamps, counts, status, errors, duration, and `added_by_user_id` to attribute who triggered a sync. Admins can view this table via an RLS policy that checks `public.is_admin(auth.uid())`.
+
 ### `system_cache` & `system_stats`
+
 Caching and health‑monitoring tables introduced in Phase 4 for optimization and reporting.
 
 ---
@@ -51,9 +64,10 @@ Caching and health‑monitoring tables introduced in Phase 4 for optimization a
 - `sync_user_conversations` – Bulk upsert of conversations from the client.
 - `track_user_usage` – Records daily usage totals.
 - `get_user_allowed_models` / `can_user_use_model` – Determines which models a user may access.
-- `update_user_tier` – Changes a user’s subscription tier.
+- `update_user_tier` – Changes a user’s subscription tier (valid values: `free`, `pro`, `enterprise`; admin privilege is managed by `profiles.account_type`).
 - `update_user_preferences` – Updates UI, session or model preferences.
 - `get_user_complete_profile` – Returns a profile with allowed models and recent usage.
+- `is_admin(p_user_id uuid)` – Helper used in RLS and server-side checks to determine if a profile is an admin based on `account_type`.
 - `cleanup_old_data` – Removes old logs and expired cache entries.
 - `export_user_data` – Exports all data for a user (GDPR compliance).
 - `analyze_database_health` – Generates database‑wide metrics.
@@ -70,15 +84,18 @@ All functions are defined in `database/01‑04` SQL files.
 - `on_session_updated` – Before update on `chat_sessions` to refresh timestamps.
 
 Row level security is enabled on all main tables to ensure users only access their own data.
+Admins may view/update any profile via dedicated RLS policies. Access to `model_sync_log` is restricted to admins using the `public.is_admin(auth.uid())` helper.
 
 ---
 
 ## Application Usage
 
 ### Authentication
+
 When a user signs in through Google OAuth, Supabase inserts into `auth.users`. The `on_auth_user_profile_sync` trigger automatically creates or updates a row in `profiles`. No API call is required for this step.
 
 ### Chat APIs
+
 The Next.js API routes under `src/app/api/chat` interact with chat tables:
 
 - `sessions/route.ts` creates, lists and deletes rows in `chat_sessions`.
@@ -89,18 +106,23 @@ The Next.js API routes under `src/app/api/chat` interact with chat tables:
 The triggers ensure `chat_sessions` remain up‑to‑date whenever these APIs modify `chat_messages`.
 
 ### Usage Analytics and Preferences
+
 The server can call `track_user_usage` to record message counts and tokens. Preference updates can be applied with `update_user_preferences`, though the application does not yet call this function directly.
 
 ### Maintenance
+
 Phase 4 provides maintenance utilities such as `cleanup_old_data` and `analyze_database_health`. These can be run periodically to clean logs and gather metrics.
 
 ---
 
 ## Running the SQL
+
 Execute the scripts in `/database` sequentially (01‑04) using the Supabase SQL editor. If you need a clean start, run `00-complete-reset.sql` first. After executing all phases your database will be ready for the API routes and future analytics tools.
+
 ### Table Details and RLS
 
 #### `profiles`
+
 - **id** UUID primary key referencing `auth.users`.
 - **email**, **full_name**, **avatar_url** – basic account info synced from Google.
 - **default_model**, **temperature**, **system_prompt** – model preferences.
@@ -110,6 +132,7 @@ Execute the scripts in `/database` sequentially (01‑04) using the Supabase SQL
 - RLS: users may select/insert/update only the row where `id = auth.uid()`.
 
 #### `user_activity_log`
+
 - **id** UUID primary key.
 - **user_id** references `profiles(id)`.
 - **action**, **resource_type**, **resource_id**, **details** track audits.
@@ -117,6 +140,7 @@ Execute the scripts in `/database` sequentially (01‑04) using the Supabase SQL
 - RLS: users can `SELECT` only their own rows.
 
 #### `chat_sessions`
+
 - **id** TEXT primary key so the frontend can generate IDs.
 - **user_id** references `profiles(id)`.
 - **title**, **created_at**, **updated_at**, **last_activity**.
@@ -125,6 +149,7 @@ Execute the scripts in `/database` sequentially (01‑04) using the Supabase SQL
 - RLS: users can `SELECT/INSERT/UPDATE/DELETE` only where `user_id = auth.uid()`.
 
 #### `chat_messages`
+
 - **id** TEXT primary key.
 - **session_id** references `chat_sessions(id)`.
 - **role** (`user`, `assistant`, `system`) and **content**.
@@ -133,17 +158,20 @@ Execute the scripts in `/database` sequentially (01‑04) using the Supabase SQL
 - RLS: tied to session ownership via `session_id` check.
 
 #### `user_usage_daily`
+
 - Tracks per-user statistics per date.
 - Columns: **user_id**, **usage_date**, message counts, token counts, model usage,
   session counts and **estimated_cost**.
 - RLS: users can read and modify only rows with their `user_id`.
 
 #### `model_access`
+
 - Defines which models are available per subscription tier.
 - Includes cost and rate‑limit fields.
 - RLS: read‑only for authenticated users.
 
 #### `system_cache` & `system_stats`
+
 - Caching and system metrics tables used by maintenance tasks.
 - Typically accessed by service role or admin policies.
 
@@ -153,6 +181,7 @@ Advanced policies for moderation and rate limits are provided in
 ---
 
 ## Sign‑In Flow and Data Sync
+
 1. The user clicks **Sign in with Google** which calls `signInWithGoogle` in
    `useAuthStore` and redirects to `/auth/callback`.
 2. `auth/callback` exchanges the OAuth code for a Supabase session. Supabase then
@@ -167,6 +196,7 @@ Advanced policies for moderation and rate limits are provided in
    messages. These are merged into `useChatStore` and rendered on the frontend.
 
 ## Saving Conversations
+
 - While chatting, messages are stored locally in `useChatStore`.
 - After each successful send or title update, `syncConversations` is triggered to
   POST updated conversations to `/api/chat/sync`.

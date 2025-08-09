@@ -25,6 +25,7 @@ CREATE TABLE public.profiles (
 
     -- User tier and credits
     subscription_tier VARCHAR(20) DEFAULT 'free' CHECK (subscription_tier IN ('free', 'pro', 'enterprise')),
+    account_type TEXT NOT NULL DEFAULT 'user' CHECK (account_type IN ('user','admin')),
     credits INTEGER DEFAULT 0 NOT NULL,
 
     -- Activity tracking
@@ -113,6 +114,7 @@ CREATE TABLE public.user_usage_daily (
 CREATE INDEX idx_profiles_email ON public.profiles(email);
 CREATE INDEX idx_profiles_last_active ON public.profiles(last_active);
 CREATE INDEX idx_profiles_subscription_tier ON public.profiles(subscription_tier);
+CREATE INDEX idx_profiles_account_type_admin ON public.profiles(account_type) WHERE account_type = 'admin';
 
 -- Activity log indexes
 CREATE INDEX idx_activity_log_user_id ON public.user_activity_log(user_id);
@@ -141,6 +143,13 @@ CREATE POLICY "Users can update their own profile" ON public.profiles
 
 CREATE POLICY "Users can insert their own profile" ON public.profiles
     FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- Admin override policies
+CREATE POLICY "Admins can view any profile" ON public.profiles
+    FOR SELECT USING (public.is_admin(auth.uid()));
+
+CREATE POLICY "Admins can update any profile" ON public.profiles
+    FOR UPDATE USING (public.is_admin(auth.uid()));
 
 -- Activity log policies
 CREATE POLICY "Users can view their own activity" ON public.user_activity_log
@@ -214,6 +223,21 @@ BEGIN
     RETURN activity_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Helper: check if a user is admin
+CREATE OR REPLACE FUNCTION public.is_admin(p_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = p_user_id
+            AND account_type = 'admin'
+    );
+$$;
 
 -- Enhanced profile sync function (handles both creation and updates)
 CREATE OR REPLACE FUNCTION public.handle_user_profile_sync()
@@ -493,10 +517,10 @@ DECLARE
     tier_updated BOOLEAN := false;
 BEGIN
     -- Validate tier
-    IF new_tier NOT IN ('free', 'pro', 'enterprise', 'admin') THEN
+    IF new_tier NOT IN ('free', 'pro', 'enterprise') THEN
         RETURN jsonb_build_object(
             'success', false,
-            'error', 'Invalid tier. Must be: free, pro, enterprise, or admin'
+            'error', 'Invalid tier. Must be: free, pro, or enterprise'
         );
     END IF;
 

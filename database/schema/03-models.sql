@@ -88,6 +88,9 @@ CREATE TABLE public.model_sync_log (
     -- Performance metrics
     duration_ms INTEGER,
 
+    -- Attribution
+    added_by_user_id UUID,
+
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
@@ -114,13 +117,7 @@ CREATE POLICY "All users can view model access" ON public.model_access
     FOR SELECT USING (true);
 
 CREATE POLICY "Only admins can view sync logs" ON public.model_sync_log
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND subscription_tier = 'admin'
-        )
-    );
+    FOR SELECT USING (public.is_admin(auth.uid()));
 
 -- =============================================================================
 -- UTILITY FUNCTIONS
