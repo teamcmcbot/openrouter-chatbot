@@ -42,8 +42,8 @@ export default async function AdminPage() {
       </header>
       <ClientTabs
         tabs={[
-          { id: 'models', label: 'Models management', content: <ModelsPanel /> },
-          { id: 'users', label: 'Users management', content: <UsersPanel /> },
+          { id: 'models', label: 'Models', content: <ModelsPanel /> },
+          { id: 'users', label: 'Users', content: <UsersPanel /> },
           { id: 'analytics', label: 'Analytics', content: <AnalyticsPanel /> },
         ]}
         defaultTab="models"

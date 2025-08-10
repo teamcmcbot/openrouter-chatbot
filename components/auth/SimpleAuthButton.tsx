@@ -1,14 +1,22 @@
 // components/auth/SimpleAuthButton.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
-import { UserIcon } from '@heroicons/react/24/outline'
+import Link from 'next/link'
+import { UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../stores/useAuthStore'
 import Button from '../ui/Button'
+import UserSettings from '../ui/UserSettings'
+import ClientPortal from '../ui/ClientPortal'
+import { createClient } from '../../lib/supabase/client'
 
 export function SimpleAuthButton() {
   const [showModal, setShowModal] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   const { 
     user, 
     isAuthenticated, 
@@ -27,6 +35,58 @@ export function SimpleAuthButton() {
       initialize()
     }
   }, [isInitialized, initialize])
+
+  // Detect admin role from profiles.account_type
+  useEffect(() => {
+    let isMounted = true
+    async function fetchAccountType() {
+      try {
+        if (!user?.id) {
+          if (isMounted) setIsAdmin(false)
+          return
+        }
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('account_type')
+          .eq('id', user.id)
+          .single()
+        if (error) {
+          console.warn('Failed to fetch account_type:', error.message)
+          if (isMounted) setIsAdmin(false)
+          return
+        }
+        if (isMounted) setIsAdmin((data?.account_type as string) === 'admin')
+      } catch (e) {
+        console.warn('Error checking admin role:', e)
+        if (isMounted) setIsAdmin(false)
+      }
+    }
+    fetchAccountType()
+    return () => {
+      isMounted = false
+    }
+  }, [user?.id])
+
+  // Close menu on outside click or Escape
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false)
+      }
+    }
+    function handleEsc(event: KeyboardEvent) {
+      if (event.key === 'Escape') setShowMenu(false)
+    }
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleEsc)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEsc)
+    }
+  }, [showMenu])
 
   const handleSignOut = async () => {
     try {
@@ -61,33 +121,113 @@ export function SimpleAuthButton() {
 
   // Show authenticated user state
   if (isAuthenticated && user) {
+    const avatar = user.user_metadata?.avatar_url
+    const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
     return (
-      <Button 
-        onClick={handleSignOut} 
-        variant="secondary" 
-        size="sm"
-        loading={isLoading}
-        className="flex items-center gap-2"
-      >
-        {user.user_metadata?.avatar_url ? (
-          <Image
-            src={user.user_metadata.avatar_url}
-            alt="Profile"
-            width={25}
-            height={25}
-            className="rounded-full"
-            onError={(e) => {
-              // Hide image on error and show fallback
-              e.currentTarget.style.display = 'none'
-            }}
-          />
-        ) : (
-          <div className="w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-            <UserIcon className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+      <div className="relative" ref={menuRef}>
+        {/* Avatar-only trigger */}
+        <button
+          type="button"
+          aria-label="User menu"
+          disabled={isLoading}
+          onClick={() => setShowMenu((v) => !v)}
+          className="inline-flex items-center justify-center rounded-full p-0.5 ring-1 ring-gray-300 dark:ring-gray-600 hover:ring-emerald-500 transition focus:outline-none"
+        >
+          {avatar ? (
+            <Image
+              src={avatar}
+              alt="Profile"
+              width={28}
+              height={28}
+              className="rounded-full"
+              onError={(e) => {
+                ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+              }}
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+              <UserIcon className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+            </div>
+          )}
+        </button>
+
+        {/* Dropdown menu */}
+        {showMenu && (
+          <div className="absolute right-0 mt-2 w-64 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-50">
+            {/* Header with user info */}
+            <div className="flex items-center gap-3 px-3 py-3 border-b border-gray-100 dark:border-gray-700">
+              {avatar ? (
+                <Image src={avatar} alt="Avatar" width={28} height={28} className="rounded-full" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                  <UserIcon className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate text-gray-900 dark:text-white">{displayName}</p>
+                <p className="text-xs truncate text-gray-500 dark:text-gray-400">{user.email}</p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="py-1">
+              <button
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => {
+                  setShowMenu(false)
+                  setShowSettings(true)
+                }}
+              >
+                <Cog6ToothIcon className="w-4 h-4" />
+                Settings
+              </button>
+
+              {isAdmin && (
+                <Link
+                  href="/chat"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => setShowMenu(false)}
+                >
+                  <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                  Chat
+                </Link>
+              )}
+
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => setShowMenu(false)}
+                >
+                  {/* reuse settings icon for simplicity or add different icon later */}
+                  <span className="inline-flex w-4 h-4 items-center justify-center">🏁</span>
+                  Admin Console
+                </Link>
+              )}
+
+              <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
+
+              <button
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                onClick={async () => {
+                  setShowMenu(false)
+                  await handleSignOut()
+                }}
+              >
+                <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
           </div>
         )}
-        Sign Out
-      </Button>
+
+        {/* Settings modal */}
+        {showSettings && (
+          <ClientPortal>
+            <UserSettings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+          </ClientPortal>
+        )}
+      </div>
     )
   }
 

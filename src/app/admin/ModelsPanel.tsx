@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SyncPanel from '@/app/admin/SyncPanel';
 
 type ModelRow = {
@@ -28,6 +28,66 @@ export default function ModelsPanel() {
   const [counts, setCounts] = useState<{ total: number | null; filtered: number | null }>({ total: null, filtered: null });
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [staged, setStaged] = useState<Record<string, Partial<ModelRow>>>({});
+
+  // Select-all (for current filtered rows) checkbox state
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const allSelected = useMemo(() => rows.length > 0 && rows.every(r => !!selected[r.model_id]), [rows, selected]);
+  const someSelected = useMemo(() => rows.some(r => !!selected[r.model_id]), [rows, selected]);
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = !allSelected && someSelected;
+    }
+  }, [allSelected, someSelected]);
+
+  const toggleSelectAllForCurrent = (checked: boolean) => {
+    setSelected(prev => {
+      const next = { ...prev } as Record<string, boolean>;
+      for (const r of rows) next[r.model_id] = checked;
+      return next;
+    });
+  };
+
+  // Bulk header checkboxes for flags
+  const freeRef = useRef<HTMLInputElement>(null);
+  const proRef = useRef<HTMLInputElement>(null);
+  const entRef = useRef<HTMLInputElement>(null);
+  const allFree = useMemo(() => rows.length > 0 && rows.every(r => !!r.is_free), [rows]);
+  const someFree = useMemo(() => rows.some(r => !!r.is_free), [rows]);
+  const allPro = useMemo(() => rows.length > 0 && rows.every(r => !!r.is_pro), [rows]);
+  const somePro = useMemo(() => rows.some(r => !!r.is_pro), [rows]);
+  const allEnt = useMemo(() => rows.length > 0 && rows.every(r => !!r.is_enterprise), [rows]);
+  const someEnt = useMemo(() => rows.some(r => !!r.is_enterprise), [rows]);
+  useEffect(() => { if (freeRef.current) freeRef.current.indeterminate = !allFree && someFree; }, [allFree, someFree]);
+  useEffect(() => { if (proRef.current) proRef.current.indeterminate = !allPro && somePro; }, [allPro, somePro]);
+  useEffect(() => { if (entRef.current) entRef.current.indeterminate = !allEnt && someEnt; }, [allEnt, someEnt]);
+
+  const getScopeIds = useCallback(() => {
+    // Safety: only operate on currently selected (and visible) rows
+    return rows.filter(r => !!selected[r.model_id]).map(r => r.model_id);
+  }, [selected, rows]);
+
+  const stageMany = (ids: string[], changes: Partial<ModelRow>) => {
+    const idSet = new Set(ids);
+    setStaged(prev => {
+      const next = { ...prev } as Record<string, Partial<ModelRow>>;
+      for (const id of ids) next[id] = { ...next[id], ...changes };
+      return next;
+    });
+    setRows(prev => prev.map(r => idSet.has(r.model_id) ? ({ ...r, ...changes } as ModelRow) : r));
+  };
+
+  const bulkSetFlag = (flag: 'is_free' | 'is_pro' | 'is_enterprise', value: boolean) => {
+    const ids = getScopeIds();
+    if (ids.length === 0) return;
+    stageMany(ids, { [flag]: value } as Partial<ModelRow>);
+  };
+
+  const [headerStatus, setHeaderStatus] = useState<string>("");
+  const bulkSetStatus = (status: ModelRow['status']) => {
+    const ids = getScopeIds();
+    if (ids.length === 0) return;
+    stageMany(ids, { status });
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,7 +218,7 @@ export default function ModelsPanel() {
             <button className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50" onClick={load} disabled={loading}>
               {loading ? 'Loading…' : 'Reload'}
             </button>
-            <button className="px-3 py-1.5 rounded bg-emerald-600 text-white text-sm disabled:opacity-50 hover:bg-emerald-700" onClick={updateAll} disabled={loading}>
+            <button className="px-3 py-1.5 rounded bg-emerald-600 text-white text-sm disabled:opacity-50 hover:bg-emerald-700" onClick={updateAll} disabled={loading || !someSelected}>
               Update All
             </button>
           </div>
@@ -175,7 +235,81 @@ export default function ModelsPanel() {
             <thead>
               <tr className="text-left border-b">
                 {columns.map(c => (
-                  <th key={c.key} className="px-3 py-2 font-medium text-gray-600">{c.label}</th>
+                  <th key={c.key} className="px-3 py-2 font-medium text-gray-600">
+                    {c.key === 'model_id' ? (
+                      <label className="inline-flex items-center gap-2 select-none">
+                        <input
+                          ref={selectAllRef}
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={(e) => toggleSelectAllForCurrent(e.target.checked)}
+                          aria-checked={allSelected ? 'true' : someSelected ? 'mixed' : 'false'}
+                        />
+                        <span>Model ID</span>
+                      </label>
+                    ) : c.key === 'status' ? (
+                      <div className="inline-flex items-center gap-2">
+                        <span>Status</span>
+                        <select
+                          className="border rounded px-2 py-1 text-xs"
+                          value={headerStatus}
+                          onChange={(e) => {
+                            const v = e.target.value as '' | ModelRow['status'];
+                            setHeaderStatus(v);
+                            if (v) {
+                              bulkSetStatus(v as ModelRow['status']);
+                              // reset back to placeholder after applying
+                              setHeaderStatus('');
+                            }
+                          }}
+                          disabled={!someSelected}
+                        >
+                          <option value="">—</option>
+                          <option value="new">new</option>
+                          <option value="active">active</option>
+                          <option value="disabled">disabled</option>
+                        </select>
+                      </div>
+                    ) : c.key === 'is_free' ? (
+                      <label className="inline-flex items-center gap-2 select-none">
+                        <input
+                          ref={freeRef}
+                          type="checkbox"
+                          checked={allFree}
+                          onChange={(e) => bulkSetFlag('is_free', e.target.checked)}
+                          aria-checked={allFree ? 'true' : someFree ? 'mixed' : 'false'}
+                          disabled={!someSelected}
+                        />
+                        <span>Free</span>
+                      </label>
+                    ) : c.key === 'is_pro' ? (
+                      <label className="inline-flex items-center gap-2 select-none">
+                        <input
+                          ref={proRef}
+                          type="checkbox"
+                          checked={allPro}
+                          onChange={(e) => bulkSetFlag('is_pro', e.target.checked)}
+                          aria-checked={allPro ? 'true' : somePro ? 'mixed' : 'false'}
+                          disabled={!someSelected}
+                        />
+                        <span>Pro</span>
+                      </label>
+                    ) : c.key === 'is_enterprise' ? (
+                      <label className="inline-flex items-center gap-2 select-none">
+                        <input
+                          ref={entRef}
+                          type="checkbox"
+                          checked={allEnt}
+                          onChange={(e) => bulkSetFlag('is_enterprise', e.target.checked)}
+                          aria-checked={allEnt ? 'true' : someEnt ? 'mixed' : 'false'}
+                          disabled={!someSelected}
+                        />
+                        <span>Enterprise</span>
+                      </label>
+                    ) : (
+                      c.label
+                    )}
+                  </th>
                 ))}
               </tr>
             </thead>
