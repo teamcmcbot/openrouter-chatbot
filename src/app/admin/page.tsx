@@ -2,7 +2,10 @@
 import Link from 'next/link';
 import React from 'react';
 import { createClient } from '../../../lib/supabase/server';
-import SyncPanel from '@/app/admin/SyncPanel';
+import ModelsPanel from '@/app/admin/ModelsPanel';
+import UsersPanel from '@/app/admin/UsersPanel';
+import AnalyticsPanel from '@/app/admin/AnalyticsPanel';
+import ClientTabs from '@/app/admin/tabs';
 
 async function fetchProfile() {
   const supabase = await createClient();
@@ -37,10 +40,14 @@ export default async function AdminPage() {
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
         <p className="text-sm text-gray-600">Welcome, {profile.full_name || profile.email}</p>
       </header>
-      <section className="space-y-3 border rounded-md p-4">
-        <h2 className="text-lg font-semibold">Model Sync</h2>
-        <SyncPanel />
-      </section>
+      <ClientTabs
+        tabs={[
+          { id: 'models', label: 'Models management', content: <ModelsPanel /> },
+          { id: 'users', label: 'Users management', content: <UsersPanel /> },
+          { id: 'analytics', label: 'Analytics', content: <AnalyticsPanel /> },
+        ]}
+        defaultTab="models"
+      />
     </div>
   );
 }

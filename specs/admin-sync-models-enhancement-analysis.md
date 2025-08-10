@@ -10,6 +10,42 @@ This analysis covers the requested enhancements: formal ADMIN role, scheduled sy
 
 ---
 
+## Status update (as of 2025-08-10)
+
+What’s implemented
+
+- Database
+  - profiles.account_type added with CHECK constraint and default 'user'.
+  - Partial index for admins added: idx_profiles_account_type_admin.
+  - Helper function public.is_admin(uuid) created and used in RLS.
+  - model_sync_log.added_by_user_id column added for attribution.
+  - sync_openrouter_models signature updated to (models_data JSONB, p_added_by_user_id UUID DEFAULT NULL)
+    - Inserts a running log row including added_by_user_id.
+    - Updates the log with success/failure and duration on completion.
+  - RLS: model_sync_log now has admin SELECT, INSERT, and UPDATE policies.
+  - Indices on model_access updated/confirmed (status, tier flags, last_synced, openrouter_last_seen) for dashboard queries.
+- API/Auth
+  - withAdminAuth middleware added; enforces profile.account_type === 'admin'.
+  - /api/admin/sync-models GET/POST now wrapped with withAdminAuth (no more enterprise-tier check).
+  - Service passes the triggering admin’s user id to RPC (p_added_by_user_id).
+- UI
+  - Admin dashboard at /admin with server-side guard (checks account_type).
+  - “Model Sync” panel can GET status and POST a manual sync trigger.
+
+What’s verified
+
+- Manual sync successfully updates public.model_access (new/updated/inactive transitions observed).
+- model_sync_log records a new row per run with added_by_user_id populated.
+- Admin-only access enforced for /admin and /api/admin/sync-models.
+
+Pending (next steps)
+
+- Internal scheduled endpoint POST /api/internal/sync-models with HMAC/service token.
+- Cron wiring (Vercel or Supabase) to call the internal endpoint on cadence.
+- Admin UI expansions: Models table (filters/bulk actions) and Users table (promote/demote, edit tier).
+- Tests: middleware unit tests, route integration tests, and basic E2E for the dashboard.
+- Docs: endpoint-protection/security patterns; admin dashboard usage notes.
+
 ## Database schema changes
 
 1. profiles.account_type (new)
@@ -46,6 +82,11 @@ Migration plan
 - Review RLS policies referencing subscription_tier; add policies for ADMIN overrides where necessary.
 - Review functions/triggers relying on subscription_tier, recreate if type signatures change (none expected if only new column).
 
+Implementation notes
+
+- Implemented: account_type column and partial index; public.is_admin(uuid) helper; model_sync_log.added_by_user_id; sync_openrouter_models updated to accept p_added_by_user_id and write attribution; RLS policies on model_sync_log for SELECT/INSERT/UPDATE by admins.
+- SECURITY DEFINER is retained for the RPC to function under server context.
+
 ---
 
 ## API changes
@@ -57,11 +98,21 @@ Migration plan
   - Requires authenticated user with profile.account_type === 'admin'.
   - Leverage existing withAuth chain, avoid manual checks in handlers.
 
+Implementation notes
+
+- Implemented: withAdminAuth middleware; updated /api/admin/sync-models to use it; attribution flows from API → service → RPC via p_added_by_user_id.
+- Pending: migrate any other admin endpoints to withAdminAuth and add internal-only endpoint for scheduled syncs.
+
 2. Admin endpoints
 
 - Keep /api/admin/sync-models for manual trigger, but protect with ADMIN.
 - Add /api/admin/models (CRUD, filters, bulk actions) with `withAdminAuth`.
 - Add /api/admin/users (limited management), heavily restricted to avoid accessing messages or user content.
+
+Status
+
+- /api/admin/sync-models: Implemented and verified.
+- /api/admin/models and /api/admin/users: Pending.
 
 3. Scheduled sync job
 
@@ -73,12 +124,20 @@ Migration plan
   - Guarded by HMAC header (X-Signature) and/or service bearer token; never exposed to browser.
   - Bypasses per-user cooldown but honors DB concurrency guard `isSyncRunning()`.
   - Uses same ModelSyncService.
+
+Status
+
+- Internal endpoint and scheduler: Pending.
 - RLS considerations:
   - RPC `sync_openrouter_models` requires server role. Ensure service client uses service key context or RLS-exempt function security definer.
 
 4. Telemetry/headers
 
 - Standardize response headers for admin APIs and internal job endpoint (X-Response-Time, X-Sync-Log-ID, etc.).
+
+Status
+
+- Basic headers present on admin sync route (X-Response-Time, X-Sync-Log-ID, X-Models-Processed). Can standardize across admin APIs later.
 
 ---
 
@@ -90,6 +149,10 @@ Migration plan
 - AuthContext changes:
   - Add account_type to `UserProfile` and `AuthContext` for type safety.
   - Feature flags: admins bypass tier limits for admin routes but keep user-tier limits for non-admin features.
+
+Status
+
+- Implemented: account_type added to UserProfile; withAdminAuth in place; server-side guard on /admin. Feature flags unchanged; can revisit if needed.
 
 ---
 
@@ -152,27 +215,27 @@ UX/Dev Notes
 
 Phase 1 – Admin role foundation
 
-- [ ] DB patch: add profiles.account_type with check constraint & index.
-- [ ] Types: extend UserProfile & AuthContext with account_type.
-- [ ] Middleware: add withAdminAuth (server) and client guard util.
+- [x] DB patch: add profiles.account_type with check constraint & index.
+- [x] Types: extend UserProfile & AuthContext with account_type.
+- [x] Middleware: add withAdminAuth (server) and client guard util.
 - [ ] Docs: update endpoint-protection and security docs.
-- [ ] User verification: confirm admin login works and non-admin denied.
+- [x] User verification: confirm admin login works and non-admin denied.
 
 Phase 2 – Scheduled sync job
 
 - [ ] Add internal endpoint /api/internal/sync-models with HMAC/service token.
 - [ ] Create cron (Vercel/Supabase) calling internal endpoint daily.
 - [ ] Ensure RPC/RLS works with service context.
-- [ ] Update logs to record trigger identity.
+- [x] Update logs to record trigger identity.
 - [ ] User verification: simulate cron, verify model_sync_log and model_access changes.
 
 Phase 3 – Admin dashboard (MVP)
 
-- [ ] Route /admin with server auth check.
+- [x] Route /admin with server auth check.
 - [ ] Models table: list/filter/sort; bulk status & tier flags.
-- [ ] Manual sync action.
+- [x] Manual sync action.
 - [ ] Users table: promote/demote admin; edit subscription tiers.
-- [ ] User verification: walkthrough of each UI action with expected DB effects.
+- [x] User verification: walkthrough of each UI action with expected DB effects (sync trigger/status).
 
 Phase 4 – Hardening & analytics
 
@@ -200,3 +263,21 @@ Phase 4 – Hardening & analytics
 - Integration: internal sync endpoint hitting RPC; verify DB effects.
 - E2E: admin dashboard flows (Cypress/Playwright) under admin and non-admin roles.
 - Security: negative tests for unauthorized access; HMAC signature verification.
+
+---
+
+## How to verify (current)
+
+- As an admin (profiles.account_type = 'admin'):
+  - Visit /admin → see Admin Dashboard; non-admins see Access denied.
+  - Click “Trigger Sync” → expect success message and X-Sync-Log-ID header in response.
+  - Click “Refresh Status” → see currentStatus.isRunning false/true and last sync info.
+- Database:
+  - SELECT \* FROM public.model_sync_log ORDER BY sync_started_at DESC LIMIT 5; → shows latest run with added_by_user_id.
+  - SELECT status, COUNT(\*) FROM public.model_access GROUP BY 1; → observe new/active/inactive counts consistent with sync.
+
+## Next session suggestions
+
+- Implement internal scheduled endpoint with HMAC verification and wire a daily cron.
+- Build Models table in /admin (server components for SSR + client filters) and a minimal update endpoint using withAdminAuth.
+- Add tests: middleware unit tests, route integration for admin sync, and a Playwright happy-path for /admin sync.
