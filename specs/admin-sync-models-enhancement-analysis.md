@@ -232,9 +232,22 @@ Phase 2 – Scheduled sync job
 Phase 3 – Admin dashboard (MVP)
 
 - [x] Route /admin with server auth check.
-- [ ] Models table: list/filter/sort; bulk status & tier flags.
-- [x] Manual sync action.
-- [ ] Users table: promote/demote admin; edit subscription tiers.
+- Models Management
+  - [x] List models from public.model_access
+  - [x] Filter by statuses (new/active/disabled)
+  - [x] Bulk edit status and flags (is_free/is_pro/is_enterprise)
+  - [x] Sorting and search for models
+  - [x] Pagination and count badges (filtered vs total)
+- Sync Controls
+  - [x] Manual “Trigger Sync” action wired to /api/admin/sync-models
+- Users Management
+  - [x] List users with account_type and subscription_tier
+  - [x] Filter by account_type or subscription tier
+  - [x] Bulk edit users (promote/demote admin; edit subscription_tier; adjust credits)
+  - [ ] Confirmation modals and audit log entries for role/tier changes
+- Analytics
+  - [ ] Analytics tab with sync stats (success rate, avg duration, last success)
+  - [ ] Usage by model/tier (aggregate-only views)
 - [x] User verification: walkthrough of each UI action with expected DB effects (sync trigger/status).
 
 Phase 4 – Hardening & analytics

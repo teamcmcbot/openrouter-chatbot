@@ -6,13 +6,14 @@ type ModelRow = {
   model_id: string;
   canonical_slug?: string | null;
   model_name?: string | null;
-  status: 'new' | 'active' | 'disabled';
+  status: 'new' | 'active' | 'disabled' | 'inactive' | string;
   is_free: boolean;
   is_pro: boolean;
   is_enterprise: boolean;
   context_length?: number | null;
   last_synced_at?: string | null;
   updated_at?: string | null;
+  created_at?: string | null;
 };
 
 type ListResponse = { success: true; items: ModelRow[]; totalCount?: number | null; filteredCount?: number | null } | { success: false; error: string };
@@ -20,6 +21,7 @@ type PatchResponse = { success: boolean; results: Array<{ model_id: string; succ
 
 export default function ModelsPanel() {
   const [filter, setFilter] = useState<string>('all');
+  const [q, setQ] = useState<string>('');
   const [rows, setRows] = useState<ModelRow[]>([]);
   const [loading, setLoading] = useState(false);
   // no per-row saving state since we stage changes
@@ -28,11 +30,53 @@ export default function ModelsPanel() {
   const [counts, setCounts] = useState<{ total: number | null; filtered: number | null }>({ total: null, filtered: null });
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [staged, setStaged] = useState<Record<string, Partial<ModelRow>>>({});
+  const [limit, setLimit] = useState<number>(100);
+  const [offset, setOffset] = useState<number>(0);
+
+  // Paging helpers
+  const totalForPaging = (counts.filtered ?? counts.total ?? 0);
+  const totalPages = Math.max(1, limit > 0 ? Math.ceil(totalForPaging / limit) : 1);
+  const currentPage = Math.floor(offset / Math.max(1, limit)) + 1;
 
   // Select-all (for current filtered rows) checkbox state
   const selectAllRef = useRef<HTMLInputElement>(null);
-  const allSelected = useMemo(() => rows.length > 0 && rows.every(r => !!selected[r.model_id]), [rows, selected]);
-  const someSelected = useMemo(() => rows.some(r => !!selected[r.model_id]), [rows, selected]);
+  // Client-side text filter and sorting
+  const filteredRows = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter(r =>
+      r.model_id.toLowerCase().includes(term) ||
+      (r.model_name || '').toLowerCase().includes(term) ||
+      (r.canonical_slug || '').toLowerCase().includes(term)
+    );
+  }, [rows, q]);
+
+  type SortKey = 'model_id' | 'model_name' | 'created_at';
+  const [sortKey, setSortKey] = useState<SortKey>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const visibleRows = useMemo(() => {
+    const copy = [...filteredRows];
+    copy.sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      if (sortKey === 'model_id') {
+        return a.model_id.localeCompare(b.model_id) * dir;
+      }
+      if (sortKey === 'model_name') {
+        const an = (a.model_name || a.canonical_slug || '').toLowerCase();
+        const bn = (b.model_name || b.canonical_slug || '').toLowerCase();
+        return an.localeCompare(bn) * dir;
+      }
+  // created_at
+  const at = a.created_at ? Date.parse(a.created_at) : 0;
+  const bt = b.created_at ? Date.parse(b.created_at) : 0;
+      return (at - bt) * dir;
+    });
+    return copy;
+  }, [filteredRows, sortKey, sortDir]);
+
+  const allSelected = useMemo(() => visibleRows.length > 0 && visibleRows.every(r => !!selected[r.model_id]), [visibleRows, selected]);
+  const someSelected = useMemo(() => visibleRows.some(r => !!selected[r.model_id]), [visibleRows, selected]);
   useEffect(() => {
     if (selectAllRef.current) {
       selectAllRef.current.indeterminate = !allSelected && someSelected;
@@ -42,7 +86,8 @@ export default function ModelsPanel() {
   const toggleSelectAllForCurrent = (checked: boolean) => {
     setSelected(prev => {
       const next = { ...prev } as Record<string, boolean>;
-      for (const r of rows) next[r.model_id] = checked;
+      // operate only on currently visible rows (after search + sort)
+      for (const r of visibleRows) next[r.model_id] = checked;
       return next;
     });
   };
@@ -93,7 +138,11 @@ export default function ModelsPanel() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/model-access?status=${filter}`);
+      const params = new URLSearchParams();
+      params.set('status', filter);
+      params.set('limit', String(limit));
+      params.set('offset', String(offset));
+      const res = await fetch(`/api/admin/model-access?${params.toString()}`);
       const json = (await res.json()) as ListResponse;
       if (!res.ok || json.success === false) {
         const err = !('success' in json) || json.success ? 'Failed to load' : json.error;
@@ -111,9 +160,10 @@ export default function ModelsPanel() {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, limit, offset]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setOffset(0); }, [filter]);
 
   useEffect(() => {
     // Load dynamic statuses
@@ -188,8 +238,15 @@ export default function ModelsPanel() {
     { key: 'is_free', label: 'Free' },
     { key: 'is_pro', label: 'Pro' },
     { key: 'is_enterprise', label: 'Enterprise' },
-    { key: 'actions', label: 'Actions' },
+    { key: 'created_at', label: 'Created At' },
   ], []);
+
+  // Dynamic status options for dropdowns; always include base statuses even if not present in current data
+  const statusOptions = useMemo(() => {
+    const base = ['new', 'active', 'disabled'];
+    const extras = (statuses || []).filter((s) => !base.includes(s));
+    return [...base, ...extras.sort()];
+  }, [statuses]);
 
   return (
     <div className="space-y-6">
@@ -202,19 +259,57 @@ export default function ModelsPanel() {
 
       <section className="space-y-3 border rounded-md p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-lg font-semibold">Models{counts.filtered !== null && counts.total !== null ? ` (${counts.filtered} of ${counts.total})` : ''}</h2>
+          <h2 className="text-lg font-semibold">Models{(counts.filtered ?? counts.total) !== null ? ` (${visibleRows.length} of ${counts.filtered ?? counts.total ?? 0}${counts.total && counts.filtered && counts.total !== counts.filtered ? ` • Total ${counts.total}` : ''})` : ''}</h2>
+          <input
+            className="border rounded px-2 py-1 text-sm min-w-[220px]"
+            placeholder="Search name or id…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <label className="text-sm text-gray-600">Filter</label>
+          <select
+            className="border rounded px-2 py-1 text-sm"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="all">All</option>
+            {statuses.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
           <div className="ml-auto flex items-center gap-2">
-            <label className="text-sm text-gray-600">Filter</label>
-            <select
-              className="border rounded px-2 py-1 text-sm"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              <option value="all">All</option>
-              {statuses.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1 text-sm">
+              <span className="text-gray-600">Page</span>
+              <span>{currentPage} of {isFinite(totalPages) ? totalPages : '?'}</span>
+              <button
+                className="px-2 py-1 border rounded disabled:opacity-50"
+                onClick={() => setOffset(Math.max(0, offset - limit))}
+                disabled={loading || offset === 0}
+                aria-label="Previous page"
+                type="button"
+              >
+                Prev
+              </button>
+              <button
+                className="px-2 py-1 border rounded disabled:opacity-50"
+                onClick={() => setOffset(offset + limit)}
+                disabled={loading || (counts.filtered !== null ? offset + limit >= (counts.filtered || 0) : rows.length < limit)}
+                aria-label="Next page"
+                type="button"
+              >
+                Next
+              </button>
+              <select
+                className="border rounded px-2 py-1 text-sm"
+                value={limit}
+                onChange={(e) => { setLimit(parseInt(e.target.value, 10)); setOffset(0); }}
+                aria-label="Rows per page"
+              >
+                {[25, 50, 100, 200, 500].map(n => (
+                  <option key={n} value={n}>{n}/page</option>
+                ))}
+              </select>
+            </div>
             <button className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50" onClick={load} disabled={loading}>
               {loading ? 'Loading…' : 'Reload'}
             </button>
@@ -245,7 +340,17 @@ export default function ModelsPanel() {
                           onChange={(e) => toggleSelectAllForCurrent(e.target.checked)}
                           aria-checked={allSelected ? 'true' : someSelected ? 'mixed' : 'false'}
                         />
-                        <span>Model ID</span>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1"
+                          onClick={() => {
+                            setSortKey('model_id');
+                            setSortDir(prev => (sortKey === 'model_id' && prev === 'asc') ? 'desc' : 'asc');
+                          }}
+                        >
+                          <span>Model ID</span>
+                          {sortKey === 'model_id' && (<span>{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                        </button>
                       </label>
                     ) : c.key === 'status' ? (
                       <div className="inline-flex items-center gap-2">
@@ -265,11 +370,23 @@ export default function ModelsPanel() {
                           disabled={!someSelected}
                         >
                           <option value="">—</option>
-                          <option value="new">new</option>
-                          <option value="active">active</option>
-                          <option value="disabled">disabled</option>
+                          {statusOptions.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
                         </select>
                       </div>
+                    ) : c.key === 'model_name' ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1"
+                        onClick={() => {
+                          setSortKey('model_name');
+                          setSortDir(prev => (sortKey === 'model_name' && prev === 'asc') ? 'desc' : 'asc');
+                        }}
+                      >
+                        <span>{c.label}</span>
+                        {sortKey === 'model_name' && (<span>{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                      </button>
                     ) : c.key === 'is_free' ? (
                       <label className="inline-flex items-center gap-2 select-none">
                         <input
@@ -306,6 +423,20 @@ export default function ModelsPanel() {
                         />
                         <span>Enterprise</span>
                       </label>
+                    ) : c.key === 'created_at' ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1"
+                        onClick={() => {
+                          setSortKey('created_at');
+                          setSortDir(prev => (sortKey === 'created_at' && prev === 'asc') ? 'desc' : 'asc');
+                        }}
+                      >
+                        <span>{c.label}</span>
+                        {sortKey === 'created_at' && (<span>{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                      </button>
+                    ) : c.key === 'actions' ? (
+                      <span className="sr-only">Actions</span>
                     ) : (
                       c.label
                     )}
@@ -314,7 +445,7 @@ export default function ModelsPanel() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.model_id} className="border-b hover:bg-gray-50/50">
                   <td className="px-3 py-2 font-mono text-xs max-w-[360px] truncate" title={row.model_id}>
                     <label className="inline-flex items-center gap-2">
@@ -329,9 +460,9 @@ export default function ModelsPanel() {
                       value={row.status}
                       onChange={(e) => stageRow(row.model_id, { status: e.target.value as ModelRow['status'] })}
                     >
-                      <option value="new">new</option>
-                      <option value="active">active</option>
-                      <option value="disabled">disabled</option>
+                      {statusOptions.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
                     </select>
                   </td>
                   <td className="px-3 py-2">
@@ -343,17 +474,12 @@ export default function ModelsPanel() {
                   <td className="px-3 py-2">
                     <input type="checkbox" checked={row.is_enterprise} onChange={(e) => stageRow(row.model_id, { is_enterprise: e.target.checked })} />
                   </td>
-                  <td className="px-3 py-2">
-                    <button
-                      className="px-2 py-1 rounded border text-xs hover:bg-gray-50"
-                      onClick={() => load()}
-                    >
-                      Refresh
-                    </button>
+                  <td className="px-3 py-2 text-xs text-gray-600">
+                    {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && !loading && (
+              {visibleRows.length === 0 && !loading && (
                 <tr>
                   <td className="px-3 py-6 text-center text-gray-500" colSpan={columns.length}>No rows</td>
                 </tr>

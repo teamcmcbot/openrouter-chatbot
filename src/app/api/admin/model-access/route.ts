@@ -30,24 +30,25 @@ async function getHandler(req: NextRequest, _ctx: AuthContext) {
       const statuses = Array.from(new Set((data || []).map((r: { status: string }) => r.status))).sort();
       return NextResponse.json({ success: true, statuses });
     }
-    const statusParam = (searchParams.get('status') || 'new').toLowerCase();
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10) || 100, 500);
+  // Default to 'all' so no filter is applied unless explicitly requested
+  const statusParam = (searchParams.get('status') || 'all').toLowerCase();
+  const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10) || 100, 500);
+  const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
     const supabase = await createClient();
 
     let query = supabase
       .from('model_access')
       .select(
-        `model_id, canonical_slug, model_name, status, is_free, is_pro, is_enterprise, context_length, last_synced_at, updated_at`,
+        `model_id, canonical_slug, model_name, status, is_free, is_pro, is_enterprise, context_length, last_synced_at, updated_at, created_at`,
         { count: 'exact' }
       )
-      .order('updated_at', { ascending: false })
-      .limit(limit);
+  .order('created_at', { ascending: false })
+      .range(offset, Math.max(offset + limit - 1, offset));
 
-    if (statusParam === 'new' || statusParam === 'active' || statusParam === 'disabled') {
-  query = query.eq('status', statusParam as StatusType);
-    } else if (statusParam === 'all') {
-      // no filter
+    // Apply status filter for any provided status except 'all'
+    if (statusParam && statusParam !== 'all') {
+      query = query.eq('status', statusParam as StatusType);
     }
 
     const [{ data, error, count: filteredCount }, totalCountRes] = await Promise.all([
@@ -59,8 +60,8 @@ async function getHandler(req: NextRequest, _ctx: AuthContext) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    const totalCount = totalCountRes.count ?? null;
-    return NextResponse.json({ success: true, items: data ?? [], totalCount, filteredCount: filteredCount ?? (data?.length || 0) });
+  const totalCount = totalCountRes.count ?? null;
+  return NextResponse.json({ success: true, items: data ?? [], totalCount, filteredCount: filteredCount ?? (data?.length || 0) });
   } catch (err) {
     logger.error('Unhandled GET /admin/model-access error', err);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
