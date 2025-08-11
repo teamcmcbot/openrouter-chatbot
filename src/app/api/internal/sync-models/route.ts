@@ -4,6 +4,7 @@ import { withInternalAuth } from '../../../../../lib/middleware/internalAuth';
 import { modelSyncService } from '../../../../../lib/services/modelSyncService';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
+import { createClient } from '../../../../../lib/supabase/server';
 
 export const runtime = 'nodejs'; // ensure Node crypto available if needed
 
@@ -35,6 +36,25 @@ export const POST = withInternalAuth(async (): Promise<NextResponse> => {
     const responseTime = Date.now() - start;
 
     if (result.success) {
+      // Best-effort audit log (internal)
+      try {
+        const supabase = await createClient();
+        await supabase.rpc('write_admin_audit', {
+          p_actor_user_id: null,
+          p_action: 'sync.scheduled',
+          p_target: 'model_access',
+          p_payload: {
+            syncLogId: result.syncLogId,
+            totalProcessed: result.totalProcessed,
+            modelsAdded: result.modelsAdded,
+            modelsUpdated: result.modelsUpdated,
+            modelsMarkedInactive: result.modelsMarkedInactive,
+            durationMs: result.durationMs,
+          },
+        });
+      } catch (auditErr) {
+        logger.warn('Audit log write failed for internal sync success', auditErr);
+      }
       logger.info('Internal sync completed', {
         syncLogId: result.syncLogId,
         totalProcessed: result.totalProcessed,
@@ -66,6 +86,21 @@ export const POST = withInternalAuth(async (): Promise<NextResponse> => {
 
     // failure path
     logger.error('Internal sync failed', { errors: result.errors });
+    try {
+      const supabase = await createClient();
+      await supabase.rpc('write_admin_audit', {
+        p_actor_user_id: null,
+        p_action: 'sync.scheduled_failed',
+        p_target: 'model_access',
+        p_payload: {
+          syncLogId: result.syncLogId,
+          durationMs: result.durationMs,
+          errors: result.errors,
+        },
+      });
+    } catch (auditErr) {
+      logger.warn('Audit log write failed for internal sync failure', auditErr);
+    }
     return NextResponse.json(
       {
         success: false,

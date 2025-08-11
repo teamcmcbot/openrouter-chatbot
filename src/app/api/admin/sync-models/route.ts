@@ -5,6 +5,7 @@ import { modelSyncService } from '../../../../../lib/services/modelSyncService';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
 import { withAdminAuth } from '../../../../../lib/middleware/auth';
+import { createClient } from '../../../../../lib/supabase/server';
 import { AuthContext } from '../../../../../lib/types/auth';
 
 // Rate limiting configuration
@@ -94,6 +95,25 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
     const responseTime = Date.now() - startTime;
 
     if (syncResult.success) {
+      // Audit success
+      try {
+        const supabase = await createClient();
+        await supabase.rpc('write_admin_audit', {
+          p_actor_user_id: userId,
+          p_action: 'sync.manual_trigger',
+          p_target: 'model_access',
+          p_payload: {
+            syncLogId: syncResult.syncLogId,
+            totalProcessed: syncResult.totalProcessed,
+            modelsAdded: syncResult.modelsAdded,
+            modelsUpdated: syncResult.modelsUpdated,
+            modelsMarkedInactive: syncResult.modelsMarkedInactive,
+            durationMs: syncResult.durationMs,
+          },
+        });
+      } catch (auditErr) {
+        logger.warn('Audit log write failed for manual sync success', auditErr);
+      }
       logger.info(`Manual sync completed successfully in ${responseTime}ms`, {
         syncLogId: syncResult.syncLogId,
         totalProcessed: syncResult.totalProcessed,
@@ -133,6 +153,22 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
         }
       );
     } else {
+      // Audit failure
+      try {
+        const supabase = await createClient();
+        await supabase.rpc('write_admin_audit', {
+          p_actor_user_id: userId,
+          p_action: 'sync.manual_trigger_failed',
+          p_target: 'model_access',
+          p_payload: {
+            syncLogId: syncResult.syncLogId,
+            durationMs: syncResult.durationMs,
+            errors: syncResult.errors,
+          },
+        });
+      } catch (auditErr) {
+        logger.warn('Audit log write failed for manual sync failure', auditErr);
+      }
       logger.error('Manual sync failed', {
         syncLogId: syncResult.syncLogId,
         errors: syncResult.errors,

@@ -28,3 +28,27 @@ This page describes the available analytics aggregates and how to use them in th
 
 - Optionally materialize v_sync_stats for faster reads if the sync log grows.
 - Add date-range parameters via server APIs for more flexible charts.
+
+## Audit log (admin_audit_log)
+
+Admin-only table that records privileged actions (bulk model updates, user updates, manual/scheduled sync triggers). Entries are written via the SECURITY DEFINER function `public.write_admin_audit(...)`.
+
+Fields:
+
+- id (uuid)
+- actor_user_id (uuid, nullable) — NULL indicates a system/scheduled action (no human actor)
+- action (text)
+- target (text)
+- payload (jsonb)
+- created_at (timestamptz)
+
+Query tips:
+
+- Show recent: `select * from admin_audit_log order by created_at desc limit 100;`
+- Filter by actor: `select * from admin_audit_log where actor_user_id = '<uuid>' order by created_at desc;`
+- System-only (internal scheduler): `select * from admin_audit_log where actor_user_id is null order by created_at desc;`
+
+RLS:
+
+- SELECT allowed for admins only via policy "Only admins can read audit logs".
+- INSERT denied by RLS; only `write_admin_audit` can insert (SECURITY DEFINER).

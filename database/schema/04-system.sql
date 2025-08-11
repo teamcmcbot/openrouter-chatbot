@@ -222,3 +222,112 @@ LEFT JOIN (
     FROM public.chat_sessions
     GROUP BY user_id
 ) session_count ON p.id = session_count.user_id;
+
+-- =============================================================================
+-- ANALYTICS VIEWS (PHASE 4)
+-- =============================================================================
+
+-- Admin-only sync stats
+CREATE OR REPLACE VIEW public.v_sync_stats AS
+SELECT
+    (SELECT id FROM public.model_sync_log WHERE sync_status='completed' ORDER BY sync_completed_at DESC NULLS LAST LIMIT 1) AS last_success_id,
+    (SELECT sync_completed_at FROM public.model_sync_log WHERE sync_status='completed' ORDER BY sync_completed_at DESC NULLS LAST LIMIT 1) AS last_success_at,
+    (
+        SELECT CASE WHEN COUNT(*)=0 THEN 0::numeric ELSE ROUND(SUM(CASE WHEN sync_status='completed' THEN 1 ELSE 0 END)::numeric * 100 / COUNT(*), 2) END
+        FROM public.model_sync_log
+        WHERE sync_started_at >= NOW() - INTERVAL '30 days'
+    ) AS success_rate_30d,
+    (
+        SELECT ROUND(AVG(duration_ms)::numeric, 2)
+        FROM public.model_sync_log
+        WHERE sync_status='completed'
+            AND sync_started_at >= NOW() - INTERVAL '30 days'
+    ) AS avg_duration_ms_30d,
+    (
+        SELECT COUNT(*) FROM public.model_sync_log WHERE sync_started_at >= NOW() - INTERVAL '24 hours'
+    ) AS runs_24h,
+    (
+        SELECT COUNT(*) FROM public.model_sync_log WHERE sync_status='failed' AND sync_started_at >= NOW() - INTERVAL '24 hours'
+    ) AS failures_24h;
+
+-- Public model counts (safe aggregate)
+CREATE OR REPLACE VIEW public.v_model_counts_public AS
+SELECT
+    COUNT(*) FILTER (WHERE status='new') AS new_count,
+    COUNT(*) FILTER (WHERE status='active') AS active_count,
+    COUNT(*) FILTER (WHERE status='inactive') AS inactive_count,
+    COUNT(*) FILTER (WHERE status='disabled') AS disabled_count,
+    COUNT(*) AS total_count
+FROM public.model_access;
+
+-- Admin-only recent activity (last 30 days)
+CREATE OR REPLACE VIEW public.v_model_recent_activity_admin AS
+WITH changes AS (
+    SELECT
+        DATE_TRUNC('day', updated_at) AS day,
+        COUNT(*) FILTER (WHERE status='new') AS flagged_new,
+        COUNT(*) FILTER (WHERE status='active') AS flagged_active,
+        COUNT(*) FILTER (WHERE status='inactive') AS flagged_inactive,
+        COUNT(*) FILTER (WHERE status='disabled') AS flagged_disabled
+    FROM public.model_access
+    WHERE updated_at >= NOW() - INTERVAL '30 days'
+    GROUP BY 1
+)
+SELECT * FROM changes ORDER BY day DESC;
+
+-- =============================================================================
+-- ADMIN AUDIT LOG (PHASE 4)
+-- =============================================================================
+
+-- Audit table for admin/system actions
+CREATE TABLE IF NOT EXISTS public.admin_audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    actor_user_id UUID NULL,
+    action TEXT NOT NULL,
+    target TEXT NOT NULL,
+    payload JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_actor ON public.admin_audit_log(actor_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_action ON public.admin_audit_log(action, created_at DESC);
+
+-- Enable and enforce RLS
+ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_audit_log FORCE ROW LEVEL SECURITY;
+
+-- Admin-only read access
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='admin_audit_log' AND policyname='Only admins can read audit logs'
+    ) THEN
+        EXECUTE 'DROP POLICY "Only admins can read audit logs" ON public.admin_audit_log';
+    END IF;
+    EXECUTE 'CREATE POLICY "Only admins can read audit logs" ON public.admin_audit_log FOR SELECT USING (public.is_admin(auth.uid()))';
+END$$;
+
+-- Deny direct INSERTs; use SECURITY DEFINER function
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='admin_audit_log' AND policyname='Insert via definer only'
+    ) THEN
+        EXECUTE 'DROP POLICY "Insert via definer only" ON public.admin_audit_log';
+    END IF;
+    EXECUTE 'CREATE POLICY "Insert via definer only" ON public.admin_audit_log FOR INSERT WITH CHECK (false)';
+END$$;
+
+-- Helper to write audit log under definer role
+CREATE OR REPLACE FUNCTION public.write_admin_audit(
+    p_actor_user_id UUID,
+    p_action TEXT,
+    p_target TEXT,
+    p_payload JSONB DEFAULT NULL
+) RETURNS VOID AS $$
+BEGIN
+    INSERT INTO public.admin_audit_log(actor_user_id, action, target, payload)
+    VALUES (p_actor_user_id, p_action, p_target, p_payload);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

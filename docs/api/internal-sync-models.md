@@ -64,3 +64,4 @@ INTERNAL_SYNC_SECRET=dev_secret
 - The internal endpoint bypasses per-user cooldown but honors DB concurrency: if a sync is running, it returns 409.
 - The run is attributed as `internal` (no user id) in `model_sync_log.added_by_user_id`.
 - For production cron (Vercel/Supabase), set the same env vars and include the header in the scheduler request.
+- Audit: On success/failure, this route writes to `public.admin_audit_log` with actions `sync.scheduled` or `sync.scheduled_failed` and `actor_user_id = NULL`.

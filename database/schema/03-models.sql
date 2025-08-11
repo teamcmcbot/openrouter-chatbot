@@ -110,7 +110,9 @@ CREATE INDEX idx_model_sync_log_status ON public.model_sync_log(sync_status, syn
 
 -- Enable RLS on new tables
 ALTER TABLE public.model_access ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.model_access FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.model_sync_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.model_sync_log FORCE ROW LEVEL SECURITY;
 
 -- Model access policies
 CREATE POLICY "All users can view model access" ON public.model_access

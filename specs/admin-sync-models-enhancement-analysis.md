@@ -252,11 +252,11 @@ Phase 3 – Admin dashboard (MVP)
 
 Phase 4 – Hardening & analytics
 
-- [ ] RLS policy review and tighten.
-- [ ] Add audit logs for admin actions.
-- [ ] Analytics views for sync and model usage.
+- [x] RLS policy review and tighten.
+- [x] Add audit logs for admin actions.
+- [x] Analytics views for sync and model usage.
 - [ ] Load/perf tests on sync flow and dashboard queries.
-- [ ] Documentation updates.
+- [x] Documentation updates.
 
 ### Phase 4 – Detailed plan
 

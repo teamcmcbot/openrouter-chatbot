@@ -77,9 +77,9 @@ type UpdateItem = {
 };
 
 // PATCH: batch update flags/status for specific rows
-async function patchHandler(req: NextRequest, _ctx: AuthContext) {
+async function patchHandler(req: NextRequest, ctx: AuthContext) {
   try {
-  void _ctx;
+  // actor context available via withAdminAuth
     const body = (await req.json()) as { updates?: UpdateItem[] } | null;
     const updates = body?.updates;
     if (!updates || !Array.isArray(updates) || updates.length === 0) {
@@ -127,6 +127,20 @@ async function patchHandler(req: NextRequest, _ctx: AuthContext) {
     }
 
     const okCount = results.filter(r => r.success).length;
+
+    // Write admin audit log (best-effort; non-blocking)
+    try {
+      if (okCount > 0 && ctx.user?.id) {
+        await supabase.rpc('write_admin_audit', {
+          p_actor_user_id: ctx.user.id,
+          p_action: 'models.bulk_update',
+          p_target: 'model_access',
+          p_payload: { results },
+        });
+      }
+    } catch (auditErr) {
+      logger.warn('Audit log write failed for /admin/model-access PATCH', auditErr);
+    }
     const status = okCount === results.length ? 200 : okCount > 0 ? 207 : 400;
     return NextResponse.json({ success: okCount > 0, results }, { status });
   } catch (err) {

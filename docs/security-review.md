@@ -40,3 +40,15 @@ The markdown implementation follows security best practices and is safe for prod
   - Rotate secrets periodically and store them only in server-side env.
   - Use a scheduler (Vercel Cron or Supabase Edge Function) that injects the secret header.
   - Keep rate limiting enabled at the middleware or platform edge where possible.
+
+---
+
+## Database Hardening (Phase 4)
+
+- FORCE RLS enabled on `public.model_access` and `public.model_sync_log` to enforce policy checks even for default roles.
+- RPCs that modify data continue to use SECURITY DEFINER with narrow scope.
+
+## Auditability (Phase 4)
+
+- Admin/system actions are logged to `public.admin_audit_log` via `public.write_admin_audit` (SECURITY DEFINER).
+- `actor_user_id` is nullable to allow system/scheduled entries; RLS allows SELECT only to admins and denies direct INSERTs.
