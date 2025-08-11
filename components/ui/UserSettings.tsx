@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 // Added icons for section headers and controls
 import { ArrowPathIcon, UserCircleIcon, AdjustmentsHorizontalIcon, ChartBarIcon, XMarkIcon, ShieldCheckIcon, Cog6ToothIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import Tooltip from "./Tooltip";
 import Button from "./Button";
 import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
@@ -15,6 +16,11 @@ interface UserSettingsProps {
 }
 
 export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsProps>) {
+  // UI notes:
+  // - In Preferences view mode, labels (Theme, Default Model, Temperature, System Prompt)
+  //   use muted text colors to differentiate them from values, which use stronger font/color.
+  // - System Prompt preview shows a truncated value by default with a "Read more" toggle
+  //   (showFullSystemPrompt) to expand/collapse long content without entering edit mode.
   const { user, isLoading: authLoading } = useAuth();
   const { data: userData, loading, refreshing, error, updatePreferences, forceRefresh } = useUserData({ enabled: isOpen });
   
@@ -28,6 +34,8 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
     systemPrompt: '', // Add system prompt to edited state
   });
   const [isRefreshAnimating, setIsRefreshAnimating] = useState(false);
+  // View-mode: expand/collapse long system prompt
+  const [showFullSystemPrompt, setShowFullSystemPrompt] = useState(false);
   
   // New: profile field visibility toggles (default masked)
   const [showEmail, setShowEmail] = useState(false);
@@ -185,6 +193,65 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
     sessionsToday: userData?.today.sessions_created || 0,
     activeMinutesToday: userData?.today.active_minutes || 0,
   };
+
+  // Analytics helpers and derived values for tooltips
+  const nf = new Intl.NumberFormat();
+  const oneDecimal = (n: number) => Math.round(n * 10) / 10;
+  const pct = (part: number, total: number) => {
+    if (!total || total <= 0 || !isFinite(total)) return '—';
+    return `${oneDecimal((part / total) * 100)}%`;
+  };
+  const relTime = (iso?: string) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    const diff = Date.now() - d.getTime();
+    const abs = Math.abs(diff);
+    const min = 60 * 1000;
+    const hr = 60 * min;
+    const day = 24 * hr;
+    if (abs < 30 * 1000) return 'just now';
+    if (abs < hr) return `${Math.floor(abs / min)} min ago`;
+    if (abs < day) return `${Math.floor(abs / hr)} hr ago`;
+    return `${Math.floor(abs / day)} d ago`;
+  };
+
+  const todayRaw = (userData?.today ?? {}) as {
+    messages_sent?: number;
+    messages_received?: number;
+    total_tokens?: number;
+    input_tokens?: number;
+    output_tokens?: number;
+    models_used?: Record<string, number>;
+    sessions_created?: number;
+    active_minutes?: number;
+  };
+  const allTimeRaw = (userData?.allTime ?? {}) as {
+    total_messages?: number;
+    total_tokens?: number;
+    sessions_created?: number;
+    last_reset?: string;
+  };
+  const ts = (userData?.timestamps ?? {}) as {
+    created_at?: string;
+    updated_at?: string;
+    last_active?: string;
+  };
+
+  const todaySent = todayRaw.messages_sent || 0;
+  const todayRecv = todayRaw.messages_received || 0;
+  const todayIn = todayRaw.input_tokens || 0;
+  const todayOut = todayRaw.output_tokens || 0;
+  const todayTotal = todayRaw.total_tokens || analytics.tokensToday;
+  const todayAvgTpm = analytics.messagesToday > 0 ? Math.round(todayTotal / analytics.messagesToday) : 0;
+  const todayModels: Array<[string, number]> = Object.entries((todayRaw.models_used || {}) as Record<string, number>);
+
+  const allMsgs = analytics.messagesAllTime;
+  const allTokens = analytics.tokensAllTime;
+  const allAvgTpm = allMsgs > 0 ? Math.round(allTokens / allMsgs) : 0;
+  const allSessions = allTimeRaw.sessions_created || 0;
+  const msgsPerSession = allSessions > 0 ? oneDecimal(allMsgs / allSessions) : 0;
+  const tokensPerSession = allSessions > 0 ? Math.round(allTokens / allSessions) : 0;
 
   // Available models from the user data
   const availableModels = userData?.availableModels || [];
@@ -377,7 +444,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
               <div className="space-y-4">
                 {/* Theme Selection */}
                 <div>
-                  <label className="block text-sm font-medium mb-1">Theme</label>
+                  <label className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">Theme</label>
                   <select
                     value={editedPreferences.theme}
                     onChange={(e) => setEditedPreferences(prev => ({ ...prev, theme: e.target.value }))}
@@ -391,7 +458,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
                 {/* Model Selection */}
                 <div>
-                  <label className="block text-sm font-medium mb-1">Default Model</label>
+                  <label className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">Default Model</label>
                   <select
                     value={editedPreferences.defaultModel || ''}
                     onChange={(e) => setEditedPreferences(prev => ({
@@ -412,8 +479,9 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
                 {/* Temperature Slider */}
                 <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Temperature: {editedPreferences.temperature}
+                  <label className="flex items-center justify-between text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">
+                    <span>Temperature</span>
+                    <span className="ml-2 font-semibold text-gray-900 dark:text-gray-100">{editedPreferences.temperature}</span>
                   </label>
                   <input
                     type="range"
@@ -432,7 +500,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
                 {/* System Prompt Editor */}
                 <div>
-                  <label htmlFor="system-prompt-textarea" className="block text-sm font-medium mb-1">
+                  <label htmlFor="system-prompt-textarea" className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">
                     System Prompt
                   </label>
                   <textarea
@@ -563,24 +631,55 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                <p className="text-sm">Theme: <span className="capitalize font-medium">{preferences.theme}</span></p>
-                <p className="text-sm">
-                  Default Model: {
-                    preferences.defaultModel === null || preferences.defaultModel === '' 
-                      ? 'None' 
-                      : (
-                        availableModels.some((model: { model_id: string }) => model.model_id === preferences.defaultModel)
-                          ? preferences.defaultModel
-                          : `${preferences.defaultModel} (Not available)`
-                      )
-                  }
-                </p>
-                <p className="text-sm">Temperature: {preferences.temperature}</p>
-                <div className="text-sm">
-                  <span className="font-medium">System Prompt:</span>
-                  <div className="mt-1 p-3 bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 rounded-lg text-xs leading-relaxed">
-                    {truncateAtWordBoundary(preferences.systemPrompt)}
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
+                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mb-1 sm:mb-0">Theme</div>
+                  <div className="sm:col-span-9 font-medium text-gray-900 dark:text-gray-100 capitalize">{preferences.theme}</div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
+                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mb-1 sm:mb-0">Default Model</div>
+                  <div className="sm:col-span-9 font-medium text-gray-900 dark:text-gray-100">
+                    {
+                      preferences.defaultModel === null || preferences.defaultModel === ''
+                        ? <span className="text-gray-700 dark:text-gray-300">None</span>
+                        : (
+                          availableModels.some((model: { model_id: string }) => model.model_id === preferences.defaultModel)
+                            ? preferences.defaultModel
+                            : <span className="text-amber-600 dark:text-amber-400">{`${preferences.defaultModel} (Not available)`}</span>
+                        )
+                    }
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
+                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mb-1 sm:mb-0">Temperature</div>
+                  <div className="sm:col-span-9 font-medium text-gray-900 dark:text-gray-100">{preferences.temperature}</div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
+                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mt-0.5">System Prompt</div>
+                  <div className="sm:col-span-9">
+                    <div
+                      id="system-prompt-preview"
+                      className="mt-0.5 p-3 bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 rounded-lg text-xs leading-relaxed whitespace-pre-wrap"
+                      aria-live="polite"
+                    >
+                      {showFullSystemPrompt
+                        ? preferences.systemPrompt
+                        : truncateAtWordBoundary(preferences.systemPrompt)}
+                    </div>
+                    {preferences.systemPrompt.length > 200 && (
+                      <button
+                        type="button"
+                        className="mt-2 text-xs font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+                        aria-expanded={showFullSystemPrompt}
+                        aria-controls="system-prompt-preview"
+                        onClick={() => setShowFullSystemPrompt(v => !v)}
+                      >
+                        {showFullSystemPrompt ? 'Show less' : 'Read more'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -607,16 +706,64 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
-              <div className="rounded-lg p-4 bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 shadow-sm">
-                <p className="text-xs text-gray-600 dark:text-gray-400">Today</p>
-                <p className="text-sm font-semibold">{analytics.messagesToday} messages</p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">{analytics.tokensToday.toLocaleString()} tokens</p>
-              </div>
-              <div className="rounded-lg p-4 bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 shadow-sm">
-                <p className="text-xs text-gray-600 dark:text-gray-400">All Time</p>
-                <p className="text-sm font-semibold">{analytics.messagesAllTime} messages</p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">{analytics.tokensAllTime.toLocaleString()} tokens</p>
-              </div>
+              {/* Today card with tooltip */}
+              <Tooltip
+                side="top"
+                widthClassName="w-72 sm:w-80"
+                className="rounded-lg bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/40"
+                content={(
+                  <div className="space-y-1">
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Messages</span><span className="font-medium">{nf.format(analytics.messagesToday)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Sent · Received</span><span className="font-medium">{nf.format(todaySent)} · {nf.format(todayRecv)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Tokens (in · out)</span><span className="font-medium">{nf.format(todayIn)} · {nf.format(todayOut)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Share (in/out)</span><span className="font-medium">{pct(todayIn, todayTotal)} / {pct(todayOut, todayTotal)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Avg tokens/msg</span><span className="font-medium">{nf.format(todayAvgTpm)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Sessions</span><span className="font-medium">{nf.format(analytics.sessionsToday)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Active time</span><span className="font-medium">{nf.format(analytics.activeMinutesToday)} min</span></div>
+                    {todayModels.length > 0 && (
+                      <div>
+                        <div className="text-gray-600 dark:text-gray-400">Models used</div>
+                        <ul className="mt-1 space-y-0.5 max-h-24 overflow-y-auto pr-1">
+                          {todayModels.map(([id, count]) => (
+                            <li key={id} className="truncate"><span className="font-medium">{count}×</span> <span className="text-gray-700 dark:text-gray-300">{id}</span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Last active</span><span className="font-medium">{relTime(ts.last_active)}</span></div>
+                  </div>
+                )}
+              >
+                <div className="p-4">
+                  <p className="text-xs text-gray-600 dark:text-gray-400">Today</p>
+                  <p className="text-sm font-semibold">{analytics.messagesToday} messages</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{analytics.tokensToday.toLocaleString()} tokens</p>
+                </div>
+              </Tooltip>
+              {/* All time card with tooltip */}
+              <Tooltip
+                side="top"
+                widthClassName="w-72 sm:w-80"
+                className="rounded-lg bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/40"
+                content={(
+                  <div className="space-y-1">
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Messages</span><span className="font-medium">{nf.format(allMsgs)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Tokens</span><span className="font-medium">{nf.format(allTokens)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Avg tokens/msg</span><span className="font-medium">{nf.format(allAvgTpm)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Sessions</span><span className="font-medium">{nf.format(allSessions)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Msgs/session</span><span className="font-medium">{msgsPerSession || '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Tokens/session</span><span className="font-medium">{tokensPerSession ? nf.format(tokensPerSession) : '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Since reset</span><span className="font-medium">{allTimeRaw.last_reset ? new Date(allTimeRaw.last_reset).toLocaleDateString() : '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Updated</span><span className="font-medium">{relTime(ts.updated_at)}</span></div>
+                  </div>
+                )}
+              >
+                <div className="p-4">
+                  <p className="text-xs text-gray-600 dark:text-gray-400">All Time</p>
+                  <p className="text-sm font-semibold">{analytics.messagesAllTime} messages</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{analytics.tokensAllTime.toLocaleString()} tokens</p>
+                </div>
+              </Tooltip>
             </div>
 
             <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
