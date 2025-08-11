@@ -514,9 +514,9 @@ CREATE OR REPLACE FUNCTION public.update_user_tier(
 RETURNS JSONB AS $$
 DECLARE
     old_tier VARCHAR(20);
-    tier_updated BOOLEAN := false;
+    updated_count INTEGER := 0;
 BEGIN
-    -- Validate tier
+    -- Validate tier (admin tier is managed via profiles.account_type)
     IF new_tier NOT IN ('free', 'pro', 'enterprise') THEN
         RETURN jsonb_build_object(
             'success', false,
@@ -524,16 +524,20 @@ BEGIN
         );
     END IF;
 
-    -- Get current tier and update
+    -- Capture previous tier (for logging)
+    SELECT subscription_tier INTO old_tier
+    FROM public.profiles
+    WHERE id = user_uuid;
+
+    -- Update subscription_tier
     UPDATE public.profiles
     SET subscription_tier = new_tier,
         updated_at = NOW()
-    WHERE id = user_uuid
-    RETURNING subscription_tier INTO old_tier;
+    WHERE id = user_uuid;
 
-    GET DIAGNOSTICS tier_updated = ROW_COUNT;
+    GET DIAGNOSTICS updated_count = ROW_COUNT;
 
-    IF tier_updated = 0 THEN
+    IF updated_count = 0 THEN
         RETURN jsonb_build_object(
             'success', false,
             'error', 'User not found'
