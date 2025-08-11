@@ -220,33 +220,13 @@ async function getSyncStatusHandler(request: NextRequest, authContext: AuthConte
   const startTime = Date.now();
   
   try {
-    logger.info('Admin sync-models status endpoint called');
+    logger.info('Admin sync-models status endpoint called', {
+      userId: authContext.user?.id,
+      url: request.url
+    });
     
-    // Step 1: Check authentication (middleware already handles this)
-    if (!authContext.isAuthenticated) {
-      return NextResponse.json(
-        { 
-          error: 'Authentication required',
-          code: 'UNAUTHORIZED'
-        },
-        { status: 401 }
-      );
-    }
-
-    // Step 2: Check if user has admin privileges (only enterprise tier for now)
-    const userTier = authContext.profile?.subscription_tier;
-    if (userTier !== 'enterprise') {
-      return NextResponse.json(
-        { 
-          error: 'Insufficient privileges',
-          code: 'FORBIDDEN'
-        },
-        { status: 403 }
-      );
-    }
-
-  // Step 2: Admin authorization handled by withAdminAuth middleware
-  // Step 3: Get sync status and statistics
+  // Authorization is handled by withAdminAuth middleware; do not gate by subscription_tier here
+  // Step 1: Get sync status and statistics
     const [lastSyncStatus, syncStats, isSyncRunning] = await Promise.all([
       modelSyncService.getLastSyncStatus(),
       modelSyncService.getSyncStatistics(7), // Last 7 days

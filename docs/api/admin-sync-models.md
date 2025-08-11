@@ -2,34 +2,36 @@
 
 ## Overview
 
-The Admin Model Sync API provides enterprise-level users with the ability to manually trigger and monitor model synchronization from the OpenRouter API. This endpoint is part of Phase 2 of the Database Model Access Implementation Plan.
+The Admin Model Sync API allows admin users to manually trigger and monitor model synchronization from the OpenRouter API. This endpoint is part of Phase 2 of the Database Model Access Implementation Plan.
 
 ## Authentication & Authorization
 
 ### Requirements
 
-- **Authentication Required**: Uses `withEnhancedAuth` middleware - requires valid user authentication
-- **Authorization**: Requires `enterprise` subscription tier
+- **Authentication Required**: Uses `withAdminAuth` middleware (requires valid user and profile)
+- **Authorization**: Requires `account_type = 'admin'` (enforced by middleware)
 - **Rate Limiting**: 5-minute cooldown between sync attempts per user (specific to this endpoint)
-- **Feature Access**: Only enterprise users can access admin functionality
-- **Automatic Validation**: AuthContext middleware handles all authentication and authorization checks
+- **Automatic Validation**: Auth middleware handles all authentication and authorization checks
 
 ### Setting Up Admin Access
 
 1. **Sign in normally** via Supabase with your account
-2. **Upgrade your subscription tier** to enterprise:
-   ```sql
-   -- Connect to your Supabase database and run:
-   UPDATE profiles
-   SET subscription_tier = 'enterprise'
-   WHERE email = 'your-email@example.com';
-   ```
+2. **Set your account to admin**:
+
+```sql
+-- Connect to your Supabase database and run:
+UPDATE profiles
+SET account_type = 'admin'
+WHERE email = 'your-email@example.com';
+```
+
 3. **Verify your access** by checking your profile:
-   ```sql
-   SELECT id, email, subscription_tier
-   FROM profiles
-   WHERE email = 'your-email@example.com';
-   ```
+
+```sql
+SELECT id, email, account_type
+FROM profiles
+WHERE email = 'your-email@example.com';
+```
 
 ## Endpoints
 
@@ -44,7 +46,7 @@ POST /api/admin/sync-models
 Content-Type: application/json
 ```
 
-_Note: Authentication is handled automatically via cookies by the `withEnhancedAuth` middleware._
+Note: Authentication is handled automatically via cookies by the `withAdminAuth` middleware.
 
 #### Response (Success)
 
@@ -101,7 +103,7 @@ Get sync status and statistics.
 GET /api/admin/sync-models
 ```
 
-_Note: Authentication is handled automatically via cookies by the `withEnhancedAuth` middleware._
+Note: Authentication is handled automatically via cookies by the `withAdminAuth` middleware.
 
 #### Response
 
@@ -142,21 +144,21 @@ This section maps the API behavior to the actual implementation in the repositor
 - Files involved:
   - API route: `src/app/api/admin/sync-models/route.ts`
   - Sync service: `lib/services/modelSyncService.ts`
-  - Auth middleware: `lib/middleware/auth.ts` (specifically `withEnhancedAuth`)
+  - Auth middleware: `lib/middleware/auth.ts` (specifically `withAdminAuth`)
   - OpenRouter client/utils: `lib/utils/openrouter.ts`
 
 ### Authentication and authorization
 
-- Both GET and POST handlers are exported through `withEnhancedAuth(handler)`.
-- Inside each handler, the code still enforces:
-  - Signed-in user check: `authContext.isAuthenticated` must be true → else 401.
-  - Tier check: `profile.subscription_tier === 'enterprise'` → else 403.
-- Result: anonymous requests are rejected by the handler even though the wrapper is “enhanced” (optional auth). Cookie-based auth (Supabase) is preferred; Bearer token fallback works too.
+- Both GET and POST handlers are exported through `withAdminAuth(handler)`.
+- The middleware enforces:
+  - User must be authenticated and have a profile.
+  - `profile.account_type` must be `admin` → else 403.
+- Handlers focus on business logic (cooldown, concurrency checks, sync orchestration) and do not enforce subscription tier.
 
 ### POST flow (manual sync)
 
 1. Start timer for response metrics.
-2. Enforce authentication and enterprise tier.
+2. Admin authorization is enforced by middleware.
 3. Per-user cooldown: in-memory Map keyed by userId enforces a 5-minute wait (`SYNC_COOLDOWN_MS = 300000`). If hit, returns 429 with `Retry-After` and `X-RateLimit-Reset`.
 4. Concurrency guard: `modelSyncService.isSyncRunning()` checks `model_sync_log` for any row with `sync_status = 'running'`. If found, returns 409.
 5. Record current attempt time in the cooldown Map.
@@ -187,7 +189,7 @@ Notes:
 
 ### GET flow (status + stats)
 
-1. Enforce authentication and enterprise tier.
+1. Admin authorization is enforced by middleware.
 2. In parallel, load:
 
 - `getLastSyncStatus()` → last run timestamp, status, total models, last duration, error message.
@@ -219,27 +221,22 @@ Notes:
 
 ## Error Codes
 
-| Code                | Status | Description          |
-| ------------------- | ------ | -------------------- |
-| `UNAUTHORIZED`      | 401    | Not signed in        |
-| `FORBIDDEN`         | 403    | Not enterprise tier  |
-| `TOO_MANY_REQUESTS` | 429    | Rate limit exceeded  |
-| `CONFLICT`          | 409    | Sync already running |
-| `SYNC_FAILED`       | 500    | Sync process failed  |
+| Code                | Status | Description           |
+| ------------------- | ------ | --------------------- |
+| `UNAUTHORIZED`      | 401    | Not signed in         |
+| `FORBIDDEN`         | 403    | Admin access required |
+| `TOO_MANY_REQUESTS` | 429    | Rate limit exceeded   |
+| `CONFLICT`          | 409    | Sync already running  |
+| `SYNC_FAILED`       | 500    | Sync process failed   |
 
 ## Rate Limiting
 
 - **Admin Endpoint Cooldown**: 5 minutes between sync attempts per user (specific to admin sync endpoint)
-- **Standard Rate Limits**: All other rate limits apply based on user tier:
-  - **Anonymous**: 20 requests/hour _(N/A - enterprise authentication required)_
-  - **Free**: 100 requests/hour _(N/A - enterprise tier required)_
-  - **Pro**: 500 requests/hour _(N/A - enterprise tier required)_
-  - **Enterprise**: 2000 requests/hour
 - **Concurrent Protection**: Only one sync can run at a time across all users
 - **Headers (from this endpoint)**:
   - `Retry-After`: Seconds until next attempt allowed (sent on 429 cooldown)
   - `X-RateLimit-Reset`: Unix timestamp (seconds) when cooldown ends (sent on 429 cooldown)
-  - Additional rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`) are not set by this route currently.
+  - Additional global rate limits may apply platform-wide; this route itself does not set `X-RateLimit-Limit` / `X-RateLimit-Remaining`.
 
 ## Monitoring
 
@@ -285,9 +282,9 @@ LIMIT 20;
 
 ## Security Considerations
 
-1. **Enterprise-Only Access**: Only enterprise tier users can trigger syncs (validated by AuthContext middleware)
-2. **Standardized Authentication**: Uses `withEnhancedAuth` middleware for consistent security
-3. **Rate Limiting**: Prevents abuse with cooldown periods and tier-based limits
+1. **Admin-Only Access**: Only users with `account_type = 'admin'` can access these endpoints (enforced by middleware)
+2. **Standardized Authentication**: Uses `withAdminAuth` middleware for consistent security
+3. **Rate Limiting**: Prevents abuse with cooldown period; plus concurrency guard
 4. **Audit Trail**: All sync operations are logged with user attribution
 5. **Concurrent Protection**: Prevents multiple simultaneous syncs
 6. **Error Handling**: Secure error messages without sensitive data exposure
@@ -295,10 +292,10 @@ LIMIT 20;
 
 ## Integration with Existing System
 
-This API integrates seamlessly with the existing subscription tier system:
+This API integrates with the existing profile model:
 
-- **No Breaking Changes**: Uses existing `enterprise` tier instead of creating new `admin` tier
-- **Backward Compatible**: All existing tier checks continue to work
+- **Admin Role**: Uses `profiles.account_type = 'admin'` for authorization
+- **Backward Compatible**: No changes to subscription tier logic for non-admin endpoints
 - **Database Integration**: Uses Phase 1 database functions and tables
 - **Authentication**: Uses existing Supabase authentication system
 
@@ -316,7 +313,7 @@ After testing the manual sync API:
 
 ### Common Issues
 
-1. **403 Forbidden**: Check that your subscription tier is set to `enterprise`
+1. **403 Forbidden**: Ensure your profile `account_type` is `admin`
 2. **401 Unauthorized**: Verify your JWT token is valid and not expired
 3. **429 Rate Limited**: Wait for the cooldown period to expire
 4. **409 Conflict**: Another sync is already running, wait for completion
@@ -324,8 +321,8 @@ After testing the manual sync API:
 ### Debug Commands
 
 ```sql
--- Check your subscription tier
-SELECT email, subscription_tier FROM profiles WHERE email = 'your-email@example.com';
+-- Check your admin status
+SELECT email, account_type FROM profiles WHERE email = 'your-email@example.com';
 
 -- Check recent sync logs
 SELECT * FROM model_sync_log ORDER BY sync_started_at DESC LIMIT 5;
@@ -336,3 +333,19 @@ SELECT * FROM model_sync_log WHERE sync_status = 'running';
 -- Check model count
 SELECT status, COUNT(*) FROM model_access GROUP BY status;
 ```
+
+## Change Log
+
+- 2025-08-11: Authorization updated to require `account_type = 'admin'` via `withAdminAuth`. Removed enterprise subscription tier requirement from both GET and POST.
+
+## Quick Verification Steps
+
+1. Promote a user to admin:
+
+```sql
+UPDATE profiles SET account_type = 'admin' WHERE email = 'user-b@example.com';
+```
+
+2. Sign in as that user and visit the Admin dashboard.
+3. GET /api/admin/sync-models → expect 200 with status payload.
+4. POST /api/admin/sync-models → expect 200 success, 409 if in-progress, or 429 if within cooldown.
