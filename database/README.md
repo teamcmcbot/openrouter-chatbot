@@ -111,7 +111,7 @@ User and profile functions (01-users.sql)
   - Purpose: Manually sync a profile from auth.users; create if missing; log action
   - Reads: auth.users, profiles
   - Writes: profiles (INSERT/UPDATE), user_activity_log (via log_user_activity)
-  - Invoked by: backend/admin code
+  - Invoked by: NONE
 
 - public.track_user_usage(p_user_id, …) RETURNS void SECURITY DEFINER
 
@@ -130,7 +130,7 @@ User and profile functions (01-users.sql)
 
   - Purpose: Patch UI/session/model preferences; log preferences_updated
   - Writes: profiles (UPDATE)
-  - Invoked by: application code
+  - Invoked by: NONE
 
 - public.get_user_complete_profile(user_uuid) RETURNS jsonb SECURITY DEFINER
 
@@ -141,7 +141,7 @@ User and profile functions (01-users.sql)
 - public.export_user_data(user_uuid) RETURNS jsonb SECURITY DEFINER
   - Purpose: GDPR export (profile, sessions+messages, activity, usage)
   - Reads: profiles, chat_sessions, chat_messages, user_activity_log, user_usage_daily
-  - Invoked by: application/admin tools
+  - Invoked by: NONE
 
 Chat functions (02-chat.sql)
 
@@ -162,13 +162,13 @@ Chat functions (02-chat.sql)
 
   - Purpose: List recent sessions for a user
   - Reads: chat_sessions
-  - Invoked by: application/API
+  - Invoked by: NONE
 
 - public.get_session_with_messages(session_text_id, requesting_user_uuid) RETURNS SETOF … SECURITY DEFINER
 
   - Purpose: Return one session and its messages after ownership check
   - Reads: chat_sessions, chat_messages
-  - Invoked by: application/API
+  - Invoked by: NONE
 
 - public.sync_user_conversations(user_uuid, conversations_data jsonb) RETURNS jsonb SECURITY DEFINER
 
@@ -193,7 +193,7 @@ Model functions (03-models.sql)
 
   - Purpose: Yes/No check for a specific model id
   - Reads: profiles, model_access
-  - Invoked by: application/backend guards
+  - Invoked by: NONE
 
 - public.sync_openrouter_models(models_data jsonb, p_added_by_user_id uuid) RETURNS jsonb SECURITY DEFINER
 
