@@ -379,10 +379,44 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                 <UserCircleIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                 <h3 className="text-base font-semibold">Profile</h3>
               </div>
-              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${subscriptionBadgeClass}`}>
-                <ShieldCheckIcon className="h-4 w-4" />
-                <span className="capitalize">{userProfile.subscription}</span>
-              </span>
+              <Tooltip
+                side="bottom"
+                align="end"
+                widthClassName="w-64 sm:w-72"
+                className=""
+                content={(
+                  <div className="space-y-1">
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Tier-Based Limits</div>
+                    {tierLower === 'enterprise' ? (
+                      <>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Requests/hour</span><span className="font-medium">Bypass</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Tokens/request</span><span className="font-medium">50,000</span></div>
+                        <div className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">Enterprise accounts bypass hourly rate limits.</div>
+                      </>
+                    ) : tierLower === 'pro' ? (
+                      <>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Requests/hour</span><span className="font-medium">500</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Tokens/request</span><span className="font-medium">20,000</span></div>
+                      </>
+                    ) : tierLower === 'free' ? (
+                      <>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Requests/hour</span><span className="font-medium">100</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Tokens/request</span><span className="font-medium">10,000</span></div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Requests/hour</span><span className="font-medium">20</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Tokens/request</span><span className="font-medium">5,000</span></div>
+                      </>
+                    )}
+                  </div>
+                )}
+              >
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${subscriptionBadgeClass}`}>
+                  <ShieldCheckIcon className="h-4 w-4" />
+                  <span className="capitalize">{userProfile.subscription}</span>
+                </span>
+              </Tooltip>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">

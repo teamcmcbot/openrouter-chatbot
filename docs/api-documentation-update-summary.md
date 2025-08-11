@@ -158,12 +158,12 @@ Clear documentation of different middleware patterns:
 
 Comprehensive documentation of feature flags and access control:
 
-| Tier       | Requests/Hour | Max Tokens/Request | Features            |
-| ---------- | ------------- | ------------------ | ------------------- |
-| Anonymous  | 20            | 5,000              | Basic access        |
-| Free       | 100           | 10,000             | Standard features   |
-| Pro        | 500           | 20,000             | Advanced features   |
-| Enterprise | 2,000         | 50,000             | Full access + admin |
+| Tier       | Requests/Hour | Max Tokens/Request | Features          |
+| ---------- | ------------- | ------------------ | ----------------- |
+| Anonymous  | 20            | 5,000              | Basic access      |
+| Free       | 100           | 10,000             | Standard features |
+| Pro        | 500           | 20,000             | Advanced features |
+| Enterprise | 2,000         | 50,000             | Full access       |
 
 ## Verification
 

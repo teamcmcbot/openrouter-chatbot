@@ -8,7 +8,9 @@ interface TooltipProps {
   className?: string; // wrapper classes
   side?: "top" | "bottom" | "left" | "right";
   widthClassName?: string; // e.g., w-72 sm:w-80
-  offset?: number; // px offset for placement
+  // Horizontal alignment when side is top/bottom
+  // start: align left edges; end: align right edges
+  align?: "start" | "end";
   // Accessibility
   ariaLabel?: string;
 }
@@ -20,13 +22,24 @@ export default function Tooltip({
   className = "",
   side = "top",
   widthClassName = "w-72 sm:w-80",
-  offset = 8,
+  align = "start",
   ariaLabel,
 }: TooltipProps) {
   const id = useId();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
+
+  const OPEN_EVENT = "app:tooltip-open";
+
+  const openAndAnnounce = () => {
+    setOpen(true);
+    try {
+      window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: id }));
+    } catch {
+      // no-op in non-browser
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -36,29 +49,42 @@ export default function Tooltip({
         setOpen(false);
       }
     };
+    const onOtherOpen = (e: Event) => {
+      const ce = e as CustomEvent<string>;
+      // Dismiss if another tooltip (different id) opened
+      if (ce.detail !== id) {
+        setPinned(false);
+        setOpen(false);
+      }
+    };
     if (open) {
       window.addEventListener("keydown", onKey);
     }
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+    window.addEventListener(OPEN_EVENT, onOtherOpen as EventListener);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener(OPEN_EVENT, onOtherOpen as EventListener);
+    };
+  }, [open, id]);
 
+  // Use stable Tailwind utilities for placement to avoid dynamic class generation issues
   const posClass =
     side === "top"
-      ? `left-0 -top-${offset} -translate-y-full`
+      ? `${align === "end" ? "right-0" : "left-0"} bottom-full mb-2`
       : side === "bottom"
-      ? `left-0 -bottom-${offset} translate-y-full`
+      ? `${align === "end" ? "right-0" : "left-0"} top-full mt-2`
       : side === "left"
-      ? `-left-${offset} top-0 -translate-x-full`
-      : `-right-${offset} top-0 translate-x-full`;
+      ? "right-full top-1/2 -translate-y-1/2 mr-2"
+      : "left-full top-1/2 -translate-y-1/2 ml-2";
 
   return (
     <div
       ref={wrapperRef}
       className={`relative inline-block group ${className}`}
       tabIndex={0}
-      onFocus={() => setOpen(true)}
+      onFocus={() => openAndAnnounce()}
       onBlur={() => !pinned && setOpen(false)}
-      onMouseEnter={() => setOpen(true)}
+      onMouseEnter={() => openAndAnnounce()}
       onMouseLeave={() => !pinned && setOpen(false)}
       aria-describedby={id}
     >
@@ -70,10 +96,19 @@ export default function Tooltip({
             setPinned((v) => {
               const next = !v;
               if (!next) setOpen(false);
-              else setOpen(true);
+              else openAndAnnounce();
               return next;
             });
           }
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setPinned((v) => {
+            const next = !v;
+            if (!next) setOpen(false);
+            else openAndAnnounce();
+            return next;
+          });
         }}
       >
         {children}
