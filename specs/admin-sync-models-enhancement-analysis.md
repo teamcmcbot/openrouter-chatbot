@@ -10,7 +10,7 @@ This analysis covers the requested enhancements: formal ADMIN role, scheduled sy
 
 ---
 
-## Status update (as of 2025-08-10)
+## Status update (as of 2025-08-11)
 
 What’s implemented
 
@@ -40,11 +40,10 @@ What’s verified
 
 Pending (next steps)
 
-- Internal scheduled endpoint POST /api/internal/sync-models with HMAC/service token.
 - Cron wiring (Vercel or Supabase) to call the internal endpoint on cadence.
 - Admin UI expansions: Models table (filters/bulk actions) and Users table (promote/demote, edit tier).
 - Tests: middleware unit tests, route integration tests, and basic E2E for the dashboard.
-- Docs: endpoint-protection/security patterns; admin dashboard usage notes.
+- Docs: admin dashboard usage notes.
 
 ## Database schema changes
 
@@ -127,7 +126,8 @@ Status
 
 Status
 
-- Internal endpoint and scheduler: Pending.
+- Internal endpoint: Implemented and verified locally (Bearer + HMAC).
+- Scheduler: Pending (wire cron to call internal endpoint).
 - RLS considerations:
   - RPC `sync_openrouter_models` requires server role. Ensure service client uses service key context or RLS-exempt function security definer.
 
@@ -218,16 +218,16 @@ Phase 1 – Admin role foundation
 - [x] DB patch: add profiles.account_type with check constraint & index.
 - [x] Types: extend UserProfile & AuthContext with account_type.
 - [x] Middleware: add withAdminAuth (server) and client guard util.
-- [ ] Docs: update endpoint-protection and security docs.
+- [x] Docs: update endpoint-protection and security docs.
 - [x] User verification: confirm admin login works and non-admin denied.
 
 Phase 2 – Scheduled sync job
 
-- [ ] Add internal endpoint /api/internal/sync-models with HMAC/service token.
+- [x] Add internal endpoint /api/internal/sync-models with HMAC/service token.
 - [ ] Create cron (Vercel/Supabase) calling internal endpoint daily.
-- [ ] Ensure RPC/RLS works with service context.
+- [x] Ensure RPC/RLS works with service context.
 - [x] Update logs to record trigger identity.
-- [ ] User verification: simulate cron, verify model_sync_log and model_access changes.
+- [x] User verification: simulate cron, verify model_sync_log and model_access changes.
 
 Phase 3 – Admin dashboard (MVP)
 
@@ -257,6 +257,44 @@ Phase 4 – Hardening & analytics
 - [ ] Analytics views for sync and model usage.
 - [ ] Load/perf tests on sync flow and dashboard queries.
 - [ ] Documentation updates.
+
+### Phase 4 – Detailed plan
+
+1. RLS policy review and tighten
+
+- Verify model_access and model_sync_log have read/write policies restricted to admins or via RPC only.
+- Ensure RPC functions (e.g., sync_openrouter_models) run with SECURITY DEFINER and minimal privileges; audit their parameterization to avoid privilege escalation.
+- Remove any legacy enterprise-tier checks on admin routes; rely solely on account_type='admin'.
+- Add regression tests: negative access for non-admin users and anonymous contexts.
+
+2. Audit logs for admin actions
+
+- Create table admin_audit_log(id uuid pk, actor_user_id uuid, action text, target text, payload jsonb, created_at timestamptz default now()).
+- Add server-side writes when:
+  - Models bulk status/flag changes occur
+  - Users are promoted/demoted or subscription_tier changes
+  - Manual sync is triggered from /api/admin/sync-models
+- Provide a simple read-only admin view (paginated) with filters by action and date range.
+
+3. Analytics views for sync and model usage
+
+- Create SQL views/materialized views:
+  - v_sync_stats: last_success, success_rate(30d), avg_duration_ms(30d), runs_24h, failures_24h
+  - v_model_counts: counts by status (new/active/disabled) and by flags (free/pro/enterprise)
+  - v_model_activity: models added/removed per day (7/30d)
+- Surface summaries on an Admin Analytics tab and add API endpoints to fetch these aggregates.
+
+4. Load/performance tests
+
+- Backfill small synthetic dataset and run sync to evaluate RPC duration and contention.
+- Benchmark admin dashboard queries (filters/sorting/pagination) with realistic volumes; add indexes if needed.
+- Add a lighthouse-style check for /admin to ensure acceptable TTFB under load (target <300ms server time on cached lists).
+
+5. Documentation updates
+
+- Document audit log semantics and retention in docs/admin/.
+- Expand specs/endpoint-protection.md with any new middleware or rate-limiting changes.
+- Add runbooks: how to rotate INTERNAL_SYNC_TOKEN/SECRET and verify scheduler health.
 
 ---
 

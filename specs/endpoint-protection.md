@@ -74,18 +74,19 @@ interface AuthContext {
 
 ### ✅ **FULLY PROTECTED (AuthContext + Middleware)**
 
-| Endpoint                 | Middleware                  | Access Level  | Notes                                         |
-| ------------------------ | --------------------------- | ------------- | --------------------------------------------- |
-| `/api/chat`              | `withEnhancedAuth`          | **ENHANCED**  | Optional auth, graceful degradation           |
-| `/api/chat/sync`         | `withConversationOwnership` | **PROTECTED** | Required auth + ownership validation          |
-| `/api/models`            | `withEnhancedAuth`          | **ENHANCED**  | Optional auth with tier-based model filtering |
-| `/api/admin/sync-models` | `withEnhancedAuth`          | **PROTECTED** | Enterprise tier required                      |
-| `/api/generation/[id]`   | `withEnhancedAuth`          | **ENHANCED**  | ✅ **MIGRATED** - Phase 2 complete            |
-| `/api/chat/messages`     | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete            |
-| `/api/chat/sessions`     | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete            |
-| `/api/chat/session`      | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete            |
-| `/api/chat/clear-all`    | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete            |
-| `/api/user/data`         | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete            |
+| Endpoint                    | Middleware                  | Access Level  | Notes                                                     |
+| --------------------------- | --------------------------- | ------------- | --------------------------------------------------------- |
+| `/api/chat`                 | `withEnhancedAuth`          | **ENHANCED**  | Optional auth, graceful degradation                       |
+| `/api/chat/sync`            | `withConversationOwnership` | **PROTECTED** | Required auth + ownership validation                      |
+| `/api/models`               | `withEnhancedAuth`          | **ENHANCED**  | Optional auth with tier-based model filtering             |
+| `/api/admin/sync-models`    | `withAdminAuth`             | **ADMIN**     | Admin-only access; triggers manual model sync             |
+| `/api/internal/sync-models` | `withInternalAuth`          | **INTERNAL**  | Internal-only (HMAC or service Bearer); used by scheduler |
+| `/api/generation/[id]`      | `withEnhancedAuth`          | **ENHANCED**  | ✅ **MIGRATED** - Phase 2 complete                        |
+| `/api/chat/messages`        | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
+| `/api/chat/sessions`        | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
+| `/api/chat/session`         | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
+| `/api/chat/clear-all`       | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
+| `/api/user/data`            | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
 
 ### ⚠️ **MANUALLY PROTECTED (No AuthContext)** - None remaining after Phase 1 ✅
 
@@ -244,9 +245,35 @@ if (!user) {
    ```
 
 5. **PUBLIC**: Rate limiting only
+
    ```typescript
    export const GET = withRateLimit(handler);
    ```
+
+6. **ADMIN-ONLY**: Admin accounts only
+
+```typescript
+export const GET = withAdminAuth(handler);
+```
+
+7. **INTERNAL**: Scheduler/Service only (no user cookies)
+
+```typescript
+import { withInternalAuth } from "../../lib/middleware/internalAuth";
+
+async function jobHandler(request: NextRequest) {
+  // Validate internal caller via Authorization: Bearer or X-Signature (HMAC)
+  // Handler implementation...
+}
+
+export const POST = withInternalAuth(jobHandler);
+```
+
+- Use Authorization: `Bearer ${process.env.INTERNAL_SYNC_TOKEN}` or
+- `X-Signature: hex(hmacSHA256(body, process.env.INTERNAL_SYNC_SECRET))`
+- Never rely on browser cookies for internal endpoints
+
+See also: `docs/api/internal-sync-models.md` for local testing and setup.
 
 ## Implementation Examples
 

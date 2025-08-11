@@ -63,6 +63,11 @@ npm run dev
 
 6. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Admin & Scheduler Docs
+
+- Admin Dashboard usage: `docs/admin/dashboard-usage.md`
+- Internal scheduled sync endpoint: `docs/api/internal-sync-models.md`
+
 ## Project Structure
 
 ```

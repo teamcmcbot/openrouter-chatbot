@@ -67,7 +67,13 @@ These endpoints work for both anonymous and authenticated users with graceful de
 - [`/api/chat`](./chat.md) - Chat completions (basic for anonymous, enhanced for authenticated)
 - [`/api/models`](./models.md) - Available models (filtered by tier, with **default model prioritization** for authenticated users)
 - [`/api/generation/[id]`](./generation-id.md) - Generation status checking
-- [`/api/admin/sync-models`](./admin-sync-models.md) - Admin model sync (enterprise only)
+- [`/api/admin/sync-models`](./admin-sync-models.md) - Admin model sync (admin only)
+
+### 🔐 Admin & Internal Endpoints
+
+- `/api/admin/sync-models` — protected via `withAdminAuth`
+- `/api/internal/sync-models` — internal-only (Bearer or HMAC)
+  - See: [internal-sync-models.md](./internal-sync-models.md)
 
 ### 🌐 Public Endpoints (No Authentication)
 
@@ -104,14 +110,14 @@ These endpoints are intentionally public and have no rate limiting:
 
 ### Feature Availability
 
-| Feature                      | Anonymous | Free | Pro | Enterprise |
-| ---------------------------- | --------- | ---- | --- | ---------- |
-| Custom System Prompt        | ❌        | ✅   | ✅  | ✅         |
-| Advanced Models              | ❌        | ❌   | ✅  | ✅         |
-| Conversation Sync            | ❌        | ✅   | ✅  | ✅         |
+| Feature                          | Anonymous | Free | Pro | Enterprise |
+| -------------------------------- | --------- | ---- | --- | ---------- |
+| Custom System Prompt             | ❌        | ✅   | ✅  | ✅         |
+| Advanced Models                  | ❌        | ❌   | ✅  | ✅         |
+| Conversation Sync                | ❌        | ✅   | ✅  | ✅         |
 | **Default Model Prioritization** | ❌        | ✅   | ✅  | ✅         |
-| Analytics Dashboard          | ❌        | ❌   | ✅  | ✅         |
-| Admin Functions              | ❌        | ❌   | ❌  | ✅         |
+| Analytics Dashboard              | ❌        | ❌   | ✅  | ✅         |
+| Admin Functions                  | ❌        | ❌   | ❌  | ✅         |
 
 ## Security Features
 
@@ -253,6 +259,7 @@ This standardization provides:
 ## Related Documentation
 
 - [Endpoint Protection Specification](../../specs/endpoint-protection.md) - Complete technical specification
+- [Internal Sync Models Endpoint](./internal-sync-models.md) - Local setup and security
 - [JWT Authentication Architecture](../jwt/phase-1-authentication-architecture.md) - Authentication system design
 - [Feature Flagging Implementation](../jwt/phase-2-feature-flagging-implementation.md) - Feature control system
 - [Security Review](../security-review.md) - Comprehensive security analysis

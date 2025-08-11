@@ -9,7 +9,9 @@
     "lint": "next lint",
     "test": "NODE_OPTIONS='--no-deprecation' jest",
     "test:watch": "NODE_OPTIONS='--no-deprecation' jest --watch",
-    "test:coverage": "NODE_OPTIONS='--no-deprecation' jest --coverage"
+    "test:coverage": "NODE_OPTIONS='--no-deprecation' jest --coverage",
+    "sync:internal": "node scripts/test-internal-sync.js",
+    "sync:internal:hmac": "USE_HMAC=1 node scripts/test-internal-sync.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
