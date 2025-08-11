@@ -2,478 +2,318 @@
 
 ## Overview
 
-This directory contains the complete## 🧹 Clean Reset Available
+Canonical SQL lives in database/schema and should be applied in order (01-users.sql → 04-system.sql). It defines:
 
-If you need to completely reset your database to start fresh:
+- Main tables: profiles, chat_sessions, chat_messages, model_access
+- Analytics/audit tables: user_activity_log, user_usage_daily, model_sync_log, admin_audit_log
+- System tables: system_cache, system_stats
+- Views: api_user_summary, v_sync_stats, v_model_counts_public, v_model_recent_activity_admin
 
-**Use:** `00-complete-reset.sql` - Removes all tables, functions, types, and triggers
-
-⚠️ **WARNING:** This will delete ALL data. Only use this for a complete fresh start.ed database schema for the OpenRouter Chatbot. All previous fragmented SQL files have been consolidated into 4 comprehensive phases.
+RLS is enabled across all user-facing tables with admin-only exceptions where needed. Triggers keep profiles synced from auth.users and maintain chat session statistics/usage automatically. SECURITY DEFINER functions provide safe, privileged operations invoked by backend code. Incremental changes belong in database/patches and are merged back into database/schema after review.
 
 ## 🚀 Quick Setup
 
 Execute these SQL files **in order** in your Supabase SQL Editor:
 
-### Phase 1: User Management
+## Database Schema Guide
 
-**File:** `01-complete-user-management.sql`
+This directory contains the canonical Supabase/Postgres schema for OpenRouter Chatbot. The authoritative CREATE statements live in database/schema and should be executed in order. Incremental changes belong in database/patches; after approval they are merged back into schema.
 
-- ✅ User profiles with Google OAuth sync
-- ✅ Activity logging and audit trails
-- ✅ User tiers (free, pro, enterprise, admin)
-- ✅ Credits and usage tracking
-- ✅ Automatic profile creation/updates
+Apply order (via Supabase SQL Editor):
 
-### Phase 2: Chat History
+- 01-users.sql
+- 02-chat.sql
+- 03-models.sql
+- 04-system.sql
 
-**File:** `02-complete-chat-history.sql`
+## Object inventory (by category)
 
-- ✅ Chat sessions and messages (TEXT ID support)
-- ✅ Client-compatible IDs (e.g., `conv_1752734987703_j9spjufk8`)
-- ✅ Row Level Security policies
-- ✅ Bulk sync functions for API
-- ✅ Automatic statistics tracking
+Main tables
 
-### Phase 3: Advanced Features
+- public.profiles — User profile, preferences, tier, credits, and usage_stats
+- public.chat_sessions — Conversation metadata and per-session stats
+- public.chat_messages — Individual chat messages and token metrics
+- public.model_access — Catalog of available AI models and tier flags
 
-**File:** `03-complete-user-enhancements.sql`
+Analytics and audit tables
 
-- ✅ Model access control by user tier
-- ✅ Daily usage analytics
-- ✅ UI and session preferences
-- ✅ Rate limiting and cost tracking
-- ✅ Comprehensive usage functions
+- public.user_activity_log — Per-action audit trail per user
+- public.user_usage_daily — Daily usage aggregates per user
+- public.model_sync_log — Runs and results of model sync jobs
+- public.admin_audit_log — Admin/system actions (insert only via function)
 
-### Phase 4: System Optimization
+System tables
 
-**File:** `04-complete-system-final.sql`
+- public.system_cache — Small cache for computed data with TTL
+- public.system_stats — Daily platform statistics/health snapshot
 
-- ✅ Advanced preferences management
-- ✅ System caching and performance
-- ✅ Database health monitoring
-- ✅ GDPR compliance (data export)
-- ✅ Maintenance and cleanup functions
+Views
 
-## 🔧 Key Features
+- public.api_user_summary — Profile + today’s usage + total sessions
+- public.v_sync_stats — Admin sync KPIs (last success, success rate, durations, 24h counts)
+- public.v_model_counts_public — Public aggregate counts of models by status
+- public.v_model_recent_activity_admin — Daily counts of model status changes (30d)
 
-### TEXT ID Support ✅
+## Row Level Security (RLS) summary
 
-- **Problem Solved:** Database now accepts client-generated IDs like `"conv_1752734987703_j9spjufk8"`
-- **No More UUID Errors:** Direct storage of conversation and message IDs
-- **Client Compatibility:** Full sync support without ID conversion
+- profiles: enabled; users can read/update/insert their own; admins can read/update any
+- user_activity_log: enabled; users can read their own
+- user_usage_daily: enabled; users can read/insert/update their own
+- chat_sessions: enabled; users can CRUD their own sessions
+- chat_messages: enabled; access via owning session
+- model_access: enabled + forced; all users can SELECT
+- model_sync_log: enabled + forced; admins only (SELECT/INSERT/UPDATE)
+- system_cache, system_stats: enabled; authenticated can SELECT; admin-only modify
+- admin_audit_log: enabled + forced; admin-only SELECT; direct INSERT denied (use write_admin_audit)
 
-### Enhanced Profile Sync ✅
+## Functions and triggers
 
-- **Google OAuth Integration:** Automatic profile creation and updates
-- **Activity Logging:** Complete audit trail of user actions
-- **Tier Management:** Free, Pro, Enterprise, Admin user levels
+Legend
 
-### Model Access Control ✅
+- Reads/Writes/Deletes: tables touched
+- Invoked by: trigger or typical code path
 
-- **Tier-Based Access:** Different models for different user tiers
-- **Rate Limiting:** Daily/monthly usage limits per model
-- **Cost Tracking:** Token usage and cost calculation
+User and profile functions (01-users.sql)
 
-### Complete API Support ✅
+- jsonb_deep_merge(a jsonb, b jsonb)
 
-- **Bulk Sync:** `sync_user_conversations()` function
-- **User Profiles:** `get_user_complete_profile()` function
-- **Model Access:** `get_user_allowed_models()` function
-- **Usage Tracking:** `track_user_usage()` function
+  - Purpose: Pure helper to deep-merge JSONB objects
+  - Reads/Writes/Deletes: none (pure)
+  - Invoked by: update_user_preferences
 
-## 🔍 Verification
+- public.update_updated_at_column() RETURNS trigger
 
-After executing all phases, you should see:
+  - Purpose: Maintain updated_at; initialize usage_stats.last_reset on INSERT
+  - Writes: profiles (NEW row before write)
+  - Invoked by: BEFORE INSERT OR UPDATE ON public.profiles (trigger update_profiles_updated_at)
 
-```sql
--- Check tables exist
-SELECT table_name FROM information_schema.tables
-WHERE table_schema = 'public'
-ORDER BY table_name;
+- public.log_user_activity(p_user_id, p_action, p_resource_type, p_resource_id, p_details) RETURNS uuid SECURITY DEFINER
 
--- Expected tables:
--- chat_messages
--- chat_sessions
--- model_access
--- profiles
--- system_cache
--- system_stats
--- user_activity_log
--- user_usage_daily
+  - Purpose: Append a record to user_activity_log
+  - Writes: user_activity_log (INSERT)
+  - Invoked by: various functions (profile sync, tier/preference updates)
+
+- public.is_admin(p_user_id uuid) RETURNS boolean SECURITY DEFINER STABLE
+
+  - Purpose: Check admin status based on profiles.account_type
+  - Reads: profiles
+  - Invoked by: RLS policies and admin-only views/functions
+
+- public.handle_user_profile_sync() RETURNS trigger SECURITY DEFINER
+
+  - Purpose: Upsert profile from auth.users data; dedupe frequent syncs; log profile_created/profile_synced
+  - Reads: profiles, user_activity_log; source: auth.users (trigger row)
+  - Writes: profiles (INSERT/UPDATE), user_activity_log (via log_user_activity)
+  - Invoked by: AFTER INSERT OR UPDATE ON auth.users (trigger on_auth_user_profile_sync)
+
+- public.sync_profile_from_auth(user_uuid) RETURNS jsonb SECURITY DEFINER
+
+  - Purpose: Manually sync a profile from auth.users; create if missing; log action
+  - Reads: auth.users, profiles
+  - Writes: profiles (INSERT/UPDATE), user_activity_log (via log_user_activity)
+  - Invoked by: backend/admin code
+
+- public.track_user_usage(p_user_id, …) RETURNS void SECURITY DEFINER
+
+  - Purpose: Upsert today’s user_usage_daily; increment profile usage_stats; track model usage counts
+  - Reads: user_usage_daily (models_used for today)
+  - Writes: user_usage_daily (INSERT ON CONFLICT UPDATE), profiles (UPDATE)
+  - Invoked by: update_session_stats (on message changes) and track_session_creation (on new session)
+
+- public.update_user_tier(user_uuid, new_tier) RETURNS jsonb SECURITY DEFINER
+
+  - Purpose: Change subscription_tier; log tier_updated
+  - Writes: profiles (UPDATE), user_activity_log (via log_user_activity)
+  - Invoked by: admin/backend code
+
+- public.update_user_preferences(user_uuid, preference_type, preferences) RETURNS jsonb SECURITY DEFINER
+
+  - Purpose: Patch UI/session/model preferences; log preferences_updated
+  - Writes: profiles (UPDATE)
+  - Invoked by: application code
+
+- public.get_user_complete_profile(user_uuid) RETURNS jsonb SECURITY DEFINER
+
+  - Purpose: Return full profile with preferences, available models, and usage (today + last 7 days)
+  - Reads: profiles, user_usage_daily; calls public.get_user_allowed_models
+  - Invoked by: application/API
+
+- public.export_user_data(user_uuid) RETURNS jsonb SECURITY DEFINER
+  - Purpose: GDPR export (profile, sessions+messages, activity, usage)
+  - Reads: profiles, chat_sessions, chat_messages, user_activity_log, user_usage_daily
+  - Invoked by: application/admin tools
+
+Chat functions (02-chat.sql)
+
+- public.update_session_stats() RETURNS trigger
+
+  - Purpose: Recompute session counters, last preview, last model; track usage for successful messages
+  - Reads: chat_messages (for the session)
+  - Writes: chat_sessions (UPDATE); calls public.track_user_usage which writes user_usage_daily and profiles
+  - Invoked by: AFTER INSERT/UPDATE/DELETE ON public.chat_messages (trigger on_message_change)
+
+- public.update_session_timestamp() RETURNS trigger
+
+  - Purpose: Touch updated_at and last_activity on session updates
+  - Writes: chat_sessions (NEW row before write)
+  - Invoked by: BEFORE UPDATE ON public.chat_sessions (trigger on_session_updated)
+
+- public.get_user_recent_sessions(user_uuid, session_limit) RETURNS SETOF … SECURITY DEFINER
+
+  - Purpose: List recent sessions for a user
+  - Reads: chat_sessions
+  - Invoked by: application/API
+
+- public.get_session_with_messages(session_text_id, requesting_user_uuid) RETURNS SETOF … SECURITY DEFINER
+
+  - Purpose: Return one session and its messages after ownership check
+  - Reads: chat_sessions, chat_messages
+  - Invoked by: application/API
+
+- public.sync_user_conversations(user_uuid, conversations_data jsonb) RETURNS jsonb SECURITY DEFINER
+
+  - Purpose: Bulk upsert sessions and messages from client data
+  - Writes: chat_sessions (INSERT/UPDATE), chat_messages (INSERT/UPDATE)
+  - Invoked by: sync endpoint in application/backend
+
+- public.track_session_creation() RETURNS trigger
+  - Purpose: Increment usage stats when a new session is created
+  - Writes: user_usage_daily, profiles (via public.track_user_usage)
+  - Invoked by: AFTER INSERT ON public.chat_sessions (trigger on_session_created)
+
+Model functions (03-models.sql)
+
+- public.get_user_allowed_models(user_uuid) RETURNS SETOF … SECURITY DEFINER
+
+  - Purpose: Models available to the user based on subscription tier and status
+  - Reads: profiles (tier), model_access (active models and tier flags)
+  - Invoked by: application/API; also used by get_user_complete_profile
+
+- public.can_user_use_model(user_uuid, model_to_check) RETURNS boolean SECURITY DEFINER
+
+  - Purpose: Yes/No check for a specific model id
+  - Reads: profiles, model_access
+  - Invoked by: application/backend guards
+
+- public.sync_openrouter_models(models_data jsonb, p_added_by_user_id uuid) RETURNS jsonb SECURITY DEFINER
+
+  - Purpose: Ingest OpenRouter model list; upsert model_access; mark missing as inactive; log run
+  - Writes: model_sync_log (INSERT/UPDATE), model_access (INSERT/UPDATE, bulk INACTIVE step)
+  - Invoked by: admin job/endpoint
+
+- public.update_model_tier_access(p_model_id, flags…, p_status) RETURNS jsonb SECURITY DEFINER
+  - Purpose: Admin update of model tier flags and/or status
+  - Writes: model_access (UPDATE)
+  - Invoked by: admin UI/endpoint
+
+System functions and admin audit (04-system.sql)
+
+- public.cleanup_old_data(days_to_keep integer = 90) RETURNS jsonb SECURITY DEFINER
+
+  - Purpose: Maintenance cleanup and daily stats refresh
+  - Deletes: user_activity_log (older than cutoff), user_usage_daily (older than cutoff), system_cache (expired)
+  - Writes: system_stats (INSERT ON CONFLICT UPDATE)
+  - Invoked by: scheduled job/cron
+
+- public.analyze_database_health() RETURNS jsonb SECURITY DEFINER
+
+  - Purpose: Summarize database size and table sizes with key counts
+  - Reads: pg_catalog (pg_tables, database size), profiles, chat_sessions, chat_messages, user_activity_log
+  - Invoked by: admin diagnostics
+
+- public.write_admin_audit(p_actor_user_id, p_action, p_target, p_payload) RETURNS void SECURITY DEFINER
+  - Purpose: Append an admin/system action to admin_audit_log (bypasses direct INSERT RLS)
+  - Writes: admin_audit_log (INSERT)
+  - Invoked by: admin/system backend code
+
+Triggers
+
+- update_profiles_updated_at — BEFORE INSERT/UPDATE ON profiles → public.update_updated_at_column
+- on_auth_user_profile_sync — AFTER INSERT/UPDATE ON auth.users → public.handle_user_profile_sync
+- on_message_change — AFTER INSERT/UPDATE/DELETE ON chat_messages → public.update_session_stats
+- on_session_updated — BEFORE UPDATE ON chat_sessions → public.update_session_timestamp
+- on_session_created — AFTER INSERT ON chat_sessions → public.track_session_creation
+
+## Execution and verification
+
+Run the four schema files in order. Afterward, you should see the tables: profiles, user_activity_log, user_usage_daily, chat_sessions, chat_messages, model_access, model_sync_log, system_cache, system_stats, admin_audit_log; and the views: api_user_summary, v_sync_stats, v_model_counts_public, v_model_recent_activity_admin.
+
+## Change management
+
+- Propose changes as SQL in database/patches/<issue_or_feature>/
+- Keep patches idempotent where practical
+- After review/approval, merge changes back into database/schema to keep a single-pass setup current
+
+## Notes
+
+- Message and session IDs are TEXT to support client-generated IDs
+- SECURITY DEFINER functions should be called from trusted backend contexts (service role) due to RLS
+- Indexes are created for common access patterns across profiles, chat tables, and model tables for performance
+
+## Maintenance functions (optional, currently unused)
+
+These database functions are available but not wired into the app yet. They’re safe to run on demand and are good candidates for admin-only endpoints or scheduled jobs.
+
+- public.cleanup_old_data(days_to_keep integer = 90)
+
+  - Purpose: Maintenance cleanup and daily stats refresh.
+  - Deletes: user_activity_log (older than cutoff), user_usage_daily (older than cutoff), system_cache (expired).
+  - Writes: system_stats (upsert for today with total users/conversations/messages).
+  - Typical use: Nightly/weekly job during off-peak hours.
+  - Integration options:
+    - Manual run from Supabase SQL editor when needed.
+    - Admin-only API endpoint that calls RPC('cleanup_old_data') with a safe default window, protected via standard middleware.
+    - Scheduled job (Edge Function or external scheduler) invoking the RPC periodically.
+
+- public.analyze_database_health()
+  - Purpose: Read-only health snapshot (db size, per-table sizes, key counts, 7‑day active users).
+  - Reads: pg_catalog (table sizes), profiles, chat_sessions, chat_messages, user_activity_log.
+  - Typical use: On-demand diagnostics for admins or a lightweight admin dashboard widget.
+  - Integration options:
+    - Manual run in SQL editor to inspect JSON output.
+    - Admin-only API endpoint that returns RPC('analyze_database_health') JSON.
+    - Optional future: persist snapshots daily to a new table for trend analysis.
+
+Security note: If exposing these via HTTP, use the standardized middleware (withProtectedAuth) and enforce admin checks before calling RPC.
+
 ```
 
-## 🧪 Testing
-
-After setup, test the sync functionality:
-
-1. **Create anonymous conversations** in your app
-2. **Sign in with Google** - conversations should persist
-3. **Check database** - data should sync with TEXT IDs
-4. **No UUID errors** - sync should show `"synced": 2, "errors": 0`
-
-## 🆘 Troubleshooting
-
-### If you get UUID errors:
-
-- ❌ You're using old schema files
-- ✅ Use the new consolidated files (Phase 1-4)
-
-### If profiles don't sync:
-
-- Check that Google OAuth is configured in Supabase
-- Verify triggers are installed with the new schema
-
-### If sync fails:
-
-- Check that TEXT ID support is enabled (Phase 2)
-- Verify RLS policies are correctly applied
-
-## 📋 Migration from Old Schema
-
-If you have any existing data or tables:
-
-1. **Complete Reset** (recommended for clean start):
-
-   ```sql
-   -- Copy and paste: 00-complete-reset.sql
-   -- ✅ Removes all existing tables, functions, and types
-   -- ⏱️ Expected: ~10 seconds
-   -- ✅ Success: "Database completely reset! All tables, functions, types, and triggers removed."
-   ```
-
-2. **Execute new schema** (Phase 1-4 in order)
-3. **Start fresh** with clean consolidated schema
-
-## 🎯 Ready for Production
-
-After executing all 4 phases:
-
-- ✅ Your app's sync endpoint will work
-- ✅ Conversations will persist across devices
-- ✅ User tiers and model access are enforced
-- ✅ Complete audit trail and analytics
-- ✅ GDPR-compliant data export
-
-**Your OpenRouter Chatbot database is production-ready! 🚀**
-
-## 📂 **Current File Structure**
-
-```
-database/
-├── README.md                          # This setup guide
-├── 00-complete-reset.sql              # Complete database reset (if needed)
-├── 01-complete-user-management.sql    # Phase 1: User system + Google OAuth
-├── 02-complete-chat-history.sql       # Phase 2: Chat sessions + TEXT ID support
-├── 03-complete-user-enhancements.sql  # Phase 3: User tiers + model access
-├── 04-complete-system-final.sql       # Phase 4: System optimization + GDPR
-├── deprecated/                        # Old fragmented files (ignore)
-├── functions/                         # Optional utility functions
-└── policies/                          # Optional advanced security
 ```
 
-## 🏗️ **Prerequisites Setup**
+## Other unused functions (future feature candidates)
 
-Before running the database scripts, ensure you have:
+These functions aren’t currently called by triggers, other DB functions, or application code. They’re suitable for future enhancements:
 
-### **1. Supabase Project Setup**
+- public.sync_profile_from_auth(user_uuid)
 
-1. Create account at [app.supabase.com](https://app.supabase.com)
-2. Create new project
-3. Note your **Project URL** and **anon public key** from Settings → API
+  - Purpose: Force-sync a user’s profile from auth.users; creates profile if missing and logs the action.
+  - Integrate: Admin-only API action to repair mismatched profiles; bulk maintenance tool for migrations.
 
-### **2. Google OAuth Configuration**
+- public.update_user_preferences(user_uuid, preference_type, preferences)
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create new project or select existing
-3. Enable Google+ API
-4. Create OAuth 2.0 credentials
-5. Add authorized redirect URIs:
-   - Development: `http://localhost:3000/auth/callback`
-   - Production: `https://yourdomain.com/auth/callback`
+  - Purpose: Safely patch UI/session/model preferences with deep-merge semantics.
+  - Integrate: User Settings API to save preferences; ensure call is under the authenticated user context.
 
-### **3. Supabase Auth Configuration**
+- public.export_user_data(user_uuid)
 
-1. In Supabase Dashboard → Authentication → Providers
-2. Enable Google provider
-3. Add your Google OAuth Client ID and Secret
-4. Set redirect URLs to match your application URLs
+  - Purpose: GDPR export of profile, sessions + messages, activity log, and usage history.
+  - Integrate: Self-serve download endpoint or admin export; stream JSON to client; consider rate limiting.
 
-### **4. Environment Variables**
+- public.get_user_recent_sessions(user_uuid, session_limit)
 
-Create `.env.local` in your project root:
+  - Purpose: Efficient recent sessions list for dashboards/sidebars.
+  - Integrate: `/api/user/recent-sessions` endpoint used by the chat sidebar.
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=your-project-url-here
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
-```
+- public.get_session_with_messages(session_text_id, requesting_user_uuid)
 
-## 🔒 **Security Features**
+  - Purpose: Ownership-checked retrieval of a session and its messages in one query.
+  - Integrate: Conversation detail API for server-rendered pages or export tools.
 
-- **Row Level Security (RLS)**: Users can only access their own data
-- **Policy-based Access**: Granular control over data operations
-- **Data Isolation**: Complete separation between user accounts
-- **Audit Trails**: Track user actions and data changes
+- public.sync_user_conversations(user_uuid, conversations_data)
 
-## 📊 **Database Schema Overview**
+  - Purpose: Bulk upsert client conversations/messages (offline → online sync).
+  - Integrate: Sync endpoint that forwards a batched payload; add dedupe/rate-limit guards in app layer.
 
-### **Phase 1: Authentication Foundation**
-
-- **`profiles`** - User profiles with auto-creation and sync
-- **Triggers** - Auto-profile creation on Google OAuth sign-in
-- **RLS Policies** - Secure user data isolation
-
-### **Phase 2: Chat History System**
-
-- **`chat_sessions`** - Conversation metadata and tracking
-- **`chat_messages`** - Individual messages with full content
-- **Functions** - Migration helpers for localStorage → database sync
-- **Indexes** - Performance-optimized queries for chat operations
-
-### **Phase 3: User Management & Analytics**
-
-- **`user_sessions`** - Session tracking and security monitoring
-- **`user_activity_log`** - Complete audit trail for all actions
-- **`user_model_access`** - Fine-grained model access control
-- **`usage_tracking`** - Detailed usage analytics and billing data
-- **Subscription System** - Free/Pro/Enterprise tier management
-
-### **Phase 4: Complete Personalization**
-
-- **`user_saved_prompts`** - Custom prompt library with sharing
-- **`user_model_preferences`** - Per-model settings and configurations
-- **`user_custom_themes`** - Personalized UI themes
-- **Enhanced Profiles** - UI preferences, chat settings, privacy controls
-
-### **Enhancement Features**
-
-- **Auto-Sync Profiles** - Keeps user data current with Google account changes
-- **Maintenance Functions** - Database health checks and cleanup utilities
-- **Advanced Security** - Rate limiting, content filtering, audit trails
-
-## 🛠️ **Step-by-Step Setup Guide**
-
-### **Step 1: Core Database Setup**
-
-1. Open [Supabase Dashboard](https://app.supabase.com) → Your Project
-2. Navigate to **SQL Editor**
-3. Create a new query for each phase
-
-#### **Execute in Order:**
-
-**Complete Reset (if needed):**
-
-```sql
--- Copy and paste: 00-complete-reset.sql
--- ✅ Removes: all existing tables, functions, types, triggers
--- ⏱️ Expected: ~10 seconds
--- ✅ Success message: "Database completely reset!"
-```
-
-**Phase 1 - User Authentication:**
-
-```sql
--- Copy and paste: 01-complete-user-management.sql
--- ✅ Creates: profiles table, RLS policies, auto-profile creation
--- ⏱️ Expected: ~30 seconds
--- ✅ Success message: "Phase 1 database setup completed successfully!"
-```
-
-**Phase 2 - Chat History:**
-
-```sql
--- Copy and paste: 02-complete-chat-history.sql
--- ✅ Creates: chat_sessions, chat_messages, sync functions
--- ⏱️ Expected: ~45 seconds
--- ✅ Success message: "Phase 2 database setup completed successfully!"
-```
-
-**Phase 3 - User Management:**
-
-```sql
--- Copy and paste: 03-complete-user-enhancements.sql
--- ✅ Creates: subscription system, analytics, access control
--- ⏱️ Expected: ~60 seconds
--- ✅ Success message: "Phase 3 database setup completed successfully!"
-```
-
-**Phase 4 - Personalization:**
-
-```sql
--- Copy and paste: 04-complete-system-final.sql
--- ✅ Creates: complete user preferences, themes, prompts
--- ⏱️ Expected: ~45 seconds
--- ✅ Success message: "Phase 4 database setup completed successfully!"
-```
-
-### **Step 2: Optional Utilities**
-
-**Database Maintenance Functions:**
-
-```sql
--- Copy and paste: functions/maintenance.sql
--- ✅ Adds: Health checks, cleanup utilities, statistics
--- ⏱️ Expected: ~30 seconds
-```
-
-**Advanced Security Policies:**
-
-```sql
--- Copy and paste: policies/enhanced_security.sql
--- ✅ Adds: Rate limiting, content filtering, audit controls
--- ⏱️ Expected: ~45 seconds
-```
-
-## ✅ **Verification Checklist**
-
-After running each phase:
-
-### **Phase 1 Verification**
-
-- [ ] `profiles` table exists with proper columns
-- [ ] RLS is enabled on `profiles` table
-- [ ] User can insert/update their own profile
-- [ ] User cannot access other users' profiles
-
-### **Phase 2 Verification**
-
-- [ ] `chat_sessions` and `chat_messages` tables exist
-- [ ] Foreign key relationships are properly set up
-- [ ] RLS policies prevent cross-user data access
-- [ ] Indexes are created for performance
-
-### **Phase 3 Verification**
-
-- [ ] User enhancement columns added to `profiles`
-- [ ] Default values set correctly
-- [ ] Enum types created for subscription tiers
-
-### **Phase 4 Verification**
-
-- [ ] Model preference columns added
-- [ ] JSONB columns for UI preferences work
-- [ ] All constraints and defaults in place
-
-## 🔧 **Troubleshooting & Validation**
-
-### **Quick Health Check**
-
-Run this query to verify your setup:
-
-```sql
--- Database Health Check
-SELECT
-  'profiles' as table_name, count(*) as records FROM profiles
-UNION ALL
-SELECT
-  'chat_sessions' as table_name, count(*) as records FROM chat_sessions
-UNION ALL
-SELECT
-  'chat_messages' as table_name, count(*) as records FROM chat_messages
-UNION ALL
-SELECT
-  'user_activity_log' as table_name, count(*) as records FROM user_activity_log;
-
--- ✅ Expected: All tables should exist with 0 records initially
-```
-
-### **Test Profile Creation**
-
-After a user signs in with Google OAuth:
-
-```sql
--- Verify auto-profile creation
-SELECT id, email, full_name, avatar_url, created_at
-FROM profiles
-ORDER BY created_at DESC
-LIMIT 5;
-
--- ✅ Expected: New profile should appear automatically
-```
-
-### **Common Issues & Solutions**
-
-**❌ Error: "relation does not exist"**
-
-- **Cause:** Phases executed out of order
-- **Solution:** Re-run phases 1-4 in sequence
-
-**❌ Error: "permission denied for table"**
-
-- **Cause:** RLS policies not properly configured
-- **Solution:** Re-run the specific phase that failed
-
-**❌ Error: "function does not exist"**
-
-- **Cause:** Missing prerequisite functions
-- **Solution:** Ensure Phase 1 completed before other phases
-
-**❌ Error: "syntax error near 'timestamp'"**
-
-- **Cause:** Using old version of scripts
-- **Solution:** Use updated scripts with 'message_timestamp'
-
-### **Performance Verification**
-
-```sql
--- Check indexes are created
-SELECT schemaname, tablename, indexname
-FROM pg_indexes
-WHERE tablename IN ('profiles', 'chat_sessions', 'chat_messages', 'user_activity_log')
-ORDER BY tablename, indexname;
-
--- ✅ Expected: Multiple indexes per table for performance
-```
-
-### **Security Validation**
-
-```sql
--- Verify RLS is enabled
-SELECT schemaname, tablename, rowsecurity
-FROM pg_tables
-WHERE tablename IN ('profiles', 'chat_sessions', 'chat_messages', 'user_activity_log');
-
--- ✅ Expected: rowsecurity = true for all tables
-```
-
-### **Common Issues**
-
-**"Insufficient permissions" Error:**
-
-- Ensure you're logged in as the project owner
-- Check that RLS policies allow the operation
-
-**"Table already exists" Error:**
-
-- Skip the CREATE TABLE statement
-- Run only the missing parts (columns, indexes, policies)
-
-**Foreign Key Violations:**
-
-- Ensure parent tables exist before child tables
-- Check that referenced columns have correct data types
-
-### **Reset Instructions**
-
-If you need to start over:
-
-```sql
--- Copy and paste: 00-complete-reset.sql
--- WARNING: This will delete ALL data and reset everything
-```
-
-## 📞 **Support**
-
-If you encounter issues:
-
-1. Check the Supabase logs in Dashboard → Logs
-2. Verify your RLS policies in Dashboard → Authentication → Policies
-3. Review table structure in Dashboard → Table Editor
-4. Contact the development team with error details
-
----
-
-**Next Steps After Database Setup:**
-
-- Agent will implement API endpoints for chat synchronization
-- User profile auto-creation will be activated
-- Chat history will sync between devices for authenticated users
+- public.can_user_use_model(user_uuid, model_to_check)
+  - Purpose: Quick tier-based access check for a specific model.
+  - Integrate: Server-side guard before initiating a model completion; useful for admin tools/tests.
