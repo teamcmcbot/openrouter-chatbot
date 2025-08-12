@@ -453,3 +453,209 @@ Response: 500
 
 - Check frontend token estimation logic and how they formed the payload for /api/chat with the messages array. Is there any reason why the ordering sequence is wrong?
 - Check the backend logic for /api/chat in returning the request_id in the response message. Is the message array containing a broken user/assistant pairing messing up the response for request_id?
+
+## Bug 2: Retry flow
+
+On SUCCESS retry, you need to map prompt_tokens value BACK to the corresponding user message (green bubble) to be displayed with the input tokens for that message.
+
+Successful retry /api/chat
+
+```json
+{
+  "data": {
+    "response": "The current president of Singapore is Tharman Shanmugaratnam.\n\nFrom: GreenBubble\n",
+    "usage": {
+      "prompt_tokens": 280,
+      "completion_tokens": 20,
+      "total_tokens": 300
+    },
+    "request_id": "msg_1755014540271_7lxrypmj2",
+    "timestamp": "2025-08-12T16:04:56.153Z",
+    "elapsed_time": 0,
+    "contentType": "text",
+    "id": "gen-1755014696-r9PEcPInA5pykxPsG5Qc"
+  },
+  "timestamp": "2025-08-12T16:04:56.154Z"
+}
+```
+
+The subsequent API call /api/chat/messages then did not contain input_tokens in the user's message payload, the timestamp is also not the retry message timestamp. These values should then be Upserted to the DB.
+
+/api/chat/messages
+
+```json
+{
+  "messages": [
+    {
+      "id": "msg_1755014540271_7lxrypmj2",
+      "content": "who is the president of singapore?",
+      "role": "user",
+      "timestamp": "2025-08-12T16:02:20.271Z",
+      "originalModel": "google/gemini-2.0-flash-exp:free",
+      "error": false,
+      "input_tokens": 0
+    },
+    {
+      "id": "msg_1755014696159_ai3xgmqc6",
+      "content": "The current president of Singapore is Tharman Shanmugaratnam.\n\nFrom: GreenBubble\n",
+      "role": "assistant",
+      "timestamp": "2025-08-12T16:04:56.159Z",
+      "elapsed_time": 0,
+      "total_tokens": 300,
+      "input_tokens": 280,
+      "output_tokens": 20,
+      "user_message_id": "msg_1755014540271_7lxrypmj2",
+      "model": "google/gemini-2.0-flash-exp:free",
+      "contentType": "text",
+      "completion_id": "gen-1755014696-r9PEcPInA5pykxPsG5Qc"
+    }
+  ],
+  "sessionId": "conv_1755014526079_5finv7tug"
+}
+```
+
+## Bug 3: Retry message time stamp.
+
+This is the retry chat payload
+POST /api/chat
+
+```json
+{
+  "message": "3*2*73?",
+  "messages": [
+    {
+      "id": "msg_1755016671327_zbqz0i0i6",
+      "content": "what is 2+3 ?",
+      "role": "user",
+      "timestamp": "2025-08-12T16:37:51.327Z",
+      "originalModel": "google/gemini-2.0-flash-exp:free",
+      "input_tokens": 280
+    },
+    {
+      "id": "msg_1755016673903_e9us53ang",
+      "content": "2 + 3 = 5.\n\nFrom: LLM Model\n",
+      "role": "assistant",
+      "timestamp": "2025-08-12T16:37:53.903Z",
+      "elapsed_time": 0,
+      "total_tokens": 295,
+      "input_tokens": 280,
+      "output_tokens": 15,
+      "user_message_id": "msg_1755016671327_zbqz0i0i6",
+      "model": "google/gemini-2.0-flash-exp:free",
+      "contentType": "text",
+      "completion_id": "gen-1755016672-4IBbNpQxKD8VEP8VjHhK"
+    },
+    {
+      "id": "msg_1755016683940_k9td7c4y8",
+      "content": "what is 9+82?",
+      "role": "user",
+      "timestamp": "2025-08-12T16:38:03.940Z",
+      "originalModel": "google/gemini-2.0-flash-exp:free",
+      "input_tokens": 302
+    },
+    {
+      "id": "msg_1755016688222_0h42t2v1e",
+      "content": "9 + 82 = 91\n\nFrom: LLM Model\n",
+      "role": "assistant",
+      "timestamp": "2025-08-12T16:38:08.222Z",
+      "elapsed_time": 2,
+      "total_tokens": 318,
+      "input_tokens": 302,
+      "output_tokens": 16,
+      "user_message_id": "msg_1755016683940_k9td7c4y8",
+      "model": "google/gemini-2.0-flash-exp:free",
+      "contentType": "text",
+      "completion_id": "gen-1755016686-zer1re7gHujxTgaNI9A9"
+    },
+    {
+      "id": "msg_1755016696319_b469in29w",
+      "content": "3*2*73?",
+      "role": "user",
+      "timestamp": "2025-08-12T16:41:10.670Z",
+      "originalModel": "google/gemini-2.0-flash-exp:free"
+    }
+  ],
+  "current_message_id": "msg_1755016696319_b469in29w",
+  "model": "google/gemini-2.0-flash-exp:free"
+}
+```
+
+What is IMPORTANT is that the retry message timestamp is:
+
+```json
+{
+  "id": "msg_1755016696319_b469in29w",
+  "content": "3*2*73?",
+  "role": "user",
+  "timestamp": "2025-08-12T16:41:10.670Z",
+  "originalModel": "google/gemini-2.0-flash-exp:free"
+}
+```
+
+The response from this call is
+
+```json
+{
+  "data": {
+    "response": "3 * 2 * 73 = 438\n\nFrom: LLM Model\n",
+    "usage": {
+      "prompt_tokens": 324,
+      "completion_tokens": 20,
+      "total_tokens": 344
+    },
+    "request_id": "msg_1755016696319_b469in29w",
+    "timestamp": "2025-08-12T16:41:13.147Z",
+    "elapsed_time": 2,
+    "contentType": "markdown",
+    "id": "gen-1755016871-xmDT47k0EiC40tBx7RIQ"
+  },
+  "timestamp": "2025-08-12T16:41:13.147Z"
+}
+```
+
+The timestamp here is the timestamp of the response not the request. But instead you are using the response for the user's timestamp in the subsequent call:
+
+```json
+{
+  "messages": [
+    {
+      "id": "msg_1755016696319_b469in29w",
+      "content": "3*2*73?",
+      "role": "user",
+      "timestamp": "2025-08-12T16:41:13.147Z",
+      "originalModel": "google/gemini-2.0-flash-exp:free",
+      "error": false,
+      "input_tokens": 324
+    },
+    {
+      "id": "msg_1755016873153_7mg4v45ph",
+      "content": "3 * 2 * 73 = 438\n\nFrom: LLM Model\n",
+      "role": "assistant",
+      "timestamp": "2025-08-12T16:41:13.147Z",
+      "elapsed_time": 2,
+      "total_tokens": 344,
+      "input_tokens": 324,
+      "output_tokens": 20,
+      "user_message_id": "msg_1755016696319_b469in29w",
+      "model": "google/gemini-2.0-flash-exp:free",
+      "contentType": "markdown",
+      "completion_id": "gen-1755016871-xmDT47k0EiC40tBx7RIQ"
+    }
+  ],
+  "sessionId": "conv_1755016671325_7h2mbywzu"
+}
+```
+
+Notice for user's request instead of 2025-08-12T16:41:10.670Z it is showing 2025-08-12T16:41:13.147Z which is the response timestamp.
+
+```json
+{
+  "id": "msg_1755016696319_b469in29w",
+  "content": "3*2*73?",
+  "role": "user",
+  "timestamp": "2025-08-12T16:41:13.147Z",
+  "originalModel": "google/gemini-2.0-flash-exp:free",
+  "error": false,
+  "input_tokens": 324
+}
+```

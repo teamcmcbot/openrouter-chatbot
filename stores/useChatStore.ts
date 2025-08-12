@@ -1015,7 +1015,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 id: generateMessageId(),
                 content: data.response,
                 role: "assistant",
-                timestamp: new Date(),
+                // Use server-provided timestamp if available for consistency
+                timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
                 elapsed_time: data.elapsed_time ?? 0,
                 total_tokens: data.usage?.total_tokens ?? 0,
                 input_tokens: data.usage?.prompt_tokens ?? 0,
@@ -1055,12 +1056,23 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                           ...conv,
                           messages: [
                             ...conv.messages.map((msg) => {
-                              if (msg.id === messageId) {
-                                // Clear error flag on successful retry
-                                return { ...msg, error: false };
-                              } else if (msg.id === data.request_id && msg.role === 'user') {
-                                // Update the user message that triggered this response with input tokens
-                                return { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 };
+                              if (msg.id === messageId && msg.role === 'user') {
+                                // Successful retry: clear error & apply new tokens, PRESERVE original timestamp
+                                return {
+                                  ...msg,
+                                  error: false,
+                                  error_message: undefined,
+                                  error_code: undefined,
+                                  retry_after: undefined,
+                                  input_tokens: data.usage?.prompt_tokens ?? 0,
+                                };
+                              }
+                              // Fallback path (should normally not hit when messageId === data.request_id). Only update tokens.
+                              if (msg.id === data.request_id && msg.role === 'user') {
+                                return {
+                                  ...msg,
+                                  input_tokens: data.usage?.prompt_tokens ?? 0,
+                                };
                               }
                               return msg;
                             }),
@@ -1074,6 +1086,43 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               });
 
               logger.debug("Message retry successful", { messageId, conversationId: currentConversationId });
+
+              // Persist retried user + assistant pair (reuse ID) for authenticated users
+              const { user } = useAuthStore.getState();
+              if (user?.id) {
+                setTimeout(async () => {
+                  try {
+                    const updatedConv = get().conversations.find(c => c.id === currentConversationId);
+                    const retriedUserMessage = updatedConv?.messages.find(m => m.id === messageId && m.role === 'user');
+                    if (retriedUserMessage) {
+                      // Ensure persistence includes updated tokens & timestamp (Upsert on backend)
+                      const saveUserMsg = {
+                        ...retriedUserMessage,
+                        error: false,
+                        error_message: undefined,
+                        error_code: undefined,
+                        retry_after: undefined,
+                        // Guarantee tokens present (preserve original timestamp from initial send, not response time)
+                        input_tokens: retriedUserMessage.input_tokens ?? data.usage?.prompt_tokens ?? 0,
+                      };
+                      await fetch('/api/chat/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          messages: [
+                            saveUserMsg,
+                            assistantMessage
+                          ],
+                          sessionId: currentConversationId
+                        })
+                      });
+                      logger.debug('Retry message pair saved', { userMessageId: retriedUserMessage.id, assistantId: assistantMessage.id });
+                    }
+                  } catch (e) {
+                    logger.debug('Retry message save failed (silent)', e);
+                  }
+                }, 80);
+              }
 
             } catch (err) {
               let chatError: ChatError;

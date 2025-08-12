@@ -158,7 +158,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       for (const message of requestData.messages) {
         const { data: newMessage, error: messageError } = await supabase
           .from('chat_messages')
-          .insert({
+          .upsert({
             id: message.id,
             session_id: requestData.sessionId,
             role: message.role,
@@ -176,7 +176,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
               : message.timestamp.toISOString(),
             error_message: message.error_message || (message.error ? 'Message failed' : null),
             is_streaming: false
-          })
+          }, { onConflict: 'id' })
           .select()
           .single();
 
@@ -191,7 +191,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       const message = requestData.message;
       const { data: newMessage, error: messageError } = await supabase
         .from('chat_messages')
-        .insert({
+        .upsert({
           id: message.id,
           session_id: requestData.sessionId,
           role: message.role,
@@ -209,7 +209,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
             : message.timestamp.toISOString(),
           error_message: message.error_message || (message.error ? 'Message failed' : null),
           is_streaming: false
-        })
+        }, { onConflict: 'id' })
         .select()
         .single();
 
