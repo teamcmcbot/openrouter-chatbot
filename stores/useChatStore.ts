@@ -879,8 +879,27 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
             logger.debug("Retrying specific message", { messageId, model });
 
+            // Capture retry start time BEFORE building context so ordering uses the new timestamp
+            const retryStartedAt = new Date();
+
             // Set loading state
             set({ isLoading: true, error: null });
+
+            // Update the existing user message timestamp to reflect this new retry attempt
+            set((state) => ({
+              conversations: state.conversations.map(conv =>
+                conv.id === currentConversationId
+                  ? {
+                      ...conv,
+                      messages: conv.messages.map(msg =>
+                        msg.id === messageId && msg.role === 'user'
+                          ? { ...msg, timestamp: retryStartedAt }
+                          : msg
+                      )
+                    }
+                  : conv
+              )
+            }));
 
             try {
               // Phase 3: Check if context-aware mode is enabled
@@ -913,7 +932,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   id: messageId, // Reuse the same ID
                   content: content.trim(),
                   role: "user",
-                  timestamp: new Date(),
+                  timestamp: retryStartedAt,
                   originalModel: model,
                 };
                 
