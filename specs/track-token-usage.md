@@ -179,22 +179,37 @@ Components:
 
 ### Phase 2 Task Checklist
 
-- [ ] Confirm route & UX decisions (blocking questions #5)
-- [ ] Implement API endpoints with middleware
-- [ ] Add SQL query builder (pagination + filters) server-side
-- [ ] Add page & components leveraging existing UI system
-- [ ] Integrate SWR/fetch pattern already used in project
-- [ ] Add unit tests (API handlers) & component snapshot tests
-- [ ] Update docs `/docs/components/usage-costs.md`
-- [ ] User verification checkpoint
+- [x] Confirm route & UX decisions (range presets today/7d/30d, model filter, pagination size selector)
+- [x] Implement API endpoints with middleware (`/api/usage/costs`, `/api/usage/costs/daily` using `withProtectedAuth`)
+- [x] Add SQL query builder (pagination + filters) server-side (Supabase range + count + aggregation loop)
+- [x] Add page & components leveraging existing UI system (`src/app/usage/costs/page.tsx` – summary cards, tables, filters)
+- [x] Integrate fetch pattern (simple manual fetch; SWR enhancement optional)
+- [~] Add unit tests (utilities covered; API handler tests deferred due to Next.js Request polyfill complexity in current Jest env) → see "Test Coverage Notes" below
+- [x] Update docs `/docs/components/usage-costs.md` (completed initial documentation)
+- [x] User verification checkpoint (manual QA completed by user)
 
 ### Phase 2 Verification Checklist
 
-- [ ] Filters return expected subsets
-- [ ] Pagination metadata accurate
-- [ ] Summary matches aggregation of current filter
-- [ ] RLS / auth enforced (anonymous blocked)
-- [ ] Performance acceptable (<300ms typical query under dev dataset)
+- [x] Filters return expected subsets (verified manually)
+- [x] Pagination metadata accurate (manual QA)
+- [x] Summary matches aggregation of current filter (manual QA)
+- [x] RLS / auth enforced (endpoints wrapped with `withProtectedAuth`)
+- [x] Performance acceptable (<300ms typical dev dataset – observed manually; future automated perf test optional)
+
+### Test Coverage Notes
+
+Current automated tests:
+
+- Utility layer: date range parsing, top model aggregation, rounding, query parsing (`tests/lib/usageCosts.test.ts`).
+
+Deferred:
+
+- Direct API handler tests blocked by Next.js `Request` polyfill mismatch in existing Jest configuration; would require additional environment shims or using Next test utilities. Given manual verification completed and low complexity of handlers, deferring until Phase 3 if deeper regression protection needed.
+
+Risk Mitigation:
+
+- Core logic (aggregation, date range, top models) already isolated & tested.
+- RLS and auth rely on shared middleware previously covered elsewhere.
 
 ## Phase 3 – Advanced Analytics (Menu of Options)
 
