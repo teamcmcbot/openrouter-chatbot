@@ -281,7 +281,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Send Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[] };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -289,7 +289,16 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Send Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
 
                 // Get context messages within token budget
-                const contextMessages = get().getContextMessages(strategy.maxInputTokens);
+                const contextMessagesRaw = get().getContextMessages(strategy.maxInputTokens);
+                // Filter out failed user messages (error) and assistant messages whose linked user failed
+                const contextMessages = contextMessagesRaw.filter(m => {
+                  if (m.role === 'user' && m.error) return false;
+                  if (m.role === 'assistant' && m.user_message_id) {
+                    const linked = contextMessagesRaw.find(x => x.id === m.user_message_id);
+                    if (linked?.error) return false;
+                  }
+                  return true;
+                });
                 
                 // Build complete message array (context + new message)
                 const allMessages = [...contextMessages, userMessage];
@@ -326,13 +335,15 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   // Build request with conversation context
                   requestBody = { 
                     message: content, 
-                    messages: [...finalContextMessages, userMessage]
+                    messages: [...finalContextMessages, userMessage],
+                    current_message_id: userMessage.id
                   };
                 } else {
                   // Build request with conversation context
                   requestBody = { 
                     message: content, 
-                    messages: allMessages
+                    messages: allMessages,
+                    current_message_id: userMessage.id
                   };
                 }
                 
@@ -343,11 +354,21 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content };
+                requestBody = { message: content, current_message_id: userMessage.id };
                 if (model) {
                   requestBody.model = model;
                 }
                 console.log(`[Send Message] Sending LEGACY format (single message)`);
+              }
+
+              // Ensure chronological ordering & stability
+              if (requestBody.messages) {
+                const toMillis = (t: Date | string | undefined) => {
+                  if (!t) return 0;
+                  return t instanceof Date ? t.getTime() : new Date(t).getTime();
+                };
+                requestBody.messages = [...requestBody.messages]
+                  .sort((a, b) => toMillis(a.timestamp as Date | string | undefined) - toMillis(b.timestamp as Date | string | undefined));
               }
 
               const response = await fetch("/api/chat", {
@@ -868,7 +889,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Retry Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[] };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -876,8 +897,16 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Retry Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
 
                 // Get context messages within token budget (excluding the message being retried)
-                const contextMessages = get().getContextMessages(strategy.maxInputTokens)
+                const contextMessagesRaw = get().getContextMessages(strategy.maxInputTokens)
                   .filter(msg => msg.id !== messageId); // Exclude the message being retried
+                const contextMessages = contextMessagesRaw.filter(m => {
+                  if (m.role === 'user' && m.error) return false;
+                  if (m.role === 'assistant' && m.user_message_id) {
+                    const linked = contextMessagesRaw.find(x => x.id === m.user_message_id);
+                    if (linked?.error) return false;
+                  }
+                  return true;
+                });
                 
                 // Create a temporary message for the retry (not added to store yet)
                 const retryMessage: ChatMessage = {
@@ -922,12 +951,14 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   
                   requestBody = {
                     message: content,
-                    messages: [...finalContextMessages, retryMessage]
+                    messages: [...finalContextMessages, retryMessage],
+                    current_message_id: messageId
                   };
                 } else {
                   requestBody = {
                     message: content,
-                    messages: allMessages
+                    messages: allMessages,
+                    current_message_id: messageId
                   };
                 }
                 
@@ -938,11 +969,20 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Retry Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content };
+                requestBody = { message: content, current_message_id: messageId };
                 if (model) {
                   requestBody.model = model;
                 }
                 console.log(`[Retry Message] Sending LEGACY format (single message)`);
+              }
+
+              if (requestBody.messages) {
+                const toMillis = (t: Date | string | undefined) => {
+                  if (!t) return 0;
+                  return t instanceof Date ? t.getTime() : new Date(t).getTime();
+                };
+                requestBody.messages = [...requestBody.messages]
+                  .sort((a, b) => toMillis(a.timestamp as Date | string | undefined) - toMillis(b.timestamp as Date | string | undefined));
               }
 
               const response = await fetch("/api/chat", {

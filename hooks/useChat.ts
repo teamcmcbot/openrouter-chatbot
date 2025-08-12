@@ -45,9 +45,11 @@ export function useChat(): UseChatReturn {
         message: string;
         model?: string;
         messages?: ChatMessage[];
+        current_message_id?: string;
       } = {
         message: content,
-        messages: [userMessage] // Send the user message with its ID
+        messages: [userMessage], // Send the user message with its ID
+        current_message_id: userMessage.id
       };
       if (model) {
         requestBody.model = model;
