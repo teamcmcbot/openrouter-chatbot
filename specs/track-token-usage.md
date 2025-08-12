@@ -102,12 +102,18 @@ RLS Policies:
 
    - `after_assistant_message_cost` AFTER INSERT ON `public.chat_messages` FOR EACH ROW WHEN (NEW.role='assistant') EXECUTE FUNCTION `calculate_and_record_message_cost()`.
 
-4. Aggregated View: `public.user_costs_daily_aggregated`:
+4. Per-Model Daily View: `public.user_model_costs_daily` (replaces prior aggregated view concept)
 
-   - Columns: user_id, usage_date (DATE), total_cost, total_tokens, prompt_tokens, completion_tokens, model_breakdown (JSONB), messages COUNT.
-   - Backed by `message_token_costs` (not `user_usage_daily` to ensure accuracy).
+   - Columns: user_id, usage_date (DATE), model_id, prompt_tokens, completion_tokens, total_tokens, total_cost, assistant_messages.
+   - Purpose: fine-grained per-model breakdown leveraging base table RLS (users only see their own rows; admins see all via base policy).
 
-5. Backfill (optional, pending): If approved, function iterates historical assistant messages without corresponding cost rows; uses current pricing but flags snapshot with `{"backfilled": true}` OR alternatively sets a sentinel field `pricing_source.backfill_pricing_basis = 'current'`.
+5. Admin Global Aggregation Function: `public.get_global_model_costs(p_start_date DATE, p_end_date DATE, p_granularity TEXT)`
+
+   - Returns: usage_period (DATE), model_id, prompt_tokens, completion_tokens, total_tokens, total_cost, assistant_messages, distinct_users.
+   - Granularity: day | week | month (default day) via date_trunc.
+   - SECURITY DEFINER with admin check `public.is_admin(auth.uid())`.
+
+6. Backfill (skipped): No historical population; view and function operate only on forward-collected data.
 
 ### Edge Cases & Error Handling
 
@@ -126,16 +132,16 @@ RLS Policies:
 
 ### Phase 1 Task Checklist
 
-- [x] Clarifications incorporated (except backfill decision)
-- [ ] Create patch directory `database/patches/token-cost-tracking/`
-- [ ] Define table `message_token_costs`
-- [ ] Add RLS policies
-- [ ] Implement `calculate_and_record_message_cost()`
-- [ ] Implement INSERT trigger
-- [ ] Create aggregated view `user_costs_daily_aggregated`
-- [ ] (Skipped) Backfill function (intentionally omitted)
-- [ ] Write doc `/docs/database/token-cost-tracking.md`
-- [ ] Provide manual SQL test script in spec/docs
+- [x] Clarifications incorporated (backfill skipped)
+- [x] Patch directory `database/patches/token-cost-tracking/`
+- [x] Table `message_token_costs`
+- [x] RLS policies
+- [x] Function `calculate_and_record_message_cost()`
+- [x] INSERT trigger
+- [x] Per-model daily view `user_model_costs_daily`
+- [x] Admin aggregation function `get_global_model_costs`
+- [ ] Documentation updates (this spec + dedicated database doc) ✅ (pending verification)
+- [ ] Manual SQL test script appended / verified
 - [ ] User verification checkpoint
 
 ### Phase 1 Verification Checklist
@@ -143,8 +149,9 @@ RLS Policies:
 - [ ] Costs correctly computed for new assistant messages (per-million scaling)
 - [ ] No duplicate cost rows (unique assistant_message_id)
 - [ ] `user_usage_daily.estimated_cost` increment matches sum of inserted cost row(s)
-- [ ] Aggregated view returns expected daily totals
-- [ ] RLS prevents cross-user access (tested via impersonation / manual queries)
+- [ ] Per-model daily view returns expected breakdown for a test user
+- [ ] Admin function returns multi-user aggregated data (admin session) while blocking non-admin
+- [ ] RLS prevents cross-user access via direct selects on base table
 
 ## Phase 2 – API & UI Layer
 
