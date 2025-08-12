@@ -67,7 +67,7 @@ export default function UsageCostsPage() {
   const fmt = (n: number | string) => typeof n === 'number' ? n.toLocaleString(undefined, { maximumFractionDigits: 6 }) : n;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+  <div className="p-6 max-w-[1440px] mx-auto space-y-8">
       <h1 className="text-2xl font-semibold">Usage Costs</h1>
       <div className="flex flex-wrap gap-4 items-end">
         <div className="flex gap-2">
@@ -104,7 +104,7 @@ export default function UsageCostsPage() {
           <div className="text-xs text-gray-500 mb-1">Total Tokens</div>
           <div className="text-lg font-semibold">
             {fmt(data?.summary.total_tokens || 0)}{' '}
-            {data && <span className="text-[11px] font-normal text-gray-500">({fmt(data.summary.prompt_tokens)}/{fmt(data.summary.completion_tokens)})</span>}
+            {data && <span className="text-[11px] font-normal text-gray-500">({fmt(data.summary.prompt_tokens)} input / {fmt(data.summary.completion_tokens)} output)</span>}
           </div>
         </div>
         <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -113,20 +113,20 @@ export default function UsageCostsPage() {
         </div>
         <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
           <div className="text-xs text-gray-500 mb-1">Top Model (Tokens)</div>
-          <div className="text-sm font-medium truncate">{data?.summary.top_models.by_tokens[0]?.model_id || '—'}</div>
+          <div className="text-lg font-semibold truncate">{data?.summary.top_models.by_tokens[0]?.model_id || '—'}</div>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <div>
-          <h2 className="text-sm font-semibold mb-2">Top Models by Tokens</h2>
-          <table className="w-full text-xs border-separate border-spacing-y-1">
-            <thead className="text-gray-500">
+      <div className="grid md:grid-cols-2 gap-8 items-start">
+        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
+          <h2 className="text-sm font-semibold mb-3">Top Models by Tokens</h2>
+          <table className="w-full text-xs border-separate border-spacing-y-1 mt-1">
+            <thead className="text-gray-600 dark:text-gray-500">
               <tr><th className="text-left">Model</th><th className="text-right">Tokens</th><th className="text-right">Cost</th><th className="text-right">%Tokens</th><th className="text-right">%Cost</th></tr>
             </thead>
             <tbody>
               {data?.summary.top_models.by_tokens.map(r => (
-                <tr key={r.model_id} className="bg-white dark:bg-gray-900">
+                <tr key={r.model_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800">
                   <td className="py-1 pr-2 font-medium">{r.model_id}</td>
                   <td className="py-1 text-right">{fmt(r.total_tokens)}</td>
                   <td className="py-1 text-right">${fmt(r.total_cost)}</td>
@@ -137,15 +137,15 @@ export default function UsageCostsPage() {
             </tbody>
           </table>
         </div>
-        <div>
-          <h2 className="text-sm font-semibold mb-2">Top Models by Cost</h2>
-          <table className="w-full text-xs border-separate border-spacing-y-1">
-            <thead className="text-gray-500">
+        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm md:border-l md:border-gray-200 dark:md:border-gray-700 md:pl-6">
+          <h2 className="text-sm font-semibold mb-3">Top Models by Cost</h2>
+          <table className="w-full text-xs border-separate border-spacing-y-1 mt-1">
+            <thead className="text-gray-600 dark:text-gray-500">
               <tr><th className="text-left">Model</th><th className="text-right">Tokens</th><th className="text-right">Cost</th><th className="text-right">%Tokens</th><th className="text-right">%Cost</th></tr>
             </thead>
             <tbody>
               {data?.summary.top_models.by_cost.map(r => (
-                <tr key={r.model_id} className="bg-white dark:bg-gray-900">
+                <tr key={r.model_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800">
                   <td className="py-1 pr-2 font-medium">{r.model_id}</td>
                   <td className="py-1 text-right">{fmt(r.total_tokens)}</td>
                   <td className="py-1 text-right">${fmt(r.total_cost)}</td>
@@ -160,32 +160,32 @@ export default function UsageCostsPage() {
 
       <div className="overflow-x-auto">
         <h2 className="text-sm font-semibold mb-2">Per-Message Costs</h2>
-    <table className="w-full text-xs min-w-[820px]">
-          <thead className="text-gray-500">
+  <table className="w-full text-xs min-w-[820px] border-separate border-spacing-y-2">
+      <thead className="text-gray-600 dark:text-gray-500">
             <tr>
               <th className="text-left">Timestamp</th>
               <th className="text-left">Model</th>
-              <th className="text-right">Input Tokens</th>
-              <th className="text-right">Output Tokens</th>
-              <th className="text-right">Total Tokens</th>
-              <th className="text-right">Input Cost</th>
-              <th className="text-right">Output Cost</th>
-              <th className="text-right">Total Cost</th>
+              <th className="text-right font-mono">Input Tokens</th>
+              <th className="text-right font-mono">Output Tokens</th>
+              <th className="text-right font-mono">Total Tokens</th>
+              <th className="text-right font-mono">Input Cost</th>
+              <th className="text-right font-mono">Output Cost</th>
+              <th className="text-right font-mono">Total Cost</th>
             </tr>
           </thead>
           <tbody>
       {loading && <tr><td colSpan={8} className="py-4 text-center text-gray-500">Loading...</td></tr>}
       {!loading && data?.items.length === 0 && <tr><td colSpan={8} className="py-4 text-center text-gray-500">No data</td></tr>}
             {!loading && data?.items.map(item => (
-              <tr key={item.assistant_message_id} className="odd:bg-white even:bg-gray-50 dark:odd:bg-gray-900 dark:even:bg-gray-800">
-                <td className="py-1 pr-2 whitespace-nowrap">{new Date(item.message_timestamp).toLocaleString()}</td>
-                <td className="py-1 pr-2">{item.model_id || '—'}</td>
-                <td className="py-1 text-right">{item.prompt_tokens}</td>
-                <td className="py-1 text-right">{item.completion_tokens}</td>
-                <td className="py-1 text-right">{item.total_tokens}</td>
-                <td className="py-1 text-right">${item.prompt_cost}</td>
-                <td className="py-1 text-right">${item.completion_cost}</td>
-                <td className="py-1 text-right font-medium">${item.total_cost}</td>
+              <tr key={item.assistant_message_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors shadow-sm">
+                <td className="py-2 pr-3 whitespace-nowrap text-[11px]">{new Date(item.message_timestamp).toLocaleString()}</td>
+                <td className="py-2 pr-3 text-xs font-medium">{item.model_id || '—'}</td>
+                <td className="py-2 text-right font-mono tabular-nums">{item.prompt_tokens}</td>
+                <td className="py-2 text-right font-mono tabular-nums">{item.completion_tokens}</td>
+                <td className="py-2 text-right font-mono tabular-nums">{item.total_tokens}</td>
+                <td className="py-2 text-right font-mono tabular-nums">${item.prompt_cost}</td>
+                <td className="py-2 text-right font-mono tabular-nums">${item.completion_cost}</td>
+                <td className="py-2 text-right font-mono tabular-nums font-semibold">${item.total_cost}</td>
               </tr>
             ))}
           </tbody>
