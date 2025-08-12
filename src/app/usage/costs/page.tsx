@@ -77,10 +77,11 @@ export default function UsageCostsPage() {
         </div>
         <div>
           <label className="block text-xs mb-1">Model</label>
-            <input list="model-list" value={modelFilter} onChange={e => { setModelFilter(e.target.value); setPage(1); }} placeholder="All models" className="px-2 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm" />
-            <datalist id="model-list">
-              {modelOptions.map(m => <option key={m} value={m} />)}
-            </datalist>
+          <select value={modelFilter} onChange={e => { setModelFilter(e.target.value); setPage(1); }}
+                  className="px-2 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm min-w-[220px]">
+            <option value="">All models</option>
+            {modelOptions.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
         </div>
         <div>
           <label className="block text-xs mb-1">Page Size</label>
