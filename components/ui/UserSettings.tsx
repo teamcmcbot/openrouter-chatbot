@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 // Added icons for section headers and controls
 import { ArrowPathIcon, UserCircleIcon, AdjustmentsHorizontalIcon, ChartBarIcon, XMarkIcon, ShieldCheckIcon, Cog6ToothIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { useRouter } from 'next/navigation';
 import Tooltip from "./Tooltip";
 import Button from "./Button";
 import { useAuth } from "../../stores/useAuthStore";
@@ -22,6 +23,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   // - System Prompt preview shows a truncated value by default with a "Read more" toggle
   //   (showFullSystemPrompt) to expand/collapse long content without entering edit mode.
   const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const { data: userData, loading, refreshing, error, updatePreferences, forceRefresh } = useUserData({ enabled: isOpen });
   
   // State for editing preferences
@@ -803,6 +805,11 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
             <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
               <p>Sessions today: {analytics.sessionsToday}</p>
               <p>Active time today: {analytics.activeMinutesToday} minutes</p>
+              <button
+                type="button"
+                onClick={() => { onClose(); router.push('/usage/costs'); }}
+                className="mt-2 inline-flex items-center px-3 py-1.5 rounded-md border border-emerald-600 text-emerald-700 dark:text-emerald-400 text-xs font-medium hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+              >View Usage</button>
             </div>
           </section>
         </div>
