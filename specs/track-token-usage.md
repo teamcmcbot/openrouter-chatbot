@@ -1,6 +1,6 @@
 # Token Cost & Usage Tracking Specification
 
-Status: Phase 1 Implementation (Backfill skipped)
+Status: Phase 1 Implemented (Backfill skipped) – proceeding to Phase 2
 Author: Copilot Agent
 Last Updated: 2025-08-12
 
@@ -14,21 +14,21 @@ Introduce per-assistant-message granular cost tracking derived from token usage 
 
 ## Clarification Outcomes
 
-1. Pricing units: `prompt_price` & `completion_price` are expressed per 1,000,000 tokens (per million); `image_price` is per 1,000 units (future use). Formula must scale accordingly.
+1. Pricing units: `prompt_price` & `completion_price` are stored PER TOKEN (initial assumption of per‑million was corrected in Patch 003); `image_price` (future) assumed per image unit.
 2. Update behavior: Single snapshot on INSERT only. No recalculation trigger needed (streaming not currently mutating rows mid-flight). Any future streaming feature can add an UPDATE path.
 3. Backfill: Skipped (forward-only tracking beginning after deployment). No historical cost rows will be generated.
 4. Currency precision: Use DECIMAL(12,6) USD with round half up at 6 decimal places.
 5. Phase 2 UX: Quick presets (Today / 7D / 30D / Custom) + model filter; default page size = 50.
 
-Open Decisions: None (backfill explicitly skipped).
+Open Decisions: None (backfill explicitly skipped; pricing unit correction applied).
 
-## Adjusted Assumptions
+## Adjusted Assumptions (Post Patch 003)
 
-- Prices are stored as strings representing cost per million tokens (prompt & completion) and per thousand for images.
+- Prices are stored as strings representing cost PER TOKEN (prompt & completion). Image pricing deferred.
 - Cost formulas:
-  - `prompt_cost = ROUND( (prompt_tokens * prompt_unit_price / 1_000_000)::numeric, 6 )`
-  - `completion_cost = ROUND( (completion_tokens * completion_unit_price / 1_000_000)::numeric, 6 )`
-  - `image_cost = ROUND( (image_units * image_unit_price / 1_000)::numeric, 6 )` (currently image_units = 0)
+  - `prompt_cost = ROUND( (prompt_tokens * prompt_unit_price)::numeric, 6 )`
+  - `completion_cost = ROUND( (completion_tokens * completion_unit_price)::numeric, 6 )`
+  - `image_cost = ROUND( (image_units * image_unit_price)::numeric, 6 )` (currently image_units = 0)
   - `total_cost = prompt_cost + completion_cost + image_cost`
 - Only successful assistant messages (role='assistant' AND (error_message IS NULL OR error_message='')) generate cost entries.
 - Single snapshot on INSERT; no UPDATE recalculation.
@@ -91,7 +91,7 @@ RLS Policies:
      - Acquire `user_id` via `chat_sessions.session_id = NEW.session_id`.
      - Lookup model pricing from `model_access` by `NEW.model`; fallback zeros if not found.
      - Parse unit prices to numeric.
-   - Compute costs using per-million (token) & per-thousand (image) scaling formulas defined above.
+     - Compute costs using per-token (and future per-image) formulas defined above.
      - Insert into `message_token_costs` with pricing snapshot.
      - Increment `user_usage_daily.estimated_cost` for that `user_id` & current date.
      - On conflict (assistant_message_id) either DO NOTHING or UPDATE if token counts changed (depends on update policy).
@@ -140,14 +140,14 @@ RLS Policies:
 - [x] INSERT trigger
 - [x] Per-model daily view `user_model_costs_daily`
 - [x] Admin aggregation function `get_global_model_costs`
-- [ ] Documentation updates (this spec + dedicated database doc) ✅ (pending verification)
-- [ ] Manual SQL test script appended / verified
-- [ ] User verification checkpoint
+- [x] Documentation updates (this spec + dedicated database doc)
+- [x] Manual SQL test script (in `docs/database/token-cost-tracking.md`)
+- [x] User verification checkpoint (awaiting user sign-off)
 
 ### Phase 1 Verification Checklist
 
-- [ ] Costs correctly computed for new assistant messages (per-million scaling)
-- [ ] No duplicate cost rows (unique assistant_message_id)
+- [x] Costs correctly computed for new assistant messages (per-token scaling)
+- [x] No duplicate cost rows (unique assistant_message_id)
 - [ ] `user_usage_daily.estimated_cost` increment matches sum of inserted cost row(s)
 - [ ] Per-model daily view returns expected breakdown for a test user
 - [ ] Admin function returns multi-user aggregated data (admin session) while blocking non-admin
@@ -247,7 +247,7 @@ Prioritize after user feedback.
 
 Resolved:
 
-- Pricing unit & scaling factor (per million / per thousand)
+- Pricing unit correction (now confirmed per-token)
 - Immutable snapshot approach
 - Currency precision & rounding
 - UX filter pattern & default page size

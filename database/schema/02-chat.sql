@@ -517,9 +517,9 @@ CREATE TRIGGER on_session_created
 -- Table storing per-assistant-message cost snapshot
 CREATE TABLE public.message_token_costs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    session_id TEXT NOT NULL REFERENCES public.chat_sessions(id) ON DELETE CASCADE,
-    assistant_message_id TEXT NOT NULL UNIQUE REFERENCES public.chat_messages(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.profiles(id), -- no cascade: preserve costs if user content deleted
+    session_id TEXT NOT NULL, -- denormalized reference (FK dropped intentionally to preserve costs)
+    assistant_message_id TEXT NOT NULL UNIQUE, -- denormalized reference (FK dropped)
     user_message_id TEXT NULL,
     completion_id VARCHAR(255),
     model_id VARCHAR(100),
