@@ -98,7 +98,7 @@ CREATE TABLE public.user_usage_daily (
     active_minutes INTEGER DEFAULT 0,
 
     -- Cost tracking (for paid models)
-    estimated_cost DECIMAL(10,4) DEFAULT 0.0000,
+    estimated_cost DECIMAL(12,6) DEFAULT 0.000000,
 
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,

@@ -148,10 +148,10 @@ RLS Policies:
 
 - [x] Costs correctly computed for new assistant messages (per-token scaling)
 - [x] No duplicate cost rows (unique assistant_message_id)
-- [ ] `user_usage_daily.estimated_cost` increment matches sum of inserted cost row(s)
-- [ ] Per-model daily view returns expected breakdown for a test user
-- [ ] Admin function returns multi-user aggregated data (admin session) while blocking non-admin
-- [ ] RLS prevents cross-user access via direct selects on base table
+- [x] `user_usage_daily.estimated_cost` increment matches sum of inserted cost row(s)
+- [x] Per-model daily view returns expected breakdown for a test user
+- [x] Admin function returns multi-user aggregated data (admin session) while blocking non-admin
+- [x] RLS prevents cross-user access via direct selects on base table
 
 ## Phase 2 – API & UI Layer
 
