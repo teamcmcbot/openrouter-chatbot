@@ -58,7 +58,7 @@ CREATE TABLE public.chat_messages (
 
     -- Response metadata (for assistant messages)
     content_type VARCHAR(20) DEFAULT 'text' CHECK (content_type IN ('text', 'markdown')),
-    elapsed_time INTEGER DEFAULT 0,
+    elapsed_ms INTEGER DEFAULT 0, -- assistant latency ms
     completion_id VARCHAR(255),
 
     -- Timing information
@@ -248,7 +248,7 @@ BEGIN
                 CASE WHEN NEW.role = 'assistant' THEN COALESCE(NEW.output_tokens, 0) ELSE 0 END, -- output_tokens
                 NEW.model, -- model_used
                 false, -- session_created
-                CASE WHEN NEW.role = 'assistant' THEN COALESCE(NEW.elapsed_time, 0) ELSE 0 END -- active_minutes
+                CASE WHEN NEW.role = 'assistant' THEN COALESCE(NEW.elapsed_ms, 0) ELSE 0 END -- generation_ms (ms)
             );
         END IF;
     END IF;
@@ -480,10 +480,10 @@ BEGIN
         0,                     -- p_messages_sent (0 for new session)
         0,                     -- p_messages_received (0 for new session)
         0,                     -- p_input_tokens (0 for new session)
-        0,                     -- p_output_tokens (0 for new session)
-        NULL,                  -- p_model_used (NULL for new session)
-        true,                  -- p_session_created (TRUE - this is the key parameter)
-        0                      -- p_active_minutes (0 for new session)
+    0,                     -- p_output_tokens (0 for new session)
+    NULL,                  -- p_model_used (NULL for new session)
+    true,                  -- p_session_created (TRUE - this is the key parameter)
+    0                      -- p_generation_ms (0 for new session)
     );
 
     RETURN NEW;
