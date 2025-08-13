@@ -1,5 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+// Lazy load chart (default export) to avoid SSR issues; component imports recharts client-side
+const StackedBarChart = dynamic(() => import('../../../../components/analytics/StackedBarChart'), { ssr: false });
 
 interface CostItem {
   assistant_message_id: string;
@@ -23,6 +26,14 @@ interface CostsResponse {
   range: { start: string; end: string; key: string };
 }
 
+interface DailyChartsResponse {
+  range: { start: string; end: string };
+  charts: {
+    tokens: { models: string[]; days: { date: string; segments: Record<string, number>; others: number; total: number }[] };
+    cost: { models: string[]; days: { date: string; segments: Record<string, number>; others: number; total: number }[] };
+  };
+}
+
 const presets = [
   { key: 'today', label: 'Today' },
   { key: '7d', label: 'Last 7 Days' },
@@ -37,6 +48,8 @@ export default function UsageCostsPage() {
   const [data, setData] = useState<CostsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [charts, setCharts] = useState<DailyChartsResponse | null>(null);
+  useEffect(()=> { if (charts) console.log('UsageCosts charts data', charts); }, [charts]);
   // Persist model options across filtered fetches so the list isn't narrowed permanently.
   const [modelOptions, setModelOptions] = useState<string[]>([]);
 
@@ -60,6 +73,14 @@ export default function UsageCostsPage() {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+
+    // Fetch chart daily aggregates (top 8 models). Separate network so tables stay responsive.
+    const chartParams = new URLSearchParams({ range: rangeKey, top_models: '8' });
+    if (modelFilter) chartParams.set('model_id', modelFilter);
+    fetch(`/api/usage/costs/models/daily?${chartParams.toString()}`)
+      .then(r => r.json().then(j => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => { if (ok) setCharts(j); })
+      .catch(() => {/* silent for charts */});
   }, [rangeKey, page, pageSize, modelFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -137,6 +158,14 @@ export default function UsageCostsPage() {
               )) || <tr><td colSpan={5}>No data</td></tr>}
             </tbody>
           </table>
+          <div className="mt-4">
+            <StackedBarChart
+              data={charts?.charts.tokens || null}
+              metric="tokens"
+              hideSingleDay={rangeKey === 'today'}
+              height={260}
+            />
+          </div>
         </div>
         <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm md:border-l md:border-gray-200 dark:md:border-gray-700 md:pl-6">
           <h2 className="text-sm font-semibold mb-3">Top Models by Cost</h2>
@@ -156,6 +185,14 @@ export default function UsageCostsPage() {
               )) || <tr><td colSpan={5}>No data</td></tr>}
             </tbody>
           </table>
+          <div className="mt-4">
+            <StackedBarChart
+              data={charts?.charts.cost || null}
+              metric="cost"
+              hideSingleDay={rangeKey === 'today'}
+              height={260}
+            />
+          </div>
         </div>
       </div>
 

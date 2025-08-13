@@ -1,7 +1,7 @@
 # Usage Costs Page & API
 
-Last Updated: 2025-08-12
-Status: Phase 2 (initial API + UI implemented; tests & final verification pending)
+Last Updated: 2025-08-13
+Status: Phase 3 (charts implemented; tests pending)
 
 ## Purpose
 
@@ -116,12 +116,37 @@ Unit tests to add:
 4. API handler auth rejection (no user in context).
 5. Daily endpoint aggregation producing expected day buckets.
 
+## Charts (Phase 3)
+
+Added stacked bar charts (tokens & cost) under each Top Models table.
+
+Data Source:
+
+- New endpoint `GET /api/usage/costs/models/daily` (see dedicated API doc) which aggregates per-day per-model usage for date range.
+- Endpoint selects top N (default 8) models separately for tokens and cost and groups remainder into an `Others` segment per day.
+
+Rendering Details:
+
+- Library: `recharts` (lazy-loaded; component file `components/analytics/StackedBarChart.tsx`).
+- Each bar = one UTC day; colored segments = model contribution; optional `Others` appears only if > N models.
+- Tooltip shows date + each model value (abbreviated: 7.87M, 11K, etc.) + total.
+- Chart suppressed (shows helper text) when range is a single day (`today`) to avoid single-bar UX awkwardness.
+
+Performance:
+
+- View-based aggregation (`user_model_costs_daily`) keeps rows small (days \* distinct models). For fallback (if view missing) code aggregates in memory from `message_token_costs`.
+- Separate fetch from main costs endpoint so tables render without waiting for chart data; silent failure fallback.
+
+Accessibility:
+
+- Bars annotated with aria-label on container. Future improvement: custom legend with keyboard focus states.
+
 ## Known Gaps / Future Enhancements
 
 - No SWR caching (acceptable now).
-- No charts (Phase 3 scope).
 - No sorting beyond timestamp desc for items (may add by cost/model).
-- Potential index tuning once data volume grows (currently relies on planned idx_message_token_costs_user_time).
+- Potential index tuning once data volume grows (currently relies on idx_message_token_costs_user_time + view grouping).
+- No export (CSV) for charts yet.
 
 ## Manual Verification Steps
 

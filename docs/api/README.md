@@ -61,6 +61,7 @@ These endpoints require user authentication and implement full rate limiting:
 - [`/api/user/data`](./user-data-endpoint.md) - User data and preferences
 - [`/api/usage/costs`](./usage-costs.md) - Token usage and cost records
 - [`/api/usage/costs/daily`](./usage-costs-daily.md) - Daily aggregated usage costs
+- [`/api/usage/costs/models/daily`](./usage-costs-models-daily.md) - Per-day top model stacks for charts
 
 ### 🔄 Enhanced Endpoints (Optional Authentication)
 
