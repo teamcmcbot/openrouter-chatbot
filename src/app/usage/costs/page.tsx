@@ -15,6 +15,7 @@ interface CostItem {
   prompt_cost: string;
   completion_cost: string;
   total_cost: string;
+  elapsed_ms?: number; // newly included from API (may be 0 for legacy rows)
 }
 
 interface TopModelRow { model_id: string; total_tokens: number; total_cost: number; share_tokens: number; share_cost: number; }
@@ -195,9 +196,9 @@ export default function UsageCostsPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 shadow-sm">
         <h2 className="text-sm font-semibold mb-2">Per-Message Costs</h2>
-  <table className="w-full text-xs min-w-[820px] border-separate border-spacing-y-2">
+  <table className="w-full text-xs min-w-[920px] border-separate border-spacing-y-2">{/* widened for new column */}
       <thead className="text-gray-600 dark:text-gray-500">
             <tr>
               <th className="text-left">Timestamp</th>
@@ -208,12 +209,15 @@ export default function UsageCostsPage() {
               <th className="text-right font-mono">Input Cost</th>
               <th className="text-right font-mono">Output Cost</th>
               <th className="text-right font-mono">Total Cost</th>
+              <th className="text-right font-mono" title="Completion tokens per second (output_tokens / (elapsed_ms/1000)). 0 or blank if elapsed not captured.">Speed</th>
             </tr>
           </thead>
           <tbody>
-      {loading && <tr><td colSpan={8} className="py-4 text-center text-gray-500">Loading...</td></tr>}
-      {!loading && data?.items.length === 0 && <tr><td colSpan={8} className="py-4 text-center text-gray-500">No data</td></tr>}
-            {!loading && data?.items.map(item => (
+      {loading && <tr><td colSpan={9} className="py-4 text-center text-gray-500">Loading...</td></tr>}
+      {!loading && data?.items.length === 0 && <tr><td colSpan={9} className="py-4 text-center text-gray-500">No data</td></tr>}
+            {!loading && data?.items.map(item => {
+              const speed = item.elapsed_ms && item.elapsed_ms > 0 ? (item.completion_tokens / (item.elapsed_ms / 1000)) : 0;
+              return (
               <tr key={item.assistant_message_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors shadow-sm">
                 <td className="py-2 pr-3 whitespace-nowrap text-[11px]">{new Date(item.message_timestamp).toLocaleString()}</td>
                 <td className="py-2 pr-3 text-xs font-medium">{item.model_id || '—'}</td>
@@ -223,8 +227,9 @@ export default function UsageCostsPage() {
                 <td className="py-2 text-right font-mono tabular-nums">${item.prompt_cost}</td>
                 <td className="py-2 text-right font-mono tabular-nums">${item.completion_cost}</td>
                 <td className="py-2 text-right font-mono tabular-nums font-semibold">${item.total_cost}</td>
+                <td className="py-2 text-right font-mono tabular-nums" title={item.elapsed_ms ? `${item.elapsed_ms} ms` : 'No latency captured'}>{speed ? speed.toFixed(1) + ' tps' : '—'}</td>
               </tr>
-            ))}
+            );})}
           </tbody>
         </table>
       </div>
