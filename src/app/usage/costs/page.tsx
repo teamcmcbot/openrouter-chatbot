@@ -49,7 +49,6 @@ export default function UsageCostsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [charts, setCharts] = useState<DailyChartsResponse | null>(null);
-  useEffect(()=> { if (charts) console.log('UsageCosts charts data', charts); }, [charts]);
   // Persist model options across filtered fetches so the list isn't narrowed permanently.
   const [modelOptions, setModelOptions] = useState<string[]>([]);
 
