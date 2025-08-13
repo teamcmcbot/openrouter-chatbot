@@ -65,7 +65,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           <ErrorBoundary>
-            <div className="flex flex-col min-h-screen">
+            <div className="flex flex-col h-mobile-screen">
               <nav className="sticky top-0 z-50 border-b border-gray-200 bg-gray-50 backdrop-blur-md dark:border-gray-800 dark:bg-gray-900/80 flex-shrink-0">
                 <div className="w-full px-4 sm:px-6 lg:px-8">
                   <div className="flex h-16 items-center justify-between">
@@ -83,7 +83,7 @@ export default function RootLayout({
                   </div>
                 </div>
               </nav>
-              <main className="flex-1 bg-gray-50 dark:bg-gray-900 pb-14 sm:pb-16">{children}</main>
+              <main className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900">{children}</main>
                 <footer className="hidden sm:block border-t border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 flex-shrink-0">
                 <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
                   <div className="text-center text-sm text-gray-600 dark:text-gray-400">
