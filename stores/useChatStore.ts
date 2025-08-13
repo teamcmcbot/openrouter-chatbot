@@ -402,7 +402,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 content: data.response,
                 role: "assistant",
                 timestamp: new Date(),
-                elapsed_time: data.elapsed_time ?? 0,
+                elapsed_ms: data.elapsed_ms ?? 0,
                 total_tokens: data.usage?.total_tokens ?? 0,
                 input_tokens: data.usage?.prompt_tokens ?? 0,
                 output_tokens: data.usage?.completion_tokens ?? 0,
@@ -1036,7 +1036,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 role: "assistant",
                 // Use server-provided timestamp if available for consistency
                 timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
-                elapsed_time: data.elapsed_time ?? 0,
+                elapsed_ms: data.elapsed_ms ?? 0,
                 total_tokens: data.usage?.total_tokens ?? 0,
                 input_tokens: data.usage?.prompt_tokens ?? 0,
                 output_tokens: data.usage?.completion_tokens ?? 0,
@@ -1217,7 +1217,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               if (sampleMessage) {
                 logger.debug("Sample assistant message metadata", {
                   hasContentType: !!sampleMessage.contentType,
-                  hasElapsedTime: !!sampleMessage.elapsed_time,
+                  hasElapsedTime: !!sampleMessage.elapsed_ms,
                   hasCompletionId: !!sampleMessage.completion_id,
                   hasTotalTokens: !!sampleMessage.total_tokens
                 });
@@ -1288,7 +1288,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               if (sampleMessage) {
                 logger.debug("Sample loaded assistant message metadata", {
                   hasContentType: !!sampleMessage.contentType,
-                  hasElapsedTime: !!sampleMessage.elapsed_time,
+                  hasElapsedTime: !!sampleMessage.elapsed_ms,
                   hasCompletionId: !!sampleMessage.completion_id,
                   hasTotalTokens: !!sampleMessage.total_tokens
                 });

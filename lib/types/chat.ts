@@ -5,7 +5,8 @@ export interface ChatMessage {
   content: string;
   role: "user" | "assistant";
   timestamp: Date;
-  elapsed_time?: number;
+  /** Assistant generation latency in milliseconds */
+  elapsed_ms?: number;
   total_tokens?: number;
   input_tokens?: number;    // NEW: For user messages (prompt tokens)
   output_tokens?: number;   // NEW: For assistant messages (completion tokens)
@@ -37,7 +38,8 @@ export interface ChatResponse {
   };
   request_id?: string; // NEW: Links response to user message that triggered it
   timestamp: string;
-  elapsed_time: number;
+  /** Assistant generation latency in milliseconds */
+  elapsed_ms: number;
   contentType?: "text" | "markdown"; // New field
   id: string; // OpenRouter response id for metadata lookup
 }

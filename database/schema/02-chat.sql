@@ -527,6 +527,7 @@ CREATE TABLE public.message_token_costs (
     prompt_tokens INTEGER NOT NULL DEFAULT 0,
     completion_tokens INTEGER NOT NULL DEFAULT 0,
     total_tokens INTEGER GENERATED ALWAYS AS (prompt_tokens + completion_tokens) STORED,
+    elapsed_ms INTEGER DEFAULT 0, -- assistant generation latency (ms) copied from chat_messages
     prompt_unit_price DECIMAL(12,8), -- per token
     completion_unit_price DECIMAL(12,8), -- per token
     image_units INTEGER NOT NULL DEFAULT 0,
@@ -599,12 +600,12 @@ BEGIN
 
     INSERT INTO public.message_token_costs (
         user_id, session_id, assistant_message_id, user_message_id, completion_id,
-        model_id, message_timestamp, prompt_tokens, completion_tokens,
+        model_id, message_timestamp, prompt_tokens, completion_tokens, elapsed_ms,
         prompt_unit_price, completion_unit_price, image_units, image_unit_price,
         prompt_cost, completion_cost, image_cost, total_cost, pricing_source
     ) VALUES (
         v_user_id, NEW.session_id, NEW.id, NEW.user_message_id, NEW.completion_id,
-        NEW.model, NEW.message_timestamp, COALESCE(NEW.input_tokens,0), COALESCE(NEW.output_tokens,0),
+        NEW.model, NEW.message_timestamp, COALESCE(NEW.input_tokens,0), COALESCE(NEW.output_tokens,0), COALESCE(NEW.elapsed_ms,0),
         v_prompt_price, v_completion_price, 0, v_image_price,
         v_prompt_cost, v_completion_cost, v_image_cost, v_total_cost,
         jsonb_build_object(

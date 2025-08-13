@@ -193,7 +193,19 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
     messagesAllTime: userData?.allTime.total_messages || 0,
     tokensAllTime: userData?.allTime.total_tokens || 0,
     sessionsToday: userData?.today.sessions_created || 0,
-    activeMinutesToday: userData?.today.active_minutes || 0,
+    generationMsToday: userData?.today.generation_ms || 0,
+  };
+
+  // Average assistant response latency (generation_ms per assistant message received)
+  const messagesReceivedToday = userData?.today.messages_received || 0;
+  const avgResponseMs = messagesReceivedToday > 0
+    ? Math.round(analytics.generationMsToday / messagesReceivedToday)
+    : 0;
+  const formatAvgLatency = (ms: number) => {
+    if (!ms || ms <= 0) return '0 ms';
+    if (ms < 1000) return `${ms} ms`;
+    const s = ms / 1000;
+    return `${s.toFixed(1)}s`;
   };
 
   // Analytics helpers and derived values for tooltips
@@ -226,7 +238,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
     output_tokens?: number;
     models_used?: Record<string, number>;
     sessions_created?: number;
-    active_minutes?: number;
+  generation_ms?: number;
   };
   const allTimeRaw = (userData?.allTime ?? {}) as {
     total_messages?: number;
@@ -755,7 +767,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Share (in/out)</span><span className="font-medium">{pct(todayIn, todayTotal)} / {pct(todayOut, todayTotal)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Avg tokens/msg</span><span className="font-medium">{nf.format(todayAvgTpm)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Sessions</span><span className="font-medium">{nf.format(analytics.sessionsToday)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Active time</span><span className="font-medium">{nf.format(analytics.activeMinutesToday)} min</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Avg response</span><span className="font-medium">{formatAvgLatency(avgResponseMs)}</span></div>
                     {todayModels.length > 0 && (
                       <div>
                         <div className="text-gray-600 dark:text-gray-400">Models used</div>
@@ -804,7 +816,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
             <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
               <p>Sessions today: {analytics.sessionsToday}</p>
-              <p>Active time today: {analytics.activeMinutesToday} minutes</p>
+              <p>Average response time today: {formatAvgLatency(avgResponseMs)}</p>
               <button
                 type="button"
                 onClick={() => { onClose(); router.push('/usage/costs'); }}

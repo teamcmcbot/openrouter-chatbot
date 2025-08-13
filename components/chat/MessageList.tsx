@@ -205,8 +205,8 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                     {/* Group 1: Time + Elapsed Time */}
                     <div className={`flex items-center text-xs ${message.role === "user" ? "text-white/80" : "text-gray-600 dark:text-gray-300"}`}> 
                       <span>{formatMessageTime(message.timestamp)}</span>
-                      {message.role === "assistant" && message.elapsed_time && (
-                        <span className="ml-1">(Took {message.elapsed_time} seconds)</span>
+                      {message.role === "assistant" && typeof message.elapsed_ms === 'number' && message.elapsed_ms > 0 && (
+                        <span className="ml-1">(Took {(message.elapsed_ms/1000).toFixed(1)}s)</span>
                       )}
                       {message.role === "user" && typeof message.input_tokens === 'number' && message.input_tokens > 0 && (
                         <span className="ml-1">

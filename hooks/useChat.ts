@@ -96,7 +96,7 @@ export function useChat(): UseChatReturn {
         content: data.response,
         role: "assistant",
         timestamp: new Date(),
-        elapsed_time: data.elapsed_time ?? 0,
+        elapsed_ms: data.elapsed_ms ?? 0,
         total_tokens: data.usage?.total_tokens ?? 0,
         input_tokens: data.usage?.prompt_tokens ?? 0, // NEW: input tokens from API
         output_tokens: data.usage?.completion_tokens ?? 0, // NEW: output tokens from API

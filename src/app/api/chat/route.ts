@@ -88,7 +88,8 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       );
     }
     
-    const openRouterResponse = await getOpenRouterCompletion(
+  const startTime = Date.now();
+  const openRouterResponse = await getOpenRouterCompletion(
       messages,
       enhancedData.model,
       dynamicMaxTokens,
@@ -104,12 +105,9 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     const hasMarkdown = detectMarkdownContent(assistantResponse);
     logger.debug('Markdown detection result:', hasMarkdown, 'for content:', assistantResponse.substring(0, 100));
 
-    const now = Math.floor(Date.now() / 1000); // current time in seconds (epoch)
-    logger.debug('Current time (epoch):', now);
-    logger.debug('OpenRouter response created time (epoch):', openRouterResponse.created);
-
-    const elapsedTime = now - openRouterResponse.created;
-    logger.debug('Elapsed time for response:', elapsedTime, 'seconds');
+  const endTime = Date.now();
+  const elapsedMs = endTime - startTime; // integer milliseconds
+  logger.debug('Measured assistant generation latency (ms):', elapsedMs);
 
     // Determine triggering user message ID (explicit > fallback)
     const explicitId: string | undefined = body.current_message_id;
@@ -151,7 +149,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       },
       request_id: triggeringUserId || undefined, // Deterministic linkage to triggering user message
       timestamp: new Date().toISOString(),
-      elapsed_time: elapsedTime,
+      elapsed_ms: elapsedMs,
       contentType: hasMarkdown ? "markdown" : "text", // Add content type detection
       id: openRouterResponse.id, // Pass OpenRouter response id to ChatResponse
     };

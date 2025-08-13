@@ -18,8 +18,8 @@ export interface TodayUsage {
   models_used: Record<string, number>;
   /** Number of chat sessions created today */
   sessions_created: number;
-  /** Active minutes spent in chat today */
-  active_minutes: number;
+  /** Total assistant generation time today in milliseconds */
+  generation_ms: number;
 }
 
 /**
