@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { createClient } from '../lib/supabase/client';
 import { createDevtoolsOptions } from './storeUtils';
+import { STORAGE_KEYS } from '../lib/constants';
 import { AuthStore, AuthState } from './types/auth';
 
 /**
@@ -194,16 +195,24 @@ export const useAuthStore = create<AuthStore>()(
           // Clear settings
           useSettingsStore.getState().clearAllSettings();
 
-          // Clear localStorage completely
+          // Clear localStorage for all persisted stores
+          // Use actual persistence keys from STORAGE_KEYS, and also remove
+          // legacy/devtools labels for safety and backward compatibility.
           const keysToRemove = [
+            // Actual persisted keys
+            STORAGE_KEYS.CHAT,               // 'openrouter-chat-storage'
+            STORAGE_KEYS.MODELS,             // 'openrouter-models-cache'
+            STORAGE_KEYS.UI_PREFERENCES,     // 'openrouter-ui-preferences'
+            STORAGE_KEYS.SETTINGS,           // 'openrouter-settings-storage'
+            // Legacy/devtools names (not persisted, but safe to remove)
             'chat-store',
-            'model-store', 
+            'model-store',
             'ui-store',
             'settings-store',
             'auth-store'
           ];
 
-          keysToRemove.forEach(key => {
+          keysToRemove.forEach((key) => {
             try {
               localStorage.removeItem(key);
             } catch (error) {

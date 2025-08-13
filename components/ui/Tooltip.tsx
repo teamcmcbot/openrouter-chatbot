@@ -13,6 +13,9 @@ interface TooltipProps {
   align?: "start" | "end";
   // Accessibility
   ariaLabel?: string;
+  // Behavior
+  closeOnOutsideClick?: boolean; // default true
+  showCloseOnMobile?: boolean; // default true
 }
 
 // Lightweight, accessible tooltip. Opens on hover/focus, can be pinned with Enter/Space, closes with Escape.
@@ -24,11 +27,14 @@ export default function Tooltip({
   widthClassName = "w-72 sm:w-80",
   align = "start",
   ariaLabel,
+  closeOnOutsideClick = true,
+  showCloseOnMobile = true,
 }: TooltipProps) {
   const id = useId();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
+  const [isTouch, setIsTouch] = useState(false);
 
   const OPEN_EVENT = "app:tooltip-open";
 
@@ -40,6 +46,16 @@ export default function Tooltip({
       // no-op in non-browser
     }
   };
+
+  // Detect touch devices (coarse pointers)
+  useEffect(() => {
+    try {
+      const coarse = typeof window !== 'undefined' && (('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0 || window.matchMedia('(pointer: coarse)').matches);
+      setIsTouch(!!coarse);
+    } catch {
+      setIsTouch(false);
+    }
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -67,6 +83,22 @@ export default function Tooltip({
     };
   }, [open, id]);
 
+  // Close on outside click/tap when open
+  useEffect(() => {
+    if (!open || !closeOnOutsideClick) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const el = wrapperRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) {
+        setPinned(false);
+        setOpen(false);
+      }
+    };
+    const options: AddEventListenerOptions = { capture: true };
+    document.addEventListener('pointerdown', onPointerDown, options);
+    return () => document.removeEventListener('pointerdown', onPointerDown, options as EventListenerOptions);
+  }, [open, closeOnOutsideClick]);
+
   // Use stable Tailwind utilities for placement to avoid dynamic class generation issues
   const posClass =
     side === "top"
@@ -84,8 +116,8 @@ export default function Tooltip({
       tabIndex={0}
       onFocus={() => openAndAnnounce()}
       onBlur={() => !pinned && setOpen(false)}
-      onMouseEnter={() => openAndAnnounce()}
-      onMouseLeave={() => !pinned && setOpen(false)}
+      onMouseEnter={() => { if (!isTouch) openAndAnnounce(); }}
+      onMouseLeave={() => { if (!isTouch && !pinned) setOpen(false); }}
       aria-describedby={id}
     >
       {/* Trigger */}
@@ -119,10 +151,19 @@ export default function Tooltip({
         id={id}
         role="tooltip"
         aria-label={ariaLabel}
-        className={`pointer-events-none absolute ${widthClassName} z-20 rounded-lg border border-gray-200/60 dark:border-white/10 bg-white/95 dark:bg-gray-900/95 text-gray-900 dark:text-gray-100 p-3 text-xs shadow-xl transition-opacity ${
-          open ? "opacity-100" : "opacity-0"
-        } ${posClass}`}
+        className={`${open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'} absolute ${widthClassName} z-20 rounded-lg border border-gray-200/60 dark:border-white/10 bg-white/95 dark:bg-gray-900/95 text-gray-900 dark:text-gray-100 p-3 text-xs shadow-xl transition-opacity ${posClass}`}
       >
+        {/* Mobile close button */}
+        {isTouch && showCloseOnMobile && (
+          <button
+            type="button"
+            aria-label="Close tooltip"
+            className="absolute top-1.5 right-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10"
+            onClick={(e) => { e.stopPropagation(); setPinned(false); setOpen(false); }}
+          >
+            <span aria-hidden>×</span>
+          </button>
+        )}
         {content}
       </div>
     </div>

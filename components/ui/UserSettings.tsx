@@ -258,7 +258,11 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   const todayOut = todayRaw.output_tokens || 0;
   const todayTotal = todayRaw.total_tokens || analytics.tokensToday;
   const todayAvgTpm = analytics.messagesToday > 0 ? Math.round(todayTotal / analytics.messagesToday) : 0;
-  const todayModels: Array<[string, number]> = Object.entries((todayRaw.models_used || {}) as Record<string, number>);
+  // Sort models by usage desc and limit to top 5 for tooltip readability
+  const todayModelsAll: Array<[string, number]> = Object.entries((todayRaw.models_used || {}) as Record<string, number>);
+  const todayModelsSorted = [...todayModelsAll].sort((a, b) => b[1] - a[1]);
+  const todayModelsTop5 = todayModelsSorted.slice(0, 5);
+  const todayModelsMoreCount = Math.max(0, todayModelsAll.length - 5);
 
   const allMsgs = analytics.messagesAllTime;
   const allTokens = analytics.tokensAllTime;
@@ -768,14 +772,17 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Avg tokens/msg</span><span className="font-medium">{nf.format(todayAvgTpm)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Sessions</span><span className="font-medium">{nf.format(analytics.sessionsToday)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Avg response</span><span className="font-medium">{formatAvgLatency(avgResponseMs)}</span></div>
-                    {todayModels.length > 0 && (
+                    {todayModelsTop5.length > 0 && (
                       <div>
                         <div className="text-gray-600 dark:text-gray-400">Models used</div>
-                        <ul className="mt-1 space-y-0.5 max-h-24 overflow-y-auto pr-1">
-                          {todayModels.map(([id, count]) => (
+                        <ul className="mt-1 space-y-0.5">
+                          {todayModelsTop5.map(([id, count]) => (
                             <li key={id} className="truncate"><span className="font-medium">{count}×</span> <span className="text-gray-700 dark:text-gray-300">{id}</span></li>
                           ))}
                         </ul>
+                        {todayModelsMoreCount > 0 && (
+                          <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">and {todayModelsMoreCount} more…</div>
+                        )}
                       </div>
                     )}
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Last active</span><span className="font-medium">{relTime(ts.last_active)}</span></div>
