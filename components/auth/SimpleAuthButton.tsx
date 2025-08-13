@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
+import { UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, ChatBubbleLeftRightIcon, ChartBarIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../stores/useAuthStore'
 import Button from '../ui/Button'
 import UserSettings from '../ui/UserSettings'
@@ -171,6 +171,27 @@ export function SimpleAuthButton() {
 
             {/* Actions */}
             <div className="py-1">
+              {/* 1) Chat - visible to all authenticated users */}
+              <Link
+                href="/chat"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => setShowMenu(false)}
+              >
+                <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                Chat
+              </Link>
+
+              {/* 2) View Usage - /usage/costs */}
+              <Link
+                href="/usage/costs"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => setShowMenu(false)}
+              >
+                <ChartBarIcon className="w-4 h-4" />
+                View Usage
+              </Link>
+
+              {/* 3) Settings */}
               <button
                 className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => {
@@ -182,24 +203,13 @@ export function SimpleAuthButton() {
                 Settings
               </button>
 
-              {isAdmin && (
-                <Link
-                  href="/chat"
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={() => setShowMenu(false)}
-                >
-                  <ChatBubbleLeftRightIcon className="w-4 h-4" />
-                  Chat
-                </Link>
-              )}
-
+              {/* 4) Admin Console - admin only */}
               {isAdmin && (
                 <Link
                   href="/admin"
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                   onClick={() => setShowMenu(false)}
                 >
-                  {/* reuse settings icon for simplicity or add different icon later */}
                   <span className="inline-flex w-4 h-4 items-center justify-center">🏁</span>
                   Admin Console
                 </Link>

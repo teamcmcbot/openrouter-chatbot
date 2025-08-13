@@ -7,6 +7,7 @@ import { LogoWithText } from "../../components/ui/Logo";
 import { AuthProvider } from "../../components/auth/AuthProvider";
 import { SimpleAuthButton } from "../../components/auth/SimpleAuthButton";
 import Toaster from "../../components/ui/Toaster";
+import MainContainer from "../../components/layout/MainContainer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -83,7 +84,7 @@ export default function RootLayout({
                   </div>
                 </div>
               </nav>
-              <main className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900">{children}</main>
+              <MainContainer>{children}</MainContainer>
                 <footer className="hidden sm:block border-t border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 flex-shrink-0">
                 <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
                   <div className="text-center text-sm text-gray-600 dark:text-gray-400">
