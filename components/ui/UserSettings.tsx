@@ -10,6 +10,7 @@ import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
 import { validateSystemPrompt, truncateAtWordBoundary, SYSTEM_PROMPT_LIMITS } from "../../lib/utils/validation/systemPrompt";
 import toast from 'react-hot-toast';
+import { useTheme } from "../../stores/useUIStore";
 
 interface UserSettingsProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const { data: userData, loading, refreshing, error, updatePreferences, forceRefresh } = useUserData({ enabled: isOpen });
+  const { theme, setTheme } = useTheme();
   
   // State for editing preferences
   const [isEditing, setIsEditing] = useState(false);
@@ -46,6 +48,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   // System prompt specific state
   const [systemPromptError, setSystemPromptError] = useState<string | null>(null);
   const [lastKnownGoodSystemPrompt, setLastKnownGoodSystemPrompt] = useState<string>('');
+  const [lastKnownTheme, setLastKnownTheme] = useState<'light' | 'dark' | 'system'>(theme as 'light' | 'dark' | 'system');
 
   // State synchronization: Update edited preferences when userData changes (after successful save)
   useEffect(() => {
@@ -277,17 +280,18 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   // Handle edit mode toggle
   const handleEditToggle = () => {
     if (isEditing) {
-      // Cancel editing - reset to current values
+      // Cancel editing - reset to current values and revert theme preview
       setEditedPreferences({
         theme: preferences.theme,
         defaultModel: preferences.defaultModel,
         temperature: preferences.temperature,
         systemPrompt: preferences.systemPrompt,
       });
+      setTheme(lastKnownTheme);
       setIsEditing(false);
       setSystemPromptError(null);
     } else {
-      // Start editing - initialize with current values
+      // Start editing - initialize with current values and capture current theme
       setEditedPreferences({
         theme: preferences.theme,
         defaultModel: preferences.defaultModel,
@@ -295,6 +299,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         systemPrompt: preferences.systemPrompt,
       });
       setLastKnownGoodSystemPrompt(preferences.systemPrompt);
+      setLastKnownTheme(theme as 'light' | 'dark' | 'system');
       setIsEditing(true);
       setSystemPromptError(null);
     }
@@ -319,6 +324,11 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
       const loadingToast = toast.loading('Saving preferences...', { id: 'save-preferences' });
 
       try {
+        // Optimistically update theme for immediate UI feedback
+        setLastKnownTheme(theme as 'light' | 'dark' | 'system');
+        if (editedPreferences.theme && editedPreferences.theme !== theme) {
+          setTheme(editedPreferences.theme as 'light' | 'dark' | 'system');
+        }
         await updatePreferences({
           ui: { theme: editedPreferences.theme },
           model: {
@@ -338,6 +348,8 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
       } catch (updateError) {
         // Dismiss loading toast first
         toast.dismiss(loadingToast);
+  // Rollback theme if update fails
+  setTheme(lastKnownTheme);
         throw updateError; // Re-throw to be caught by outer catch
       }
 
@@ -355,6 +367,8 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         temperature: prev.temperature,
       }));
       setSystemPromptError(null);
+  // Also rollback theme in case outer catch path was hit
+  setTheme(lastKnownTheme);
       
       // Stay in edit mode to allow user to retry
       // setIsEditing remains true so user can correct and retry
@@ -499,7 +513,11 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                   <label className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">Theme</label>
                   <select
                     value={editedPreferences.theme}
-                    onChange={(e) => setEditedPreferences(prev => ({ ...prev, theme: e.target.value }))}
+                    onChange={(e) => {
+                      const value = e.target.value as 'light' | 'dark' | 'system';
+                      setTheme(value);
+                      setEditedPreferences(prev => ({ ...prev, theme: value }));
+                    }}
                     className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   >
                     <option value="light">Light</option>
