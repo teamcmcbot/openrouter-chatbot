@@ -135,6 +135,7 @@ Phase 2 – Refactor Sync Status to update on message persistence
 - [x] Update chat store to set `lastSyncTime` after successful `/api/chat/messages` saves
   - File: `stores/useChatStore.ts`
   - After successful POST to `/api/chat/messages` in send and retry flows, set `lastSyncTime = new Date().toISOString()`
+  - Also show a toast notification: "Message saved!" after each successful save
 - [x] Leave `/api/chat/sync` for initial sign-in only
 
 User test steps (Phase 2)

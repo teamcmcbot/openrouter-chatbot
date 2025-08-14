@@ -20,6 +20,7 @@ import {
   getModelTokenLimits, 
   isWithinInputBudget
 } from "../lib/utils/tokens";
+import toast from 'react-hot-toast';
 
 const logger = createLogger("ChatStore");
 
@@ -509,6 +510,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                       });
                       // Update lastSyncTime after successful persistence
                       set({ lastSyncTime: new Date().toISOString(), syncError: null });
+                      toast.success('Message saved successfully!', { id: 'chat-message-saved' });
                       logger.debug("Message pair saved successfully with correct tokens", { 
                         userMessageId: updatedUserMessage.id,
                         userInputTokens: updatedUserMessage.input_tokens,
@@ -542,6 +544,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                       });
                       // Update lastSyncTime after successful persistence (fallback path)
                       set({ lastSyncTime: new Date().toISOString(), syncError: null });
+                      toast.success('Message saved successfully!', { id: 'chat-message-saved' });
                     }
                   } catch (error) {
                     logger.debug("Message save failed (silent)", error);
@@ -1141,6 +1144,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                       });
                       // Update lastSyncTime after successful persistence (retry path)
                       set({ lastSyncTime: new Date().toISOString(), syncError: null });
+                      toast.success('Message saved successfully!', { id: 'chat-message-saved' });
                       logger.debug('Retry message pair saved', { userMessageId: retriedUserMessage.id, assistantId: assistantMessage.id });
                     }
                   } catch (e) {
