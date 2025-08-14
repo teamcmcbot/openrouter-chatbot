@@ -158,11 +158,11 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                 )}
               </div>
 
-              {/* Message Content */}
-              <div className={`rounded-lg px-3 sm:px-4 py-2 transition-all duration-200 relative flex-1 sm:flex-initial ${
+        {/* Message Content */}
+        <div className={`rounded-lg px-3 sm:px-4 py-2 transition-all duration-200 relative flex-1 sm:flex-initial ${
                 message.role === "user"
                   ? `bg-emerald-600 text-white`
-                  : `bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${
+          : `bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-slate-200/80 dark:border-white/10 shadow-sm ${
                       hoveredGenerationId && message.completion_id === hoveredGenerationId
                         ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20'
                         : ''
@@ -285,7 +285,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
               <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 items-center justify-center text-sm font-medium mr-3">
                 AI
               </div>
-              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 sm:flex-initial">
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 sm:flex-initial border border-slate-200/80 dark:border-white/10 shadow-sm">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
