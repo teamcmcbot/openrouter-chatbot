@@ -228,7 +228,7 @@ export default function ModelDropdown({
       </button>
 
       {isOpen && !isLoading && (
-        <div className="absolute top-full right-0 mt-1 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
+  <div className="absolute top-full right-0 mt-1 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-[60] max-h-96 overflow-hidden">
           {/* Search and Filter Header */}
           <div className="p-3 border-b border-gray-200 dark:border-gray-700">
             {/* Search Input */}

@@ -148,7 +148,7 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex h-full bg-slate-50 dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm ring-1 ring-inset ring-slate-100/60 dark:ring-0 overflow-hidden mobile-safe-area">
+    <div className="flex h-full bg-slate-50 dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm ring-1 ring-inset ring-slate-100/60 dark:ring-0 overflow-visible mobile-safe-area">
       {/* Left Sidebar - Chat History (15%) */}
       <div className="hidden xl:block w-[15%] min-w-[200px]">
         <ChatSidebar
@@ -160,8 +160,8 @@ export default function ChatInterface() {
 
       {/* Main Chat Area (70%) */}
       <div className="flex flex-col flex-1 xl:w-[70%] min-w-0">
-        {/* Header */}
-  <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50/95 dark:bg-gray-800 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+    {/* Header */}
+  <div className="relative z-30 px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50/95 dark:bg-gray-800 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {/* Mobile menu button */}
