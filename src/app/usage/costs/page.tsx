@@ -118,24 +118,24 @@ export default function UsageCostsPage() {
       {error && <div className="text-red-600 text-sm">{error}</div>}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 group">
           <div className="text-xs text-gray-500 mb-1">Total Cost</div>
-          <div className="text-lg font-semibold">${fmt(data?.summary.total_cost || 0)}</div>
+          <div className="text-lg font-semibold transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-400">${fmt(data?.summary.total_cost || 0)}</div>
         </div>
-        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 group">
           <div className="text-xs text-gray-500 mb-1">Total Tokens</div>
           <div className="text-lg font-semibold">
-            {fmt(data?.summary.total_tokens || 0)}{' '}
+            <span className="transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{fmt(data?.summary.total_tokens || 0)} </span>
             {data && <span className="text-[11px] font-normal text-gray-500">({fmt(data.summary.prompt_tokens)} input / {fmt(data.summary.completion_tokens)} output)</span>}
           </div>
         </div>
-        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 group">
           <div className="text-xs text-gray-500 mb-1">Cost / 1K Tokens</div>
-          <div className="text-lg font-semibold">${fmt(data?.summary.cost_per_1k || 0)}</div>
+          <div className="text-lg font-semibold transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-400">${fmt(data?.summary.cost_per_1k || 0)}</div>
         </div>
-        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 group">
           <div className="text-xs text-gray-500 mb-1">Top Model (Tokens)</div>
-          <div className="text-lg font-semibold truncate">{data?.summary.top_models.by_tokens[0]?.model_id || '—'}</div>
+          <div className="text-lg font-semibold truncate transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{data?.summary.top_models.by_tokens[0]?.model_id || '—'}</div>
         </div>
       </div>
 
@@ -148,7 +148,7 @@ export default function UsageCostsPage() {
             </thead>
             <tbody>
               {data?.summary.top_models.by_tokens.map(r => (
-                <tr key={r.model_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800">
+                <tr key={r.model_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/70 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                   <td className="py-1 pr-2 font-medium">{r.model_id}</td>
                   <td className="py-1 text-right">{fmt(r.total_tokens)}</td>
                   <td className="py-1 text-right">${fmt(r.total_cost)}</td>
@@ -175,7 +175,7 @@ export default function UsageCostsPage() {
             </thead>
             <tbody>
               {data?.summary.top_models.by_cost.map(r => (
-                <tr key={r.model_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800">
+                <tr key={r.model_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/70 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                   <td className="py-1 pr-2 font-medium">{r.model_id}</td>
                   <td className="py-1 text-right">{fmt(r.total_tokens)}</td>
                   <td className="py-1 text-right">${fmt(r.total_cost)}</td>
@@ -218,7 +218,7 @@ export default function UsageCostsPage() {
             {!loading && data?.items.map(item => {
               const speed = item.elapsed_ms && item.elapsed_ms > 0 ? (item.completion_tokens / (item.elapsed_ms / 1000)) : 0;
               return (
-              <tr key={item.assistant_message_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors shadow-sm">
+              <tr key={item.assistant_message_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/70 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors shadow-sm">
                 <td className="py-2 pr-3 whitespace-nowrap text-[11px]">{new Date(item.message_timestamp).toLocaleString()}</td>
                 <td className="py-2 pr-3 text-xs font-medium">{item.model_id || '—'}</td>
                 <td className="py-2 text-right font-mono tabular-nums">{item.prompt_tokens}</td>
