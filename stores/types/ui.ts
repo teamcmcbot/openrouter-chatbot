@@ -13,7 +13,7 @@ export interface UIState {
   scrollToCompletionId: string | undefined;
   
   // Theme and layout preferences
-  theme: 'light' | 'dark' | 'system';
+  theme: 'light' | 'dark';
   isMobile: boolean;
   
   // Actions
@@ -27,7 +27,7 @@ export interface UIState {
   setHoveredGenerationId: (id: string | undefined) => void;
   setScrollToCompletionId: (id: string | undefined) => void;
   
-  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  setTheme: (theme: 'light' | 'dark') => void;
   setIsMobile: (mobile: boolean) => void;
   
   // Complex actions

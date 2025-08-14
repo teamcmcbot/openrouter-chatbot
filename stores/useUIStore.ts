@@ -26,7 +26,7 @@ export const useUIStore = create<UIState>()(
           hoveredGenerationId: undefined,
           scrollToCompletionId: undefined,
           
-          theme: 'system',
+          theme: 'dark',
           isMobile: false,
           
           // Basic actions
@@ -124,6 +124,17 @@ export const useUIStore = create<UIState>()(
             theme: state.theme,
             isChatSidebarOpen: state.isChatSidebarOpen,
           }),
+          migrate: (persistedState: unknown) => {
+            try {
+              const s = persistedState as { state?: { theme?: 'light' | 'dark' | 'system' } }
+              if (s?.state?.theme === 'system') {
+                s.state.theme = 'dark'
+              }
+              return s as unknown
+            } catch {
+              return persistedState
+            }
+          },
         }
       )
     ),

@@ -29,7 +29,7 @@ describe('useUIStore', () => {
       selectedGenerationId: undefined,
       hoveredGenerationId: undefined,
       scrollToCompletionId: undefined,
-      theme: 'system',
+  theme: 'dark',
       isMobile: false,
     });
   });
@@ -42,7 +42,7 @@ describe('useUIStore', () => {
       expect(result.current.isDetailsSidebarOpen).toBe(false);
       expect(result.current.isChatSidebarOpen).toBe(false);
       expect(result.current.selectedTab).toBe('overview');
-      expect(result.current.theme).toBe('system');
+  expect(result.current.theme).toBe('dark');
     });
 
     it('should toggle chat sidebar', () => {
@@ -197,14 +197,14 @@ describe('useChatSidebarState', () => {
 describe('useTheme', () => {
   beforeEach(() => {
     useUIStore.setState({
-      theme: 'system',
+      theme: 'dark',
     });
   });
 
   it('should provide theme state and actions', () => {
     const { result } = renderHook(() => useTheme());
 
-    expect(result.current.theme).toBe('system');
+  expect(result.current.theme).toBe('dark');
 
     act(() => {
       result.current.setTheme('dark');
