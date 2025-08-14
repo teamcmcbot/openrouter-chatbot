@@ -198,7 +198,7 @@ export default function ModelDropdown({
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
-        className="flex items-center gap-1.5 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors duration-200 border border-gray-200 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center gap-1.5 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors duration-200 border-2 border-slate-300/90 dark:border-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/60 dark:focus-visible:ring-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-label="Select AI model"
@@ -227,8 +227,8 @@ export default function ModelDropdown({
         </svg>
       </button>
 
-      {isOpen && !isLoading && (
-  <div className="absolute top-full right-0 mt-1 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-[60] max-h-96 overflow-hidden">
+    {isOpen && !isLoading && (
+  <div className="absolute top-full right-0 mt-1 w-80 bg-white dark:bg-gray-800 border-2 border-slate-300/90 dark:border-gray-500 rounded-lg shadow-lg z-[60] max-h-96 overflow-hidden">
           {/* Search and Filter Header */}
           <div className="p-3 border-b border-gray-200 dark:border-gray-700">
             {/* Search Input */}
