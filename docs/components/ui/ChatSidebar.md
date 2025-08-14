@@ -41,6 +41,7 @@
 - Uses `useChatSync` to perform initial sign-in sync of conversations when authenticated.
 - Relative timestamps are formatted with `formatConversationTimestamp`.
 - When not authenticated, a prompt encourages the user to sign in for sync.
+- Conversation titles automatically update after the first successful message, including retries.
 
 ## Usage Locations
 

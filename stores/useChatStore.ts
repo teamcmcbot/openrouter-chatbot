@@ -1111,6 +1111,13 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 };
               });
 
+              // Auto-generate title from first user message if conversation was 'New Chat'
+              const currentConvAfterRetry = get().conversations.find(c => c.id === currentConversationId);
+              if (currentConvAfterRetry && currentConvAfterRetry.title === "New Chat" && currentConvAfterRetry.messages.length === 2) {
+                const autoTitle = content.length > 50 ? content.substring(0, 50) + "..." : content;
+                get().updateConversationTitle(currentConversationId, autoTitle, true);
+              }
+
               logger.debug("Message retry successful", { messageId, conversationId: currentConversationId });
 
               // Persist retried user + assistant pair (reuse ID) for authenticated users
@@ -1131,16 +1138,28 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         // Guarantee tokens present (preserve original timestamp from initial send, not response time)
                         input_tokens: retriedUserMessage.input_tokens ?? data.usage?.prompt_tokens ?? 0,
                       };
+
+                      const shouldIncludeTitle = updatedConv &&
+                        updatedConv.title !== "New Chat" &&
+                        updatedConv.messages.length === 2;
+
+                      const payload: {
+                        messages: ChatMessage[];
+                        sessionId: string;
+                        sessionTitle?: string;
+                      } = {
+                        messages: [saveUserMsg, assistantMessage],
+                        sessionId: currentConversationId,
+                      };
+
+                      if (shouldIncludeTitle) {
+                        payload.sessionTitle = updatedConv?.title;
+                      }
+
                       await fetch('/api/chat/messages', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          messages: [
-                            saveUserMsg,
-                            assistantMessage
-                          ],
-                          sessionId: currentConversationId
-                        })
+                        body: JSON.stringify(payload)
                       });
                       // Update lastSyncTime after successful persistence (retry path)
                       set({ lastSyncTime: new Date().toISOString(), syncError: null });
