@@ -18,8 +18,9 @@ export default function ThemeInitializer() {
     ;(async () => {
       try {
         const data = await fetchUserData()
-        const serverTheme = data?.preferences?.ui?.theme as 'light' | 'dark' | 'system' | undefined
-        if (serverTheme && serverTheme !== theme) {
+        const raw = data?.preferences?.ui?.theme as string | undefined
+        const serverTheme = raw === 'light' ? 'light' : 'dark'
+        if (serverTheme !== theme) {
           setTheme(serverTheme)
         }
       } catch (e) {

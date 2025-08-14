@@ -27,6 +27,8 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   const router = useRouter();
   const { data: userData, loading, refreshing, error, updatePreferences, forceRefresh } = useUserData({ enabled: isOpen });
   const { theme, setTheme } = useTheme();
+  // Normalize any legacy/non-binary theme to 'dark'
+  const normalizeTheme = (t?: string): 'light' | 'dark' => (t === 'light' ? 'light' : 'dark');
   
   // State for editing preferences
   const [isEditing, setIsEditing] = useState(false);
@@ -48,13 +50,21 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   // System prompt specific state
   const [systemPromptError, setSystemPromptError] = useState<string | null>(null);
   const [lastKnownGoodSystemPrompt, setLastKnownGoodSystemPrompt] = useState<string>('');
-  const [lastKnownTheme, setLastKnownTheme] = useState<'light' | 'dark' | 'system'>(theme as 'light' | 'dark' | 'system');
+  const [lastKnownTheme, setLastKnownTheme] = useState<'light' | 'dark'>(normalizeTheme(theme));
+
+  // Ensure fresh data each time the modal opens (covers ChatSidebar path where component stays mounted)
+  useEffect(() => {
+    if (isOpen) {
+      // Fire and forget; UI uses `refreshing` state subtly without blocking the modal
+      void forceRefresh();
+    }
+  }, [isOpen, forceRefresh]);
 
   // State synchronization: Update edited preferences when userData changes (after successful save)
   useEffect(() => {
     if (userData?.preferences && !isEditing) {
       const currentPrefs = {
-        theme: userData.preferences.ui.theme || "dark",
+        theme: normalizeTheme(userData.preferences.ui.theme || "dark"),
         defaultModel: userData.preferences.model.default_model || null,
         temperature: userData.preferences.model.temperature || 0.7,
         systemPrompt: userData.preferences.model.system_prompt || "You are a helpful AI assistant.",
@@ -182,7 +192,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
       : 'bg-gray-500/15 text-gray-300 ring-1 ring-inset ring-gray-500/30';
 
   const preferences = {
-    theme: userData?.preferences.ui.theme || "dark",
+    theme: normalizeTheme(userData?.preferences.ui.theme || "dark"),
     defaultModel: userData?.preferences.model.default_model || null, // Allow null instead of hardcoded fallback
     temperature: userData?.preferences.model.temperature || 0.7,
     systemPrompt: userData?.preferences.model.system_prompt || "You are a helpful AI assistant.",
@@ -299,7 +309,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         systemPrompt: preferences.systemPrompt,
       });
       setLastKnownGoodSystemPrompt(preferences.systemPrompt);
-      setLastKnownTheme(theme as 'light' | 'dark' | 'system');
+  setLastKnownTheme(normalizeTheme(theme));
       setIsEditing(true);
       setSystemPromptError(null);
     }
@@ -325,12 +335,12 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
       try {
         // Optimistically update theme for immediate UI feedback
-        setLastKnownTheme(theme as 'light' | 'dark' | 'system');
-        if (editedPreferences.theme && editedPreferences.theme !== theme) {
-          setTheme(editedPreferences.theme as 'light' | 'dark' | 'system');
+        setLastKnownTheme(normalizeTheme(theme));
+        if (editedPreferences.theme && normalizeTheme(editedPreferences.theme) !== normalizeTheme(theme)) {
+          setTheme(normalizeTheme(editedPreferences.theme));
         }
         await updatePreferences({
-          ui: { theme: editedPreferences.theme },
+          ui: { theme: normalizeTheme(editedPreferences.theme) },
           model: {
             default_model: editedPreferences.defaultModel,
             temperature: editedPreferences.temperature,
@@ -512,17 +522,16 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                 <div>
                   <label className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">Theme</label>
                   <select
-                    value={editedPreferences.theme}
+                    value={normalizeTheme(editedPreferences.theme)}
                     onChange={(e) => {
-                      const value = e.target.value as 'light' | 'dark' | 'system';
-                      setTheme(value);
+                      const value = e.target.value as 'light' | 'dark';
+                      // Do NOT apply theme immediately; only update edited state
                       setEditedPreferences(prev => ({ ...prev, theme: value }));
                     }}
                     className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   >
                     <option value="light">Light</option>
                     <option value="dark">Dark</option>
-                    <option value="system">System</option>
                   </select>
                 </div>
 

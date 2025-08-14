@@ -5,11 +5,14 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, ChatBubbleLeftRightIcon, ChartBarIcon } from '@heroicons/react/24/outline'
+import { SunIcon as SunSolid, MoonIcon as MoonSolid } from '@heroicons/react/24/solid'
 import { useAuth } from '../../stores/useAuthStore'
 import Button from '../ui/Button'
 import UserSettings from '../ui/UserSettings'
 import ClientPortal from '../ui/ClientPortal'
 import { createClient } from '../../lib/supabase/client'
+import { useTheme } from '../../stores/useUIStore'
+import { useUserData } from '../../hooks/useUserData'
 
 export function SimpleAuthButton() {
   const [showModal, setShowModal] = useState(false)
@@ -17,6 +20,17 @@ export function SimpleAuthButton() {
   const [showSettings, setShowSettings] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const { theme, setTheme } = useTheme()
+  const { updatePreferences } = useUserData({ enabled: false })
+
+  // Helper to normalize any legacy/system theme to binary
+  const normalizeTheme = (t?: string): 'light' | 'dark' => (t === 'light' ? 'light' : 'dark')
+  const displayTheme = normalizeTheme(theme)
+
+  // Throttled server sync (10s trailing)
+  const lastSyncAtRef = useRef<number>(0)
+  const pendingThemeRef = useRef<'light' | 'dark' | null>(null)
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { 
     user, 
     isAuthenticated, 
@@ -110,6 +124,43 @@ export function SimpleAuthButton() {
     }
   }
 
+  // Toggle theme locally and schedule server sync if authenticated
+  const handleThemeToggle = () => {
+    const next = displayTheme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+
+    if (!isAuthenticated) return
+
+    pendingThemeRef.current = next
+    const now = Date.now()
+    const elapsed = now - (lastSyncAtRef.current || 0)
+
+    const flush = async () => {
+      if (!pendingThemeRef.current) return
+      const toSend = pendingThemeRef.current
+      pendingThemeRef.current = null
+      flushTimerRef.current = null
+      try {
+        await updatePreferences({ ui: { theme: toSend } })
+        lastSyncAtRef.current = Date.now()
+      } catch {
+        // Silent retry on next toggle
+      }
+    }
+
+    if (elapsed >= 10_000) {
+      // Send immediately if window elapsed
+      flush()
+    } else {
+      // Schedule trailing flush at window boundary
+      const dueIn = Math.max(0, 10_000 - elapsed)
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current)
+      }
+      flushTimerRef.current = setTimeout(flush, dueIn)
+    }
+  }
+
   // Show loading state during initialization
   if (!isInitialized) {
     return (
@@ -124,36 +175,53 @@ export function SimpleAuthButton() {
     const avatar = user.user_metadata?.avatar_url
     const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
     return (
-      <div className="relative" ref={menuRef}>
-        {/* Avatar-only trigger */}
+      <div className="flex items-center gap-2">
+        {/* Theme toggle button (left of avatar) */}
         <button
           type="button"
-          aria-label="User menu"
-          disabled={isLoading}
-          onClick={() => setShowMenu((v) => !v)}
-          className="inline-flex items-center justify-center rounded-full p-0.5 ring-1 ring-gray-300 dark:ring-gray-600 hover:ring-emerald-500 transition focus:outline-none"
+          aria-label="Toggle dark mode"
+          aria-pressed={displayTheme === 'dark'}
+          title="Toggle dark mode"
+          onClick={handleThemeToggle}
+          className="w-7 h-7 inline-flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition"
         >
-          {avatar ? (
-            <Image
-              src={avatar}
-              alt="Profile"
-              width={28}
-              height={28}
-              className="rounded-full"
-              onError={(e) => {
-                ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-              }}
-            />
+          {displayTheme === 'dark' ? (
+            <MoonSolid className="w-5 h-5 text-gray-200" />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-              <UserIcon className="w-4 h-4 text-gray-500 dark:text-gray-300" />
-            </div>
+            <SunSolid className="w-5 h-5 text-amber-500" />
           )}
         </button>
+        {/* Avatar container with positioning context */}
+        <div className="relative" ref={menuRef}>
+          {/* Avatar-only trigger */}
+          <button
+            type="button"
+            aria-label="User menu"
+            disabled={isLoading}
+            onClick={() => setShowMenu((v) => !v)}
+            className="inline-flex items-center justify-center rounded-full p-0.5 ring-1 ring-gray-300 dark:ring-gray-600 hover:ring-emerald-500 transition focus:outline-none"
+          >
+            {avatar ? (
+              <Image
+                src={avatar}
+                alt="Profile"
+                width={28}
+                height={28}
+                className="rounded-full"
+                onError={(e) => {
+                  ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                }}
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                <UserIcon className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+              </div>
+            )}
+          </button>
 
-        {/* Dropdown menu */}
-        {showMenu && (
-          <div className="absolute right-0 mt-2 w-64 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-50">
+          {/* Dropdown menu */}
+          {showMenu && (
+            <div className="absolute right-0 mt-2 w-64 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-50">
             {/* Header with user info */}
             <div className="flex items-center gap-3 px-3 py-3 border-b border-gray-100 dark:border-gray-700">
               {avatar ? (
@@ -228,8 +296,9 @@ export function SimpleAuthButton() {
                 Sign Out
               </button>
             </div>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
 
         {/* Settings modal */}
         {showSettings && (
@@ -244,18 +313,35 @@ export function SimpleAuthButton() {
   // Show sign in button for non-authenticated users
   return (
     <>
-      <Button
-        onClick={() => {
-          console.log('Sign in button clicked!')
-          clearError() // Clear any previous errors
-          setShowModal(true)
-        }}
-        variant="primary"
-        size="sm"
-        loading={isLoading}
-      >
-        Sign In
-      </Button>
+      <div className="flex items-center gap-2">
+        {/* Theme toggle button (left of Sign In) */}
+        <button
+          type="button"
+          aria-label="Toggle dark mode"
+          aria-pressed={displayTheme === 'dark'}
+          title="Toggle dark mode"
+          onClick={handleThemeToggle}
+          className="w-7 h-7 inline-flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition"
+        >
+          {displayTheme === 'dark' ? (
+            <MoonSolid className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+          ) : (
+            <SunSolid className="w-5 h-5 text-amber-500" />
+          )}
+        </button>
+        <Button
+          onClick={() => {
+            console.log('Sign in button clicked!')
+            clearError() // Clear any previous errors
+            setShowModal(true)
+          }}
+          variant="primary"
+          size="sm"
+          loading={isLoading}
+        >
+          Sign In
+        </Button>
+      </div>
       {showModal && (
         <div 
           className="fixed inset-0 z-50 bg-black bg-opacity-50"
