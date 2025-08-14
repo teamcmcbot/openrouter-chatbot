@@ -16,6 +16,8 @@ interface TooltipProps {
   // Behavior
   closeOnOutsideClick?: boolean; // default true
   showCloseOnMobile?: boolean; // default true
+  // Appearance: use a brand-tinted panel in light mode
+  tinted?: boolean; // default true
 }
 
 // Lightweight, accessible tooltip. Opens on hover/focus, can be pinned with Enter/Space, closes with Escape.
@@ -29,6 +31,7 @@ export default function Tooltip({
   ariaLabel,
   closeOnOutsideClick = true,
   showCloseOnMobile = true,
+  tinted = true,
 }: TooltipProps) {
   const id = useId();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -151,7 +154,9 @@ export default function Tooltip({
         id={id}
         role="tooltip"
         aria-label={ariaLabel}
-        className={`${open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'} absolute ${widthClassName} z-20 rounded-lg border border-gray-200/60 dark:border-white/10 bg-white/95 dark:bg-gray-900/95 text-gray-900 dark:text-gray-100 p-3 text-xs shadow-xl transition-opacity ${posClass}`}
+        className={`${open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'} absolute ${widthClassName} z-30 rounded-lg border 
+          ${tinted ? 'border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100' : 'border-slate-300 bg-slate-50/95'}
+          dark:border-white/10 dark:bg-gray-900/95 text-slate-900 dark:text-gray-100 p-3 text-sm shadow-2xl backdrop-blur-sm transition-opacity ${posClass}`}
       >
         {/* Mobile close button */}
         {isTouch && showCloseOnMobile && (

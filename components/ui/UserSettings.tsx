@@ -185,11 +185,12 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
   // Subscription badge style
   const tierLower = (userProfile.subscription || '').toLowerCase();
+  // Dual-mode badge styling for better light-mode contrast
   const subscriptionBadgeClass = tierLower === 'enterprise'
-    ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30'
+    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30'
     : tierLower === 'pro'
-      ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30'
-      : 'bg-gray-500/15 text-gray-300 ring-1 ring-inset ring-gray-500/30';
+      ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30'
+      : 'bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-gray-500/15 dark:text-gray-300 dark:ring-gray-500/30';
 
   const preferences = {
     theme: normalizeTheme(userData?.preferences.ui.theme || "dark"),
@@ -388,14 +389,14 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Modern, slightly blurred overlay */}
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal container with sticky header/footer and internal scroll */}
-      <div className="relative w-full max-w-2xl rounded-2xl border border-gray-200/60 dark:border-white/10 bg-white/95 dark:bg-gray-900/90 text-gray-900 dark:text-gray-100 shadow-2xl backdrop-blur-xl overflow-hidden">
+  <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-white/10 bg-white/95 dark:bg-gray-900/90 text-slate-900 dark:text-gray-100 shadow-2xl backdrop-blur-xl overflow-hidden">
         {/* Sticky header (aligned with section padding) */}
-        <div className="sticky top-0 z-10 px-6 py-4 md:py-5 bg-gradient-to-b from-white/95 to-white/80 dark:from-gray-900/90 dark:to-gray-900/70 border-b border-gray-200/70 dark:border-white/10 flex items-center justify-between">
+  <div className="sticky top-0 z-10 px-6 py-4 md:py-5 bg-gradient-to-b from-white/95 to-white/80 dark:from-gray-900/90 dark:to-gray-900/70 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
               <Cog6ToothIcon className="h-5 w-5" />
@@ -404,7 +405,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           </div>
           <button
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/60 dark:hover:bg白/10 transition-colors"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
             aria-label="Close settings"
             title="Close"
           >
@@ -415,7 +416,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         {/* Scrollable content */}
         <div className="px-6 py-5 space-y-6 overflow-y-auto max-h-[80vh] md:max-h-[75vh]">
           {/* Profile */}
-          <section className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-gray-50/70 dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
+          <section className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <UserCircleIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -500,7 +501,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           </section>
 
           {/* Preferences */}
-          <section className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-gray-50/70 dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
+          <section className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <AdjustmentsHorizontalIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -520,7 +521,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
               <div className="space-y-4">
                 {/* Theme Selection */}
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">Theme</label>
+                  <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-gray-400">Theme</label>
                   <select
                     value={normalizeTheme(editedPreferences.theme)}
                     onChange={(e) => {
@@ -528,7 +529,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                       // Do NOT apply theme immediately; only update edited state
                       setEditedPreferences(prev => ({ ...prev, theme: value }));
                     }}
-                    className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    className="w-full p-2.5 rounded-lg border border-slate-300/70 dark:border-gray-600/60 bg-white dark:bg-gray-900/50 text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   >
                     <option value="light">Light</option>
                     <option value="dark">Dark</option>
@@ -537,14 +538,14 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
                 {/* Model Selection */}
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">Default Model</label>
+                  <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-gray-400">Default Model</label>
                   <select
                     value={editedPreferences.defaultModel || ''}
                     onChange={(e) => setEditedPreferences(prev => ({
                       ...prev,
                       defaultModel: e.target.value === '' ? null : e.target.value,
                     }))}
-                    className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    className="w-full p-2.5 rounded-lg border border-slate-300/70 dark:border-gray-600/60 bg-white dark:bg-gray-900/50 text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   >
                     <option value="">None</option>
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -558,7 +559,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
                 {/* Temperature Slider */}
                 <div>
-                  <label className="flex items-center justify-between text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">
+                  <label className="flex items-center justify-between text-sm font-medium mb-1 text-slate-600 dark:text-gray-400">
                     <span>Temperature</span>
                     <span className="ml-2 font-semibold text-gray-900 dark:text-gray-100">{editedPreferences.temperature}</span>
                   </label>
@@ -571,7 +572,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                     onChange={(e) => setEditedPreferences(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
                     className="w-full accent-emerald-600"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <div className="flex justify-between text-xs text-slate-500 mt-1">
                     <span>More focused</span>
                     <span>More creative</span>
                   </div>
@@ -579,7 +580,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
                 {/* System Prompt Editor */}
                 <div>
-                  <label htmlFor="system-prompt-textarea" className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">
+                  <label htmlFor="system-prompt-textarea" className="block text-sm font-medium mb-1 text-slate-600 dark:text-gray-400">
                     System Prompt
                   </label>
                   <textarea
@@ -612,13 +613,13 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                         });
                       }
                     }}
-                    className={`w-full p-3 rounded-xl resize-none transition-colors shadow-sm ${
+          className={`w-full p-3 rounded-xl resize-none transition-colors shadow-sm ${
                       systemPromptError 
                         ? 'border border-red-500 bg-red-50 dark:bg-red-900/20' 
                         : editedPreferences.systemPrompt.length > 0 && systemPromptError === null
                         ? 'border border-green-500 bg-green-50 dark:bg-green-900/20'
-                        : 'border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50'
-                    } text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50`}
+            : 'border border-slate-300/70 dark:border-gray-600/60 bg-white dark:bg-gray-900/50'
+          } text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50`}
                     rows={4}
                     placeholder="Enter your system prompt to guide AI responses..."
                     aria-invalid={systemPromptError ? 'true' : 'false'}
@@ -664,7 +665,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                       <span>{systemPromptError}</span>
                     </div>
                   ) : (
-                    <div id="system-prompt-help" className="text-gray-500 dark:text-gray-400 text-xs mt-1">
+                    <div id="system-prompt-help" className="text-slate-500 dark:text-gray-400 text-xs mt-1">
                       System prompt guides AI behavior and responses. Use clear, specific instructions.
                     </div>
                   )}
@@ -712,16 +713,16 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
             ) : (
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
-                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mb-1 sm:mb-0">Theme</div>
-                  <div className="sm:col-span-9 font-medium text-gray-900 dark:text-gray-100 capitalize">{preferences.theme}</div>
+                  <div className="sm:col-span-3 text-slate-600 dark:text-gray-400 mb-1 sm:mb-0">Theme</div>
+                  <div className="sm:col-span-9 font-medium text-slate-900 dark:text-gray-100 capitalize">{preferences.theme}</div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
-                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mb-1 sm:mb-0">Default Model</div>
-                  <div className="sm:col-span-9 font-medium text-gray-900 dark:text-gray-100">
+                  <div className="sm:col-span-3 text-slate-600 dark:text-gray-400 mb-1 sm:mb-0">Default Model</div>
+                  <div className="sm:col-span-9 font-medium text-slate-900 dark:text-gray-100">
                     {
                       preferences.defaultModel === null || preferences.defaultModel === ''
-                        ? <span className="text-gray-700 dark:text-gray-300">None</span>
+                        ? <span className="text-slate-700 dark:text-gray-300">None</span>
                         : (
                           availableModels.some((model: { model_id: string }) => model.model_id === preferences.defaultModel)
                             ? preferences.defaultModel
@@ -732,16 +733,16 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
-                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mb-1 sm:mb-0">Temperature</div>
-                  <div className="sm:col-span-9 font-medium text-gray-900 dark:text-gray-100">{preferences.temperature}</div>
+                  <div className="sm:col-span-3 text-slate-600 dark:text-gray-400 mb-1 sm:mb-0">Temperature</div>
+                  <div className="sm:col-span-9 font-medium text-slate-900 dark:text-gray-100">{preferences.temperature}</div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
-                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mt-0.5">System Prompt</div>
+                  <div className="sm:col-span-3 text-slate-600 dark:text-gray-400 mt-0.5">System Prompt</div>
                   <div className="sm:col-span-9">
                     <div
                       id="system-prompt-preview"
-                      className="mt-0.5 p-3 bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 rounded-lg text-xs leading-relaxed whitespace-pre-wrap"
+                      className="mt-0.5 p-3 bg-white dark:bg-gray-900/40 border border-slate-200 dark:border-white/10 rounded-lg text-xs leading-relaxed whitespace-pre-wrap"
                       aria-live="polite"
                     >
                       {showFullSystemPrompt
@@ -766,7 +767,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           </section>
 
           {/* Analytics */}
-          <section className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-gray-50/70 dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
+          <section className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <ChartBarIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -848,13 +849,13 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
               </Tooltip>
             </div>
 
-            <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+      <div className="text-xs text-slate-600 dark:text-gray-400 space-y-1">
               <p>Sessions today: {analytics.sessionsToday}</p>
               <p>Average response time today: {formatAvgLatency(avgResponseMs)}</p>
               <button
                 type="button"
                 onClick={() => { onClose(); router.push('/usage/costs'); }}
-                className="mt-2 inline-flex items-center px-3 py-1.5 rounded-md border border-emerald-600 text-emerald-700 dark:text-emerald-400 text-xs font-medium hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+        className="mt-2 inline-flex items-center px-3 py-1.5 rounded-md ring-1 ring-emerald-600 text-emerald-700 dark:text-emerald-400 text-xs font-medium bg-white hover:bg-emerald-50 dark:bg-transparent dark:hover:bg-emerald-900/30"
               >View Usage</button>
             </div>
           </section>
