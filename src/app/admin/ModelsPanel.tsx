@@ -310,7 +310,7 @@ export default function ModelsPanel() {
                 ))}
               </select>
             </div>
-            <button className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50" onClick={load} disabled={loading}>
+            <button className="px-3 py-1.5 rounded border text-sm hover:bg-gray-200 hover:text-gray-900 transition-colors" onClick={load} disabled={loading}>
               {loading ? 'Loading…' : 'Reload'}
             </button>
             <button className="px-3 py-1.5 rounded bg-emerald-600 text-white text-sm disabled:opacity-50 hover:bg-emerald-700" onClick={updateAll} disabled={loading || !someSelected}>

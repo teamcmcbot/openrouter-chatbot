@@ -205,7 +205,7 @@ export default function UsersPanel() {
             <option value="user">user</option>
             <option value="admin">admin</option>
           </select>
-          <button className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50" onClick={load} disabled={loading}>
+          <button className="px-3 py-1.5 rounded border text-sm hover:bg-gray-200 hover:text-gray-900 transition-colors" onClick={load} disabled={loading}>
             {loading ? 'Loading…' : 'Reload'}
           </button>
           <button className="px-3 py-1.5 rounded bg-emerald-600 text-white text-sm disabled:opacity-50 hover:bg-emerald-700" onClick={updateAll} disabled={loading || !someSelected}>
@@ -332,7 +332,7 @@ export default function UsersPanel() {
                 </td>
                 <td className="px-3 py-2 text-xs text-gray-500">{row.last_active ? new Date(row.last_active).toLocaleString() : '—'}</td>
                 <td className="px-3 py-2">
-                  <button className="px-2 py-1 rounded border text-xs hover:bg-gray-50" onClick={() => load()}>
+                  <button className="px-2 py-1 rounded border text-xs hover:bg-gray-200 hover:text-gray-900 transition-colors" onClick={() => load()}>
                     Refresh
                   </button>
                 </td>
