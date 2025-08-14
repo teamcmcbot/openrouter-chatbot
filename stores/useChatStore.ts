@@ -507,6 +507,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(payload),
                       });
+                      // Update lastSyncTime after successful persistence
+                      set({ lastSyncTime: new Date().toISOString(), syncError: null });
                       logger.debug("Message pair saved successfully with correct tokens", { 
                         userMessageId: updatedUserMessage.id,
                         userInputTokens: updatedUserMessage.input_tokens,
@@ -538,6 +540,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(payload),
                       });
+                      // Update lastSyncTime after successful persistence (fallback path)
+                      set({ lastSyncTime: new Date().toISOString(), syncError: null });
                     }
                   } catch (error) {
                     logger.debug("Message save failed (silent)", error);
@@ -1135,6 +1139,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                           sessionId: currentConversationId
                         })
                       });
+                      // Update lastSyncTime after successful persistence (retry path)
+                      set({ lastSyncTime: new Date().toISOString(), syncError: null });
                       logger.debug('Retry message pair saved', { userMessageId: retriedUserMessage.id, assistantId: assistantMessage.id });
                     }
                   } catch (e) {

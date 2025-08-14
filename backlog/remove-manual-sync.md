@@ -111,6 +111,54 @@ The `/api/chat/sync` endpoint is now only used on initial sign-in to sync unauth
 
 ---
 
+## Implementation Plan (Phased)
+
+Phase 1 – Remove UI/manual triggers and auto-sync timers
+
+- [x] ChatSidebar: remove manual sync button and its `manualSync` handler
+  - File: `components/ui/ChatSidebar.tsx`
+  - Keep the Sync Status indicator block
+- [x] Hook: remove auto-sync interval logic and env reads
+  - File: `hooks/useChatSync.ts`
+  - Delete `useEffect` that reads `NEXT_PUBLIC_AUTO_SYNC_FLAG` and `NEXT_PUBLIC_AUTO_SYNC_INTERVAL`
+  - Remove `manualSync` callback and stop returning it
+- [x] Tests: delete auto-sync tests tied to periodic timers
+  - File: `tests/stores/chatStore-autoSync.test.ts`
+
+User test steps (Phase 1)
+
+- Open the app and sign out; confirm there is no “Sync” button in the sidebar
+- Sign in; verify initial history loads, and Sync Status renders without a button
+
+Phase 2 – Refactor Sync Status to update on message persistence
+
+- [x] Update chat store to set `lastSyncTime` after successful `/api/chat/messages` saves
+  - File: `stores/useChatStore.ts`
+  - After successful POST to `/api/chat/messages` in send and retry flows, set `lastSyncTime = new Date().toISOString()`
+- [x] Leave `/api/chat/sync` for initial sign-in only
+
+User test steps (Phase 2)
+
+- Send a message; after the assistant replies, confirm Sync Status shows “Synced <time>”
+- Retry a failed message; after successful save, confirm Sync Status time updates
+
+Phase 3 – Cleanup docs and env references
+
+- [x] Remove mentions of `NEXT_PUBLIC_AUTO_SYNC_FLAG` and `NEXT_PUBLIC_AUTO_SYNC_INTERVAL` from docs and examples
+- [x] Add a note in `docs/components/ui/ChatSidebar.md` about the new Sync Status behavior
+
+Verification & sign-off
+
+- [x] Run typecheck and tests pass (`npm run build` or `tsc --noEmit`, `npm test`)
+- [ ] QA: manual checks above
+
+Notes
+
+- Keep `/api/chat/sync` endpoint for initial sign-in.
+- Keep admin model-sync (unrelated): `src/app/api/admin/sync-models/*`, `lib/services/modelSyncService.ts`, `src/app/admin/SyncPanel.tsx`.
+
+---
+
 ## References
 
 - `components/chat/ChatSidebar.tsx`

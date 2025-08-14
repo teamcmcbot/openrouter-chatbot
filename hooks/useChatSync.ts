@@ -8,7 +8,6 @@ import { useDebounce } from './useDebounce';
 export const useChatSync = () => {
   const { user, isAuthenticated } = useAuthStore();
   const { 
-    syncConversations, 
     isSyncing,
     lastSyncTime,
     syncError
@@ -58,77 +57,6 @@ export const useChatSync = () => {
     handleUserAuthentication();
   }, [handleUserAuthentication]);
 
-  // Periodic auto-sync: configurable interval and on/off switch from env
-  useEffect(() => {
-    if (!isAuthenticated || !user) return;
-
-    // Read from environment variables
-    const autoSyncEnabled = process.env.NEXT_PUBLIC_AUTO_SYNC_FLAG === 'true';
-    // Default to 5 minutes if not set or invalid
-    let intervalMinutes = 5;
-    if (process.env.NEXT_PUBLIC_AUTO_SYNC_INTERVAL) {
-      const parsed = parseInt(process.env.NEXT_PUBLIC_AUTO_SYNC_INTERVAL, 10);
-      if (!isNaN(parsed) && parsed > 0) intervalMinutes = parsed;
-    }
-    const intervalMs = intervalMinutes * 60 * 1000;
-
-    if (!autoSyncEnabled) return;
-
-    let interval: NodeJS.Timeout | null = null;
-
-    // Helper to start the interval
-    const startInterval = () => {
-      if (!interval) {
-        interval = setInterval(() => {
-          console.log(`[ChatSync] Auto-sync triggered at ${new Date().toISOString()}`);
-          syncConversations(); // Store-level deduplication will handle multiple calls
-        }, intervalMs);
-      }
-    };
-
-    // Helper to clear the interval
-    const clearSyncInterval = () => {
-      if (interval) {
-        clearInterval(interval);
-        interval = null;
-      }
-    };
-
-    // Visibility handler
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        console.log('[ChatSync] Tab hidden, pausing auto-sync');
-        clearSyncInterval();
-      } else if (document.visibilityState === 'visible') {
-        console.log('[ChatSync] Tab visible, resuming auto-sync');
-        startInterval();
-      }
-    };
-
-    // Start interval if tab is visible
-    if (document.visibilityState === 'visible') {
-      startInterval();
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      clearSyncInterval();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isAuthenticated, user, syncConversations]);
-
-  // Manual sync function
-  const manualSync = useCallback(async () => {
-    if (!isAuthenticated || !user) {
-      console.warn('[ChatSync] Cannot sync: user not authenticated');
-      return;
-    }
-
-    console.log('[ChatSync] Manual sync triggered');
-    await syncConversations();
-  }, [isAuthenticated, user, syncConversations]);
-
   // Sync status
   const syncStatus = {
     isSyncing,
@@ -138,7 +66,6 @@ export const useChatSync = () => {
   };
 
   return {
-    manualSync,
     syncStatus
   };
 };

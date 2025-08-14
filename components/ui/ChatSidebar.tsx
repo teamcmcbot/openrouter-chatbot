@@ -33,7 +33,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   const { isAuthenticated } = useAuthStore();
   
   // Get sync state from chat store
-  const { isSyncing, lastSyncTime, syncError, syncConversations } = useChatStore();
+  const { isSyncing, lastSyncTime, syncError } = useChatStore();
   
   // Create sync status object and manual sync function for the UI
   const syncStatus = {
@@ -43,14 +43,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     canSync: isAuthenticated
   };
   
-  const manualSync = async () => {
-    if (!isAuthenticated) {
-      console.warn('[ChatSidebar] Cannot sync: user not authenticated');
-      return;
-    }
-    console.log('[ChatSidebar] Manual sync triggered');
-    await syncConversations();
-  };
+  // Manual sync has been removed. Sync Status remains and updates after message persistence.
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -208,15 +201,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                   )}
                 </div>
                 
-                {!syncStatus.isSyncing && (
-                  <button
-                    onClick={manualSync}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-                    title="Sync now"
-                  >
-                    Sync
-                  </button>
-                )}
+                {/* Manual sync button removed */}
               </div>
               
               {syncStatus.syncError && (
