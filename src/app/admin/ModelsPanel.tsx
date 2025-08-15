@@ -258,31 +258,36 @@ export default function ModelsPanel() {
       </section>
 
       <section className="space-y-3 border rounded-md p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-lg font-semibold">Models{(counts.filtered ?? counts.total) !== null ? ` (${visibleRows.length} of ${counts.filtered ?? counts.total ?? 0}${counts.total && counts.filtered && counts.total !== counts.filtered ? ` • Total ${counts.total}` : ''})` : ''}</h2>
-          <input
-            className="border rounded px-2 py-1 text-sm min-w-[220px]"
-            placeholder="Search name or id…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <label className="text-sm text-gray-600">Filter</label>
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            <option value="all">All</option>
-            {statuses.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="flex items-center gap-1 text-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+          {/* Left: title + filters */}
+      <div className="flex w-full flex-wrap items-center gap-3">
+            <h2 className="text-lg font-semibold">Models{(counts.filtered ?? counts.total) !== null ? ` (${visibleRows.length} of ${counts.filtered ?? counts.total ?? 0}${counts.total && counts.filtered && counts.total !== counts.filtered ? ` • Total ${counts.total}` : ''})` : ''}</h2>
+            <input
+        className="border rounded px-2 py-1 text-sm min-w-0 w-full sm:w-auto sm:min-w-[220px] input-emerald-focus"
+              placeholder="Search name or id…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            <label className="text-sm text-gray-600">Filter</label>
+            <select
+              className="border rounded px-2 py-1 text-sm input-emerald-focus"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              <option value="all">All</option>
+              {statuses.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Right: pagination + actions */}
+          <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:ml-auto">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
               <span className="text-gray-600">Page</span>
               <span>{currentPage} of {isFinite(totalPages) ? totalPages : '?'}</span>
               <button
-                className="px-2 py-1 border rounded disabled:opacity-50"
+                className="shrink-0 px-2 py-1 border rounded disabled:opacity-50"
                 onClick={() => setOffset(Math.max(0, offset - limit))}
                 disabled={loading || offset === 0}
                 aria-label="Previous page"
@@ -291,7 +296,7 @@ export default function ModelsPanel() {
                 Prev
               </button>
               <button
-                className="px-2 py-1 border rounded disabled:opacity-50"
+                className="shrink-0 px-2 py-1 border rounded disabled:opacity-50"
                 onClick={() => setOffset(offset + limit)}
                 disabled={loading || (counts.filtered !== null ? offset + limit >= (counts.filtered || 0) : rows.length < limit)}
                 aria-label="Next page"
@@ -300,7 +305,7 @@ export default function ModelsPanel() {
                 Next
               </button>
               <select
-                className="border rounded px-2 py-1 text-sm"
+                className="border rounded px-2 py-1 text-sm input-emerald-focus"
                 value={limit}
                 onChange={(e) => { setLimit(parseInt(e.target.value, 10)); setOffset(0); }}
                 aria-label="Rows per page"
@@ -334,6 +339,7 @@ export default function ModelsPanel() {
                     {c.key === 'model_id' ? (
                       <label className="inline-flex items-center gap-2 select-none">
                         <input
+                          className="checkbox-emerald"
                           ref={selectAllRef}
                           type="checkbox"
                           checked={allSelected}
@@ -356,7 +362,7 @@ export default function ModelsPanel() {
                       <div className="inline-flex items-center gap-2">
                         <span>Status</span>
                         <select
-                          className="border rounded px-2 py-1 text-xs"
+                          className="border rounded px-2 py-1 text-xs input-emerald-focus"
                           value={headerStatus}
                           onChange={(e) => {
                             const v = e.target.value as '' | ModelRow['status'];
@@ -390,6 +396,7 @@ export default function ModelsPanel() {
                     ) : c.key === 'is_free' ? (
                       <label className="inline-flex items-center gap-2 select-none">
                         <input
+                          className="checkbox-emerald"
                           ref={freeRef}
                           type="checkbox"
                           checked={allFree}
@@ -402,6 +409,7 @@ export default function ModelsPanel() {
                     ) : c.key === 'is_pro' ? (
                       <label className="inline-flex items-center gap-2 select-none">
                         <input
+                          className="checkbox-emerald"
                           ref={proRef}
                           type="checkbox"
                           checked={allPro}
@@ -414,6 +422,7 @@ export default function ModelsPanel() {
                     ) : c.key === 'is_enterprise' ? (
                       <label className="inline-flex items-center gap-2 select-none">
                         <input
+                          className="checkbox-emerald"
                           ref={entRef}
                           type="checkbox"
                           checked={allEnt}
@@ -446,17 +455,17 @@ export default function ModelsPanel() {
             </thead>
             <tbody>
               {visibleRows.map((row) => (
-                <tr key={row.model_id} className="border-b hover:bg-gray-50/50">
+                <tr key={row.model_id} className="border-b table-row-hover">
                   <td className="px-3 py-2 font-mono text-xs max-w-[360px] truncate" title={row.model_id}>
                     <label className="inline-flex items-center gap-2">
-                      <input type="checkbox" checked={!!selected[row.model_id]} onChange={(e) => setSelected(prev => ({ ...prev, [row.model_id]: e.target.checked }))} />
+                      <input className="checkbox-emerald" type="checkbox" checked={!!selected[row.model_id]} onChange={(e) => setSelected(prev => ({ ...prev, [row.model_id]: e.target.checked }))} />
                       <span className="truncate" title={row.model_id}>{row.model_id}</span>
                     </label>
                   </td>
                   <td className="px-3 py-2">{row.model_name || row.canonical_slug || '—'}</td>
                   <td className="px-3 py-2">
                     <select
-                      className="border rounded px-2 py-1 text-xs"
+                      className="border rounded px-2 py-1 text-xs input-emerald-focus"
                       value={row.status}
                       onChange={(e) => stageRow(row.model_id, { status: e.target.value as ModelRow['status'] })}
                     >
@@ -466,13 +475,13 @@ export default function ModelsPanel() {
                     </select>
                   </td>
                   <td className="px-3 py-2">
-                    <input type="checkbox" checked={row.is_free} onChange={(e) => stageRow(row.model_id, { is_free: e.target.checked })} />
+                    <input className="checkbox-emerald" type="checkbox" checked={row.is_free} onChange={(e) => stageRow(row.model_id, { is_free: e.target.checked })} />
                   </td>
                   <td className="px-3 py-2">
-                    <input type="checkbox" checked={row.is_pro} onChange={(e) => stageRow(row.model_id, { is_pro: e.target.checked })} />
+                    <input className="checkbox-emerald" type="checkbox" checked={row.is_pro} onChange={(e) => stageRow(row.model_id, { is_pro: e.target.checked })} />
                   </td>
                   <td className="px-3 py-2">
-                    <input type="checkbox" checked={row.is_enterprise} onChange={(e) => stageRow(row.model_id, { is_enterprise: e.target.checked })} />
+                    <input className="checkbox-emerald" type="checkbox" checked={row.is_enterprise} onChange={(e) => stageRow(row.model_id, { is_enterprise: e.target.checked })} />
                   </td>
                   <td className="px-3 py-2 text-xs text-gray-600">
                     {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}

@@ -184,6 +184,26 @@ html {
   @apply bg-emerald-200 text-emerald-900;
 }
 
+/* Standardized table control styles */
+/* Emerald focus border + ring for inputs used in tables/search */
+.input-emerald-focus {
+  @apply focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-emerald-500 dark:focus:ring-emerald-800 dark:focus:border-emerald-400;
+}
+
+/* Emerald accent for checkboxes with accessible focus ring */
+.checkbox-emerald {
+  accent-color: #059669; /* emerald-600 */
+}
+
+.checkbox-emerald:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4); /* emerald-500 ring */
+}
+
+.dark .checkbox-emerald:focus-visible {
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.55); /* emerald-600, stronger on dark */
+}
+
 /* Mobile-friendly tap highlights */
 input,
 button,
@@ -196,6 +216,31 @@ a {
 /* Smooth transitions for dark mode */
 * {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* Unified table row hover/focus styles */
+.table-row-hover {
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.table-row-hover:hover {
+  background-color: #f8fafc; /* slate-50 */
+  border-color: rgb(209 213 219); /* gray-300 */
+}
+
+.table-row-hover:focus-within {
+  background-color: #f3f4f6; /* gray-100 */
+  border-color: rgb(209 213 219); /* gray-300 */
+}
+
+.dark .table-row-hover:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgb(75 85 99); /* gray-600 */
+}
+
+.dark .table-row-hover:focus-within {
+  background-color: rgba(255, 255, 255, 0.09);
+  border-color: rgb(75 85 99); /* gray-600 */
 }
 
 /* Responsive Table Styles */

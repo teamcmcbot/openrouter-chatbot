@@ -187,20 +187,20 @@ export default function UsersPanel() {
         <h2 className="text-lg font-semibold">Users{counts.filtered !== null && counts.total !== null ? ` (${counts.filtered} of ${counts.total})` : ''}</h2>
         <div className="ml-auto flex items-center gap-2">
           <input
-            className="border rounded px-2 py-1 text-sm min-w-[240px]"
+            className="border rounded px-2 py-1 text-sm min-w-[240px] input-emerald-focus"
             placeholder="Search email or name…"
             value={q}
             onChange={(e) => { setQ(e.target.value); setOffset(0); }}
           />
           <label className="text-sm text-gray-600">Tier</label>
-          <select className="border rounded px-2 py-1 text-sm" value={tier} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { const v = e.target.value as ('all' | Tier); setTier(v); setOffset(0); }}>
+          <select className="border rounded px-2 py-1 text-sm input-emerald-focus" value={tier} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { const v = e.target.value as ('all' | Tier); setTier(v); setOffset(0); }}>
             <option value="all">All</option>
             <option value="free">free</option>
             <option value="pro">pro</option>
             <option value="enterprise">enterprise</option>
           </select>
           <label className="text-sm text-gray-600">Account</label>
-          <select className="border rounded px-2 py-1 text-sm" value={accountType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { const v = e.target.value as ('all' | AccountType); setAccountType(v); setOffset(0); }}>
+          <select className="border rounded px-2 py-1 text-sm input-emerald-focus" value={accountType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { const v = e.target.value as ('all' | AccountType); setAccountType(v); setOffset(0); }}>
             <option value="all">All</option>
             <option value="user">user</option>
             <option value="admin">admin</option>
@@ -227,6 +227,7 @@ export default function UsersPanel() {
                   {c.key === 'id' ? (
                     <label className="inline-flex items-center gap-2 select-none">
                       <input
+                        className="checkbox-emerald"
                         ref={selectAllRef}
                         type="checkbox"
                         checked={allSelected}
@@ -239,7 +240,7 @@ export default function UsersPanel() {
                     <div className="inline-flex items-center gap-2">
                       <span>Tier</span>
                       <select
-                        className="border rounded px-2 py-1 text-xs"
+                        className="border rounded px-2 py-1 text-xs input-emerald-focus"
                         value={headerTier}
                         onChange={(e) => {
                           const v = e.target.value as '' | Tier;
@@ -258,7 +259,7 @@ export default function UsersPanel() {
                     <div className="inline-flex items-center gap-2">
                       <span>Account</span>
                       <select
-                        className="border rounded px-2 py-1 text-xs"
+                        className="border rounded px-2 py-1 text-xs input-emerald-focus"
                         value={headerAccountType}
                         onChange={(e) => {
                           const v = e.target.value as '' | AccountType;
@@ -276,7 +277,7 @@ export default function UsersPanel() {
                     <div className="inline-flex items-center gap-2">
                       <span>Credits</span>
                       <input
-                        className="border rounded px-2 py-1 text-xs w-24"
+                        className="border rounded px-2 py-1 text-xs w-24 input-emerald-focus"
                         type="number"
                         placeholder="Set…"
                         value={headerCredits}
@@ -299,17 +300,17 @@ export default function UsersPanel() {
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-b hover:bg-gray-50/50">
+              <tr key={row.id} className="border-b table-row-hover">
                 <td className="px-3 py-2 font-mono text-xs max-w-[360px] truncate" title={row.id}>
                   <label className="inline-flex items-center gap-2">
-                    <input type="checkbox" checked={!!selected[row.id]} onChange={(e) => setSelected(prev => ({ ...prev, [row.id]: e.target.checked }))} />
+                    <input className="checkbox-emerald" type="checkbox" checked={!!selected[row.id]} onChange={(e) => setSelected(prev => ({ ...prev, [row.id]: e.target.checked }))} />
                     <span className="truncate" title={row.id}>{row.id}</span>
                   </label>
                 </td>
                 <td className="px-3 py-2">{row.email}</td>
                 <td className="px-3 py-2">{row.full_name || '—'}</td>
                 <td className="px-3 py-2">
-                  <select className="border rounded px-2 py-1 text-xs" value={row.subscription_tier}
+                  <select className="border rounded px-2 py-1 text-xs input-emerald-focus" value={row.subscription_tier}
                     onChange={(e) => stageRow(row.id, { subscription_tier: e.target.value as Tier })}>
                     <option value="free">free</option>
                     <option value="pro">pro</option>
@@ -317,14 +318,14 @@ export default function UsersPanel() {
                   </select>
                 </td>
                 <td className="px-3 py-2">
-                  <select className="border rounded px-2 py-1 text-xs" value={row.account_type}
+                  <select className="border rounded px-2 py-1 text-xs input-emerald-focus" value={row.account_type}
                     onChange={(e) => stageRow(row.id, { account_type: e.target.value as AccountType })}>
                     <option value="user">user</option>
                     <option value="admin">admin</option>
                   </select>
                 </td>
                 <td className="px-3 py-2">
-                  <input className="border rounded px-2 py-1 text-xs w-24" type="number" value={row.credits}
+                  <input className="border rounded px-2 py-1 text-xs w-24 input-emerald-focus" type="number" value={row.credits}
                     onChange={(e) => {
                       const val = parseInt(e.target.value || '0', 10);
                       stageRow(row.id, { credits: Number.isNaN(val) ? 0 : val });
@@ -354,7 +355,7 @@ export default function UsersPanel() {
             onClick={() => setOffset(Math.max(0, offset - limit))}>Prev</button>
           <button className="px-2 py-1 rounded border text-xs disabled:opacity-50" disabled={(counts.filtered ?? 0) <= offset + limit}
             onClick={() => setOffset(offset + limit)}>Next</button>
-          <select className="border rounded px-2 py-1 text-xs" value={limit}
+          <select className="border rounded px-2 py-1 text-xs input-emerald-focus" value={limit}
             onChange={(e) => { setLimit(parseInt(e.target.value, 10)); setOffset(0); }}>
             <option value={25}>25</option>
             <option value={50}>50</option>

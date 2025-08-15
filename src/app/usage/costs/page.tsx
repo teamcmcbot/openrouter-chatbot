@@ -98,15 +98,15 @@ export default function UsageCostsPage() {
         </div>
         <div>
           <label className="block text-xs mb-1">Model</label>
-          <select value={modelFilter} onChange={e => { setModelFilter(e.target.value); setPage(1); }}
-                  className="px-2 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm min-w-[220px]">
+    <select value={modelFilter} onChange={e => { setModelFilter(e.target.value); setPage(1); }}
+      className="px-2 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm min-w-[220px] input-emerald-focus">
             <option value="">All models</option>
             {modelOptions.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-xs mb-1">Page Size</label>
-          <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }} className="px-2 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm">
+          <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }} className="px-2 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm input-emerald-focus">
             {[25,50,100,150,200].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -142,13 +142,13 @@ export default function UsageCostsPage() {
       <div className="grid md:grid-cols-2 gap-8 items-start">
         <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
           <h2 className="text-sm font-semibold mb-3">Top Models by Tokens</h2>
-          <table className="w-full text-xs border-separate border-spacing-y-1 mt-1">
+      <table className="w-full text-xs border-separate border-spacing-y-1 mt-1">
             <thead className="text-gray-600 dark:text-gray-500">
               <tr><th className="text-left">Model</th><th className="text-right">Tokens</th><th className="text-right">Cost</th><th className="text-right">%Tokens</th><th className="text-right">%Cost</th></tr>
             </thead>
             <tbody>
               {data?.summary.top_models.by_tokens.map(r => (
-                <tr key={r.model_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/70 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+        <tr key={r.model_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 table-row-hover">
                   <td className="py-1 pr-2 font-medium">{r.model_id}</td>
                   <td className="py-1 text-right">{fmt(r.total_tokens)}</td>
                   <td className="py-1 text-right">${fmt(r.total_cost)}</td>
@@ -169,13 +169,13 @@ export default function UsageCostsPage() {
         </div>
         <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm md:border-l md:border-gray-200 dark:md:border-gray-700 md:pl-6">
           <h2 className="text-sm font-semibold mb-3">Top Models by Cost</h2>
-          <table className="w-full text-xs border-separate border-spacing-y-1 mt-1">
+      <table className="w-full text-xs border-separate border-spacing-y-1 mt-1">
             <thead className="text-gray-600 dark:text-gray-500">
               <tr><th className="text-left">Model</th><th className="text-right">Tokens</th><th className="text-right">Cost</th><th className="text-right">%Tokens</th><th className="text-right">%Cost</th></tr>
             </thead>
             <tbody>
               {data?.summary.top_models.by_cost.map(r => (
-                <tr key={r.model_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/70 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+        <tr key={r.model_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 table-row-hover">
                   <td className="py-1 pr-2 font-medium">{r.model_id}</td>
                   <td className="py-1 text-right">{fmt(r.total_tokens)}</td>
                   <td className="py-1 text-right">${fmt(r.total_cost)}</td>
@@ -196,7 +196,7 @@ export default function UsageCostsPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 shadow-sm">
+  <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 shadow-sm">
         <h2 className="text-sm font-semibold mb-2">Per-Message Costs</h2>
   <table className="w-full text-xs min-w-[920px] border-separate border-spacing-y-2">{/* widened for new column */}
       <thead className="text-gray-600 dark:text-gray-500">
@@ -218,7 +218,7 @@ export default function UsageCostsPage() {
             {!loading && data?.items.map(item => {
               const speed = item.elapsed_ms && item.elapsed_ms > 0 ? (item.completion_tokens / (item.elapsed_ms / 1000)) : 0;
               return (
-              <tr key={item.assistant_message_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/70 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors shadow-sm">
+      <tr key={item.assistant_message_id} className="bg-white dark:bg-gray-900 even:bg-gray-50 dark:even:bg-gray-800 table-row-hover shadow-sm">
                 <td className="py-2 pr-3 whitespace-nowrap text-[11px]">{new Date(item.message_timestamp).toLocaleString()}</td>
                 <td className="py-2 pr-3 text-xs font-medium">{item.model_id || '—'}</td>
                 <td className="py-2 text-right font-mono tabular-nums">{item.prompt_tokens}</td>
