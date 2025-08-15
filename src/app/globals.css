@@ -133,8 +133,13 @@ body {
   width: 8px;
 }
 
+/* Track: explicit colors for light/dark to avoid white bar on dark mode */
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100 dark:bg-gray-800;
+  background-color: rgb(243 244 246); /* gray-100 */
+}
+
+.dark ::-webkit-scrollbar-track {
+  background-color: rgb(31 41 55); /* gray-800 */
 }
 
 ::-webkit-scrollbar-thumb {
@@ -143,6 +148,26 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-400 dark:bg-gray-500;
+}
+
+/* Corner (for scrollable containers) */
+::-webkit-scrollbar-corner {
+  background-color: rgb(243 244 246); /* gray-100 */
+}
+
+.dark ::-webkit-scrollbar-corner {
+  background-color: rgb(31 41 55); /* gray-800 */
+}
+
+/* Firefox scrollbar colors */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(209 213 219) rgb(243 244 246); /* thumb, track */
+}
+
+.dark {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(75 85 99) rgb(31 41 55); /* thumb, track */
 }
 
 /* Improved focus styles */
