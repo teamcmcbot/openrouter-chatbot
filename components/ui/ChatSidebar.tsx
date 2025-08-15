@@ -142,7 +142,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
         className={`
           fixed xl:static inset-y-0 left-0 z-50 xl:z-0
           w-64 xl:w-full h-full mobile-safe-area
-          bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+          bg-slate-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
           transform transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'}
           flex flex-col
@@ -173,7 +173,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
 
             {/* Sync Status */}
           {isAuthenticated && (
-            <div className="mb-3 px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <div className="mb-3 px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {syncStatus.isSyncing ? (

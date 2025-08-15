@@ -157,7 +157,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
       )}
       
       <aside
-        className={`h-full mobile-safe-area bg-gray-100 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out overflow-hidden
+        className={`h-full mobile-safe-area bg-slate-50 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out overflow-hidden
           ${isOpen ? 'w-96' : 'w-0'}
           xl:relative xl:block xl:w-full
           ${isOpen ? 'fixed inset-y-0 right-0 z-50 xl:relative xl:z-auto' : 'hidden xl:block'}
@@ -292,7 +292,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pricing</h3>
-                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
+                      <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 space-y-2">
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Input:</span>
                           <span className="font-medium text-gray-900 dark:text-white">
@@ -366,7 +366,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                           </div>
                         ) : generationData ? (
                           <div 
-                            className={`bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2 transition-all duration-200 cursor-pointer ${
+                            className={`bg-gray-100 dark:bg-gray-700 rounded-lg p-4 space-y-2 transition-all duration-200 cursor-pointer ${
                               isGenerationIdHovered 
                                 ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20' 
                                 : 'hover:ring-2 hover:ring-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
