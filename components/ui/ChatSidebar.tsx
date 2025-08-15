@@ -227,24 +227,30 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
               {recentConversations.map((conversation, index) => (
                 <div
                   key={conversation.id}
-                  className={`group p-3 rounded-lg cursor-pointer border transition-all duration-200 relative ${
+      className={`group p-3 rounded-lg cursor-pointer border transition-all duration-200 relative ${
                     conversation.id === currentConversationId
                       ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 shadow-sm'
                       : index % 2 === 0
-                        ? 'bg-gray-100/30 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
-                        : 'bg-gray-200 dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
+        ? 'bg-gray-100/30 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10'
+        : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border-transparent dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10'
                   }`}
                   onClick={() => handleConversationClick(conversation.id)}
                 >
                   {/* Action buttons overlay - only visible on hover */}
                   {editingId !== conversation.id && (
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-600 p-1">
+                    <div
+                      className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto rounded-md p-1
+                                 bg-white/95 ring-1 ring-gray-300/70 shadow-md
+                                 dark:bg-gray-800/95 dark:ring-white/10 dark:shadow-sm"
+                    >
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleStartEdit(conversation.id, conversation.title);
                         }}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+                        className="p-1 rounded-md text-gray-600 hover:text-gray-800 hover:bg-gray-100
+                                   dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-700/60
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
                         title="Edit title"
                       >
                         <PencilIcon className="w-3 h-3" />
@@ -254,7 +260,9 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                           e.stopPropagation();
                           handleDeleteChat(conversation.id);
                         }}
-                        className="p-1 text-gray-400 hover:text-red-500 rounded"
+                        className="p-1 rounded-md text-gray-600 hover:text-red-600 hover:bg-red-50
+                                   dark:text-gray-300 dark:hover:text-red-400 dark:hover:bg-red-900/30
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
                         title="Delete chat"
                       >
                         <TrashIcon className="w-3 h-3" />
