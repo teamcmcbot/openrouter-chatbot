@@ -143,29 +143,29 @@ export default function SyncPanel({ onSyncComplete }: { onSyncComplete?: () => v
       {/* Status summary */}
       {status && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-          <div className="rounded border p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-400 transition-colors">
+          <div className="rounded border border-gray-300 p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-500 hover:ring-1 hover:ring-emerald-300 dark:hover:border-emerald-400 dark:hover:ring-0 transition-colors">
             <div className="text-gray-500">Running</div>
-            <div className="font-medium group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">{String(status.data?.currentStatus.isRunning)}</div>
+            <div className="font-medium group-hover:text-emerald-700 group-hover:font-semibold dark:group-hover:text-emerald-400 dark:group-hover:font-medium transition-colors">{String(status.data?.currentStatus.isRunning)}</div>
           </div>
-          <div className="rounded border p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-400 transition-colors">
+          <div className="rounded border border-gray-300 p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-500 hover:ring-1 hover:ring-emerald-300 dark:hover:border-emerald-400 dark:hover:ring-0 transition-colors">
             <div className="text-gray-500">Last Sync</div>
-            <div className="font-medium group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">{status.data?.currentStatus.lastSyncAt || '—'}</div>
+            <div className="font-medium group-hover:text-emerald-700 group-hover:font-semibold dark:group-hover:text-emerald-400 dark:group-hover:font-medium transition-colors">{status.data?.currentStatus.lastSyncAt || '—'}</div>
           </div>
-          <div className="rounded border p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-400 transition-colors">
+          <div className="rounded border border-gray-300 p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-500 hover:ring-1 hover:ring-emerald-300 dark:hover:border-emerald-400 dark:hover:ring-0 transition-colors">
             <div className="text-gray-500">Last Status</div>
-            <div className="font-medium group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">{status.data?.currentStatus.lastSyncStatus || '—'}</div>
+            <div className="font-medium group-hover:text-emerald-700 group-hover:font-semibold dark:group-hover:text-emerald-400 dark:group-hover:font-medium transition-colors">{status.data?.currentStatus.lastSyncStatus || '—'}</div>
           </div>
-          <div className="rounded border p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-400 transition-colors">
+          <div className="rounded border border-gray-300 p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-500 hover:ring-1 hover:ring-emerald-300 dark:hover:border-emerald-400 dark:hover:ring-0 transition-colors">
             <div className="text-gray-500">Total Models</div>
-            <div className="font-medium group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">{status.data?.currentStatus.totalModels}</div>
+            <div className="font-medium group-hover:text-emerald-700 group-hover:font-semibold dark:group-hover:text-emerald-400 dark:group-hover:font-medium transition-colors">{status.data?.currentStatus.totalModels}</div>
           </div>
-          <div className="rounded border p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-400 transition-colors">
+          <div className="rounded border border-gray-300 p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-500 hover:ring-1 hover:ring-emerald-300 dark:hover:border-emerald-400 dark:hover:ring-0 transition-colors">
             <div className="text-gray-500">Avg Duration</div>
-            <div className="font-medium group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">{status.data?.statistics.averageDuration} ms</div>
+            <div className="font-medium group-hover:text-emerald-700 group-hover:font-semibold dark:group-hover:text-emerald-400 dark:group-hover:font-medium transition-colors">{status.data?.statistics.averageDuration} ms</div>
           </div>
-          <div className="rounded border p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-400 transition-colors">
+          <div className="rounded border border-gray-300 p-3 bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 group hover:border-emerald-500 hover:ring-1 hover:ring-emerald-300 dark:hover:border-emerald-400 dark:hover:ring-0 transition-colors">
             <div className="text-gray-500">Success Rate</div>
-            <div className="font-medium group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">{status.data?.statistics.successRate}%</div>
+            <div className="font-medium group-hover:text-emerald-700 group-hover:font-semibold dark:group-hover:text-emerald-400 dark:group-hover:font-medium transition-colors">{status.data?.statistics.successRate}%</div>
           </div>
         </div>
       )}

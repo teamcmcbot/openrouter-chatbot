@@ -8,6 +8,6 @@ export default function MainContainer({ children }: { children: React.ReactNode 
   const isChat = pathname === "/chat" || pathname === "/";
   const minHClass = isChat ? "min-h-0" : "";
   return (
-    <main className={`flex-1 ${minHClass} bg-gray-50 dark:bg-gray-900`}>{children}</main>
+    <main className={`flex-1 ${minHClass} bg-slate-50 dark:bg-gray-900`}>{children}</main>
   );
 }
