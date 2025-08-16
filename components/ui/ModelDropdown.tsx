@@ -34,7 +34,10 @@ export default function ModelDropdown({
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBy, setFilterBy] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isSmallScreen, setIsSmallScreen] = useState<boolean>(false);
+  const [fixedTop, setFixedTop] = useState<number>(0);
 
   // Determine if we have enhanced data
   const hasEnhancedData = enhanced ?? isEnhancedModels(models);
@@ -96,6 +99,39 @@ export default function ModelDropdown({
       searchInputRef.current.focus();
     }
   }, [isOpen]);
+
+  // Track small screen (below 640px) to switch to fixed, centered popover
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsSmallScreen(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+
+  // When opening on small screens, compute top position under trigger
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!isSmallScreen) return;
+    const btn = triggerRef.current;
+    if (!btn) return;
+    const computeTop = () => {
+      const rect = btn.getBoundingClientRect();
+      setFixedTop(rect.bottom + 8); // 8px gap under trigger
+    };
+    computeTop();
+
+    // Keep position in sync on resize/scroll/orientation change
+    window.addEventListener('resize', computeTop);
+    window.addEventListener('scroll', computeTop, { passive: true });
+    window.addEventListener('orientationchange', computeTop);
+
+    return () => {
+      window.removeEventListener('resize', computeTop);
+      window.removeEventListener('scroll', computeTop);
+      window.removeEventListener('orientationchange', computeTop);
+    };
+  }, [isOpen, isSmallScreen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -196,9 +232,10 @@ export default function ModelDropdown({
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
-        className="flex items-center gap-1.5 px-2 py-1 text-xs bg-white dark:bg-gray-800 hover:bg-slate-50 dark:hover:bg-gray-600 rounded-md transition-colors duration-200 border border-slate-300 dark:border-gray-600 shadow-sm dark:shadow-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:focus-visible:ring-emerald-400/30 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+  className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-white dark:bg-gray-800 hover:bg-slate-50 dark:hover:bg-gray-700 rounded-full transition-colors duration-200 border border-slate-300 dark:border-gray-600 shadow-sm dark:shadow-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 dark:focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-label="Select AI model"
@@ -228,7 +265,30 @@ export default function ModelDropdown({
       </button>
 
       {isOpen && !isLoading && (
-        <div className="absolute top-full right-0 mt-1 w-80 bg-white dark:bg-gray-800 border border-slate-300 dark:border-gray-600 rounded-lg shadow-xl dark:shadow-lg z-[60] max-h-96 overflow-hidden">
+        <>
+          {/* Mobile scrim overlay to focus attention on the popover */}
+          {isSmallScreen && (
+            <div
+              className="fixed inset-0 z-[58] bg-black/20 dark:bg-black/40"
+              role="presentation"
+              onClick={() => setIsOpen(false)}
+            />
+          )}
+        <div
+          className={`${
+            isSmallScreen
+              ? 'fixed z-[60]'
+              : 'absolute z-[60] top-full mt-1 sm:left-0 sm:translate-x-0'
+          } ${
+            isSmallScreen
+              ? 'left-1/2 -translate-x-1/2'
+              : ''
+          } ${
+            // width constraints: on small use viewport-constrained width; on sm+ use fixed width
+            isSmallScreen ? 'w-[min(36rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]' : 'sm:w-80 w-[min(20rem,calc(100vw-2rem))]'
+          } bg-white dark:bg-gray-800 border border-slate-300 dark:border-gray-600 rounded-lg shadow-xl sm:shadow-xl dark:shadow-lg ${isSmallScreen ? 'shadow-2xl' : ''} max-h-96 overflow-hidden origin-top sm:origin-top-left`}
+          style={isSmallScreen ? { top: fixedTop } : undefined}
+        >
           {/* Search and Filter Header */}
           <div className="p-3 border-b border-gray-200 dark:border-gray-700">
             {/* Search Input */}
@@ -391,8 +451,9 @@ export default function ModelDropdown({
             )}
           </div>
 
-          {/* No longer showing results count at the footer - moved to header */}
-        </div>
+      {/* No longer showing results count at the footer - moved to header */}
+  </div>
+    </>
       )}
     </div>
   );

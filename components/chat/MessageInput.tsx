@@ -48,7 +48,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   };
 
   return (
-    <div className="px-6 py-4">
+    <div className="px-4 sm:px-6 py-4">
       <div className="flex items-start space-x-4">
         <div className="flex-1">
           <textarea

@@ -109,7 +109,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
   return (
     <div 
       ref={messagesContainerRef}
-      className="h-full overflow-y-auto px-6 py-4 scroll-smooth"
+  className="h-full overflow-y-auto px-4 sm:px-6 py-4 scroll-smooth"
     >
       <div className="space-y-4">
         {messages.length === 0 && !isLoading && (

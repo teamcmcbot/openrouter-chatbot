@@ -126,7 +126,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
       {/* Mobile Overlay */}
       {isOpen && (
         <button 
-          className="fixed inset-0 bg-black/50 z-40 xl:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onClose}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
@@ -140,17 +140,17 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
       {/* Sidebar */}
       <aside
         className={`
-          fixed xl:static inset-y-0 left-0 z-50 xl:z-0
-          w-64 xl:w-full h-full mobile-safe-area
-          bg-slate-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+          fixed lg:static inset-y-0 left-0 z-50 lg:z-0
+          w-64 lg:w-full h-full mobile-safe-area
+          bg-slate-50 dark:bg-gray-800 border-r border-slate-200 dark:border-gray-700
           transform transition-transform duration-300 ease-in-out
-          ${isOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'}
+          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           flex flex-col
           ${className}
         `}
       >
-        {/* Header */}
-        <div className="p-5 border-b border-gray-200 dark:border-gray-700">
+  {/* Header */}
+  <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
           <Button
             onClick={onNewChat}
             className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -165,7 +165,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto">
           
-          <div className="ml-2 p-4">
+          <div className="px-4 sm:px-6 py-4">
             
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Recent Chats
@@ -351,7 +351,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+  <div className="px-4 sm:px-6 py-4 border-t border-slate-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className="text-xs text-gray-500 dark:text-gray-500">
               {isHydrated ? `${conversations.length} total conversations` : "Loading conversations..."}

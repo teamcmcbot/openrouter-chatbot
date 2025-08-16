@@ -15,7 +15,10 @@ jest.mock('../../components/ui/ModelDetailsSidebar', () => ({
 // Provide a minimal ChatSidebar that exposes the New Chat button
 jest.mock('../../components/ui/ChatSidebar', () => ({
   ChatSidebar: ({ onNewChat, className }: { onNewChat: () => void; className?: string }) => {
-    const isMobile = (className || '').includes('xl:hidden');
+  // Detect mobile variant based on responsive utility applied by ChatInterface
+  // ChatInterface now uses `lg:hidden` for the mobile sidebar (was `xl:hidden` before)
+  const cls = className || '';
+  const isMobile = cls.includes('lg:hidden') || cls.includes('xl:hidden');
     return (
       <div>
         <button data-testid={isMobile ? 'new-chat-mobile' : 'new-chat-desktop'} onClick={onNewChat}>

@@ -2,7 +2,7 @@
 
 Author: Copilot UX
 Date: 2025-08-16
-Status: Draft for review
+Status: Approved – Option A
 Scope: Update the model selector placement, affordance, and behavior on desktop and mobile, in light and dark modes.
 
 ---
@@ -54,6 +54,12 @@ Success signal ideas:
 - Cons: Splits mental model from conversation header; weaker on mobile.
 
 We will ship A, keep B as a variant if visual balance requires centered alignment on desktop. Avoid C for now.
+
+### Decision (2025-08-16)
+
+- APPROVED: Option A – Prominent header pill.
+- Rationale: Maximizes discoverability, keeps actions predictable on desktop, and adapts cleanly to a two-row mobile header.
+- Next steps: Proceed with Phase 1 (Header layout changes) and Phase 2 (Selector surface). Track against the acceptance checklist in section 12.
 
 ## 4) Component structure & behavior
 
@@ -205,3 +211,87 @@ Phases:
 - Inline model comparison (hover card) showing cost/latency.
 - Per-conversation model override with reminder banner.
 - Quick-switch (⌘K) with model scope.
+
+## 14) Issues observed during Phase 1 rollout (no code changes yet)
+
+This section documents current problems found in visual QA, analysis, and proposed fixes for review. No code changes are made in this step.
+
+### A) Mobile header misalignment (375px–1023px)
+
+- Symptoms
+  - Model dropdown renders centered (row 1) rather than adjacent to the hamburger menu on the left.
+  - Message count + Enhanced chip wrap to a new line unexpectedly and are not right-aligned.
+- Expected
+  - Row 1: Left cluster = [hamburger][model dropdown] aligned left. Right cluster = [messages][Enhanced] aligned right.
+  - Row 2 (only if needed for space): Enhanced may wrap to next line while messages remain visible; alignment stays consistent.
+- Likely root cause
+  - The mobile header uses a 3-column grid with the selector in the middle cell and `justify-center`, which forces hard centering and breaks the desired left-cluster behavior.
+  - Minor contributing factor: the pill trigger has `transform scale-[1.05]` which can increase min width and encourage wrapping.
+- Proposed fix (no code yet)
+  - Replace the mobile header grid with a single flex row that contains two clusters:
+    - Left cluster: a flex container with the hamburger button followed by the model dropdown trigger; use `gap-x-2` and `flex-shrink-0` for the menu, and allow the trigger to shrink (`min-w-0`) and truncate.
+    - Right cluster: a flex container for [messages][Enhanced], justified to end; allow the Enhanced chip to wrap to row 2 at small widths while preserving right alignment for messages.
+  - Ensure the container uses `px-4 sm:px-6` and consistent border tokens already standardized.
+  - Optional: Drop or reduce the `scale-[1.05]` on very small widths to reduce layout pressure.
+- Acceptance checks
+  - At 375–414px, the selector stays left next to hamburger; messages stay right. If wrapping occurs, Enhanced moves to line 2 while messages remain visible.
+  - No overlap, no jitter; focus ring and hover states still visible.
+- Manual QA steps
+  - Resize devtools to 375, 414, 540, 640, 768, 820, 912, 1023. Observe header layout, open/close dropdown, tap hamburger.
+  - Toggle light/dark to verify contrast of chips and borders.
+
+### B) 1024px–1279px: Model Details black overlay bug
+
+- Symptoms
+  - At widths 1024–1279px, opening the Model Details sidebar yields a black, unusable left area or a blank screen region.
+- Expected
+  - At ≥lg (≥1024px), single-row header; left chat area remains interactive; details sidebar either stays in the right rail (desktop variant) or behaves consistently without covering the chat content.
+- Likely root cause
+  - Breakpoint mismatch:
+    - `ChatInterface.tsx` switched to `lg` for the main layout threshold (header/sidebars).
+    - `ModelDetailsSidebar.tsx` still uses `xl:*` classes and a `matchMedia('(min-width: 1280px)')` check to decide “desktop,” causing the component to think it’s on mobile within 1024–1279px and apply a full-screen fixed overlay.
+  - This creates an overlay layer that covers or conflicts with the main chat column, producing a black/blank left portion.
+- Proposed fix (no code yet)
+  - Unify breakpoints at `lg` for details sidebar.
+    - Replace `xl:hidden`, `xl:block`, `xl:relative`, `xl:w-full` with `lg:hidden`, `lg:block`, `lg:relative`, `lg:w-full`.
+    - Update desktop detection from `(min-width: 1280px)` to `(min-width: 1024px)` or, preferably, use a shared hook/constant (e.g., `useMedia('(min-width: 1024px)')` or import a breakpoint token) to avoid drift.
+  - Ensure the overlay/backdrop only applies when below lg; at ≥lg, the sidebar should be `relative` within the right column without blocking the chat.
+  - Sanity-check z-indexes: right rail z should be above the chat when open on mobile, but not overlay the whole screen on desktop.
+- Acceptance checks
+  - At 1024, 1100, 1200, and 1279px, no black overlay; chat remains interactive; details rail is visible as part of the layout (not a full-screen fixed panel).
+  - At <1024px, details opens as an overlay that can be dismissed; backdrop click and close button both work.
+- Manual QA steps
+  - Toggle the details pane via dropdown info icon at 1024–1279px; confirm no full-screen overlay.
+  - Hover/click generation IDs still highlight/scroll as expected.
+
+## 15) Remediation plan and test matrix (pending approval)
+
+- Implementation outline (minimal diffs)
+
+  1. Mobile header layout
+     - Change mobile header from grid to flex with two clusters (left: menu+model, right: meta).
+     - Add `min-w-0` to the trigger container; allow Enhanced to wrap while keeping messages right.
+     - Consider removing `scale-[1.05]` at very small widths.
+  2. Details sidebar breakpoint alignment
+     - Replace `xl:*` with `lg:*` classes in `ModelDetailsSidebar.tsx`.
+     - Replace 1280px media query with 1024px or a shared breakpoint hook.
+     - Verify overlay only on <lg, inline rail at ≥lg.
+  3. Consistency audit
+     - Grep for remaining `xl:` in chat components/tests and align if they impact layout/visibility.
+
+- Test matrix (manual)
+
+  - Widths: 375, 414, 540, 640, 768, 820, 912, 1024, 1100, 1200, 1279, 1280, 1440
+  - Checks per width:
+    - Header: alignment (left cluster vs right cluster), wrapping behavior, focus states
+    - Dropdown: trigger and panel anchoring
+    - Sidebars: chat rail visibility, details rail/overlay behavior, z-index layering
+    - Theming: light/dark borders, chips, backdrop
+
+- Rollback plan
+
+  - If regressions appear, revert the mobile header layout to the previous grid and remove only the centering rule for the middle cell, then reassess spacing/wrapping pressure.
+  - For the details sidebar, revert to previous xl-based logic as a temporary hotfix and ship a consistent breakpoint utility in a follow-up.
+
+- Owner: Copilot UX
+- Status: Proposed – awaiting review before implementation

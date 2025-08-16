@@ -80,11 +80,11 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
   
   useEffect(() => {
     const checkDesktop = () => {
-      setIsDesktop(window.matchMedia('(min-width: 1280px)').matches);
+      setIsDesktop(window.matchMedia('(min-width: 1024px)').matches);
     };
     
     checkDesktop();
-    const mediaQuery = window.matchMedia('(min-width: 1280px)');
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
     mediaQuery.addEventListener('change', checkDesktop);
     
     return () => mediaQuery.removeEventListener('change', checkDesktop);
@@ -148,9 +148,9 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
   return (
     <>
       {/* Mobile Overlay */}
-      {isOpen && (
+    {isOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 xl:hidden"
+      className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={onClose}
           aria-hidden="true"
         />
@@ -159,8 +159,8 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
       <aside
         className={`h-full mobile-safe-area bg-slate-50 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out overflow-hidden
           ${isOpen ? 'w-96' : 'w-0'}
-          xl:relative xl:block xl:w-full
-          ${isOpen ? 'fixed inset-y-0 right-0 z-50 xl:relative xl:z-auto' : 'hidden xl:block'}
+      lg:relative lg:block lg:w-full
+      ${isOpen ? 'fixed inset-y-0 right-0 z-50 lg:relative lg:z-auto' : 'hidden lg:block'}
         `}
         aria-labelledby="sidebar-title"
       >
