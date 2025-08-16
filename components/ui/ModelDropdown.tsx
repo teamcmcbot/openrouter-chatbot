@@ -280,7 +280,7 @@ export default function ModelDropdown({
                 No models found matching your criteria
               </div>
             ) : (
-              <div className="py-1 pb-8">
+              <div className="py-1 pb-1">
                 {filteredModels.map((model) => {
                   const modelId = getModelId(model);
                   const displayName = getDisplayName(model);
