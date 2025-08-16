@@ -121,6 +121,7 @@ Contact support with your browser version and error message details.
 **What Happens on Error:**
 
 - A red toast appears with the error message
+  - For Toaster behavior and positioning details, see `docs/components/ui/Toaster.md`
 - The value reverts to your last saved prompt
 - Edit mode remains open so you can correct and retry
 

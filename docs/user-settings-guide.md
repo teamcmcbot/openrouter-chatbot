@@ -88,8 +88,8 @@ When not in edit mode, a preview shows the beginning of your system prompt using
 2. Modify the System Prompt in the textarea
 3. Watch the character counter and validation indicators
 4. Click "Save" to persist changes
-   - Success: green toast, preview updates, edit mode closes
-   - Failure: red toast, value reverts to last known good, stays in edit mode
+   - Success: green toast, preview updates, edit mode closes (see `docs/components/ui/Toaster.md` for Toaster behavior/positioning)
+   - Failure: red toast, value reverts to last known good, stays in edit mode (Toaster details: `docs/components/ui/Toaster.md`)
 
 ##### Validation Rules
 
