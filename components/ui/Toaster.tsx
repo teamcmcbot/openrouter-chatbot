@@ -33,7 +33,7 @@ export default function Toaster() {
     <HotToaster
       position="top-center"
       containerStyle={{
-        top: '5.5rem', // Position below the sticky header (h-16 = 4rem + margin)
+        top: '4.8rem', // Position center of ChatInterface header row (model dropdown)
       }}
       toastOptions={{
         duration: 5000,
