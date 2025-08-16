@@ -162,7 +162,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
         <div className={`rounded-lg px-3 sm:px-4 py-2 transition-all duration-200 relative flex-1 sm:flex-initial ${
                 message.role === "user"
                   ? `bg-emerald-600 text-white`
-          : `bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-slate-200/80 dark:border-white/10 shadow-sm ${
+          : `bg-slate-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-slate-300/80 dark:border-white/10 shadow-sm ${
                       hoveredGenerationId && message.completion_id === hoveredGenerationId
                         ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20'
                         : ''
