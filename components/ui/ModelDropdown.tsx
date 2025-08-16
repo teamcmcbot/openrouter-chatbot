@@ -198,7 +198,7 @@ export default function ModelDropdown({
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
-        className="flex items-center gap-1.5 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors duration-200 border-2 border-slate-300/90 dark:border-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/60 dark:focus-visible:ring-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center gap-1.5 px-2 py-1 text-xs bg-white dark:bg-gray-800 hover:bg-slate-50 dark:hover:bg-gray-600 rounded-md transition-colors duration-200 border border-slate-300 dark:border-gray-600 shadow-sm dark:shadow-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:focus-visible:ring-emerald-400/30 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-label="Select AI model"
@@ -211,7 +211,7 @@ export default function ModelDropdown({
             </span>
           </div>
         ) : (
-          <span className="text-violet-700 dark:text-violet-400 font-normal text-xs leading-tight">
+          <span className="text-emerald-700 dark:text-emerald-400 font-normal text-xs leading-tight">
             {getSelectedModelDisplay()}
           </span>
         )}
@@ -227,8 +227,8 @@ export default function ModelDropdown({
         </svg>
       </button>
 
-    {isOpen && !isLoading && (
-  <div className="absolute top-full right-0 mt-1 w-80 bg-white dark:bg-gray-800 border-2 border-slate-300/90 dark:border-gray-500 rounded-lg shadow-lg z-[60] max-h-96 overflow-hidden">
+      {isOpen && !isLoading && (
+        <div className="absolute top-full right-0 mt-1 w-80 bg-white dark:bg-gray-800 border border-slate-300 dark:border-gray-600 rounded-lg shadow-xl dark:shadow-lg z-[60] max-h-96 overflow-hidden">
           {/* Search and Filter Header */}
           <div className="p-3 border-b border-gray-200 dark:border-gray-700">
             {/* Search Input */}
@@ -239,7 +239,7 @@ export default function ModelDropdown({
                 placeholder="Search models..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-transparent"
               />
               <svg className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -273,14 +273,14 @@ export default function ModelDropdown({
             )}
           </div>
 
-      {/* Models List */}
-      <div className="overflow-y-auto max-h-80 pb-8">
+          {/* Models List */}
+          <div className="overflow-y-auto max-h-80 pb-8">
             {filteredModels.length === 0 ? (
               <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
                 No models found matching your criteria
               </div>
             ) : (
-        <div className="py-1 pb-8">
+              <div className="py-1 pb-8">
                 {filteredModels.map((model) => {
                   const modelId = getModelId(model);
                   const displayName = getDisplayName(model);
@@ -293,9 +293,9 @@ export default function ModelDropdown({
                     <div key={modelId} className="group">
                       <div
                         className={`w-full text-left px-3 py-2.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 ${
-                      isSelected
-                        ? "bg-violet-100 text-violet-800 dark:bg-violet-900/20 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
-                        : "text-gray-700 dark:text-gray-300"
+                          isSelected
+                            ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700"
+                            : "text-gray-700 dark:text-gray-300"
                         } flex items-start justify-between gap-2`}
                       >
                         <button
@@ -324,7 +324,7 @@ export default function ModelDropdown({
                                 )}
                                 {/* Multimodal badge */}
                                 {(model as ModelInfo).input_modalities.length > 1 && (
-                              <span className="text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-1 py-0.5 rounded border border-purple-200 dark:border-purple-700">
+                                  <span className="text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-1 py-0.5 rounded border border-purple-200 dark:border-purple-700">
                                     MM
                                   </span>
                                 )}
@@ -356,7 +356,7 @@ export default function ModelDropdown({
                         <div className="flex items-center gap-1">
                           {/* Selected checkmark */}
                           {isSelected && (
-                            <svg className="w-3 h-3 text-violet-600 dark:text-violet-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-3 h-3 text-emerald-600 dark:text-emerald-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                               <path
                                 fillRule="evenodd"
                                 d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -397,3 +397,4 @@ export default function ModelDropdown({
     </div>
   );
 }
+
