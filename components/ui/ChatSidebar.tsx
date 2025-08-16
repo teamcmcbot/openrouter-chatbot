@@ -33,7 +33,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   const { isAuthenticated } = useAuthStore();
   
   // Get sync state from chat store
-  const { isSyncing, lastSyncTime, syncError, syncConversations } = useChatStore();
+  const { isSyncing, lastSyncTime, syncError } = useChatStore();
   
   // Create sync status object and manual sync function for the UI
   const syncStatus = {
@@ -43,14 +43,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     canSync: isAuthenticated
   };
   
-  const manualSync = async () => {
-    if (!isAuthenticated) {
-      console.warn('[ChatSidebar] Cannot sync: user not authenticated');
-      return;
-    }
-    console.log('[ChatSidebar] Manual sync triggered');
-    await syncConversations();
-  };
+  // Manual sync has been removed. Sync Status remains and updates after message persistence.
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -133,7 +126,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
       {/* Mobile Overlay */}
       {isOpen && (
         <button 
-          className="fixed inset-0 bg-black/50 z-40 xl:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onClose}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
@@ -147,17 +140,17 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
       {/* Sidebar */}
       <aside
         className={`
-          fixed xl:static inset-y-0 left-0 z-50 xl:z-0
-          w-64 xl:w-full h-full mobile-safe-area
-          bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+          fixed lg:static inset-y-0 left-0 z-50 lg:z-0
+          w-64 lg:w-full h-full mobile-safe-area
+          bg-slate-50 dark:bg-gray-800 border-r border-slate-200 dark:border-gray-700
           transform transition-transform duration-300 ease-in-out
-          ${isOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'}
+          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           flex flex-col
           ${className}
         `}
       >
-        {/* Header */}
-        <div className="p-5 border-b border-gray-200 dark:border-gray-700">
+  {/* Header */}
+  <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
           <Button
             onClick={onNewChat}
             className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -172,7 +165,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto">
           
-          <div className="ml-2 p-4">
+          <div className="px-4 sm:px-6 py-4">
             
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Recent Chats
@@ -180,7 +173,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
 
             {/* Sync Status */}
           {isAuthenticated && (
-            <div className="mb-3 px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <div className="mb-3 px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {syncStatus.isSyncing ? (
@@ -208,15 +201,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                   )}
                 </div>
                 
-                {!syncStatus.isSyncing && (
-                  <button
-                    onClick={manualSync}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-                    title="Sync now"
-                  >
-                    Sync
-                  </button>
-                )}
+                {/* Manual sync button removed */}
               </div>
               
               {syncStatus.syncError && (
@@ -242,24 +227,30 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
               {recentConversations.map((conversation, index) => (
                 <div
                   key={conversation.id}
-                  className={`group p-3 rounded-lg cursor-pointer border transition-all duration-200 relative ${
+      className={`group p-3 rounded-lg cursor-pointer border transition-all duration-200 relative ${
                     conversation.id === currentConversationId
                       ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 shadow-sm'
                       : index % 2 === 0
-                        ? 'bg-gray-100/30 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
-                        : 'bg-gray-200 dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'
+        ? 'bg-gray-100/30 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10'
+        : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border-transparent dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10'
                   }`}
                   onClick={() => handleConversationClick(conversation.id)}
                 >
                   {/* Action buttons overlay - only visible on hover */}
                   {editingId !== conversation.id && (
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-600 p-1">
+                    <div
+                      className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto rounded-md p-1
+                                 bg-white/95 ring-1 ring-gray-300/70 shadow-md
+                                 dark:bg-gray-800/95 dark:ring-white/10 dark:shadow-sm"
+                    >
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleStartEdit(conversation.id, conversation.title);
                         }}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+                        className="p-1 rounded-md text-gray-600 hover:text-gray-800 hover:bg-gray-100
+                                   dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-700/60
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
                         title="Edit title"
                       >
                         <PencilIcon className="w-3 h-3" />
@@ -269,7 +260,9 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                           e.stopPropagation();
                           handleDeleteChat(conversation.id);
                         }}
-                        className="p-1 text-gray-400 hover:text-red-500 rounded"
+                        className="p-1 rounded-md text-gray-600 hover:text-red-600 hover:bg-red-50
+                                   dark:text-gray-300 dark:hover:text-red-400 dark:hover:bg-red-900/30
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
                         title="Delete chat"
                       >
                         <TrashIcon className="w-3 h-3" />
@@ -358,7 +351,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+  <div className="px-4 sm:px-6 py-4 border-t border-slate-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className="text-xs text-gray-500 dark:text-gray-500">
               {isHydrated ? `${conversations.length} total conversations` : "Loading conversations..."}

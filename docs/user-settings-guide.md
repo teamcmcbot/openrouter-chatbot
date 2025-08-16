@@ -8,8 +8,8 @@ The User Settings panel provides comprehensive control over your account prefere
 
 You can open the User Settings panel by:
 
-1. **From Chat Sidebar**: Click the settings/profile icon in the sidebar
-2. **From Navigation**: Use the settings option in the main navigation menu
+1. **From Chat Sidebar**: Click the settings icon in the sidebar footer
+2. **From Navigation**: Open the avatar menu and choose “Settings”
 3. **Keyboard Shortcut**: (If implemented) Use the designated keyboard shortcut
 
 ## Settings Sections
@@ -88,8 +88,8 @@ When not in edit mode, a preview shows the beginning of your system prompt using
 2. Modify the System Prompt in the textarea
 3. Watch the character counter and validation indicators
 4. Click "Save" to persist changes
-   - Success: green toast, preview updates, edit mode closes
-   - Failure: red toast, value reverts to last known good, stays in edit mode
+   - Success: green toast, preview updates, edit mode closes (see `docs/components/ui/Toaster.md` for Toaster behavior/positioning)
+   - Failure: red toast, value reverts to last known good, stays in edit mode (Toaster details: `docs/components/ui/Toaster.md`)
 
 ##### Validation Rules
 
@@ -332,6 +332,7 @@ We value your feedback! Help us improve by:
 
 ## Changelog
 
+- 2025-08-14: Theme is now binary (light/dark). Header toggle reflects current theme and toggles instantly; server sync is throttled (~10s) for authenticated users. Settings panel applies theme only on Save. Removed references to “system” theme. Fixed stale data when opening Settings from ChatSidebar by refreshing on open.
 - 2025-08-08: Added System Prompt editor documentation (limits, validation, UX) and preview behavior.
 
 This guide covers all aspects of the User Settings panel. For additional help or questions not covered here, please contact our support team.

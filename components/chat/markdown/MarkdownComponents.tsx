@@ -31,7 +31,7 @@ export const CustomCodeBlock = ({
   if (inline) {
     return (
       <code
-        className="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono"
+  className="bg-slate-200/80 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono"
         {...props}
       >
         {children}
@@ -121,12 +121,12 @@ export const CustomPreBlock = ({ children, ...props }: CustomPreBlockProps) => {
 
   return (
     <div className="relative group">
-      <pre className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 whitespace-pre-wrap break-words my-2" {...props}>
+  <pre className="!bg-slate-600 dark:!bg-gray-800 rounded-lg p-3 whitespace-pre-wrap break-words my-2 border !border-slate-300 dark:!border-white/10 shadow-sm" {...props}>
         {children}
       </pre>
       <button
         onClick={handleCopy}
-        className="absolute top-2 right-2 p-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-colors opacity-0 group-hover:opacity-100"
+        className="absolute top-2 right-2 p-2 bg-slate-300/90 dark:bg-gray-700 hover:bg-slate-400 dark:hover:bg-gray-600 rounded transition-colors opacity-0 group-hover:opacity-100"
         title={copied ? "Copied!" : "Copy to clipboard"}
       >
         {copied ? (

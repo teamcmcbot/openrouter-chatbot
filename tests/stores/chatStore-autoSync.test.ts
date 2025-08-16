@@ -116,7 +116,7 @@ describe('Chat Store - Auto Sync Functionality', () => {
           json: () => Promise.resolve({
             data: {
               response: 'Test assistant response',
-              elapsed_time: 1000,
+              elapsed_ms: 1000,
               usage: { total_tokens: 50 },
               model: 'test-model',
               id: 'completion-123',
@@ -200,7 +200,7 @@ describe('Chat Store - Auto Sync Functionality', () => {
         json: () => Promise.resolve({
           data: {
             response: 'Test assistant response',
-            elapsed_time: 1000,
+            elapsed_ms: 1000,
             usage: { total_tokens: 50 },
             model: 'test-model',
             id: 'completion-123',
@@ -256,7 +256,7 @@ describe('Chat Store - Auto Sync Functionality', () => {
         json: () => Promise.resolve({
           data: {
             response: 'Test assistant response',
-            elapsed_time: 1000,
+            elapsed_ms: 1000,
             usage: { total_tokens: 50 },
             model: 'test-model',
             id: 'completion-123',

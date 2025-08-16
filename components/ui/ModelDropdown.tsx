@@ -34,7 +34,10 @@ export default function ModelDropdown({
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBy, setFilterBy] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isSmallScreen, setIsSmallScreen] = useState<boolean>(false);
+  const [fixedTop, setFixedTop] = useState<number>(0);
 
   // Determine if we have enhanced data
   const hasEnhancedData = enhanced ?? isEnhancedModels(models);
@@ -96,6 +99,39 @@ export default function ModelDropdown({
       searchInputRef.current.focus();
     }
   }, [isOpen]);
+
+  // Track small screen (below 640px) to switch to fixed, centered popover
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsSmallScreen(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+
+  // When opening on small screens, compute top position under trigger
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!isSmallScreen) return;
+    const btn = triggerRef.current;
+    if (!btn) return;
+    const computeTop = () => {
+      const rect = btn.getBoundingClientRect();
+      setFixedTop(rect.bottom + 8); // 8px gap under trigger
+    };
+    computeTop();
+
+    // Keep position in sync on resize/scroll/orientation change
+    window.addEventListener('resize', computeTop);
+    window.addEventListener('scroll', computeTop, { passive: true });
+    window.addEventListener('orientationchange', computeTop);
+
+    return () => {
+      window.removeEventListener('resize', computeTop);
+      window.removeEventListener('scroll', computeTop);
+      window.removeEventListener('orientationchange', computeTop);
+    };
+  }, [isOpen, isSmallScreen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -196,9 +232,10 @@ export default function ModelDropdown({
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
-        className="flex items-center gap-1.5 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors duration-200 border border-gray-200 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+  className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-emerald-50 dark:bg-gray-800 hover:bg-slate-50 dark:hover:bg-gray-700 rounded-full transition-colors duration-200 border border-slate-300 dark:border-gray-600 shadow-sm dark:shadow-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 dark:focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-label="Select AI model"
@@ -211,7 +248,7 @@ export default function ModelDropdown({
             </span>
           </div>
         ) : (
-          <span className="text-violet-700 dark:text-violet-400 font-normal text-xs leading-tight">
+          <span className="text-emerald-700 dark:text-emerald-400 font-normal text-xs leading-tight">
             {getSelectedModelDisplay()}
           </span>
         )}
@@ -228,7 +265,30 @@ export default function ModelDropdown({
       </button>
 
       {isOpen && !isLoading && (
-        <div className="absolute top-full right-0 mt-1 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
+        <>
+          {/* Mobile scrim overlay to focus attention on the popover */}
+          {isSmallScreen && (
+            <div
+              className="fixed inset-0 z-[58] bg-black/20 dark:bg-black/40"
+              role="presentation"
+              onClick={() => setIsOpen(false)}
+            />
+          )}
+        <div
+          className={`${
+            isSmallScreen
+              ? 'fixed z-[60]'
+              : 'absolute z-[60] top-full mt-1 sm:left-0 sm:translate-x-0'
+          } ${
+            isSmallScreen
+              ? 'left-1/2 -translate-x-1/2'
+              : ''
+          } ${
+            // width constraints: on small use viewport-constrained width; on sm+ use fixed width
+            isSmallScreen ? 'w-[min(36rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]' : 'sm:w-80 w-[min(20rem,calc(100vw-2rem))]'
+          } bg-white dark:bg-gray-800 border border-slate-300 dark:border-gray-600 rounded-lg shadow-xl sm:shadow-xl dark:shadow-lg ${isSmallScreen ? 'shadow-2xl' : ''} max-h-96 overflow-hidden origin-top sm:origin-top-left`}
+          style={isSmallScreen ? { top: fixedTop } : undefined}
+        >
           {/* Search and Filter Header */}
           <div className="p-3 border-b border-gray-200 dark:border-gray-700">
             {/* Search Input */}
@@ -239,7 +299,7 @@ export default function ModelDropdown({
                 placeholder="Search models..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-transparent"
               />
               <svg className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -274,13 +334,13 @@ export default function ModelDropdown({
           </div>
 
           {/* Models List */}
-          <div className="overflow-y-auto max-h-72">
+          <div className="overflow-y-auto max-h-80 pb-8">
             {filteredModels.length === 0 ? (
               <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
                 No models found matching your criteria
               </div>
             ) : (
-              <div className="py-1">
+              <div className="py-1 pb-1">
                 {filteredModels.map((model) => {
                   const modelId = getModelId(model);
                   const displayName = getDisplayName(model);
@@ -293,9 +353,9 @@ export default function ModelDropdown({
                     <div key={modelId} className="group">
                       <div
                         className={`w-full text-left px-3 py-2.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 ${
-                      isSelected
-                        ? "bg-violet-100 text-violet-800 dark:bg-violet-900/20 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
-                        : "text-gray-700 dark:text-gray-300"
+                          isSelected
+                            ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700"
+                            : "text-gray-700 dark:text-gray-300"
                         } flex items-start justify-between gap-2`}
                       >
                         <button
@@ -324,7 +384,7 @@ export default function ModelDropdown({
                                 )}
                                 {/* Multimodal badge */}
                                 {(model as ModelInfo).input_modalities.length > 1 && (
-                              <span className="text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-1 py-0.5 rounded border border-purple-200 dark:border-purple-700">
+                                  <span className="text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-1 py-0.5 rounded border border-purple-200 dark:border-purple-700">
                                     MM
                                   </span>
                                 )}
@@ -352,8 +412,19 @@ export default function ModelDropdown({
                           </div>
                         </button>
                         
-                        {/* Details button for enhanced models - separated from main button */}
+                        {/* Details area: place checkmark before info so info stays rightmost */}
                         <div className="flex items-center gap-1">
+                          {/* Selected checkmark */}
+                          {isSelected && (
+                            <svg className="w-3 h-3 text-emerald-600 dark:text-emerald-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                          {/* Details button for enhanced models - separated from main button */}
                           {isEnhanced && (
                             <button
                               onClick={(e) => {
@@ -369,28 +440,22 @@ export default function ModelDropdown({
                               </svg>
                             </button>
                           )}
-                          {/* Selected checkmark */}
-                          {isSelected && (
-                            <svg className="w-3 h-3 text-violet-600 dark:text-violet-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          )}
                         </div>
                       </div>
                     </div>
                   );
                 })}
+                {/* spacer to ensure the last row is not clipped beneath rounded borders */}
+                <div aria-hidden className="h-6" />
               </div>
             )}
           </div>
 
-          {/* No longer showing results count at the footer - moved to header */}
-        </div>
+      {/* No longer showing results count at the footer - moved to header */}
+  </div>
+    </>
       )}
     </div>
   );
 }
+

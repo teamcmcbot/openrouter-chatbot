@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 
 export default function Toaster() {
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const [containerTop, setContainerTop] = useState<number | null>(null)
+  const [toastHeight, setToastHeight] = useState<number | null>(null)
 
   useEffect(() => {
     // Check if dark mode is enabled
@@ -29,11 +31,128 @@ export default function Toaster() {
     return () => observer.disconnect()
   }, [])
 
+  // Measure toast height when a toast appears and re-position container
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const container = document.querySelector<HTMLElement>('.app-toaster')
+    if (!container) return
+
+    // Keep track of the currently observed toast so we can reattach the
+    // ResizeObserver when the DOM changes (e.g., new toast mounts)
+    let observedToast: HTMLElement | null = null
+
+    const getFirstToast = () => {
+      // react-hot-toast renders toasts as direct children within the container
+      // We'll pick the first visible toast element if present
+      for (const child of Array.from(container.children)) {
+        const el = child as HTMLElement
+        if (el.offsetParent !== null) return el
+      }
+      return null
+    }
+
+    const measureAndUpdate = () => {
+      const toastEl = getFirstToast()
+      const h = toastEl ? toastEl.getBoundingClientRect().height : null
+      setToastHeight(h)
+    }
+
+    // Observe when toasts mount/unmount
+    const mo = new MutationObserver(() => {
+      // Re-attach the resize observer to the latest first toast (if any)
+      const next = getFirstToast()
+      if (next !== observedToast) {
+        if (observedToast) ro.unobserve(observedToast)
+        if (next) ro.observe(next)
+        observedToast = next
+      }
+      measureAndUpdate()
+    })
+    mo.observe(container, { childList: true, subtree: false })
+
+    // Also watch the first toast's size (content may wrap on resize)
+    const ro = new ResizeObserver(() => measureAndUpdate())
+    const attachResizeObserver = () => {
+      const toastEl = getFirstToast()
+      if (toastEl) {
+        ro.observe(toastEl)
+        observedToast = toastEl
+      }
+    }
+    attachResizeObserver()
+
+    // Update on viewport resize (may change wrapping/line-height)
+    const onResize = () => measureAndUpdate()
+    window.addEventListener('resize', onResize)
+
+    // Initial measurement
+    measureAndUpdate()
+
+    return () => {
+      mo.disconnect()
+      ro.disconnect()
+      window.removeEventListener('resize', onResize)
+    }
+  }, [])
+
+  // Dynamically position toaster so the toast is centered within #chat-header
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    let headerEl: HTMLElement | null = null
+
+    const updatePosition = () => {
+      headerEl = document.getElementById('chat-header')
+      if (!headerEl) {
+        setContainerTop(null)
+        return
+      }
+      const rect = headerEl.getBoundingClientRect()
+      // If we know toast height, place the container so the toast sits centered
+      // within the header: top = headerTop + (headerHeight - toastHeight)/2
+      if (toastHeight != null) {
+        const top = rect.top + Math.max(0, (rect.height - toastHeight) / 2)
+        setContainerTop(top)
+      } else {
+        // Fallback: align container to header center (toast may appear slightly low)
+        const top = rect.top + rect.height / 2
+        setContainerTop(top)
+      }
+    }
+
+    updatePosition()
+
+    // Track header size changes
+    let ro: ResizeObserver | null = null
+    if ('ResizeObserver' in window) {
+      ro = new ResizeObserver(() => updatePosition())
+      if (headerEl) ro.observe(headerEl)
+    }
+
+    // Also update on scroll and viewport resize
+    const onScroll = () => updatePosition()
+    const onResize = () => updatePosition()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onResize)
+
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [toastHeight])
+
   return (
     <HotToaster
       position="top-center"
+      containerClassName="app-toaster"
       containerStyle={{
-        top: '5.5rem', // Position below the sticky header (h-16 = 4rem + margin)
+        // Place the container so the toast itself is centered within #chat-header
+        // If header isn't present, fall back to a small default offset
+        top: containerTop != null ? `${containerTop}px` : '4.8rem',
+  zIndex: 60,
+        // Do NOT apply transforms here; react-hot-toast manages horizontal centering
       }}
       toastOptions={{
         duration: 5000,

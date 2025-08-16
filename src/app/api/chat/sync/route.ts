@@ -41,7 +41,7 @@ interface DatabaseMessage {
   output_tokens: number; // NEW: output token tracking
   user_message_id?: string; // NEW: links assistant messages to user messages
   content_type?: string; // New: content type field
-  elapsed_time?: number; // New: elapsed time field
+  elapsed_ms?: number; // New: elapsed time field (ms)
   completion_id?: string; // New: completion ID field
   message_timestamp: string;
   error_message?: string;
@@ -133,7 +133,7 @@ async function syncHandler(request: NextRequest, authContext: AuthContext): Prom
             output_tokens: message.output_tokens || 0, // NEW: output token tracking
             user_message_id: message.user_message_id || null, // NEW: user message linking
             content_type: message.contentType || 'text', // New: content type
-            elapsed_time: message.elapsed_time || 0, // New: elapsed time
+            elapsed_ms: message.elapsed_ms || 0, // New: elapsed time (ms)
             completion_id: message.completion_id || null, // New: completion ID
             message_timestamp: typeof message.timestamp === 'string'
               ? message.timestamp
@@ -236,7 +236,7 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
           output_tokens: message.output_tokens || 0, // NEW: output token tracking
           user_message_id: message.user_message_id || undefined, // NEW: user message linking
           contentType: message.content_type || 'text', // New: content type
-          elapsed_time: message.elapsed_time || 0, // New: elapsed time
+          elapsed_ms: message.elapsed_ms || 0, // New: elapsed time (ms)
           completion_id: message.completion_id || undefined, // New: completion ID
           timestamp: new Date(message.message_timestamp),
           error: !!message.error_message

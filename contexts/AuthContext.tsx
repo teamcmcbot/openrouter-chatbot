@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '../lib/supabase/client'
+import { clearGenerationCache } from '../lib/utils/generationCache'
 
 interface AuthContextType {
   user: User | null
@@ -89,6 +90,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('User signed out')
           // TODO: Clear user-specific data
           // TODO: Revert to anonymous mode
+          try {
+            clearGenerationCache()
+          } catch (e) {
+            console.warn('Failed to clear generation cache on sign out event', e)
+          }
         }
       }
     )
@@ -125,6 +131,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       console.error('Error signing out:', error)
       throw error
+    }
+    try {
+      clearGenerationCache()
+    } catch (e) {
+      console.warn('Failed to clear generation cache in signOut()', e)
     }
   }
 

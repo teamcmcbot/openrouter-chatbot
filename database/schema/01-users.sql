@@ -95,10 +95,10 @@ CREATE TABLE public.user_usage_daily (
 
     -- Session statistics
     sessions_created INTEGER DEFAULT 0,
-    active_minutes INTEGER DEFAULT 0,
+    generation_ms BIGINT DEFAULT 0, -- Total assistant generation time (ms)
 
     -- Cost tracking (for paid models)
-    estimated_cost DECIMAL(10,4) DEFAULT 0.0000,
+    estimated_cost DECIMAL(12,6) DEFAULT 0.000000,
 
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -438,7 +438,7 @@ CREATE OR REPLACE FUNCTION public.track_user_usage(
     p_output_tokens INTEGER DEFAULT 0,
     p_model_used VARCHAR(100) DEFAULT NULL,
     p_session_created BOOLEAN DEFAULT false,
-    p_active_minutes INTEGER DEFAULT 0
+    p_generation_ms BIGINT DEFAULT 0
 )
 RETURNS VOID AS $$
 DECLARE
@@ -467,13 +467,13 @@ BEGIN
     INSERT INTO public.user_usage_daily (
         user_id, usage_date, messages_sent, messages_received,
         input_tokens, output_tokens, total_tokens, models_used,
-        sessions_created, active_minutes
+        sessions_created, generation_ms
     ) VALUES (
         p_user_id, today_date, p_messages_sent, p_messages_received,
         p_input_tokens, p_output_tokens, p_input_tokens + p_output_tokens,
         COALESCE(model_usage, '{}'::jsonb),
         CASE WHEN p_session_created THEN 1 ELSE 0 END,
-        p_active_minutes
+        p_generation_ms
     )
     ON CONFLICT (user_id, usage_date) DO UPDATE SET
         messages_sent = user_usage_daily.messages_sent + EXCLUDED.messages_sent,
@@ -483,7 +483,7 @@ BEGIN
         total_tokens = user_usage_daily.total_tokens + EXCLUDED.total_tokens,
         models_used = COALESCE(EXCLUDED.models_used, user_usage_daily.models_used),
         sessions_created = user_usage_daily.sessions_created + EXCLUDED.sessions_created,
-        active_minutes = user_usage_daily.active_minutes + EXCLUDED.active_minutes,
+        generation_ms = user_usage_daily.generation_ms + EXCLUDED.generation_ms,
         updated_at = NOW();
 
     -- Update profile usage stats
@@ -680,8 +680,8 @@ BEGIN
         'input_tokens', COALESCE(input_tokens, 0),
         'output_tokens', COALESCE(output_tokens, 0),
         'models_used', COALESCE(models_used, '{}'::jsonb),
-        'sessions_created', COALESCE(sessions_created, 0),
-        'active_minutes', COALESCE(active_minutes, 0)
+    'sessions_created', COALESCE(sessions_created, 0),
+    'generation_ms', COALESCE(generation_ms, 0)
     ) INTO today_usage_data
     FROM public.user_usage_daily
     WHERE user_id = user_uuid
@@ -697,7 +697,7 @@ BEGIN
             'output_tokens', 0,
             'models_used', '{}'::jsonb,
             'sessions_created', 0,
-            'active_minutes', 0
+            'generation_ms', 0
         );
     END IF;
 
@@ -712,7 +712,7 @@ BEGIN
                     'total_tokens', total_tokens,
                     'models_used', models_used,
                     'sessions_created', sessions_created,
-                    'active_minutes', active_minutes
+                    'generation_ms', generation_ms
                 ) ORDER BY usage_date DESC
             )
             FROM public.user_usage_daily

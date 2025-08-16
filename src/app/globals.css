@@ -1,4 +1,7 @@
+/* @config ../../tailwind.config.js */
 @import "tailwindcss";
+/* Tailwind v4: drive dark variant by class instead of prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
 @import "highlight.js/styles/github.css";
 
 /* Dark mode code highlighting */
@@ -48,7 +51,7 @@
 }
 
 .markdown-content table th {
-  @apply bg-gray-50 dark:bg-gray-700 font-semibold text-left px-3 py-2 border border-gray-300 dark:border-gray-600;
+  @apply bg-slate-200 dark:bg-gray-500 font-semibold text-left px-3 py-2 border border-gray-300 dark:border-gray-600;
 }
 
 .markdown-content table td {
@@ -60,7 +63,7 @@
 }
 
 .markdown-content code {
-  @apply bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono;
+  @apply bg-gray-200 dark:bg-gray-600 text-gray-400 px-1.5 py-0.5 rounded text-sm font-mono;
 }
 
 .markdown-content pre {
@@ -73,6 +76,10 @@
 
 .markdown-content a {
   @apply text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 underline;
+}
+
+.markdown-content li code, p code {
+  @apply !text-gray-700 dark:!text-gray-300;
 }
 
 :root {
@@ -110,11 +117,9 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 html {
@@ -132,8 +137,13 @@ body {
   width: 8px;
 }
 
+/* Track: explicit colors for light/dark to avoid white bar on dark mode */
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100 dark:bg-gray-800;
+  background-color: rgb(243 244 246); /* gray-100 */
+}
+
+.dark ::-webkit-scrollbar-track {
+  background-color: rgb(31 41 55); /* gray-800 */
 }
 
 ::-webkit-scrollbar-thumb {
@@ -142,6 +152,26 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-400 dark:bg-gray-500;
+}
+
+/* Corner (for scrollable containers) */
+::-webkit-scrollbar-corner {
+  background-color: rgb(243 244 246); /* gray-100 */
+}
+
+.dark ::-webkit-scrollbar-corner {
+  background-color: rgb(31 41 55); /* gray-800 */
+}
+
+/* Firefox scrollbar colors */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(209 213 219) rgb(243 244 246); /* thumb, track */
+}
+
+.dark {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(75 85 99) rgb(31 41 55); /* thumb, track */
 }
 
 /* Improved focus styles */
@@ -158,6 +188,26 @@ body {
   @apply bg-emerald-200 text-emerald-900;
 }
 
+/* Standardized table control styles */
+/* Emerald focus border + ring for inputs used in tables/search */
+.input-emerald-focus {
+  @apply focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-emerald-500 dark:focus:ring-emerald-800 dark:focus:border-emerald-400;
+}
+
+/* Emerald accent for checkboxes with accessible focus ring */
+.checkbox-emerald {
+  accent-color: #059669; /* emerald-600 */
+}
+
+.checkbox-emerald:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4); /* emerald-500 ring */
+}
+
+.dark .checkbox-emerald:focus-visible {
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.55); /* emerald-600, stronger on dark */
+}
+
 /* Mobile-friendly tap highlights */
 input,
 button,
@@ -170,6 +220,31 @@ a {
 /* Smooth transitions for dark mode */
 * {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* Unified table row hover/focus styles */
+.table-row-hover {
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.table-row-hover:hover {
+  background-color: #f8fafc; /* slate-50 */
+  border-color: rgb(209 213 219); /* gray-300 */
+}
+
+.table-row-hover:focus-within {
+  background-color: #f3f4f6; /* gray-100 */
+  border-color: rgb(209 213 219); /* gray-300 */
+}
+
+.dark .table-row-hover:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgb(75 85 99); /* gray-600 */
+}
+
+.dark .table-row-hover:focus-within {
+  background-color: rgba(255, 255, 255, 0.09);
+  border-color: rgb(75 85 99); /* gray-600 */
 }
 
 /* Responsive Table Styles */

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, KeyboardEvent, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import type React from "react";
 import { PaperAirplaneIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 
 interface MessageInputProps {
@@ -11,6 +12,8 @@ interface MessageInputProps {
 
 export default function MessageInput({ onSendMessage, disabled = false, initialMessage }: Readonly<MessageInputProps>) {
   const [message, setMessage] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
+  const composingRef = useRef(false);
 
   // Update message when initialMessage prop changes
   useEffect(() => {
@@ -24,6 +27,22 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
       }
     }
   }, [initialMessage]);
+
+  // Detect mobile/touch devices to adjust Enter behavior
+  useEffect(() => {
+    const checkIsMobile = () => {
+      if (typeof window === "undefined") return false;
+      // Heuristics: coarse pointer OR small viewport width
+      const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+      const smallViewport = window.innerWidth <= 768; // tailwind md breakpoint
+      return coarse || smallViewport;
+    };
+
+    const update = () => setIsMobile(checkIsMobile());
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   const handleSend = () => {
     if (message.trim() && !disabled) {
@@ -40,15 +59,26 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     }
   };
 
-  const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // On mobile, Enter should insert newline (do not send). Users tap the Send button to submit.
+    // On desktop, Enter sends (unless Shift is held for newline).
     if (e.key === "Enter" && !e.shiftKey) {
+      // If IME composition is active, don't treat Enter as submit
+      // (covers languages like Chinese/Japanese/Korean).
+  if (e.nativeEvent.isComposing || composingRef.current) {
+        return;
+      }
+      if (isMobile) {
+        // Allow default newline behavior on mobile
+        return;
+      }
       e.preventDefault();
       handleSend();
     }
   };
 
   return (
-    <div className="px-6 py-4">
+    <div className="px-4 sm:px-6 py-4">
       <div className="flex items-start space-x-4">
         <div className="flex-1">
           <textarea
@@ -56,7 +86,9 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
             name="message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
+            onCompositionStart={() => (composingRef.current = true)}
+            onCompositionEnd={() => (composingRef.current = false)}
             placeholder="Type your message..."
             disabled={disabled}
             className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
@@ -65,6 +97,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
               minHeight: "48px",
               maxHeight: "120px",
             }}
+            enterKeyHint="send"
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = "48px";
@@ -92,7 +125,9 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           {message.length > 0 && `${message.length} characters`}
         </span>
         <span className="hidden sm:inline">
-          Press Enter to send • Shift+Enter for new line
+          {isMobile
+            ? "Tap Send to send • Return for new line"
+            : "Press Enter to send • Shift+Enter for new line"}
         </span>
       </div>
     </div>

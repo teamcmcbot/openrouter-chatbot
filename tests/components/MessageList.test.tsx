@@ -170,7 +170,7 @@ describe("MessageList with Markdown Support", () => {
       role: "assistant",
       timestamp: new Date("2024-01-01T12:00:00Z"),
       contentType: "text",
-      elapsed_time: 7,
+      elapsed_ms: 7200, // 7.2 seconds
       input_tokens: 34,
       output_tokens: 83,
       total_tokens: 117,
@@ -181,7 +181,7 @@ describe("MessageList with Markdown Support", () => {
     // Test that the timestamp appears using formatted value
     const expectedTime = formatMessageTime(messageWithMetadata.timestamp);
     expect(screen.getByText(expectedTime)).toBeInTheDocument();
-    expect(screen.getByText(/Took 7 seconds/)).toBeInTheDocument();
+  expect(screen.getByText(/Took 7.2s/)).toBeInTheDocument();
     expect(screen.getByText(/Input: 34/)).toBeInTheDocument();
     expect(screen.getByText(/Output: 83/)).toBeInTheDocument();
     expect(screen.getByText(/Total: 117/)).toBeInTheDocument();

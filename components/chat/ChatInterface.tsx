@@ -74,9 +74,9 @@ export default function ChatInterface() {
         // Clear generation ID when switching models and show details
         showModelDetails(selectedModelInfo, 'overview', undefined);
         
-        // Only auto-open sidebar on desktop (xl breakpoint and above)
+  // Only auto-open sidebar on desktop/tablet (lg breakpoint and above)
         // On mobile, let users manually open it via the info icon
-        const isDesktop = window.matchMedia('(min-width: 1280px)').matches;
+  const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
         if (!isDesktop) {
           closeDetailsSidebar(); // Don't auto-open on mobile
         }
@@ -127,7 +127,7 @@ export default function ChatInterface() {
     createConversation();
 
     // On mobile, dismiss the chat sidebar and focus the input
-    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 1280; // matches xl breakpoint
+  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 1024; // matches lg breakpoint
     let delay = 0;
     if (isMobileViewport && isChatSidebarOpen) {
       toggleChatSidebar();
@@ -148,9 +148,9 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex h-full bg-gray-300 dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden mobile-safe-area">
-      {/* Left Sidebar - Chat History (15%) */}
-      <div className="hidden xl:block w-[15%] min-w-[200px]">
+    <div className="flex h-full overflow-visible mobile-safe-area">
+  {/* Left Sidebar - Chat History (15%) */}
+  <div className="hidden lg:block w-[15%] min-w-[200px]">
         <ChatSidebar
           isOpen={true}
           onClose={() => {}} // Not used on desktop
@@ -159,48 +159,72 @@ export default function ChatInterface() {
       </div>
 
       {/* Main Chat Area (70%) */}
-      <div className="flex flex-col flex-1 xl:w-[70%] min-w-0">
+  <div className="flex flex-col flex-1 lg:w-[70%] min-w-0 bg-slate-50 dark:bg-gray-800">
         {/* Header */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {/* Mobile menu button */}
-              <button
-                onClick={handleToggleChatSidebar}
-                className="xl:hidden p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg"
-                aria-label="Toggle chat sidebar"
-              >
-                <Bars3Icon className="w-5 h-5" />
-              </button>
-              
-                <div className="hidden sm:block">
-                <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
-                  AI Assistant
-                </h1>
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                  Powered by OpenRouter
-                </p>
-                </div>
-            </div>
-            <div className="flex flex-col items-end gap-1">
-              {availableModels.length > 0 && (
-                <ModelDropdown
-                  models={availableModels}
-                  selectedModel={selectedModel}
-                  onModelSelect={handleModelSelect}
-                  isLoading={modelsLoading}
-                  enhanced={isEnhanced}
-                  onShowDetails={handleShowDetails}
-                />
-              )}
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {messages.length} messages
+  <div id="chat-header" className="relative z-30 px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
+          {/* Mobile layout (< lg): two-cluster row; right cluster can wrap Enhanced to next line */}
+          <div className="lg:hidden">
+            <div className="flex items-center justify-between gap-2">
+              {/* Left cluster: hamburger + model selector */}
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={handleToggleChatSidebar}
+                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg flex-shrink-0"
+                  aria-label="Toggle chat sidebar"
+                >
+                  <Bars3Icon className="w-5 h-5" />
+                </button>
+                {availableModels.length > 0 && (
+                  <div className="min-w-0 sm:transform sm:scale-[1.05]">
+                    <ModelDropdown
+                      models={availableModels}
+                      selectedModel={selectedModel}
+                      onModelSelect={handleModelSelect}
+                      isLoading={modelsLoading}
+                      enhanced={isEnhanced}
+                      onShowDetails={handleShowDetails}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Right cluster: messages + Enhanced; wraps with right alignment */}
+              <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400 max-w-full">
+                <div className="whitespace-nowrap order-1">{messages.length} messages</div>
                 {isEnhanced && (
-                  <span className="ml-1 text-violet-500 dark:text-violet-300">
-                    • Enhanced
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 whitespace-nowrap order-2">
+                    Enhanced
                   </span>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Desktop/tablet layout: model selector left, meta right (>= lg) */}
+          <div className="hidden lg:flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {availableModels.length > 0 && (
+                <div className="transform scale-[1.05]">
+                  <ModelDropdown
+                    models={availableModels}
+                    selectedModel={selectedModel}
+                    onModelSelect={handleModelSelect}
+                    isLoading={modelsLoading}
+                    enhanced={isEnhanced}
+                    onShowDetails={handleShowDetails}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {messages.length} messages
+              </div>
+              {isEnhanced && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  Enhanced
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -234,7 +258,7 @@ export default function ChatInterface() {
         )}
 
         {/* Input Area */}
-        <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+  <div className="border-t border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
           <MessageInput 
             onSendMessage={(message) => {
               sendMessage(message, selectedModel);
@@ -246,8 +270,8 @@ export default function ChatInterface() {
         </div>
       </div>
 
-      {/* Right Sidebar - Model Details (15%) */}
-      <div className="hidden xl:block w-[15%] min-w-[240px]">
+  {/* Right Sidebar - Model Details (15%) */}
+  <div className="hidden lg:block w-[15%] min-w-[240px]">
         <ModelDetailsSidebar
           model={selectedDetailModel}
           isOpen={true} // Always open on desktop
@@ -265,11 +289,11 @@ export default function ChatInterface() {
         isOpen={isChatSidebarOpen}
         onClose={() => toggleChatSidebar()}
         onNewChat={handleNewChat}
-        className="xl:hidden"
+        className="lg:hidden"
       />
 
       {/* Mobile Model Details Sidebar */}
-      <div className="xl:hidden">
+  <div className="lg:hidden">
         <ModelDetailsSidebar
           model={selectedDetailModel}
           isOpen={isDetailsSidebarOpen}

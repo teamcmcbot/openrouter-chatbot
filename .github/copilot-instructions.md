@@ -239,4 +239,200 @@ export const GET = withProtectedAuth(myHandler);
 
 ---
 
+## 8. Testing & Mocking Standards
+
+When creating or fixing tests, **ALWAYS** follow these standardized testing patterns to ensure tests are reliable, fast, and maintainable.
+
+### Required Test Structure
+
+#### Test File Organization
+
+```typescript
+// tests/components/ui/ComponentName.test.tsx
+import { render, screen } from "@testing-library/react";
+
+// 1. Mock external dependencies FIRST (before component import)
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({
+    /* router methods */
+  }),
+}));
+
+jest.mock("../../../hooks/useCustomHook", () => ({
+  useCustomHook: () => ({
+    /* minimal mock data */
+  }),
+}));
+
+// 2. Import component AFTER mocks are defined
+import ComponentName from "../../../components/ui/ComponentName";
+
+describe("ComponentName", () => {
+  // Tests here
+});
+```
+
+### Essential Mock Patterns
+
+#### 🔧 **Next.js Navigation** - Always Required for Components Using useRouter
+
+```typescript
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    prefetch: jest.fn(),
+    back: jest.fn(),
+    forward: jest.fn(),
+    refresh: jest.fn(),
+  }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+}));
+```
+
+#### 🔐 **Authentication Store** - Minimal Mock for Components Using Auth
+
+```typescript
+jest.mock("../../../stores/useAuthStore", () => ({
+  useAuth: () => ({
+    user: null, // or basic user object when needed
+    isLoading: false,
+  }),
+}));
+```
+
+#### 📊 **Custom Hooks** - Use Minimal Data to Prevent Test Hangs
+
+```typescript
+jest.mock("../../../hooks/useUserData", () => ({
+  useUserData: () => ({
+    data: null, // Start with null, add data only when test needs it
+    loading: false,
+    error: null,
+    updatePreferences: jest.fn(),
+    forceRefresh: jest.fn(),
+  }),
+}));
+```
+
+#### 🍞 **Toast Notifications** - Simple Mock to Prevent Side Effects
+
+```typescript
+jest.mock("react-hot-toast", () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
+```
+
+#### ✅ **Validation Utilities** - Mock with Expected Return Values
+
+```typescript
+jest.mock("../../../lib/utils/validation/systemPrompt", () => ({
+  validateSystemPrompt: () => ({
+    isValid: true,
+    trimmedValue: "You are a helpful AI assistant.",
+  }),
+  truncateAtWordBoundary: (text: string) => text,
+  SYSTEM_PROMPT_LIMITS: { MIN_LENGTH: 10, MAX_LENGTH: 1000 },
+}));
+```
+
+### Testing Guidelines
+
+#### ✅ **DO**
+
+- **Mock external dependencies first**, before importing the component
+- **Use minimal mock data** to prevent tests from hanging or being overly complex
+- **Mock at the module level** using `jest.mock()` for consistency
+- **Test core functionality** (rendering, basic interactions, prop handling)
+- **Keep tests focused** on one specific behavior per test case
+- **Use descriptive test names** that explain what is being tested
+
+#### ❌ **DON'T**
+
+- **Over-mock** with complex data structures unless specifically needed
+- **Test implementation details** - focus on user-visible behavior
+- **Create brittle tests** that break with minor UI changes
+- **Use real API calls** or external dependencies in unit tests
+- **Skip mocking Next.js hooks** - this will cause `invariant expected app router to be mounted` errors
+
+### Common Test Patterns
+
+#### Basic Component Rendering
+
+```typescript
+describe("ComponentName", () => {
+  it("renders when open", () => {
+    render(<ComponentName isOpen={true} onClose={() => {}} />);
+    expect(screen.getByText("Expected Text")).toBeInTheDocument();
+  });
+
+  it("does not render when closed", () => {
+    const { container } = render(
+      <ComponentName isOpen={false} onClose={() => {}} />
+    );
+    expect(container.firstChild).toBeNull();
+  });
+});
+```
+
+#### Testing User Interactions
+
+```typescript
+import { fireEvent } from "@testing-library/react";
+
+it("calls onClose when close button is clicked", () => {
+  const mockOnClose = jest.fn();
+  render(<ComponentName isOpen={true} onClose={mockOnClose} />);
+
+  fireEvent.click(screen.getByLabelText("Close"));
+  expect(mockOnClose).toHaveBeenCalled();
+});
+```
+
+### Debugging Test Issues
+
+#### Test Hangs or Runs Indefinitely
+
+- **Cause**: Usually complex mock objects with circular references or unresolved promises
+- **Solution**: Simplify mocks to return primitive values or `null`
+
+#### "invariant expected app router to be mounted"
+
+- **Cause**: Missing Next.js router mock
+- **Solution**: Add the standardized `next/navigation` mock shown above
+
+#### "Cannot read property of undefined"
+
+- **Cause**: Missing mock for a hook or external dependency
+- **Solution**: Add minimal mock returning expected shape
+
+### Test Execution
+
+Run tests with appropriate timeouts to catch hanging tests early:
+
+```bash
+# Single test file
+npm test -- path/to/test.tsx
+
+# All tests with timeout
+npm test -- --testTimeout=10000
+
+# Watch mode for development
+npm test -- --watch
+```
+
+### Mock File Organization
+
+Global mocks can be placed in `__mocks__/` directory:
+
+- `__mocks__/next/navigation.js` - Next.js navigation mocks
+- `__mocks__/@supabase/` - Supabase client mocks
+- `__mocks__/react-markdown.js` - Markdown rendering mocks
+
+Inline mocks should be used for component-specific dependencies.
+
+---
+
 _End of Copilot custom instructions._

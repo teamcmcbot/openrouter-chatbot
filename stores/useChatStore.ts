@@ -20,6 +20,7 @@ import {
   getModelTokenLimits, 
   isWithinInputBudget
 } from "../lib/utils/tokens";
+import toast from 'react-hot-toast';
 
 const logger = createLogger("ChatStore");
 
@@ -281,7 +282,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Send Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[] };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -289,7 +290,16 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Send Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
 
                 // Get context messages within token budget
-                const contextMessages = get().getContextMessages(strategy.maxInputTokens);
+                const contextMessagesRaw = get().getContextMessages(strategy.maxInputTokens);
+                // Filter out failed user messages (error) and assistant messages whose linked user failed
+                const contextMessages = contextMessagesRaw.filter(m => {
+                  if (m.role === 'user' && m.error) return false;
+                  if (m.role === 'assistant' && m.user_message_id) {
+                    const linked = contextMessagesRaw.find(x => x.id === m.user_message_id);
+                    if (linked?.error) return false;
+                  }
+                  return true;
+                });
                 
                 // Build complete message array (context + new message)
                 const allMessages = [...contextMessages, userMessage];
@@ -326,13 +336,15 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   // Build request with conversation context
                   requestBody = { 
                     message: content, 
-                    messages: [...finalContextMessages, userMessage]
+                    messages: [...finalContextMessages, userMessage],
+                    current_message_id: userMessage.id
                   };
                 } else {
                   // Build request with conversation context
                   requestBody = { 
                     message: content, 
-                    messages: allMessages
+                    messages: allMessages,
+                    current_message_id: userMessage.id
                   };
                 }
                 
@@ -343,11 +355,21 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content };
+                requestBody = { message: content, current_message_id: userMessage.id };
                 if (model) {
                   requestBody.model = model;
                 }
                 console.log(`[Send Message] Sending LEGACY format (single message)`);
+              }
+
+              // Ensure chronological ordering & stability
+              if (requestBody.messages) {
+                const toMillis = (t: Date | string | undefined) => {
+                  if (!t) return 0;
+                  return t instanceof Date ? t.getTime() : new Date(t).getTime();
+                };
+                requestBody.messages = [...requestBody.messages]
+                  .sort((a, b) => toMillis(a.timestamp as Date | string | undefined) - toMillis(b.timestamp as Date | string | undefined));
               }
 
               const response = await fetch("/api/chat", {
@@ -381,7 +403,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 content: data.response,
                 role: "assistant",
                 timestamp: new Date(),
-                elapsed_time: data.elapsed_time ?? 0,
+                elapsed_ms: data.elapsed_ms ?? 0,
                 total_tokens: data.usage?.total_tokens ?? 0,
                 input_tokens: data.usage?.prompt_tokens ?? 0,
                 output_tokens: data.usage?.completion_tokens ?? 0,
@@ -486,6 +508,9 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(payload),
                       });
+                      // Update lastSyncTime after successful persistence
+                      set({ lastSyncTime: new Date().toISOString(), syncError: null });
+                      toast.success('Message saved successfully!', { id: 'chat-message-saved' });
                       logger.debug("Message pair saved successfully with correct tokens", { 
                         userMessageId: updatedUserMessage.id,
                         userInputTokens: updatedUserMessage.input_tokens,
@@ -517,6 +542,9 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(payload),
                       });
+                      // Update lastSyncTime after successful persistence (fallback path)
+                      set({ lastSyncTime: new Date().toISOString(), syncError: null });
+                      toast.success('Message saved successfully!', { id: 'chat-message-saved' });
                     }
                   } catch (error) {
                     logger.debug("Message save failed (silent)", error);
@@ -858,8 +886,27 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
             logger.debug("Retrying specific message", { messageId, model });
 
+            // Capture retry start time BEFORE building context so ordering uses the new timestamp
+            const retryStartedAt = new Date();
+
             // Set loading state
             set({ isLoading: true, error: null });
+
+            // Update the existing user message timestamp to reflect this new retry attempt
+            set((state) => ({
+              conversations: state.conversations.map(conv =>
+                conv.id === currentConversationId
+                  ? {
+                      ...conv,
+                      messages: conv.messages.map(msg =>
+                        msg.id === messageId && msg.role === 'user'
+                          ? { ...msg, timestamp: retryStartedAt }
+                          : msg
+                      )
+                    }
+                  : conv
+              )
+            }));
 
             try {
               // Phase 3: Check if context-aware mode is enabled
@@ -868,7 +915,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Retry Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[] };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -876,15 +923,23 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Retry Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
 
                 // Get context messages within token budget (excluding the message being retried)
-                const contextMessages = get().getContextMessages(strategy.maxInputTokens)
+                const contextMessagesRaw = get().getContextMessages(strategy.maxInputTokens)
                   .filter(msg => msg.id !== messageId); // Exclude the message being retried
+                const contextMessages = contextMessagesRaw.filter(m => {
+                  if (m.role === 'user' && m.error) return false;
+                  if (m.role === 'assistant' && m.user_message_id) {
+                    const linked = contextMessagesRaw.find(x => x.id === m.user_message_id);
+                    if (linked?.error) return false;
+                  }
+                  return true;
+                });
                 
                 // Create a temporary message for the retry (not added to store yet)
                 const retryMessage: ChatMessage = {
                   id: messageId, // Reuse the same ID
                   content: content.trim(),
                   role: "user",
-                  timestamp: new Date(),
+                  timestamp: retryStartedAt,
                   originalModel: model,
                 };
                 
@@ -922,12 +977,14 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   
                   requestBody = {
                     message: content,
-                    messages: [...finalContextMessages, retryMessage]
+                    messages: [...finalContextMessages, retryMessage],
+                    current_message_id: messageId
                   };
                 } else {
                   requestBody = {
                     message: content,
-                    messages: allMessages
+                    messages: allMessages,
+                    current_message_id: messageId
                   };
                 }
                 
@@ -938,11 +995,20 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Retry Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content };
+                requestBody = { message: content, current_message_id: messageId };
                 if (model) {
                   requestBody.model = model;
                 }
                 console.log(`[Retry Message] Sending LEGACY format (single message)`);
+              }
+
+              if (requestBody.messages) {
+                const toMillis = (t: Date | string | undefined) => {
+                  if (!t) return 0;
+                  return t instanceof Date ? t.getTime() : new Date(t).getTime();
+                };
+                requestBody.messages = [...requestBody.messages]
+                  .sort((a, b) => toMillis(a.timestamp as Date | string | undefined) - toMillis(b.timestamp as Date | string | undefined));
               }
 
               const response = await fetch("/api/chat", {
@@ -975,8 +1041,9 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 id: generateMessageId(),
                 content: data.response,
                 role: "assistant",
-                timestamp: new Date(),
-                elapsed_time: data.elapsed_time ?? 0,
+                // Use server-provided timestamp if available for consistency
+                timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
+                elapsed_ms: data.elapsed_ms ?? 0,
                 total_tokens: data.usage?.total_tokens ?? 0,
                 input_tokens: data.usage?.prompt_tokens ?? 0,
                 output_tokens: data.usage?.completion_tokens ?? 0,
@@ -1015,12 +1082,23 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                           ...conv,
                           messages: [
                             ...conv.messages.map((msg) => {
-                              if (msg.id === messageId) {
-                                // Clear error flag on successful retry
-                                return { ...msg, error: false };
-                              } else if (msg.id === data.request_id && msg.role === 'user') {
-                                // Update the user message that triggered this response with input tokens
-                                return { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 };
+                              if (msg.id === messageId && msg.role === 'user') {
+                                // Successful retry: clear error & apply new tokens, PRESERVE original timestamp
+                                return {
+                                  ...msg,
+                                  error: false,
+                                  error_message: undefined,
+                                  error_code: undefined,
+                                  retry_after: undefined,
+                                  input_tokens: data.usage?.prompt_tokens ?? 0,
+                                };
+                              }
+                              // Fallback path (should normally not hit when messageId === data.request_id). Only update tokens.
+                              if (msg.id === data.request_id && msg.role === 'user') {
+                                return {
+                                  ...msg,
+                                  input_tokens: data.usage?.prompt_tokens ?? 0,
+                                };
                               }
                               return msg;
                             }),
@@ -1033,7 +1111,66 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 };
               });
 
+              // Auto-generate title from first user message if conversation was 'New Chat'
+              const currentConvAfterRetry = get().conversations.find(c => c.id === currentConversationId);
+              if (currentConvAfterRetry && currentConvAfterRetry.title === "New Chat" && currentConvAfterRetry.messages.length === 2) {
+                const autoTitle = content.length > 50 ? content.substring(0, 50) + "..." : content;
+                get().updateConversationTitle(currentConversationId, autoTitle, true);
+              }
+
               logger.debug("Message retry successful", { messageId, conversationId: currentConversationId });
+
+              // Persist retried user + assistant pair (reuse ID) for authenticated users
+              const { user } = useAuthStore.getState();
+              if (user?.id) {
+                setTimeout(async () => {
+                  try {
+                    const updatedConv = get().conversations.find(c => c.id === currentConversationId);
+                    const retriedUserMessage = updatedConv?.messages.find(m => m.id === messageId && m.role === 'user');
+                    if (retriedUserMessage) {
+                      // Ensure persistence includes updated tokens & timestamp (Upsert on backend)
+                      const saveUserMsg = {
+                        ...retriedUserMessage,
+                        error: false,
+                        error_message: undefined,
+                        error_code: undefined,
+                        retry_after: undefined,
+                        // Guarantee tokens present (preserve original timestamp from initial send, not response time)
+                        input_tokens: retriedUserMessage.input_tokens ?? data.usage?.prompt_tokens ?? 0,
+                      };
+
+                      const shouldIncludeTitle = updatedConv &&
+                        updatedConv.title !== "New Chat" &&
+                        updatedConv.messages.length === 2;
+
+                      const payload: {
+                        messages: ChatMessage[];
+                        sessionId: string;
+                        sessionTitle?: string;
+                      } = {
+                        messages: [saveUserMsg, assistantMessage],
+                        sessionId: currentConversationId,
+                      };
+
+                      if (shouldIncludeTitle) {
+                        payload.sessionTitle = updatedConv?.title;
+                      }
+
+                      await fetch('/api/chat/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                      });
+                      // Update lastSyncTime after successful persistence (retry path)
+                      set({ lastSyncTime: new Date().toISOString(), syncError: null });
+                      toast.success('Message saved successfully!', { id: 'chat-message-saved' });
+                      logger.debug('Retry message pair saved', { userMessageId: retriedUserMessage.id, assistantId: assistantMessage.id });
+                    }
+                  } catch (e) {
+                    logger.debug('Retry message save failed (silent)', e);
+                  }
+                }, 80);
+              }
 
             } catch (err) {
               let chatError: ChatError;
@@ -1109,7 +1246,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               if (sampleMessage) {
                 logger.debug("Sample assistant message metadata", {
                   hasContentType: !!sampleMessage.contentType,
-                  hasElapsedTime: !!sampleMessage.elapsed_time,
+                  hasElapsedTime: !!sampleMessage.elapsed_ms,
                   hasCompletionId: !!sampleMessage.completion_id,
                   hasTotalTokens: !!sampleMessage.total_tokens
                 });
@@ -1180,7 +1317,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               if (sampleMessage) {
                 logger.debug("Sample loaded assistant message metadata", {
                   hasContentType: !!sampleMessage.contentType,
-                  hasElapsedTime: !!sampleMessage.elapsed_time,
+                  hasElapsedTime: !!sampleMessage.elapsed_ms,
                   hasCompletionId: !!sampleMessage.completion_id,
                   hasTotalTokens: !!sampleMessage.total_tokens
                 });

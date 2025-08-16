@@ -53,7 +53,7 @@ async function getUserDataHandler(request: NextRequest, authContext: AuthContext
         output_tokens: profileData.usage_stats?.today?.output_tokens || 0,
         models_used: profileData.usage_stats?.today?.models_used || {},
         sessions_created: profileData.usage_stats?.today?.sessions_created || 0,
-        active_minutes: profileData.usage_stats?.today?.active_minutes || 0
+        generation_ms: profileData.usage_stats?.today?.generation_ms || 0
       },
       allTime: {
         total_messages: profileData.usage_stats?.all_time?.total_messages || 0,
@@ -231,7 +231,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
         output_tokens: updatedProfileData.usage_stats?.today?.output_tokens || 0,
         models_used: updatedProfileData.usage_stats?.today?.models_used || {},
         sessions_created: updatedProfileData.usage_stats?.today?.sessions_created || 0,
-        active_minutes: updatedProfileData.usage_stats?.today?.active_minutes || 0
+        generation_ms: updatedProfileData.usage_stats?.today?.generation_ms || 0
       },
       allTime: {
         total_messages: updatedProfileData.usage_stats?.all_time?.total_messages || 0,

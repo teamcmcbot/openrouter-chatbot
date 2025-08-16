@@ -176,11 +176,11 @@ describe("Markdown Fallback Behavior", () => {
       render(<MessageList messages={messages} isLoading={false} />);
 
       const userMessage = screen.getByText("User message").closest(".bg-emerald-600");
-      const assistantMessage = screen.getByText("code").closest(".bg-gray-100");
+      const assistantMessage = screen.getByText("code").closest(".bg-slate-100");
 
       // Check styling differences
       expect(userMessage).toHaveClass("bg-emerald-600");
-      expect(assistantMessage).toHaveClass("bg-gray-100");
+      expect(assistantMessage).toHaveClass("bg-slate-100");
     });
   });
 });

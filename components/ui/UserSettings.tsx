@@ -3,12 +3,14 @@
 import { useState, useEffect } from "react";
 // Added icons for section headers and controls
 import { ArrowPathIcon, UserCircleIcon, AdjustmentsHorizontalIcon, ChartBarIcon, XMarkIcon, ShieldCheckIcon, Cog6ToothIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { useRouter } from 'next/navigation';
 import Tooltip from "./Tooltip";
 import Button from "./Button";
 import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
 import { validateSystemPrompt, truncateAtWordBoundary, SYSTEM_PROMPT_LIMITS } from "../../lib/utils/validation/systemPrompt";
 import toast from 'react-hot-toast';
+import { useTheme } from "../../stores/useUIStore";
 
 interface UserSettingsProps {
   isOpen: boolean;
@@ -22,7 +24,11 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   // - System Prompt preview shows a truncated value by default with a "Read more" toggle
   //   (showFullSystemPrompt) to expand/collapse long content without entering edit mode.
   const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const { data: userData, loading, refreshing, error, updatePreferences, forceRefresh } = useUserData({ enabled: isOpen });
+  const { theme, setTheme } = useTheme();
+  // Normalize any legacy/non-binary theme to 'dark'
+  const normalizeTheme = (t?: string): 'light' | 'dark' => (t === 'light' ? 'light' : 'dark');
   
   // State for editing preferences
   const [isEditing, setIsEditing] = useState(false);
@@ -44,12 +50,21 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   // System prompt specific state
   const [systemPromptError, setSystemPromptError] = useState<string | null>(null);
   const [lastKnownGoodSystemPrompt, setLastKnownGoodSystemPrompt] = useState<string>('');
+  const [lastKnownTheme, setLastKnownTheme] = useState<'light' | 'dark'>(normalizeTheme(theme));
+
+  // Ensure fresh data each time the modal opens (covers ChatSidebar path where component stays mounted)
+  useEffect(() => {
+    if (isOpen) {
+      // Fire and forget; UI uses `refreshing` state subtly without blocking the modal
+      void forceRefresh();
+    }
+  }, [isOpen, forceRefresh]);
 
   // State synchronization: Update edited preferences when userData changes (after successful save)
   useEffect(() => {
     if (userData?.preferences && !isEditing) {
       const currentPrefs = {
-        theme: userData.preferences.ui.theme || "dark",
+        theme: normalizeTheme(userData.preferences.ui.theme || "dark"),
         defaultModel: userData.preferences.model.default_model || null,
         temperature: userData.preferences.model.temperature || 0.7,
         systemPrompt: userData.preferences.model.system_prompt || "You are a helpful AI assistant.",
@@ -170,14 +185,15 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
   // Subscription badge style
   const tierLower = (userProfile.subscription || '').toLowerCase();
+  // Dual-mode badge styling for better light-mode contrast
   const subscriptionBadgeClass = tierLower === 'enterprise'
-    ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30'
+    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30'
     : tierLower === 'pro'
-      ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30'
-      : 'bg-gray-500/15 text-gray-300 ring-1 ring-inset ring-gray-500/30';
+      ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30'
+      : 'bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-gray-500/15 dark:text-gray-300 dark:ring-gray-500/30';
 
   const preferences = {
-    theme: userData?.preferences.ui.theme || "dark",
+    theme: normalizeTheme(userData?.preferences.ui.theme || "dark"),
     defaultModel: userData?.preferences.model.default_model || null, // Allow null instead of hardcoded fallback
     temperature: userData?.preferences.model.temperature || 0.7,
     systemPrompt: userData?.preferences.model.system_prompt || "You are a helpful AI assistant.",
@@ -191,7 +207,19 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
     messagesAllTime: userData?.allTime.total_messages || 0,
     tokensAllTime: userData?.allTime.total_tokens || 0,
     sessionsToday: userData?.today.sessions_created || 0,
-    activeMinutesToday: userData?.today.active_minutes || 0,
+    generationMsToday: userData?.today.generation_ms || 0,
+  };
+
+  // Average assistant response latency (generation_ms per assistant message received)
+  const messagesReceivedToday = userData?.today.messages_received || 0;
+  const avgResponseMs = messagesReceivedToday > 0
+    ? Math.round(analytics.generationMsToday / messagesReceivedToday)
+    : 0;
+  const formatAvgLatency = (ms: number) => {
+    if (!ms || ms <= 0) return '0 ms';
+    if (ms < 1000) return `${ms} ms`;
+    const s = ms / 1000;
+    return `${s.toFixed(1)}s`;
   };
 
   // Analytics helpers and derived values for tooltips
@@ -224,7 +252,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
     output_tokens?: number;
     models_used?: Record<string, number>;
     sessions_created?: number;
-    active_minutes?: number;
+  generation_ms?: number;
   };
   const allTimeRaw = (userData?.allTime ?? {}) as {
     total_messages?: number;
@@ -244,7 +272,11 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   const todayOut = todayRaw.output_tokens || 0;
   const todayTotal = todayRaw.total_tokens || analytics.tokensToday;
   const todayAvgTpm = analytics.messagesToday > 0 ? Math.round(todayTotal / analytics.messagesToday) : 0;
-  const todayModels: Array<[string, number]> = Object.entries((todayRaw.models_used || {}) as Record<string, number>);
+  // Sort models by usage desc and limit to top 5 for tooltip readability
+  const todayModelsAll: Array<[string, number]> = Object.entries((todayRaw.models_used || {}) as Record<string, number>);
+  const todayModelsSorted = [...todayModelsAll].sort((a, b) => b[1] - a[1]);
+  const todayModelsTop5 = todayModelsSorted.slice(0, 5);
+  const todayModelsMoreCount = Math.max(0, todayModelsAll.length - 5);
 
   const allMsgs = analytics.messagesAllTime;
   const allTokens = analytics.tokensAllTime;
@@ -259,17 +291,18 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   // Handle edit mode toggle
   const handleEditToggle = () => {
     if (isEditing) {
-      // Cancel editing - reset to current values
+      // Cancel editing - reset to current values and revert theme preview
       setEditedPreferences({
         theme: preferences.theme,
         defaultModel: preferences.defaultModel,
         temperature: preferences.temperature,
         systemPrompt: preferences.systemPrompt,
       });
+      setTheme(lastKnownTheme);
       setIsEditing(false);
       setSystemPromptError(null);
     } else {
-      // Start editing - initialize with current values
+      // Start editing - initialize with current values and capture current theme
       setEditedPreferences({
         theme: preferences.theme,
         defaultModel: preferences.defaultModel,
@@ -277,6 +310,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         systemPrompt: preferences.systemPrompt,
       });
       setLastKnownGoodSystemPrompt(preferences.systemPrompt);
+  setLastKnownTheme(normalizeTheme(theme));
       setIsEditing(true);
       setSystemPromptError(null);
     }
@@ -301,8 +335,13 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
       const loadingToast = toast.loading('Saving preferences...', { id: 'save-preferences' });
 
       try {
+        // Optimistically update theme for immediate UI feedback
+        setLastKnownTheme(normalizeTheme(theme));
+        if (editedPreferences.theme && normalizeTheme(editedPreferences.theme) !== normalizeTheme(theme)) {
+          setTheme(normalizeTheme(editedPreferences.theme));
+        }
         await updatePreferences({
-          ui: { theme: editedPreferences.theme },
+          ui: { theme: normalizeTheme(editedPreferences.theme) },
           model: {
             default_model: editedPreferences.defaultModel,
             temperature: editedPreferences.temperature,
@@ -320,6 +359,8 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
       } catch (updateError) {
         // Dismiss loading toast first
         toast.dismiss(loadingToast);
+  // Rollback theme if update fails
+  setTheme(lastKnownTheme);
         throw updateError; // Re-throw to be caught by outer catch
       }
 
@@ -337,6 +378,8 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         temperature: prev.temperature,
       }));
       setSystemPromptError(null);
+  // Also rollback theme in case outer catch path was hit
+  setTheme(lastKnownTheme);
       
       // Stay in edit mode to allow user to retry
       // setIsEditing remains true so user can correct and retry
@@ -346,14 +389,14 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Modern, slightly blurred overlay */}
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal container with sticky header/footer and internal scroll */}
-      <div className="relative w-full max-w-2xl rounded-2xl border border-gray-200/60 dark:border-white/10 bg-white/95 dark:bg-gray-900/90 text-gray-900 dark:text-gray-100 shadow-2xl backdrop-blur-xl overflow-hidden">
+  <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-white/10 bg-white/95 dark:bg-gray-900/90 text-slate-900 dark:text-gray-100 shadow-2xl backdrop-blur-xl overflow-hidden">
         {/* Sticky header (aligned with section padding) */}
-        <div className="sticky top-0 z-10 px-6 py-4 md:py-5 bg-gradient-to-b from-white/95 to-white/80 dark:from-gray-900/90 dark:to-gray-900/70 border-b border-gray-200/70 dark:border-white/10 flex items-center justify-between">
+  <div className="sticky top-0 z-10 px-6 py-4 md:py-5 bg-gradient-to-b from-white/95 to-white/80 dark:from-gray-900/90 dark:to-gray-900/70 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
               <Cog6ToothIcon className="h-5 w-5" />
@@ -362,7 +405,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           </div>
           <button
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/60 dark:hover:bg白/10 transition-colors"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
             aria-label="Close settings"
             title="Close"
           >
@@ -373,7 +416,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         {/* Scrollable content */}
         <div className="px-6 py-5 space-y-6 overflow-y-auto max-h-[80vh] md:max-h-[75vh]">
           {/* Profile */}
-          <section className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-gray-50/70 dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
+          <section className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <UserCircleIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -458,7 +501,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           </section>
 
           {/* Preferences */}
-          <section className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-gray-50/70 dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
+          <section className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <AdjustmentsHorizontalIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -478,28 +521,31 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
               <div className="space-y-4">
                 {/* Theme Selection */}
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">Theme</label>
+                  <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-gray-400">Theme</label>
                   <select
-                    value={editedPreferences.theme}
-                    onChange={(e) => setEditedPreferences(prev => ({ ...prev, theme: e.target.value }))}
-                    className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    value={normalizeTheme(editedPreferences.theme)}
+                    onChange={(e) => {
+                      const value = e.target.value as 'light' | 'dark';
+                      // Do NOT apply theme immediately; only update edited state
+                      setEditedPreferences(prev => ({ ...prev, theme: value }));
+                    }}
+                    className="w-full p-2.5 rounded-lg border border-slate-300/70 dark:border-gray-600/60 bg-white dark:bg-gray-900/50 text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   >
                     <option value="light">Light</option>
                     <option value="dark">Dark</option>
-                    <option value="system">System</option>
                   </select>
                 </div>
 
                 {/* Model Selection */}
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">Default Model</label>
+                  <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-gray-400">Default Model</label>
                   <select
                     value={editedPreferences.defaultModel || ''}
                     onChange={(e) => setEditedPreferences(prev => ({
                       ...prev,
                       defaultModel: e.target.value === '' ? null : e.target.value,
                     }))}
-                    className="w-full p-2.5 rounded-lg border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    className="w-full p-2.5 rounded-lg border border-slate-300/70 dark:border-gray-600/60 bg-white dark:bg-gray-900/50 text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   >
                     <option value="">None</option>
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -513,7 +559,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
                 {/* Temperature Slider */}
                 <div>
-                  <label className="flex items-center justify-between text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">
+                  <label className="flex items-center justify-between text-sm font-medium mb-1 text-slate-600 dark:text-gray-400">
                     <span>Temperature</span>
                     <span className="ml-2 font-semibold text-gray-900 dark:text-gray-100">{editedPreferences.temperature}</span>
                   </label>
@@ -526,7 +572,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                     onChange={(e) => setEditedPreferences(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
                     className="w-full accent-emerald-600"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <div className="flex justify-between text-xs text-slate-500 mt-1">
                     <span>More focused</span>
                     <span>More creative</span>
                   </div>
@@ -534,7 +580,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
 
                 {/* System Prompt Editor */}
                 <div>
-                  <label htmlFor="system-prompt-textarea" className="block text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">
+                  <label htmlFor="system-prompt-textarea" className="block text-sm font-medium mb-1 text-slate-600 dark:text-gray-400">
                     System Prompt
                   </label>
                   <textarea
@@ -567,13 +613,13 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                         });
                       }
                     }}
-                    className={`w-full p-3 rounded-xl resize-none transition-colors shadow-sm ${
+          className={`w-full p-3 rounded-xl resize-none transition-colors shadow-sm ${
                       systemPromptError 
                         ? 'border border-red-500 bg-red-50 dark:bg-red-900/20' 
                         : editedPreferences.systemPrompt.length > 0 && systemPromptError === null
                         ? 'border border-green-500 bg-green-50 dark:bg-green-900/20'
-                        : 'border border-gray-300/70 dark:border-gray-600/60 bg-white/90 dark:bg-gray-900/50'
-                    } text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50`}
+            : 'border border-slate-300/70 dark:border-gray-600/60 bg-white dark:bg-gray-900/50'
+          } text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50`}
                     rows={4}
                     placeholder="Enter your system prompt to guide AI responses..."
                     aria-invalid={systemPromptError ? 'true' : 'false'}
@@ -619,7 +665,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                       <span>{systemPromptError}</span>
                     </div>
                   ) : (
-                    <div id="system-prompt-help" className="text-gray-500 dark:text-gray-400 text-xs mt-1">
+                    <div id="system-prompt-help" className="text-slate-500 dark:text-gray-400 text-xs mt-1">
                       System prompt guides AI behavior and responses. Use clear, specific instructions.
                     </div>
                   )}
@@ -667,16 +713,16 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
             ) : (
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
-                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mb-1 sm:mb-0">Theme</div>
-                  <div className="sm:col-span-9 font-medium text-gray-900 dark:text-gray-100 capitalize">{preferences.theme}</div>
+                  <div className="sm:col-span-3 text-slate-600 dark:text-gray-400 mb-1 sm:mb-0">Theme</div>
+                  <div className="sm:col-span-9 font-medium text-slate-900 dark:text-gray-100 capitalize">{preferences.theme}</div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
-                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mb-1 sm:mb-0">Default Model</div>
-                  <div className="sm:col-span-9 font-medium text-gray-900 dark:text-gray-100">
+                  <div className="sm:col-span-3 text-slate-600 dark:text-gray-400 mb-1 sm:mb-0">Default Model</div>
+                  <div className="sm:col-span-9 font-medium text-slate-900 dark:text-gray-100">
                     {
                       preferences.defaultModel === null || preferences.defaultModel === ''
-                        ? <span className="text-gray-700 dark:text-gray-300">None</span>
+                        ? <span className="text-slate-700 dark:text-gray-300">None</span>
                         : (
                           availableModels.some((model: { model_id: string }) => model.model_id === preferences.defaultModel)
                             ? preferences.defaultModel
@@ -687,16 +733,16 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
-                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mb-1 sm:mb-0">Temperature</div>
-                  <div className="sm:col-span-9 font-medium text-gray-900 dark:text-gray-100">{preferences.temperature}</div>
+                  <div className="sm:col-span-3 text-slate-600 dark:text-gray-400 mb-1 sm:mb-0">Temperature</div>
+                  <div className="sm:col-span-9 font-medium text-slate-900 dark:text-gray-100">{preferences.temperature}</div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
-                  <div className="sm:col-span-3 text-gray-600 dark:text-gray-400 mt-0.5">System Prompt</div>
+                  <div className="sm:col-span-3 text-slate-600 dark:text-gray-400 mt-0.5">System Prompt</div>
                   <div className="sm:col-span-9">
                     <div
                       id="system-prompt-preview"
-                      className="mt-0.5 p-3 bg-white/70 dark:bg-gray-900/40 border border-gray-200/60 dark:border-white/10 rounded-lg text-xs leading-relaxed whitespace-pre-wrap"
+                      className="mt-0.5 p-3 bg-white dark:bg-gray-900/40 border border-slate-200 dark:border-white/10 rounded-lg text-xs leading-relaxed whitespace-pre-wrap"
                       aria-live="polite"
                     >
                       {showFullSystemPrompt
@@ -721,7 +767,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           </section>
 
           {/* Analytics */}
-          <section className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-gray-50/70 dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
+          <section className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-800/60 p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <ChartBarIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -753,15 +799,18 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Share (in/out)</span><span className="font-medium">{pct(todayIn, todayTotal)} / {pct(todayOut, todayTotal)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Avg tokens/msg</span><span className="font-medium">{nf.format(todayAvgTpm)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Sessions</span><span className="font-medium">{nf.format(analytics.sessionsToday)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Active time</span><span className="font-medium">{nf.format(analytics.activeMinutesToday)} min</span></div>
-                    {todayModels.length > 0 && (
+                    <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Avg response</span><span className="font-medium">{formatAvgLatency(avgResponseMs)}</span></div>
+                    {todayModelsTop5.length > 0 && (
                       <div>
                         <div className="text-gray-600 dark:text-gray-400">Models used</div>
-                        <ul className="mt-1 space-y-0.5 max-h-24 overflow-y-auto pr-1">
-                          {todayModels.map(([id, count]) => (
+                        <ul className="mt-1 space-y-0.5">
+                          {todayModelsTop5.map(([id, count]) => (
                             <li key={id} className="truncate"><span className="font-medium">{count}×</span> <span className="text-gray-700 dark:text-gray-300">{id}</span></li>
                           ))}
                         </ul>
+                        {todayModelsMoreCount > 0 && (
+                          <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">and {todayModelsMoreCount} more…</div>
+                        )}
                       </div>
                     )}
                     <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Last active</span><span className="font-medium">{relTime(ts.last_active)}</span></div>
@@ -800,9 +849,14 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
               </Tooltip>
             </div>
 
-            <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+      <div className="text-xs text-slate-600 dark:text-gray-400 space-y-1">
               <p>Sessions today: {analytics.sessionsToday}</p>
-              <p>Active time today: {analytics.activeMinutesToday} minutes</p>
+              <p>Average response time today: {formatAvgLatency(avgResponseMs)}</p>
+              <button
+                type="button"
+                onClick={() => { onClose(); router.push('/usage/costs'); }}
+        className="mt-2 inline-flex items-center px-3 py-1.5 rounded-md ring-1 ring-emerald-600 text-emerald-700 dark:text-emerald-400 text-xs font-medium bg-white hover:bg-emerald-50 dark:bg-transparent dark:hover:bg-emerald-900/30"
+              >View Usage</button>
             </div>
           </section>
         </div>

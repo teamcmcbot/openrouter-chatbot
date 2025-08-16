@@ -11,7 +11,7 @@ function AuthSuccessToastWrapper() {
 
 function ChatPageContent() {
   return (
-    <div className="h-mobile-full bg-gray-100 dark:bg-gray-900 p-4 sm:p-6">
+    <div className="h-mobile-full bg-slate-50 dark:bg-gray-900">
       <Suspense fallback={null}>
         <AuthSuccessToastWrapper />
       </Suspense>
@@ -25,7 +25,7 @@ function ChatPageContent() {
 export default function ChatPage() {
   return (
     <Suspense fallback={
-      <div className="h-mobile-full bg-gray-100 dark:bg-gray-900 p-4 sm:p-6">
+      <div className="h-mobile-full bg-slate-50 dark:bg-gray-900">
         <div className="h-full max-w-full mx-auto">
           <ChatInterface />
         </div>

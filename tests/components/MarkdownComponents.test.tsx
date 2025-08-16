@@ -18,7 +18,7 @@ describe("CustomCodeBlock", () => {
     const codeElement = screen.getByText("console.log('hello')");
     expect(codeElement).toBeInTheDocument();
     expect(codeElement.tagName).toBe("CODE");
-    expect(codeElement).toHaveClass("bg-gray-200", "dark:bg-gray-700", "px-1.5", "py-0.5", "rounded", "text-sm", "font-mono");
+    expect(codeElement).toHaveClass("bg-slate-200/80", "dark:bg-gray-700", "px-1.5", "py-0.5", "rounded", "text-sm", "font-mono");
   });
 
   it("renders block code correctly", () => {
@@ -133,6 +133,6 @@ describe("CustomPreBlock", () => {
     );
     
     const preElement = screen.getByText("Some code content").closest("pre");
-    expect(preElement).toHaveClass("bg-gray-100", "dark:bg-gray-800", "rounded-lg", "p-3", "whitespace-pre-wrap", "break-words", "my-2");
+    expect(preElement).toHaveClass("!bg-slate-600", "dark:!bg-gray-800", "rounded-lg", "p-3", "whitespace-pre-wrap", "break-words", "my-2", "border", "!border-slate-300", "dark:!border-white/10", "shadow-sm");
   });
 });

@@ -59,7 +59,7 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
       model: message.model,
       total_tokens: message.total_tokens,
       contentType: message.content_type || 'text', // New: content type
-      elapsed_time: message.elapsed_time || 0, // New: elapsed time
+  elapsed_ms: message.elapsed_ms || 0, // New: elapsed time (ms)
       completion_id: message.completion_id || undefined, // New: completion ID
       timestamp: new Date(message.message_timestamp),
       error: !!message.error_message
@@ -158,7 +158,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       for (const message of requestData.messages) {
         const { data: newMessage, error: messageError } = await supabase
           .from('chat_messages')
-          .insert({
+          .upsert({
             id: message.id,
             session_id: requestData.sessionId,
             role: message.role,
@@ -168,7 +168,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
             output_tokens: message.output_tokens || 0,
             total_tokens: message.total_tokens || 0,
             content_type: message.contentType || 'text',
-            elapsed_time: message.elapsed_time || 0,
+            elapsed_ms: message.elapsed_ms || 0,
             completion_id: message.completion_id || null,
             user_message_id: message.user_message_id || null,
             message_timestamp: typeof message.timestamp === 'string' 
@@ -176,7 +176,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
               : message.timestamp.toISOString(),
             error_message: message.error_message || (message.error ? 'Message failed' : null),
             is_streaming: false
-          })
+          }, { onConflict: 'id' })
           .select()
           .single();
 
@@ -191,7 +191,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       const message = requestData.message;
       const { data: newMessage, error: messageError } = await supabase
         .from('chat_messages')
-        .insert({
+        .upsert({
           id: message.id,
           session_id: requestData.sessionId,
           role: message.role,
@@ -201,7 +201,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
           output_tokens: message.output_tokens || 0,
           total_tokens: message.total_tokens || 0,
           content_type: message.contentType || 'text',
-          elapsed_time: message.elapsed_time || 0,
+          elapsed_ms: message.elapsed_ms || 0,
           completion_id: message.completion_id || null,
           user_message_id: message.user_message_id || null,
           message_timestamp: typeof message.timestamp === 'string' 
@@ -209,7 +209,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
             : message.timestamp.toISOString(),
           error_message: message.error_message || (message.error ? 'Message failed' : null),
           is_streaming: false
-        })
+        }, { onConflict: 'id' })
         .select()
         .single();
 

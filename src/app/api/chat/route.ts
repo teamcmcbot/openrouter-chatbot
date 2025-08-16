@@ -88,7 +88,8 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       );
     }
     
-    const openRouterResponse = await getOpenRouterCompletion(
+  const startTime = Date.now();
+  const openRouterResponse = await getOpenRouterCompletion(
       messages,
       enhancedData.model,
       dynamicMaxTokens,
@@ -104,18 +105,40 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     const hasMarkdown = detectMarkdownContent(assistantResponse);
     logger.debug('Markdown detection result:', hasMarkdown, 'for content:', assistantResponse.substring(0, 100));
 
-    const now = Math.floor(Date.now() / 1000); // current time in seconds (epoch)
-    logger.debug('Current time (epoch):', now);
-    logger.debug('OpenRouter response created time (epoch):', openRouterResponse.created);
+  const endTime = Date.now();
+  const elapsedMs = endTime - startTime; // integer milliseconds
+  logger.debug('Measured assistant generation latency (ms):', elapsedMs);
 
-    const elapsedTime = now - openRouterResponse.created;
-    logger.debug('Elapsed time for response:', elapsedTime, 'seconds');
+    // Determine triggering user message ID (explicit > fallback)
+    const explicitId: string | undefined = body.current_message_id;
+    let triggeringUserId: string | undefined = explicitId;
 
-    // Find the current user message that triggered this response
-    // Match by content to ensure we link to the correct message
-    const currentUserMessage = body.messages?.find((m: { role: string; content: string; id?: string }) =>
-      m.role === 'user' && m.content.trim() === body.message.trim()
-    );
+    if (!triggeringUserId && Array.isArray(body.messages) && body.message) {
+      // Fallback: use LAST matching user message with same trimmed content
+      for (let i = body.messages.length - 1; i >= 0; i--) {
+        const m = body.messages[i];
+        if (
+          m && m.role === 'user' &&
+          typeof m.content === 'string' &&
+          m.content.trim() === body.message.trim()
+        ) {
+          triggeringUserId = m.id;
+          break;
+        }
+      }
+    }
+
+    if (explicitId && !triggeringUserId) {
+      type UserMsg = { id?: string; role?: string };
+      logger.warn('Explicit current_message_id not found among provided messages', {
+        explicitId,
+        providedIds: Array.isArray(body.messages)
+          ? (body.messages as UserMsg[])
+              .filter((m) => m && m.role === 'user' && typeof m.id === 'string')
+              .map((m) => m.id)
+          : []
+      });
+    }
 
     const response: ChatResponse = {
       response: assistantResponse,
@@ -124,9 +147,9 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
         completion_tokens: usage.completion_tokens,
         total_tokens: usage.total_tokens,
       },
-      request_id: currentUserMessage?.id || undefined, // Link to the correct user message that triggered this response
+      request_id: triggeringUserId || undefined, // Deterministic linkage to triggering user message
       timestamp: new Date().toISOString(),
-      elapsed_time: elapsedTime,
+      elapsed_ms: elapsedMs,
       contentType: hasMarkdown ? "markdown" : "text", // Add content type detection
       id: openRouterResponse.id, // Pass OpenRouter response id to ChatResponse
     };

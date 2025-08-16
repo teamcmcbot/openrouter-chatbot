@@ -74,9 +74,12 @@ The component now integrates with actual database analytics through:
 - Real-time validation mirrors server rules (authoritative on server)
 - Character counter and word count with color-coded warnings at 80%/90%
 - Prevents typing beyond 2000 characters; smart paste truncates and warns via toast
+  - See Toaster behavior and positioning: `docs/components/ui/Toaster.md`
 - Save disabled when invalid or empty; input is trimmed before save
 - Success: green toast + preview update + exit edit mode
+  - Toasts are centered in the chat header when on `/chat`; details in `docs/components/ui/Toaster.md`
 - Failure: red toast + revert to last known good + stay in edit mode
+  - Positioning follows global Toaster rules; see `docs/components/ui/Toaster.md`
 - Accessibility: `aria-invalid` and `aria-describedby` for error/help text
 
 #### System Prompt Preview
