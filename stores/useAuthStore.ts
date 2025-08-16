@@ -204,6 +204,7 @@ export const useAuthStore = create<AuthStore>()(
             STORAGE_KEYS.MODELS,             // 'openrouter-models-cache'
             STORAGE_KEYS.UI_PREFERENCES,     // 'openrouter-ui-preferences'
             STORAGE_KEYS.SETTINGS,           // 'openrouter-settings-storage'
+            STORAGE_KEYS.GENERATION,         // 'openrouter-generation-cache'
             // Legacy/devtools names (not persisted, but safe to remove)
             'chat-store',
             'model-store',

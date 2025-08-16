@@ -51,7 +51,7 @@
 }
 
 .markdown-content table th {
-  @apply bg-slate-200 dark:bg-gray-600 font-semibold text-left px-3 py-2 border border-gray-300 dark:border-gray-600;
+  @apply bg-slate-200 dark:bg-gray-500 font-semibold text-left px-3 py-2 border border-gray-300 dark:border-gray-600;
 }
 
 .markdown-content table td {

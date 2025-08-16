@@ -96,7 +96,7 @@ Scope of impact:
 
 Introduce a small generation-details cache backed by `localStorage` with a namespaced key and simple LRU/TTL strategy.
 
-- Use a single key, e.g. `generation-cache-v1`, storing a map `{ [generationId]: { data: GenerationData, cachedAt: number } }`.
+- Use a single key, e.g. `openrouter-generation-cache`, storing a map `{ [generationId]: { data: GenerationData, cachedAt: number } }`.
 - On open/pricing-tab activation, read cache first:
   - If hit and entry is fresh: set `generationData` from cache and skip fetch.
   - If miss or expired: fetch `/api/generation/<id>`, then write to cache and update state.

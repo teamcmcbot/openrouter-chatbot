@@ -88,7 +88,7 @@ export default function RootLayout({
           <ErrorBoundary>
             <ThemeProvider>
             <div className="flex flex-col h-mobile-screen">
-              <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white dark:border-gray-800 dark:bg-gray-900 flex-shrink-0">
+              <nav className="sticky top-0 z-50 border-b border-slate-200 bg-slate-100 dark:border-gray-800 dark:bg-gray-900 flex-shrink-0">
                 <div className="w-full px-4 sm:px-6 lg:px-8">
                   <div className="flex h-16 items-center justify-between">
                     <div className="flex items-center">
@@ -106,7 +106,7 @@ export default function RootLayout({
                 </div>
               </nav>
               <MainContainer>{children}</MainContainer>
-                <footer className="hidden sm:block border-t border-slate-200 bg-white dark:border-gray-800 dark:bg-gray-900 flex-shrink-0">
+                <footer className="hidden sm:block border-t border-slate-200 bg-slate-100 dark:border-gray-800 dark:bg-gray-900 flex-shrink-0">
                 <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
                   <div className="text-center text-sm text-slate-600 dark:text-gray-400">
                     <p>

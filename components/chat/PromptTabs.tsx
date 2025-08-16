@@ -110,7 +110,7 @@ export default function PromptTabs({ onPromptSelect }: PromptTabsProps) {
           <button
             key={index}
             onClick={() => handlePromptClick(prompt)}
-            className="p-3 text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-md transition-all duration-200"
+            className="p-3 text-left bg-slate-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-md transition-all duration-200"
           >
             <p className="text-gray-900 dark:text-gray-100 text-sm leading-relaxed">
               {prompt}

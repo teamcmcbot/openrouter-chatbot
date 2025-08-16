@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ModelInfo } from "../../lib/types/openrouter";
 import { GenerationData } from "../../lib/types/generation";
+import { getGenerationFromCache, setGenerationInCache } from "../../lib/utils/generationCache";
 import Button from "./Button";
 
 interface ModelDetailsSidebarProps {
@@ -109,6 +110,19 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                        shouldAllowFetch && 
                        generationId !== lastFetchedGenerationIdRef.current;
     
+    // First, attempt cache read to enable instant render on reopen
+    if (generationId && activeTab === 'pricing' && isOpen && shouldAllowFetch) {
+      const cached = getGenerationFromCache(generationId);
+      if (cached) {
+        setGenerationData(cached);
+        setGenerationError(null);
+        setLoadingGeneration(false);
+        // We don't need a network call if cache is present
+        lastFetchedGenerationIdRef.current = generationId;
+        return;
+      }
+    }
+
     // Only fetch if all conditions are met and we haven't already fetched this generation ID
     if (shouldFetch) {
       lastFetchedGenerationIdRef.current = generationId;
@@ -129,6 +143,12 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
           // Handle nested data structure from API response
           const generationData = data.data?.data || data.data;
           setGenerationData(generationData);
+          try {
+            // Persist to cache for instant reopen
+            if (generationId) {
+              setGenerationInCache(generationId, generationData);
+            }
+          } catch {}
           setLoadingGeneration(false);
         })
         .catch(error => {

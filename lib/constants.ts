@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   MODELS: 'openrouter-models-cache',
   UI_PREFERENCES: 'openrouter-ui-preferences',
   SETTINGS: 'openrouter-settings-storage',
+  GENERATION: 'openrouter-generation-cache',
 } as const;
 
 /**
