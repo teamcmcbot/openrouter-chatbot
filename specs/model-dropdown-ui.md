@@ -2,7 +2,7 @@
 
 Author: Copilot UX
 Date: 2025-08-16
-Status: Approved – Option A
+Status: Implemented – Option A (2025-08-16)
 Scope: Update the model selector placement, affordance, and behavior on desktop and mobile, in light and dark modes.
 
 ---
@@ -206,6 +206,13 @@ Phases:
 - Theming: Passes AA contrast in both modes.
 - No regressions: Message count + Enhanced remain visible and readable.
 
+Verification (2025-08-16):
+
+- Build succeeded, typecheck/lint passed. Full test suite green (27/27, 207 tests).
+- <sm (below 640px): dropdown is fixed, centered, and anchored directly under the trigger; repositions on resize/scroll/orientationchange; scrim present without blur; header has no blur.
+- ≥sm: dropdown is absolute and left-anchored to the trigger; alignment consistent; headers/sidebars use solid backgrounds (no blur) with clear borders.
+- Keyboard and a11y behaviors validated: Escape closes, click-outside closes, focus returns to trigger.
+
 ## 13) Optional future ideas
 
 - Inline model comparison (hover card) showing cost/latency.
@@ -264,7 +271,7 @@ This section documents current problems found in visual QA, analysis, and propos
   - Toggle the details pane via dropdown info icon at 1024–1279px; confirm no full-screen overlay.
   - Hover/click generation IDs still highlight/scroll as expected.
 
-## 15) Remediation plan and test matrix (pending approval)
+## 15) Remediation plan and test matrix (completed)
 
 - Implementation outline (minimal diffs)
 
@@ -294,4 +301,4 @@ This section documents current problems found in visual QA, analysis, and propos
   - For the details sidebar, revert to previous xl-based logic as a temporary hotfix and ship a consistent breakpoint utility in a follow-up.
 
 - Owner: Copilot UX
-- Status: Proposed – awaiting review before implementation
+- Status: Completed – verified in build and tests; user confirmed visually.
