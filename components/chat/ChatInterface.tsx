@@ -161,7 +161,7 @@ export default function ChatInterface() {
       {/* Main Chat Area (70%) */}
   <div className="flex flex-col flex-1 lg:w-[70%] min-w-0 bg-slate-50 dark:bg-gray-800">
         {/* Header */}
-  <div className="relative z-30 px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
+  <div id="chat-header" className="relative z-30 px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
           {/* Mobile layout (< lg): two-cluster row; right cluster can wrap Enhanced to next line */}
           <div className="lg:hidden">
             <div className="flex items-center justify-between gap-2">
