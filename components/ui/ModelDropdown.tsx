@@ -273,14 +273,14 @@ export default function ModelDropdown({
             )}
           </div>
 
-          {/* Models List */}
-          <div className="overflow-y-auto max-h-72">
+      {/* Models List */}
+      <div className="overflow-y-auto max-h-80 pb-8">
             {filteredModels.length === 0 ? (
               <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
                 No models found matching your criteria
               </div>
             ) : (
-              <div className="py-1">
+        <div className="py-1 pb-8">
                 {filteredModels.map((model) => {
                   const modelId = getModelId(model);
                   const displayName = getDisplayName(model);
@@ -352,8 +352,19 @@ export default function ModelDropdown({
                           </div>
                         </button>
                         
-                        {/* Details button for enhanced models - separated from main button */}
+                        {/* Details area: place checkmark before info so info stays rightmost */}
                         <div className="flex items-center gap-1">
+                          {/* Selected checkmark */}
+                          {isSelected && (
+                            <svg className="w-3 h-3 text-violet-600 dark:text-violet-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                          {/* Details button for enhanced models - separated from main button */}
                           {isEnhanced && (
                             <button
                               onClick={(e) => {
@@ -369,21 +380,13 @@ export default function ModelDropdown({
                               </svg>
                             </button>
                           )}
-                          {/* Selected checkmark */}
-                          {isSelected && (
-                            <svg className="w-3 h-3 text-violet-600 dark:text-violet-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          )}
                         </div>
                       </div>
                     </div>
                   );
                 })}
+                {/* spacer to ensure the last row is not clipped beneath rounded borders */}
+                <div aria-hidden className="h-6" />
               </div>
             )}
           </div>
