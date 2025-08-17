@@ -9,6 +9,13 @@ import { logger } from '../../../../../lib/utils/logger';
 
 const BUCKET = 'attachments-images';
 
+function computeDeleteRateLimitPerHour(tier: 'free' | 'pro' | 'enterprise'): number {
+  // Base: 60/min => 3600/hr; Pro/Enterprise ×2
+  const basePerHour = 60 * 60;
+  const multiplier = tier === 'free' ? 1 : 2;
+  return basePerHour * multiplier;
+}
+
 async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     if (req.method !== 'DELETE') {
@@ -67,7 +74,15 @@ async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContex
       throw new ApiErrorResponse('Failed to delete attachment', ErrorCode.INTERNAL_SERVER_ERROR);
     }
 
-    logger.info('Attachment deleted', { userId: user.id, attachmentId: id });
+    logger.info('Attachment deleted', {
+      userId: user.id,
+      attachmentId: id,
+      mime: attachment.mime,
+      size_bytes: attachment.size_bytes,
+      session_id: attachment.session_id,
+      message_id: attachment.message_id,
+      draft_id: attachment.draft_id,
+    });
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     return handleError(error);
@@ -75,5 +90,7 @@ async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContex
 }
 
 export const DELETE = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(deleteAttachmentHandler, { customLimit: 3600 /* 60/min */ })(req, authContext)
+  withRateLimit(deleteAttachmentHandler, {
+    customLimit: computeDeleteRateLimitPerHour((authContext.profile?.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise'),
+  })(req, authContext)
 );

@@ -142,14 +142,37 @@ Result: Database layer is ready for implementation; schema provides all required
 - Retention per tier:
   - Decision: Free 30 days, Pro 60 days, Enterprise 90 days.
   - Implementation: Scheduled job (cron/Edge function) that:
-    1) Deletes storage objects past tier-based retention and marks rows deleted.
-    2) Removes orphans older than 24h (unlinked attachments).
+    1. Deletes storage objects past tier-based retention and marks rows deleted.
+    2. Removes orphans older than 24h (unlinked attachments).
     - Configurable thresholds per tier.
 - Model allowlist & modality re-check:
   - UI: Enable Attach button only when current selected model includes "image" in `input_modalities`.
   - Server: At `/api/chat`, re-validate that the selected model supports images before sending. This covers the case where a user uploads under an image-capable model then switches to a non-image model before send.
 - Telemetry fields:
   - Include `attachment_id`, `user_id`, `mime`, `size_bytes`, `session_id`, `message_id` when present, and `draft_id` in metadata logs to aid debugging. No content logged.
+
+## Phase B — Implementation Plan (ready)
+
+- Rate limits by tier
+  - [ ] Apply multipliers in rate-limit middleware: Free = base; Pro = ×2; Enterprise = ×2 (tunable later)
+  - [ ] Verify headers present on all three endpoints; signed-url adds `Cache-Control: no-store`
+- Limits & validation
+  - [ ] Ensure server-side cap ≤ 3 images/message is enforced at upload and send
+  - [ ] Confirm per-tier size caps: Free ≤ 5MB; Pro/Enterprise ≤ 10MB (constants)
+  - [ ] `/api/chat` re-validates selected model has `image` in `input_modalities` before sending
+- Path & ownership
+  - [ ] Keep draft-path strategy on link; DB-only linkage via `session_id`/`message_id`
+  - [ ] Confirm Storage RLS policies (own read/insert/update/delete)
+- Observability
+  - [ ] Add metadata-only logs to include `draft_id` (plus attachment_id, user_id, mime, size_bytes, session_id/message_id)
+- Docs
+  - [ ] Ensure API docs reflect current limits, TTL, and multipliers
+- Verification (dev)
+  - [ ] Happy-path manual test: upload → send (with model supporting image) → sync → signed-url → delete pending
+  - [ ] Switch-model test: upload on image-capable model, switch to non-image model, send blocked with clear error
+  - [ ] Rate-limit spot check: observe headers and 429 behavior
+
+Owner handoff: After checking all boxes above, Phase B is complete.
 
 ## References
 
@@ -332,10 +355,135 @@ We will proceed in phases. Each phase ends with a user verification step (manual
 ### Phase F — Docs & ops (planning)
 
 - [ ] Developer docs: `/docs/api/uploads-images.md`, `/docs/components/chat/image-attachments.md`.
-- [ ] Ops: schedule retention/orphan cleanup job (24h orphans; 30-day retention) — out of scope for initial code PR but tracked.
-- [ ] User verification (Phase F): Sign off docs outline.
+- [ ] Ops: schedule retention/orphan cleanup job (24h orphans; tiered retention 30/60/90 days) — tracked.
+- [ ] Draft retention/orphan cleanup job spec (user to author next):
+  - Inputs: tier mapping (Free=30d, Pro=60d, Enterprise=90d), orphan threshold=24h
+  - Actions: delete storage objects past retention; soft-delete DB rows; remove orphans
+  - Scheduling: daily cron/Edge function; retries and idempotency
+- [ ] User verification (Phase F): Sign off docs outline and job spec scope.
 
 After all planning phases are approved, we’ll start implementation in the same order.
+
+## Phase C — UI Integration (final checklist)
+
+Decisions confirmed by user (2025-08-18):
+
+- Cap images per message in UI: 3 (matches pending ≤3 per draft)
+- Preview strategy (active chat): use in-memory object URLs for immediate preview; no signed URL needed
+- History previews: fetch on-demand signed URLs and cache in sessionStorage with a short TTL (e.g., ~300s minus 5s skew); refresh on demand when render fails or by user action
+- Drag-and-drop: Defer; clipboard paste-to-upload is required at launch
+- Alt text/caption: sanitize and strip extension from filename; fallback to Image01, Image02, …
+- Gating: Free tier can use image upload; anonymous users cannot—show disabled button with tooltip “Sign in to attach images.”
+- Thumbnail modal: open a lightbox on click now (overlay + ESC/click-to-close)
+
+Finalized details for Phase C (locked)
+
+- sessionStorage caching policy (history):
+  - Cache key: `att:{id}`; value shape `{ url: string; expiresAt: number }`.
+  - TTL: ~300,000 ms with a 5,000 ms skew; on 403/expiry, refresh immediately.
+  - Scope: sessionStorage only (never localStorage); no URLs persisted in DB.
+- Filename sanitization for display/alt:
+  - Strip extension; remove unsafe characters; collapse whitespace; trim; max length ~64.
+  - If missing/unsafe after sanitize, fallback labels: Image01, Image02, … (per message order).
+  - Use sanitized name for aria-label and alt text.
+- Lightbox behavior (implement now):
+  - Opens on thumbnail click; overlay backdrop; ESC and overlay click-to-close.
+  - Focus trap with `aria-modal` and `role="dialog"`; restore focus on close.
+  - Lock body scroll while open; support keyboard navigation on thumbnails.
+
+Checklist
+
+- Composer: attach UX
+
+  - [ ] Attach Image button (accept=image/\*), visible for all; disabled for anonymous with tooltip; enabled for Free/Pro/Enterprise when model supports images
+  - [ ] Enforce 3 image cap in UI; disable button and show hint when cap reached
+  - [ ] Client pre-checks: MIME allowlist, size by tier (Free ≤ 5MB; Pro/Ent ≤ 10MB)
+  - [ ] Clipboard paste-to-upload in textarea; handles multiple pasted images
+  - [ ] Progress + error toasts for upload failures and rate limits
+
+- Upload, preview, manage
+
+  - [ ] POST /api/uploads/images with draftId and optional sessionId
+  - [ ] Immediate local preview using object URLs; revoke on removal/unmount
+  - [ ] Store returned attachmentIds in component state keyed by draftId
+  - [ ] Remove pre-send: call DELETE /api/attachments/:id; update state on success
+
+- Send with attachments
+
+  - [ ] Include attachmentIds on send; server modality re-check handles unsupported model case
+  - [ ] Clear draft state and regenerate draftId after successful send
+
+- Rendering in chat
+
+  - [ ] Show thumbnails for user messages with attachments
+  - [ ] For history: fetch signed URL on click/tap (or on visibility) and cache per id in sessionStorage with an expiry timestamp; refresh on demand if 403/expired
+  - [ ] Alt text from sanitized filename or ImageNN; basic accessible labels
+  - [ ] Lightbox modal opens on thumbnail click; supports close on overlay/ESC; prevents background scroll
+
+- Gating and safeguards
+
+  - [ ] Anonymous: attach disabled with tooltip; hide paste-to-upload by intercepting and showing sign-in tooltip
+  - [ ] Free tier allowed; enforce count/size; UI copy reflects limits
+
+- Telemetry
+
+  - [ ] Optional client events: upload_started/succeeded/failed, removed; no PII/content
+
+- Tests
+
+  - [ ] Unit: MessageInput attach/remove/paste; cap at 3; disabled state
+  - [ ] Integration: upload → send → render; history signed URL fetch on demand; error path for unsupported model
+
+- Docs
+  - [ ] Update docs/components/chat/image-attachments.md with attach, paste, limits, tooltips, and signed URL preview behavior
+
+User verification (Phase C)
+
+- [ ] Anonymous: button visible but disabled; tooltip clarifies sign-in required; paste shows same tooltip
+- [ ] Free tier: upload ≤ 3 images and ≤ 5MB each; previews render; remove works
+- [ ] Send: images included for image-capable model; blocked for non-image model with clear UI error
+- [ ] History: clicking an image loads via signed URL; if expired, refresh succeeds
+- [ ] OpenRouter call includes image_url parts; assistant response returns normally
+
+Cache strategy example (history view)
+
+```ts
+// sessionStorage cache key
+const key = (id: string) => `att:${id}`;
+
+export async function getSignedUrl(id: string): Promise<string> {
+  const cachedRaw = sessionStorage.getItem(key(id));
+  if (cachedRaw) {
+    try {
+      const cached = JSON.parse(cachedRaw) as {
+        url: string;
+        expiresAt: number;
+      };
+      if (Date.now() < cached.expiresAt - 5000) return cached.url; // 5s skew
+    } catch {}
+  }
+  const res = await fetch(`/api/attachments/${id}/signed-url`);
+  if (!res.ok) throw new Error("signed_url_failed");
+  const { signedUrl } = await res.json();
+  // Assume ~300s TTL from server; store conservatively
+  sessionStorage.setItem(
+    key(id),
+    JSON.stringify({ url: signedUrl, expiresAt: Date.now() + 295_000 })
+  );
+  return signedUrl;
+}
+```
+
+Pending before implementation (small setup)
+
+- Constants: `ATTACHMENT_CAP=3`, `SIGNED_URL_TTL_MS=300_000`, `SIGNED_URL_SKEW_MS=5_000`, per-tier size caps map.
+- Utils: `sanitizeAttachmentName(name: string)`, `isImageMime(mime: string)` in `lib/utils`.
+- UI strings: tooltip copy for anonymous/modality/over-cap; toast messages for oversize/invalid mime/rate limit.
+- Lightbox: minimal, accessible modal component with scroll lock and ESC handling.
+- State wiring: draftId creation/reset on send; pass `draftId` to upload endpoint; clear composer state post-send.
+- Paste-to-upload: textarea onPaste handler (images only), disabled for anonymous; honors cap and size checks.
+- Tests: unit (sanitizeAttachmentName, MessageInput gating/cap/remove); integration (upload→send→render, signed URL refresh on expiry).
+- Docs: add `/docs/components/chat/image-attachments.md` after implementation to reflect final UX and behaviors.
 
 ## Clarifying questions (please confirm before we implement)
 

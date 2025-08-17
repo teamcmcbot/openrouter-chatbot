@@ -1,6 +1,6 @@
 // src/app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getOpenRouterCompletion } from '../../../../lib/utils/openrouter';
+import { getOpenRouterCompletion, fetchOpenRouterModels } from '../../../../lib/utils/openrouter';
 import { validateChatRequestWithAuth, validateRequestLimits } from '../../../../lib/utils/validation';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../lib/utils/errors';
 import { createSuccessResponse } from '../../../../lib/utils/response';
@@ -68,10 +68,22 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       content: msg.content
     }));
 
-    // If images provided, validate ownership and allowlist; mint signed URLs and append to last user message
+    // If images provided, validate modality, ownership and allowlist; mint signed URLs and append to last user message
     if (attachmentIds.length > 0) {
       if (!authContext.isAuthenticated || !authContext.user) {
         throw new ApiErrorResponse('Attachments require authentication', ErrorCode.AUTH_REQUIRED);
+      }
+      // Re-validate that selected model supports image input modality
+      try {
+        const requestedModelId: string = enhancedData.model;
+        const models = await fetchOpenRouterModels();
+        const model = models.find(m => m.id === requestedModelId);
+        if (model && Array.isArray(model.architecture?.input_modalities) && !model.architecture.input_modalities.includes('image')) {
+          throw new ApiErrorResponse('Selected model does not support image input', ErrorCode.BAD_REQUEST);
+        }
+      } catch (e) {
+        if (e instanceof ApiErrorResponse) throw e;
+        logger.warn('Model modality re-validation skipped (fetch failed or model not found)');
       }
       // Fetch attachments
       const { data: atts, error } = await supabase
@@ -105,7 +117,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
         signedUrls.push(signed.signedUrl);
       }
 
-      // Attach image parts to the most recent user message
+  // Attach image parts to the most recent user message
       const lastUserIndex = [...enhancedData.messages].reverse().findIndex(m => m.role === 'user');
       if (lastUserIndex !== -1) {
         const idx = enhancedData.messages.length - 1 - lastUserIndex;
@@ -118,6 +130,12 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
           content: `${userMsg.content}${appended}`
         };
       }
+      logger.info('Chat send with attachments', {
+        userId: authContext.user.id,
+        model: enhancedData.model,
+        attachments_count: attachmentIds.length,
+        draft_id: body.draftId,
+      });
     }
     
     // Phase 2: Log request format for human verification

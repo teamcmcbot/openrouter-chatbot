@@ -10,6 +10,13 @@ import { logger } from '../../../../../../lib/utils/logger';
 const BUCKET = 'attachments-images';
 const URL_TTL_SECONDS = 300; // ~5 minutes
 
+function computeSignedUrlRateLimitPerHour(tier: 'free' | 'pro' | 'enterprise'): number {
+  // Base: 120/min => 7200/hr; Pro/Enterprise ×2
+  const basePerHour = 120 * 60;
+  const multiplier = tier === 'free' ? 1 : 2;
+  return basePerHour * multiplier;
+}
+
 async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     const supabase = await createClient();
@@ -49,6 +56,11 @@ async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): 
       userId: user.id,
       attachmentId: id,
       ttl: URL_TTL_SECONDS,
+      mime: attachment.mime,
+      size_bytes: attachment.size_bytes,
+      session_id: attachment.session_id,
+      message_id: attachment.message_id,
+      draft_id: attachment.draft_id,
     });
 
     return NextResponse.json({ id, signedUrl: signed.signedUrl, ttlSeconds: URL_TTL_SECONDS }, {
@@ -60,5 +72,7 @@ async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): 
 }
 
 export const GET = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(getSignedUrlHandler, { customLimit: 7200 /* 120/min */ })(req, authContext)
+  withRateLimit(getSignedUrlHandler, {
+    customLimit: computeSignedUrlRateLimitPerHour((authContext.profile?.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise'),
+  })(req, authContext)
 );
