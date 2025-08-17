@@ -3,11 +3,11 @@
 IMPORTANT must read for AGENT:
 
 - Requirements gathering phase: `Ongoing`
-- SQL Database changes: `Not Started`
+- SQL Database changes: `Completed (schema merged + storage policies)`
 - Code Implementation: `Not Started`
 - Testing: `Not Started`
 
-- We are still in `requirements gathering` phase.
+- We are still in `requirements gathering` phase, and have finished DB planning + schema consolidation.
 - During requirements gathering, we will conduct back-and-forth discussions on how certain features should be implemented. We will be making decisions based on these discussions and you can document on the discussion and decisions made during this phase.
 - Summarize the discussion and decisions made during the requirements gathering phase, in `Discussions Log` below.
 - DO NOT make any CODE CHANGE until user explicit confirmation.
@@ -87,9 +87,37 @@ Document with date and timestamp each discussion point and decision made.
 
 ### 2025-08-17 — Cost accounting stance (no Generation API)
 
+### 2025-08-17 — Status update: DB patches applied + schema merged
+
+- Ran `/database/patches/image-attachments/001_schema.sql` and `002_cost_function_image_units.sql` successfully.
+- Merged patch content into canonical schema:
+  - `database/schema/02-chat.sql` now includes `chat_attachments` table, RLS/policies, indexes, and the two message columns (`has_attachments`, `attachment_count` with CHECK ≤ 3). The base function `calculate_and_record_message_cost()` remains per-token only; image costs are reconciled via `recompute_image_cost_for_user_message()` and its trigger.
+  - Added `database/schema/05-storage.sql` with idempotent DO blocks creating Storage RLS policies for the private bucket `attachments-images` (read/insert/delete/update own).
+- Supabase: created private bucket `attachments-images` and applied the above Storage policies (confirmed via dashboard/SQL). We’re keeping `ENABLE RLS` (no FORCE) on `chat_attachments`.
+- Optional hardening (deferred): FORCE RLS on `chat_attachments`; trigger on status flip to `ready`; retention/orphan cleanup job (outside DB).
+
+Result: Database layer is ready for implementation; schema provides all required tables, constraints, policies, and triggers.
+
 - Decision: We will not call `/api/v1/generation` for media counts or costs. We already know image count from `chat_attachments` and will bill per-image using `model_access.image_price`.
 - Rationale: We charge for images uploaded/linked (up to cap), regardless of whether the upstream provider fully consumed them. This keeps accounting simple and consistent with our UI/limits.
 - Implementation: Assistant insert seeds token costs; attachment-link trigger recomputes and updates `message_token_costs.image_units`, `image_cost`, and `total_cost`.
+
+### 2025-08-17 — User confirmations, path-on-link explanation, and delete endpoint planning
+
+- Upload identity: Confirmed. Use the user’s Supabase session (owner = `auth.uid()`) and short-lived signed URLs; no service-key uploads.
+- Limits: Confirmed. Keep max 3 images/message; size caps: Free ≤ 5MB/image; Pro/Enterprise ≤ 10MB/image.
+- Signed URL TTL: Confirmed ~5 minutes for provider fetch and history preview.
+- Path on link — what it means and our v1 stance:
+  - Idea: After pre-uploading under a draft, optionally rename the object so the final path encodes the message id.
+  - Example draft path: `attachments-images/<userId>/2025/08/17/drafts/<draftId>/<uuid>.jpg`
+  - Example after-link path (if we moved): `attachments-images/<userId>/sessions/<sessionId>/messages/<messageId>/<uuid>.jpg`
+  - Alternative: Don’t move in Storage; keep the original path and set `message_id`/`session_id` in DB to create the linkage.
+  - Recommendation (v1): Do not move objects on link. Keep original path; DB is source of truth. This avoids rename complexity and invalidating signed URLs.
+  - Final decision: Keep original path on link (no Storage rename). Linkage is via `message_id`/`session_id` in DB.
+- Delete pending attachments: Confirmed. Add a protected endpoint and wire the UI “×” to remove pre-uploaded items so they won’t be sent.
+  - Endpoint: `DELETE /api/attachments/:id` (protected via `withProtectedAuth`). Only when owned by caller and `message_id IS NULL`.
+  - Behavior: Delete Storage object and soft-delete DB row (`status='deleted'`, `deleted_at=now()`); idempotent response (second call no-op).
+  - Rate limit: modest per-user to prevent abuse.
 
 ## References
 
@@ -221,7 +249,67 @@ Notes:
   - If adopting `draft_id`, include it in the patch (nullable) and backfill NULL for existing rows.
   - After sign-off, merge into `database/schema/02-chat.sql` and related files per project rules.
 
-## Phases (images-only)
+## Pre-implementation plan (images-only)
+
+We will proceed in phases. Each phase ends with a user verification step (manual checks) before moving on. This section is planning only—no code until you approve.
+
+### Phase A — API surface & contracts (planning)
+
+- [ ] Define endpoint contracts and auth wrapper usage:
+  - [ ] POST `/api/uploads/images` (protected via `withProtectedAuth`): multipart, mime/size caps by tier, server stores file in `attachments-images`, inserts `chat_attachments` row, returns id + optional preview URL.
+  - [ ] GET `/api/attachments/:id/signed-url` (protected): ownership check; returns short-lived signed URL (~5m) for viewing.
+  - [ ] `/api/chat` (send): accept `attachmentIds: string[]` and validate modality; do not link here (aligns with current sync flow).
+  - [ ] `/api/chat/messages` (sync): persist user+assistant messages; link attachments by setting `message_id`; cost trigger recomputes image costs.
+  - [ ] DELETE `/api/attachments/:id` (protected): remove pending attachments (only when `message_id IS NULL`); verify ownership; soft-delete DB row and delete Storage object; idempotent.
+- [ ] Define error model and status codes (400/401/413/429/500) consistent with existing API.
+- [ ] Rate limit plan per route and tier (uploads and signed URL endpoints).
+- [ ] User verification (Phase A): Review a short ADR summarizing endpoints, contracts, and rate limits.
+
+### Phase B — Storage integration patterns (planning)
+
+- [ ] Confirm upload identity: use the authenticated user’s Supabase session on the server so `storage.objects.owner = auth.uid()` is set automatically (preferred over service key for direct uploads).
+- [ ] Path convention finalization (no console setup needed): `user_id/session_id/draft_id/{uuid}.{ext}`. For v1, keep the original path on link and only set `message_id`/`session_id` in DB (no Storage rename). If adopting moves later, update `storage_path` on rename.
+- [ ] Validate caps: max 3 images per message (DB enforces), size caps per tier (Free ≤ 5MB, Pro ≤ 10MB) — confirm final numbers.
+- [ ] CORS: defer unless we adopt direct browser-to-Storage uploads during dev.
+- [ ] User verification (Phase B): Approve the finalized path + ownership approach.
+
+### Phase C — Chat send pipeline gating (planning)
+
+- [ ] UI gating rules: show Attach button only when authenticated and selected model has `image` in `input_modalities`.
+- [ ] Request builder: include `{ type: 'input_image', image_url }` for supported models using fresh signed URLs minted at send time (~5m TTL).
+- [ ] Message link step: ensure `/api/chat/messages` sets `message_id` on attachments and updates `has_attachments` / `attachment_count` accordingly.
+- [ ] User verification (Phase C): Approve gating logic and send/link flow diagram.
+
+### Phase D — Cost attribution & analytics (planning)
+
+- [ ] Confirm pricing source precedence: `model_access.image_price` per image unit; cap to 3 per message.
+- [ ] Validate recompute path: attachment link trigger is sufficient; no changes to assistant insert trigger.
+- [ ] Plan minimal views/queries for reporting (optional now): leverage `user_model_costs_daily` and add image slices later.
+- [ ] User verification (Phase D): Approve cost attribution examples (1–3 images) with expected `message_token_costs` rows.
+
+### Phase E — Test plan (planning)
+
+- [ ] Unit tests: upload API (mime/size, ownership), signed URL endpoint, chat/messages linkage, cost recompute.
+- [ ] Integration tests: end-to-end flow with 0/1/3 images; ensure costs and counts update correctly.
+- [ ] Integration tests: pending-attachment delete flow (remove via UI, verify Storage object is gone and DB row is soft-deleted; repeated delete is a no-op).
+- [ ] Mocks: follow project test standards (Next.js router, auth store, toast, validation utils) to avoid invariants.
+- [ ] User verification (Phase E): Approve the test matrix.
+
+### Phase F — Docs & ops (planning)
+
+- [ ] Developer docs: `/docs/api/uploads-images.md`, `/docs/components/chat/image-attachments.md`.
+- [ ] Ops: schedule retention/orphan cleanup job (24h orphans; 30-day retention) — out of scope for initial code PR but tracked.
+- [ ] User verification (Phase F): Sign off docs outline.
+
+After all planning phases are approved, we’ll start implementation in the same order.
+
+## Clarifying questions (please confirm before we implement)
+
+1. Upload identity — Resolved: Yes, use the authenticated user’s session (`owner = auth.uid()`); no service-key uploads.
+2. Size caps — Resolved: Free ≤ 5MB/image; Pro/Enterprise ≤ 10MB/image; hard cap 3 images/message.
+3. Signed URL TTL — Resolved: ~5 minutes.
+4. Move vs. keep path on link — Resolved: Keep the original draft path on link and only set `message_id`/`session_id` in DB (no Storage rename). See “Path on link” explanation above.
+5. Delete endpoint — Resolved: Add a protected delete for pending attachments; wire UI “×” to call it.
 
 - [ ] Phase 1 — Capability gating & UI (images)
   - [ ] Attach Image button appears in chat input; enabled only when authenticated AND selected model has `image` in `input_modalities`.
@@ -416,7 +504,7 @@ Checklist — Database
 - Composer UI
   - Attach Image button, gated: visible; enabled only when signed in and model supports `image` modality; disabled tooltip variants.
   - File picker for png/jpeg/webp; enforce max 3 files and per-tier size caps (Free 5MB, Pro 10MB).
-  - Preview thumbnails with remove controls pre-send.
+  - Preview thumbnails with remove controls pre-send. The remove (“×”) calls the pending-attachment delete endpoint so the server cleans up Storage/DB immediately.
   - P1: paste and drag-and-drop (out-of-scope for first pass).
 - Display in chat
   - User messages: show inline image thumbnails inside the bubble; clicking opens full-size in a modal (fetched via signed URL).
@@ -426,7 +514,7 @@ Checklist — Database
   - After successful pre-upload, store only attachment IDs and minimal metadata (mime, size, preview URL) in the composer state.
   - Do not store binary data or signed URLs in localStorage; signed URLs are minted on-demand.
   - Hard cap: Prevent selecting/keeping more than 3 attachments in the composer at any time. If the user attempts to add more, show a tooltip/toast and ignore extras. Disable the Attach control when the cap is reached.
-  - Draft grouping: Generate a `draftId` (uuid) when the user starts composing a new message. Include this `draftId` (and the current `sessionId` if available) with every image upload for that compose. Reset/renew the `draftId` after a successful send/sync or when the composer is cleared.
+  - Draft grouping: Generate a `draftId` (uuid) when the user starts composing a new message. Include this `draftId` (and the current `sessionId` if available) with every image upload for that compose. Reset/renew the `draftId` after a successful send/sync or when the composer is cleared. If a pending attachment is removed via “×”, also remove it from local state upon successful DELETE.
 - History
   - Lazy-load thumbnails via GET `/api/attachments/:id/signed-url` when scrolled into view.
   - Show expired placeholder when retention has removed originals.
@@ -446,6 +534,7 @@ Checklist — Frontend
 - New endpoints (protected auth)
   - POST `/api/uploads/images`: multipart upload; validate mime and per-tier size; store in private bucket; insert `chat_attachments`; return `{ id, mime, size, storagePath }` and optional preview signed URL (TTL ~5m).
   - GET `/api/attachments/:id/signed-url`: verify ownership and status; return fresh signed URL (TTL ~5m) for viewing.
+  - DELETE `/api/attachments/:id`: verify ownership; allow only when `message_id IS NULL` and `status='ready'`; delete Storage object and soft-delete DB row. Treat as idempotent; return 204 when already deleted/not found (owned).
 - Existing chat send endpoint (`/api/chat`)
   - Accept optional `attachmentIds: string[]` in the user message payload.
   - Validate: user owns the attachments, count ≤ 3, mime is allowed, model supports image input.
@@ -475,6 +564,7 @@ Checklist — Backend
 
 - [ ] Upload endpoint with auth + validation
 - [ ] Signed URL endpoint for viewing
+- [ ] Delete endpoint for pending attachments
 - [ ] Chat send accepts attachment IDs and validates modality/ownership
 - [ ] Cost tracking writes image_units/image_cost
 - [ ] Retry flow re-mints URLs; handles missing/expired attachments
@@ -530,6 +620,7 @@ Checklist — OpenRouter
   - Limits: 3 images per message; Free ≤ 5MB/image; Pro/Enterprise ≤ 10MB/image; anonymous disabled.
   - Retention: default 30 days; orphans deleted after 24h; Enterprise override (e.g., 90 days).
   - Flow: pre-upload images before Send; history lazy-loading with on-demand signed URLs.
+  - Path strategy: Keep original Storage path on link (no rename); link via DB `message_id`/`session_id`.
 - Pending
   - Exact daily/hourly rate limits for upload and signed URL endpoints.
   - Whether to add pixel-dimension caps (e.g., max 4000×4000) and thumbnail generation in a later phase.
