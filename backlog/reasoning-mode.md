@@ -4,6 +4,16 @@
 
 Expose an optional Reasoning Mode for models that support it (e.g., `reasoning`, `include_reasoning`, internal reasoning pricing). Respect tier limits and surface cost impacts.
 
+## Reference
+
+- https://openrouter.ai/docs/use-cases/reasoning-tokens
+
+## Base Requirements
+
+- From UI, under send message text area, add a toggle for "Enable Reasoning" with a tooltip explaining the feature.
+- This will be enabled/disabled depending on current selected model, if they contain `reasoning` or `include_reasoning` in their `supported_parameters`.
+- Additionally, you are only allowed to toggle for `pro` and `enterprise` tiers. The tooltip should explain this restriction based on authenticated/unauthenticated status and subscription tier.
+
 ## Current implementation snapshot
 
 - Models: samples include `supported_parameters` with `reasoning` and `include_reasoning`; pricing includes `internal_reasoning` in `lib/utils/openrouter.ts` and `/api/models`.
