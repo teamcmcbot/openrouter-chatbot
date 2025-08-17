@@ -125,6 +125,32 @@ Result: Database layer is ready for implementation; schema provides all required
 - Tests: Added a focused suite covering upload → signed-url → delete and rate-limit headers. Stabilized mocks for Next server Response/Headers, global Request/Response, and Supabase chainables. Final result: tests PASS.
 - Observability: Metadata-only logs on upload/delete/link/signed-url.
 
+### 2025-08-18 — Phase B decisions & clarifications
+
+- Tier multipliers (rate limits):
+  - Definition: Apply a multiplier to per-user and per-IP base limits depending on subscription tier. Example base limits — Upload: 30/min/user, 120/min/IP.
+  - Examples:
+    - Free user: 30 uploads/min, 120/min/IP
+    - Pro user (×2): 60 uploads/min, 240/min/IP
+    - Enterprise user (×2, adjustable later): 60 uploads/min, 240/min/IP
+  - Rationale: Higher tiers get more throughput while keeping abuse in check. We can tune multipliers later without API surface change.
+- Global pending cap (unlinked attachments per user):
+  - Decision: Defer. We will rely on the scheduled orphan cleanup job; no immediate per-user cap (e.g., 15/24h) will be enforced now.
+  - Future enhancement: track in backlog as optional guardrail if abuse observed.
+- Pixel dimensions cap: Defer. No max-dimension check in Phase B; consider e.g., 4096×4096 later.
+- MIME hardening via magic-byte sniff: Defer to a later phase.
+- Retention per tier:
+  - Decision: Free 30 days, Pro 60 days, Enterprise 90 days.
+  - Implementation: Scheduled job (cron/Edge function) that:
+    1) Deletes storage objects past tier-based retention and marks rows deleted.
+    2) Removes orphans older than 24h (unlinked attachments).
+    - Configurable thresholds per tier.
+- Model allowlist & modality re-check:
+  - UI: Enable Attach button only when current selected model includes "image" in `input_modalities`.
+  - Server: At `/api/chat`, re-validate that the selected model supports images before sending. This covers the case where a user uploads under an image-capable model then switches to a non-image model before send.
+- Telemetry fields:
+  - Include `attachment_id`, `user_id`, `mime`, `size_bytes`, `session_id`, `message_id` when present, and `draft_id` in metadata logs to aid debugging. No content logged.
+
 ## References
 
 - https://openrouter.ai/docs/features/multimodal/overview
