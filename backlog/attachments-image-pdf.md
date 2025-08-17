@@ -1,6 +1,6 @@
 # Image attachment support (scope: images only)
 
-IMPORTANT most read for AGENT:
+IMPORTANT must read for AGENT:
 
 - Requirements gathering phase: `Ongoing`
 - SQL Database changes: `Not Started`
@@ -20,6 +20,76 @@ Enable users to attach images to chats. Only enable when the selected model supp
 ## Discussions Log
 
 Document with date and timestamp each discussion point and decision made.
+
+### 2025-08-17 — DB patches review (images-only)
+
+- Scope/phase: Still in requirements gathering — no code changes made. Reviewed `/database/patches/image-attachments/001_schema.sql` and `002_cost_function_image_units.sql` against base schema (`/database/schema/01-users.sql`, `02-chat.sql`, `03-models.sql`, `04-system.sql`).
+- Dependencies check:
+  - `public.chat_attachments` FK references: `public.profiles(id)` [UUID], `public.chat_sessions(id)` [TEXT], `public.chat_messages(id)` [TEXT] — types align with current schema. `ON DELETE CASCADE` is reasonable for attachments (note: file deletion in storage will rely on a separate cleanup job).
+  - Cost function uses `public.model_access.image_price` and `public.message_token_costs` — both exist in schema and types are compatible (prices stored as VARCHAR; cast occurs in SQL).
+  - Trigger `after_assistant_message_cost` already exists; `CREATE OR REPLACE FUNCTION` keeps trigger wiring intact.
+- Gaps/risks identified:
+  1. Missing `draft_id` on `chat_attachments` — proposal and flows expect it for per-draft caps and grouping. Recommend adding `draft_id TEXT NULL` plus an index like `(user_id, session_id, draft_id)` and using it in server-side enforcement.
+  2. RLS hardening for updates — current policies allow UPDATE when `user_id = auth.uid()`. Consider a stricter `WITH CHECK` ensuring any non-null `session_id`/`message_id` being set actually belongs to the same user via session ownership (mirror `chat_messages` policy semantics) to prevent cross-session linking.
+  3. Storage path uniqueness — consider `UNIQUE(storage_bucket, storage_path)` to avoid accidental duplicates/overwrites.
+  4. Indexes for operational queries — add helpful indexes: `(status, deleted_at)` for cleanup jobs; `(message_id, status)` partial on `status='ready'` for quick counts; `(user_id, session_id, draft_id, status)` for pre-upload cap checks.
+  5. Cost timing dependency — `calculate_and_record_message_cost()` derives `image_units` by counting `chat_attachments WHERE message_id = NEW.user_message_id`. This assumes attachments are linked to the user message before the assistant message insert fires. If the server persists the assistant message first (or links attachments after), image_units will be 0. Options:
+     - Enforce server ordering: link attachments to the user message before inserting the assistant message.
+     - Or add a secondary pathway: a trigger/function on `chat_attachments` (when `message_id` transitions from NULL->NOT NULL) to recompute/patch the cost row for the corresponding assistant message. Also useful for retries.
+  6. Extension availability — `gen_random_uuid()` is used widely; ensure `pgcrypto` (or `pgcrypto`-equivalent) is enabled in the target Supabase project (usually on by default).
+  7. Message columns backfill — new `chat_messages.has_attachments`/`attachment_count` default to false/0; no backfill required, but server must set these during sync for historical accuracy. Consider a lightweight partial index on `has_attachments` if used in listing filters.
+  8. Cleanup lifecycle — FKs cascade delete DB rows, but storage objects need an external job. Ensure retention/orphan cleanup job spec covers deleting files from the `attachments-images` private bucket and removing stale DB rows.
+- Future analytics ideas (no implementation yet):
+  - Views: `v_image_usage_daily` aggregating per-user/session/day counts and total `size_bytes` (from `chat_attachments`) and costs (join `message_token_costs`). Also a per-model view to see image usage by model.
+  - Metrics to expose: images uploaded vs. images actually sent, average image size, mime distribution, attachment retry rate, retention deletions per day, per-tier image usage and size distribution.
+  - Optional columns: if we want per-request size accounting, consider recording `image_bytes_used` in `message_token_costs` via a join at cost time; alternatively handle purely in analytics views.
+  - Audit: a minimal `attachment_audit_log` (uploaded | linked | viewed | deleted) could help abuse investigations; keep payloads metadata-only (mime/size), no content.
+- Open questions for sign-off:
+  - Do we add `draft_id` in v1 schema patch to enforce the ≤3 images cap pre-persistence, or keep it app-only for now?
+  - Preferred approach for cost recomputation if linking is asynchronous: enforce server ordering or add a recompute trigger on attachment link?
+  - Any desire for `UNIQUE(storage_bucket, storage_path)` and stricter RLS `WITH CHECK` constraints in v1, or defer to a follow-up patch?
+
+### 2025-08-17 — Clarifications: pgcrypto, cost recompute, TTL, storage linkage
+
+- pgcrypto purpose: We added `CREATE EXTENSION IF NOT EXISTS pgcrypto` because our schema uses `gen_random_uuid()` to generate UUID primary keys (e.g., `chat_attachments.id`). This extension provides that function in Postgres/Supabase. If your Supabase project already has pgcrypto enabled (typical), the statement is a no-op; otherwise it ensures UUID generation works. It’s unrelated to image content—only to generating IDs server-side.
+- Cost recompute strategy: We kept `calculate_and_record_message_cost()` (triggered on assistant insert) and added `recompute_image_cost_for_user_message()` plus a trigger on `chat_attachments` when `message_id` is linked. Reason: depending on server flow, attachments might link after the assistant message is inserted; in that case the original trigger sees 0 images. The recompute path updates `message_token_costs` once attachments are linked, and adjusts daily cost by delta to avoid double-counting. If we can guarantee ordering (link attachments before assistant insert), we could simplify and drop the recompute path later.
+- TTL vs retention:
+  - TTL refers to short-lived signed URLs for accessing a private object. TTL is implemented at signed-URL generation time via the Supabase API (client/server SDK), not in SQL. It does NOT delete the file; it just expires the temporary access link.
+  - Retention/cleanup refers to deleting the actual file from storage (and cleaning its DB row) after a period (e.g., 30 days) or when orphaned (>24h unlinked). This typically needs a scheduled job/edge function, not handled by signed URL TTL. Our plan assumes signed URL TTL ~5m for access, plus a separate retention/orphan cleanup job for deletion.
+- Storage linkage: The binary image lives in Supabase Storage (private bucket `attachments-images`) at `storage_path`. The DB row in `public.chat_attachments` stores metadata and the pointer (`storage_bucket`, `storage_path`). They’re linked by that path; we never store the signed URL. TTL applies to the signed URL we mint on-demand; it does not live in the DB. The DB row’s `status/deleted_at` can reflect logical deletion; the scheduled cleanup deletes the actual storage object.
+- Pending: Decide whether to keep the recompute path or enforce strict server ordering; confirm retention job approach and thresholds; confirm keeping `pgcrypto` line (or manage extension separately).
+
+### 2025-08-17 — Pricing semantics and DB flow confirmation (images-only)
+
+- Image pricing semantics (OpenRouter):
+
+  - Model pages list image pricing like "$5.16/K input imgs" (e.g., google/gemini-2.5-pro). "K" means per 1,000 images; price per single image is that number divided by 1000. Example: $5.16/1,000 images = $0.00516 per image.
+  - The `/chat/completions` response does not include `image_tokens`; it only returns `usage.prompt_tokens`, `usage.completion_tokens`, and `usage.total_tokens`. Images are not separately itemized there.
+  - If you need authoritative cost and media counts, use `/api/v1/generation?id=...` which returns `total_cost` and `num_media_prompt`. We’ll continue to compute image cost locally as `image_units * model_access.image_price` and can optionally reconcile with `total_cost` later.
+  - Sources: OpenRouter Responses & Generation docs, and model pricing page for Gemini 2.5 Pro.
+
+- Server/DB flow for `/api/chat/messages` (sync after provider response):
+
+  1. Insert `chat_sessions` if new.
+  2. Insert user + assistant rows into `chat_messages`.
+  3. Link `chat_attachments` by setting `session_id` and `message_id` (the user message id), and set `has_attachments=true`, `attachment_count=n` on the user message.
+  4. Cost handling: since attachment linkage happens after assistant insert, rely on the recompute trigger to update `message_token_costs` with `image_units`, `image_cost = image_units * image_price`, and `total_cost = prompt_cost + completion_cost + image_cost`.
+
+- Decision for this phase:
+
+  - Keep recompute trigger enabled (safety net) because linkage occurs post-assistant insert in our sync flow. We will still aim to link before assistant insert in a future optimization and can remove the recompute later.
+  - Signed URL TTL remains ~5 minutes; retention = 30 days; orphan cleanup at >24h.
+
+- Next steps (no code yet):
+  - Implement `/api/uploads/images` (protected) and `/api/attachments/:id/signed-url` (protected).
+  - Ensure `/api/chat` validates image-capable model and injects `{ type: 'input_image', image_url }` parts.
+  - Ensure `/api/chat/messages` links attachments and lets DB recompute image costs via the existing trigger.
+
+### 2025-08-17 — Cost accounting stance (no Generation API)
+
+- Decision: We will not call `/api/v1/generation` for media counts or costs. We already know image count from `chat_attachments` and will bill per-image using `model_access.image_price`.
+- Rationale: We charge for images uploaded/linked (up to cap), regardless of whether the upstream provider fully consumed them. This keeps accounting simple and consistent with our UI/limits.
+- Implementation: Assistant insert seeds token costs; attachment-link trigger recomputes and updates `message_token_costs.image_units`, `image_cost`, and `total_cost`.
 
 ## References
 

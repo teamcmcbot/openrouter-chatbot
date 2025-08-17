@@ -1,5 +1,6 @@
--- Image attachments schema patch (images-only)
 -- Idempotent where practical
+
+-- pgcrypto is managed in base schema; no extension changes here
 
 -- Create chat_attachments table
 CREATE TABLE IF NOT EXISTS public.chat_attachments (
@@ -12,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.chat_attachments (
     size_bytes BIGINT NOT NULL CHECK (size_bytes > 0),
     storage_bucket TEXT NOT NULL DEFAULT 'attachments-images',
     storage_path TEXT NOT NULL,
+    draft_id TEXT NULL,
     width INTEGER NULL,
     height INTEGER NULL,
     checksum TEXT NULL,
@@ -24,6 +26,25 @@ CREATE TABLE IF NOT EXISTS public.chat_attachments (
 CREATE INDEX IF NOT EXISTS idx_chat_attachments_message_id ON public.chat_attachments(message_id);
 CREATE INDEX IF NOT EXISTS idx_chat_attachments_session_id ON public.chat_attachments(session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_attachments_user_time ON public.chat_attachments(user_id, created_at DESC);
+-- Draft and status-aware indexes for common operations
+CREATE INDEX IF NOT EXISTS idx_chat_attachments_user_session_draft_status
+    ON public.chat_attachments(user_id, session_id, draft_id, status);
+CREATE INDEX IF NOT EXISTS idx_chat_attachments_message_ready
+    ON public.chat_attachments(message_id)
+    WHERE status = 'ready' AND message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_chat_attachments_status_deleted
+    ON public.chat_attachments(status, deleted_at);
+
+-- Enforce uniqueness of storage path within bucket
+DO $$
+BEGIN
+        IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'uq_chat_attachments_bucket_path'
+        ) THEN
+                ALTER TABLE public.chat_attachments
+                ADD CONSTRAINT uq_chat_attachments_bucket_path UNIQUE (storage_bucket, storage_path);
+        END IF;
+END$$;
 
 -- Enable RLS
 ALTER TABLE public.chat_attachments ENABLE ROW LEVEL SECURITY;
@@ -49,7 +70,23 @@ BEGIN
         SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'chat_attachments' AND policyname = 'Users can update their own attachments'
     ) THEN
         CREATE POLICY "Users can update their own attachments" ON public.chat_attachments
-            FOR UPDATE USING (user_id = auth.uid());
+            FOR UPDATE USING (user_id = auth.uid())
+            WITH CHECK (
+                user_id = auth.uid()
+                AND (
+                    session_id IS NULL OR session_id IN (
+                        SELECT id FROM public.chat_sessions WHERE user_id = auth.uid()
+                    )
+                )
+                AND (
+                    message_id IS NULL OR EXISTS (
+                        SELECT 1
+                        FROM public.chat_messages m
+                        JOIN public.chat_sessions s ON s.id = m.session_id
+                        WHERE m.id = message_id AND s.user_id = auth.uid()
+                    )
+                )
+            );
     END IF;
 
     IF NOT EXISTS (
@@ -81,3 +118,8 @@ BEGIN
 END$$;
 
 -- Note: Retention/orphan cleanup will be implemented as a scheduled job/script outside this patch.
+
+-- Optional: index to accelerate queries filtering for messages with attachments
+CREATE INDEX IF NOT EXISTS idx_chat_messages_has_attachments_true
+    ON public.chat_messages(has_attachments)
+    WHERE has_attachments = true;
