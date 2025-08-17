@@ -1,7 +1,7 @@
 # ADR: Image Attachments – Phase A (Endpoints & Rate Limits)
 
 Date: 2025-08-17
-Status: Proposed
+Status: Accepted
 Owners: Platform
 Related: `backlog/attachments-image-pdf.md`, `database/schema/02-chat.sql`, `database/schema/05-storage.sql`
 
@@ -25,6 +25,26 @@ Key decisions (locked):
 ## Non-goals
 
 - PDFs, thumbnails, transformations, EXIF stripping, CDN; scheduled cleanup job details.
+
+## Implementation status
+
+- Database and Storage
+  - Schema merged into `database/schema/02-chat.sql` with `chat_attachments`, message flags, indexes, RLS (ENABLE). Cost recompute trigger in place.
+  - Storage policies added in `database/schema/05-storage.sql` for private bucket `attachments-images` (read/insert/update/delete own). Bucket created.
+- Endpoints (backend, protected via middleware)
+  - POST `/api/uploads/images` implemented: tier-aware size caps, MIME allowlist, ≤3 pending per draft, Supabase Storage upload, DB row insert. Returns attachment metadata and optional preview signed URL.
+  - GET `/api/attachments/:id/signed-url` implemented: ownership + status checks; returns fresh signed URL (~5m TTL).
+  - DELETE `/api/attachments/:id` implemented: idempotent soft-delete with best-effort Storage removal; guarded against linked attachments.
+  - Existing `/api/chat` updated to mint signed URLs on send; `/api/chat/messages` links attachments and relies on DB recompute for image costs.
+- Tests
+  - Added backend tests for upload → signed-url → delete flow and rate-limit headers. Mocks stabilized (NextResponse, Web Fetch API, Supabase chainables). Test suite passing.
+- Observability
+  - Logging hooks added at endpoints (metadata-only) per project standards.
+
+Remaining for Phase A sign-off
+
+- Write concise API docs for the three endpoints (request/response examples, error cases) under `/docs/api/`.
+- User verification of behavior and headers in a dev environment.
 
 ## Endpoints
 

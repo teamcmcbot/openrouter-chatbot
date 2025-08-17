@@ -2,16 +2,12 @@
 
 IMPORTANT must read for AGENT:
 
-- Requirements gathering phase: `Ongoing`
+- Requirements gathering phase: `Completed for Phase A`
 - SQL Database changes: `Completed (schema merged + storage policies)`
-- Code Implementation: `Not Started`
-- Testing: `Not Started`
+- Code Implementation: `Completed (Phase A backend)`
+- Testing: `Completed (Phase A backend tests green)`
 
-- We are still in `requirements gathering` phase, and have finished DB planning + schema consolidation.
-- During requirements gathering, we will conduct back-and-forth discussions on how certain features should be implemented. We will be making decisions based on these discussions and you can document on the discussion and decisions made during this phase.
-- Summarize the discussion and decisions made during the requirements gathering phase, in `Discussions Log` below.
-- DO NOT make any CODE CHANGE until user explicit confirmation.
-- Wait for USER instruction to implement `code change`
+- Phase A planning is implemented on the backend. Frontend/UI remains for later phases. Continue to document decisions below.
 
 ## Summary
 
@@ -119,6 +115,16 @@ Result: Database layer is ready for implementation; schema provides all required
   - Behavior: Delete Storage object and soft-delete DB row (`status='deleted'`, `deleted_at=now()`); idempotent response (second call no-op).
   - Rate limit: modest per-user to prevent abuse.
 
+### 2025-08-17 — Phase A implementation + tests (backend)
+
+- Implemented endpoints:
+  - `POST /api/uploads/images` (protected, multipart) with tier-aware size caps, MIME allowlist, and ≤3 pending per draft.
+  - `GET /api/attachments/:id/signed-url` (protected) with ownership/status checks; TTL ~5m.
+  - `DELETE /api/attachments/:id` (protected) idempotent soft-delete; blocked when already linked.
+  - Integrated with existing `/api/chat` (send) to mint signed URLs and with `/api/chat/messages` to link attachments and rely on DB recompute for image costs.
+- Tests: Added a focused suite covering upload → signed-url → delete and rate-limit headers. Stabilized mocks for Next server Response/Headers, global Request/Response, and Supabase chainables. Final result: tests PASS.
+- Observability: Metadata-only logs on upload/delete/link/signed-url.
+
 ## References
 
 - https://openrouter.ai/docs/features/multimodal/overview
@@ -168,9 +174,11 @@ Notes:
 ## Current implementation snapshot
 
 - Models: `lib/utils/openrouter.ts` exposes `pricing.image` and `input_modalities`; `/api/models` returns image/internal_reasoning prices.
-- No upload UI or multipart handling detected in chat UI/API. No storage integration for files.
+- Backend implemented: upload/signed-url/delete endpoints, chat send URL-minting, chat messages linkage, and DB recompute for image costs.
+- Tests: backend suite passing for Phase A.
+- UI: No upload UI yet; to be addressed in later phases.
 - Pricing: `specs/track-token-usage.md` anticipates image pricing; `/api/usage/costs` already has `image_cost` in selects.
-- Auth: Standard middleware exists; use `withProtectedAuth` for uploads.
+- Auth: Standard middleware in use; endpoints protected via `withProtectedAuth`.
 
 ## Storage costs and alternatives (overview)
 
