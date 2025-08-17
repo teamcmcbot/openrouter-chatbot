@@ -12,6 +12,7 @@ import { AuthContext } from '../../../../lib/types/auth';
 import { withEnhancedAuth } from '../../../../lib/middleware/auth';
 import { withRateLimit } from '../../../../lib/middleware/rateLimitMiddleware';
 import { estimateTokenCount, getModelTokenLimits } from '../../../../lib/utils/tokens';
+import { createClient } from '../../../../lib/supabase/server';
 
 async function chatHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   logger.info('Chat request received', {
@@ -21,7 +22,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   });
   
   try {
-    const body = await request.json();
+  const body = await request.json();
     
     // Create request data structure for validation
     const requestData = {
@@ -58,10 +59,66 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     });
 
     // Phase 2: Support both old and new message formats
+    const supabase = await createClient();
+
+  const attachmentIds: string[] = Array.isArray(body.attachmentIds) ? body.attachmentIds : [];
+
     const messages: OpenRouterRequest['messages'] = enhancedData.messages.map(msg => ({
       role: msg.role as 'user' | 'assistant',
       content: msg.content
     }));
+
+    // If images provided, validate ownership and allowlist; mint signed URLs and append to last user message
+    if (attachmentIds.length > 0) {
+      if (!authContext.isAuthenticated || !authContext.user) {
+        throw new ApiErrorResponse('Attachments require authentication', ErrorCode.AUTH_REQUIRED);
+      }
+      // Fetch attachments
+      const { data: atts, error } = await supabase
+        .from('chat_attachments')
+        .select('*')
+        .in('id', attachmentIds)
+        .eq('user_id', authContext.user.id)
+        .eq('status', 'ready');
+      if (error) throw error;
+      if (!atts || atts.length !== attachmentIds.length) {
+        throw new ApiErrorResponse('Some attachments not found', ErrorCode.NOT_FOUND);
+      }
+      // Enforce ≤ 3
+      if (atts.length > 3) {
+        throw new ApiErrorResponse('Attachment limit exceeded (max 3)', ErrorCode.BAD_REQUEST);
+      }
+      // Check MIME allowlist
+      const invalid = atts.find(a => !['image/png','image/jpeg','image/webp'].includes(a.mime));
+      if (invalid) {
+        throw new ApiErrorResponse('Unsupported attachment type', ErrorCode.BAD_REQUEST);
+      }
+      // Mint signed URLs
+      const signedUrls: string[] = [];
+      for (const a of atts) {
+        const { data: signed, error: signErr } = await supabase.storage
+          .from(a.storage_bucket)
+          .createSignedUrl(a.storage_path, 300);
+        if (signErr || !signed?.signedUrl) {
+          throw new ApiErrorResponse('Failed to create signed URL', ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+        signedUrls.push(signed.signedUrl);
+      }
+
+      // Attach image parts to the most recent user message
+      const lastUserIndex = [...enhancedData.messages].reverse().findIndex(m => m.role === 'user');
+      if (lastUserIndex !== -1) {
+        const idx = enhancedData.messages.length - 1 - lastUserIndex;
+        const userMsg = enhancedData.messages[idx];
+        // Compose multimodal content as text + images string (provider will accept input_image in later phase)
+        // For now, append URLs to content to preserve intent; frontend can hide
+        const appended = `\n\n[Attached images:]\n${signedUrls.map(u => `- ${u}`).join('\n')}`;
+        messages[idx] = {
+          role: 'user',
+          content: `${userMsg.content}${appended}`
+        };
+      }
+    }
     
     // Phase 2: Log request format for human verification
     console.log(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);

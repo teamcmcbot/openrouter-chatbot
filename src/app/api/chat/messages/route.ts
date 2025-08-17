@@ -88,6 +88,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       messages?: ChatMessage[]; // Array of messages (new functionality)
       sessionId: string;
       sessionTitle?: string; // NEW: Optional title update for session
+      attachmentIds?: string[]; // NEW: image attachments to link to the triggering user message
     };
 
     // Check if session already exists first
@@ -223,6 +224,47 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
         { error: 'Either message or messages array is required' },
         { status: 400 }
       );
+    }
+
+    // If attachmentIds provided and a user message exists among inserted, link them to that user message
+    if (Array.isArray(requestData.attachmentIds) && requestData.attachmentIds.length > 0) {
+      // Find the triggering user message ID (prefer explicit in requestData.message/messages)
+      const userMsg = (insertedMessages as Array<{ id: string; role: string }>).find((m) => m.role === 'user');
+      const userMsgId = userMsg?.id || requestData.messages?.find(m => m?.role === 'user')?.id || requestData.message?.id;
+
+      if (userMsgId) {
+        // Link attachments: set message_id and session_id where owned by user and not already linked
+        const { error: linkErr } = await supabase
+          .from('chat_attachments')
+          .update({ message_id: userMsgId, session_id: requestData.sessionId })
+          .in('id', requestData.attachmentIds)
+          .eq('user_id', user!.id)
+          .is('message_id', null)
+          .eq('status', 'ready');
+        if (linkErr) {
+          logger.error('Failed to link attachments', linkErr);
+          // Do not fail entire request; return warning flag
+        } else {
+          // Count actually linked attachments
+          const { count } = await supabase
+            .from('chat_attachments')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user!.id)
+            .eq('session_id', requestData.sessionId)
+            .eq('message_id', userMsgId)
+            .eq('status', 'ready');
+          const linkedCount = Math.min(count || 0, 3);
+          // Update user message flags
+          const { error: msgUpdateErr } = await supabase
+            .from('chat_messages')
+            .update({ has_attachments: linkedCount > 0, attachment_count: linkedCount })
+            .eq('id', userMsgId)
+            .eq('session_id', requestData.sessionId);
+          if (msgUpdateErr) {
+            logger.error('Failed to update message attachment flags', msgUpdateErr);
+          }
+        }
+      }
     }
 
     // Get current message count for session stats update  

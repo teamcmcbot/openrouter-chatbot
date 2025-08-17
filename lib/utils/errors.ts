@@ -13,6 +13,7 @@ export enum ErrorCode {
   CONFLICT = 'conflict',
   UNPROCESSABLE_ENTITY = 'unprocessable_entity',
   TOO_MANY_REQUESTS = 'too_many_requests',
+  PAYLOAD_TOO_LARGE = 'payload_too_large',
 
   // Server Errors
   INTERNAL_SERVER_ERROR = 'internal_server_error',
@@ -47,6 +48,7 @@ const errorStatusMap: Record<ErrorCode, number> = {
   [ErrorCode.CONFLICT]: 409,
   [ErrorCode.UNPROCESSABLE_ENTITY]: 422,
   [ErrorCode.TOO_MANY_REQUESTS]: 429,
+  [ErrorCode.PAYLOAD_TOO_LARGE]: 413,
   [ErrorCode.INTERNAL_SERVER_ERROR]: 500,
   [ErrorCode.NOT_IMPLEMENTED]: 501,
   [ErrorCode.BAD_GATEWAY]: 502,
