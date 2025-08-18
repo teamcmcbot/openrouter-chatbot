@@ -48,7 +48,7 @@ export default function InlineAttachment({ id, alt, onClick, width = 96, height 
 
   return (
     <div
-      className="relative rounded-md overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-800"
+      className="relative rounded-md overflow-hidden border border-white/80 dark:border-white/80 bg-gray-100 dark:bg-gray-800 shadow-sm"
       style={{ width, height }}
     >
       {isLoading && (
@@ -69,7 +69,7 @@ export default function InlineAttachment({ id, alt, onClick, width = 96, height 
             alt={alt || "Attachment"}
             width={width}
             height={height}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover ring-1 ring-white/70"
             onError={handleError}
             sizes={`${width}px`}
           />

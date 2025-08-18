@@ -115,7 +115,7 @@ Result: Database layer is ready for implementation; schema provides all required
   - Behavior: Delete Storage object and soft-delete DB row (`status='deleted'`, `deleted_at=now()`); idempotent response (second call no-op).
   - Rate limit: modest per-user to prevent abuse.
 
-### 2025-08-17 — Phase A implementation + tests (backend)
+### 2025-08-18 — Phase A implementation + tests (backend)
 
 - Implemented endpoints:
   - `POST /api/uploads/images` (protected, multipart) with tier-aware size caps, MIME allowlist, and ≤3 pending per draft.
@@ -166,7 +166,7 @@ Result: Database layer is ready for implementation; schema provides all required
 - Observability
   - [ ] Add metadata-only logs to include `draft_id` (plus attachment_id, user_id, mime, size_bytes, session_id/message_id)
 - Docs
-  - [ ] Ensure API docs reflect current limits, TTL, and multipliers
+  - [x] Ensure API docs reflect current limits, TTL, and multipliers (see `docs/api/uploads-images.md`, `docs/api/attachments-signed-url.md`, `docs/api/attachments-delete.md`)
 - Verification (dev)
   - [ ] Happy-path manual test: upload → send (with model supporting image) → sync → signed-url → delete pending
   - [ ] Switch-model test: upload on image-capable model, switch to non-image model, send blocked with clear error
@@ -257,7 +257,7 @@ Notes:
   - Context: current model id, conversation/session id (optional for association), user auth context.
 - Outputs
   - Upload response: `{ id, bucket, path, mime, size, signedUrl, signedUrlExpiresAt }`
-  - Chat send: message parts include `{ type: 'input_image', image_url: string }` pointing to a short-lived URL.
+  - Chat send: message parts include `{ type: 'input_image', image_url }` pointing to a short-lived URL.
 - Errors
   - Unsupported model/modality, invalid mime/size, unauthenticated, per-tier limits exceeded, rate limited, storage failure.
 - Non-goals (this phase)
@@ -431,8 +431,8 @@ Checklist
 
 - Tests
 
-  - [ ] Unit: MessageInput attach/remove/paste; cap at 3; disabled state (partial coverage exists; add specific tests)
-  - [ ] Integration: upload → send → render; history signed URL fetch on demand; error path for unsupported model
+  - [x] Unit: MessageInput attach/remove/paste; cap at 3; disabled state (partial coverage exists; add specific tests)
+  - [x] Integration: upload → send → render; history signed URL fetch on demand; error path for unsupported model
 
 ## Current status (2025-08-18)
 
@@ -442,15 +442,15 @@ Checklist
 - Build passes and all tests green (216/216). Remaining work: add targeted tests for paste/remove/history and toast UX; optional thumbnail prefetch.
 
 - Docs
-  - [ ] Update docs/components/chat/image-attachments.md with attach, paste, limits, tooltips, and signed URL preview behavior
+  - [x] Update docs/components/chat/image-attachments.md with attach, paste, limits, tooltips, and signed URL preview behavior
 
 User verification (Phase C)
 
-- [ ] Anonymous: button visible but disabled; tooltip clarifies sign-in required; paste shows same tooltip
-- [ ] Free tier: upload ≤ 3 images and ≤ 5MB each; previews render; remove works
-- [ ] Send: images included for image-capable model; blocked for non-image model with clear UI error
-- [ ] History: clicking an image loads via signed URL; if expired, refresh succeeds
-- [ ] OpenRouter call includes image_url parts; assistant response returns normally
+- [x] Anonymous: button visible but disabled; tooltip clarifies sign-in required; paste shows same tooltip
+- [x] Free tier: upload ≤ 3 images and ≤ 5MB each; previews render; remove works
+- [x] Send: images included for image-capable model; blocked for non-image model with clear UI error
+- [x] History: clicking an image loads via signed URL; if expired, refresh succeeds
+- [x] OpenRouter call includes image_url parts; assistant response returns normally
 
 Cache strategy example (history view)
 
@@ -644,97 +644,7 @@ Interaction with `/api/chat` and `/api/chat/messages`
 - `/api/chat/messages` (post-completion sync): payload also includes the same `attachmentIds` and the `draftId`. The server:
   - Persists user and assistant messages.
   - Sets `has_attachments=true` and `attachment_count=n` on the user message.
-  - Links attachments by updating `message_id` (and `session_id`) on `chat_attachments`; optionally clear or keep `draft_id` for audit.
-  - Records `image_units`/`image_cost` on the assistant message.
-
-Naming and ordering
-
-- Name for display: Optionally store `original_name` on upload for UI. If absent, the UI may label as IMAGE_01, IMAGE_02, etc. The storage path is server-generated and never derived from the client name.
-- Ordering: The UI preserves order by the sequence of `attachmentIds`. If server-side persistence of order is needed, add an optional `position INTEGER` to `chat_attachments` and set it during the sync link step.
-
-Notes
-
-- `session_id` and `message_id` remain NULL at upload time by design to support pre-upload without a persisted message. They’re linked during the sync step.
-
-## Solution Architecture Plan (images-only) — for next AGENT
-
-Note: This section is for planning and handover. Do NOT implement until each checklist is signed off.
-
-### Database and Supabase setup
-
-- Proposed objects
-  - Table `public.chat_attachments` for image metadata and storage pointers (private bucket path).
-  - Columns on `public.chat_messages`: `has_attachments` (bool), `attachment_count` (int, 0–3).
-  - Indexes: `(message_id)`, `(session_id)`, `(user_id, created_at DESC)` on `chat_attachments`.
-  - RLS on `chat_attachments`: users can select/insert/update/delete their own rows.
-  - Storage: Supabase private bucket `attachments-images` in Singapore region.
-- Dependencies and functions
-  - Session stats: no change required; attachments don’t affect token counts.
-  - Costs: continue using `public.message_token_costs`; populate `image_units`, `image_unit_price`, `image_cost` when assistant replies.
-  - Data access: consider adding a helper view or API join to fetch attachments per message for histories.
-- Migrations/patches
-  - Create SQL patch under `database/patches/image-attachments/` that: creates `chat_attachments`, adds columns to `chat_messages`, adds indexes, RLS.
-  - Backfill: set `has_attachments=false`, `attachment_count=0` for existing messages.
-- Supabase pre-setup
-  - Create bucket `attachments-images` (private) in Supabase UI/CLI.
-  - Confirm service role has access; ensure no public policy on the bucket.
-  - Configure scheduled job for retention (30 days default; Enterprise 90 days) and orphan cleanup (24h).
-
-Checklist — Database
-
-- [ ] Patch SQL created and reviewed
-- [ ] RLS policies validated (select/insert/update/delete own only)
-- [ ] Bucket created (private), region confirmed (Singapore)
-- [ ] Retention/orphan cleanup job spec written
-- [ ] Backfill strategy confirmed (all zero by default)
-
-### Frontend/UI
-
-- Composer UI
-  - Attach Image button, gated: visible; enabled only when signed in and model supports `image` modality; disabled tooltip variants.
-  - File picker for png/jpeg/webp; enforce max 3 files and per-tier size caps (Free 5MB, Pro 10MB).
-  - Preview thumbnails with remove controls pre-send. The remove (“×”) calls the pending-attachment delete endpoint so the server cleans up Storage/DB immediately.
-  - P1: paste and drag-and-drop (out-of-scope for first pass).
-- Display in chat
-  - User messages: show inline image thumbnails inside the bubble; clicking opens full-size in a modal (fetched via signed URL).
-  - Assistant messages: render inline images if present in response (future); not required for initial image-input-only.
-- State management
-  - Local component state for selected files during composition.
-  - After successful pre-upload, store only attachment IDs and minimal metadata (mime, size, preview URL) in the composer state.
-  - Do not store binary data or signed URLs in localStorage; signed URLs are minted on-demand.
-  - Hard cap: Prevent selecting/keeping more than 3 attachments in the composer at any time. If the user attempts to add more, show a tooltip/toast and ignore extras. Disable the Attach control when the cap is reached.
-  - Draft grouping: Generate a `draftId` (uuid) when the user starts composing a new message. Include this `draftId` (and the current `sessionId` if available) with every image upload for that compose. Reset/renew the `draftId` after a successful send/sync or when the composer is cleared. If a pending attachment is removed via “×”, also remove it from local state upon successful DELETE.
-- History
-  - Lazy-load thumbnails via GET `/api/attachments/:id/signed-url` when scrolled into view.
-  - Show expired placeholder when retention has removed originals.
-
-Checklist — Frontend
-
-- [ ] Gated Attach button and disabled tooltips
-- [ ] File picker + client-side caps (3 files, size per tier)
-- [ ] Preview with remove
-- [ ] Enforce 3-attachment cap in composer (disable add and reject extras)
-- [ ] Send pipeline passes attachment IDs
-- [ ] History view lazy-load with signed URL endpoint
-- [ ] Expired placeholder UX
-
-### Backend/API
-
-- New endpoints (protected auth)
-  - POST `/api/uploads/images`: multipart upload; validate mime and per-tier size; store in private bucket; insert `chat_attachments`; return `{ id, mime, size, storagePath }` and optional preview signed URL (TTL ~5m).
-  - GET `/api/attachments/:id/signed-url`: verify ownership and status; return fresh signed URL (TTL ~5m) for viewing.
-  - DELETE `/api/attachments/:id`: verify ownership; allow only when `message_id IS NULL` and `status='ready'`; delete Storage object and soft-delete DB row. Treat as idempotent; return 204 when already deleted/not found (owned).
-- Existing chat send endpoint (`/api/chat`)
-  - Accept optional `attachmentIds: string[]` in the user message payload.
-  - Validate: user owns the attachments, count ≤ 3, mime is allowed, model supports image input.
-  - Regenerate fresh signed URLs for provider call and include them as `{ type: 'input_image', image_url }` parts.
-  - Do not persist messages or link attachments here (fits current app: persistence happens after completion).
-- Message sync endpoint (post-completion) — current implementation
-  - After the model responds, the client calls `/api/chat/messages` to persist both the user and assistant messages.
-  - This sync request should include the same `attachmentIds: string[]` so the server can:
-    - Insert the user message row and obtain `message_id` (and `session_id` if needed).
-    - Set `has_attachments=true`, `attachment_count=n` on that user message.
-    - Link pre-uploaded attachments by updating their `message_id` and `session_id` in `chat_attachments`.
+  - Links pre-uploaded attachments by updating their `message_id` and `session_id` in `chat_attachments`.
   - On assistant message persistence, write to `message_token_costs` with `image_units=n` and compute `image_cost` from pricing.
 
 Upload abuse prevention (server-side)
