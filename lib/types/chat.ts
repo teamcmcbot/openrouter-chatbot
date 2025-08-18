@@ -20,6 +20,9 @@ export interface ChatMessage {
   retry_after?: number; // Seconds to wait before retry
   suggestions?: string[]; // Alternative suggestions for failed requests
   originalModel?: string; // Store the model used when this message was originally sent (for retry purposes)
+  // Attachments metadata (linked on persistence)
+  has_attachments?: boolean;
+  attachment_ids?: string[];
 }
 
 export interface ChatRequest {

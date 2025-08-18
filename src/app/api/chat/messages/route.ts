@@ -233,36 +233,63 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       const userMsgId = userMsg?.id || requestData.messages?.find(m => m?.role === 'user')?.id || requestData.message?.id;
 
       if (userMsgId) {
-        // Link attachments: set message_id and session_id where owned by user and not already linked
-        const { error: linkErr } = await supabase
+        // First, verify which attachments are eligible (owned by user, ready, and not already linked)
+        const { data: eligible, error: eligibleErr } = await supabase
           .from('chat_attachments')
-          .update({ message_id: userMsgId, session_id: requestData.sessionId })
+          .select('id')
           .in('id', requestData.attachmentIds)
           .eq('user_id', user!.id)
-          .is('message_id', null)
-          .eq('status', 'ready');
-        if (linkErr) {
-          logger.error('Failed to link attachments', linkErr);
-          // Do not fail entire request; return warning flag
-        } else {
-          // Count actually linked attachments
-          const { count } = await supabase
+          .eq('status', 'ready')
+          .is('message_id', null);
+
+        if (eligibleErr) {
+          logger.error('Error fetching eligible attachments for linking', eligibleErr);
+        } else if ((eligible?.length || 0) > 0) {
+          const eligibleIds = eligible!.map((a: { id: string }) => a.id);
+          // Link attachments: set message_id and session_id where owned by user and not already linked
+          const { data: linkedRows, error: linkErr } = await supabase
             .from('chat_attachments')
-            .select('id', { count: 'exact', head: true })
+            .update({ message_id: userMsgId, session_id: requestData.sessionId })
+            .in('id', eligibleIds)
             .eq('user_id', user!.id)
-            .eq('session_id', requestData.sessionId)
-            .eq('message_id', userMsgId)
-            .eq('status', 'ready');
-          const linkedCount = Math.min(count || 0, 3);
-          // Update user message flags
-          const { error: msgUpdateErr } = await supabase
-            .from('chat_messages')
-            .update({ has_attachments: linkedCount > 0, attachment_count: linkedCount })
-            .eq('id', userMsgId)
-            .eq('session_id', requestData.sessionId);
-          if (msgUpdateErr) {
-            logger.error('Failed to update message attachment flags', msgUpdateErr);
+            .is('message_id', null)
+            .eq('status', 'ready')
+            .select('id');
+
+          if (linkErr) {
+            logger.error('Failed to link attachments', linkErr);
+            // Do not fail entire request; continue
           }
+
+          const linkedCount = Math.min(linkedRows?.length || 0, 3);
+
+          // Update user message flags based on actually linked attachments
+          if (linkedCount >= 0) {
+            const { error: msgUpdateErr } = await supabase
+              .from('chat_messages')
+              .update({ has_attachments: linkedCount > 0, attachment_count: linkedCount })
+              .eq('id', userMsgId)
+              .eq('session_id', requestData.sessionId);
+            if (msgUpdateErr) {
+              logger.error('Failed to update message attachment flags', msgUpdateErr);
+            }
+
+            logger.info('Attachment linkage result', {
+              userId: user!.id,
+              sessionId: requestData.sessionId,
+              userMessageId: userMsgId,
+              requestedCount: requestData.attachmentIds.length,
+              eligibleCount: eligible?.length || 0,
+              linkedCount,
+            });
+          }
+        } else {
+          logger.warn('No eligible attachments to link', {
+            userId: user!.id,
+            sessionId: requestData.sessionId,
+            userMessageId: userMsgId,
+            requestedIds: requestData.attachmentIds,
+          });
         }
       }
     }

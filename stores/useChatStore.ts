@@ -237,7 +237,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             return selectedMessages;
           },
 
-          sendMessage: async (content, model) => {
+          sendMessage: async (content, model, options) => {
             if (!content.trim() || get().isLoading) {
               logger.warn("Cannot send message: empty content or already loading");
               return;
@@ -257,6 +257,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               role: "user",
               timestamp: new Date(),
               originalModel: model, // Store the model used for this message (for retry purposes)
+              has_attachments: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? true : undefined,
+              attachment_ids: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? options!.attachmentIds : undefined,
             };
 
             logger.debug("Sending message", { conversationId: currentConversationId, content: content.substring(0, 50) + "..." });
@@ -282,7 +284,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Send Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -337,14 +339,18 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   requestBody = { 
                     message: content, 
                     messages: [...finalContextMessages, userMessage],
-                    current_message_id: userMessage.id
+                    current_message_id: userMessage.id,
+                    attachmentIds: options?.attachmentIds,
+                    draftId: options?.draftId,
                   };
                 } else {
                   // Build request with conversation context
                   requestBody = { 
                     message: content, 
                     messages: allMessages,
-                    current_message_id: userMessage.id
+                    current_message_id: userMessage.id,
+                    attachmentIds: options?.attachmentIds,
+                    draftId: options?.draftId,
                   };
                 }
                 
@@ -355,7 +361,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content, current_message_id: userMessage.id };
+                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId };
                 if (model) {
                   requestBody.model = model;
                 }
@@ -493,9 +499,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         messages: ChatMessage[];
                         sessionId: string;
                         sessionTitle?: string;
+                        attachmentIds?: string[];
                       } = {
                         messages: [updatedUserMessage, assistantMessage],
                         sessionId: currentConversationId,
+                        attachmentIds: options?.attachmentIds,
                       };
                       
                       // Include title for newly titled conversations
@@ -527,9 +535,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         messages: ChatMessage[];
                         sessionId: string;
                         sessionTitle?: string;
+                        attachmentIds?: string[];
                       } = {
                         messages: [userMessage, assistantMessage],
                         sessionId: currentConversationId,
+                        attachmentIds: options?.attachmentIds,
                       };
                       
                       // Include title for newly titled conversations

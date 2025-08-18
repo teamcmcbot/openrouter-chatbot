@@ -7,7 +7,7 @@ import { createSuccessResponse } from '../../../../lib/utils/response';
 import { logger } from '../../../../lib/utils/logger';
 import { detectMarkdownContent } from '../../../../lib/utils/markdown';
 import { ChatResponse } from '../../../../lib/types';
-import { OpenRouterRequest } from '../../../../lib/types/openrouter';
+import { OpenRouterRequest, OpenRouterContentBlock } from '../../../../lib/types/openrouter';
 import { AuthContext } from '../../../../lib/types/auth';
 import { withEnhancedAuth } from '../../../../lib/middleware/auth';
 import { withRateLimit } from '../../../../lib/middleware/rateLimitMiddleware';
@@ -63,7 +63,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
 
   const attachmentIds: string[] = Array.isArray(body.attachmentIds) ? body.attachmentIds : [];
 
-    const messages: OpenRouterRequest['messages'] = enhancedData.messages.map(msg => ({
+  const messages: OpenRouterRequest['messages'] = enhancedData.messages.map(msg => ({
       role: msg.role as 'user' | 'assistant',
       content: msg.content
     }));
@@ -105,7 +105,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       if (invalid) {
         throw new ApiErrorResponse('Unsupported attachment type', ErrorCode.BAD_REQUEST);
       }
-      // Mint signed URLs
+  // Mint signed URLs
       const signedUrls: string[] = [];
       for (const a of atts) {
         const { data: signed, error: signErr } = await supabase.storage
@@ -117,18 +117,22 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
         signedUrls.push(signed.signedUrl);
       }
 
-  // Attach image parts to the most recent user message
+      // Attach image parts to the most recent user message in multimodal format
       const lastUserIndex = [...enhancedData.messages].reverse().findIndex(m => m.role === 'user');
       if (lastUserIndex !== -1) {
         const idx = enhancedData.messages.length - 1 - lastUserIndex;
         const userMsg = enhancedData.messages[idx];
-        // Compose multimodal content as text + images string (provider will accept input_image in later phase)
-        // For now, append URLs to content to preserve intent; frontend can hide
-        const appended = `\n\n[Attached images:]\n${signedUrls.map(u => `- ${u}`).join('\n')}`;
-        messages[idx] = {
-          role: 'user',
-          content: `${userMsg.content}${appended}`
-        };
+        const contentBlocks: OpenRouterContentBlock[] = [];
+        if (typeof userMsg.content === 'string' && userMsg.content.trim().length > 0) {
+          contentBlocks.push({ type: 'text', text: userMsg.content });
+        } else if (typeof userMsg.content !== 'string' && Array.isArray(userMsg.content)) {
+          // If upstream already provided blocks, start with them
+          contentBlocks.push(...(userMsg.content as OpenRouterContentBlock[]));
+        }
+        for (const url of signedUrls) {
+          contentBlocks.push({ type: 'image_url', image_url: { url } });
+        }
+        messages[idx] = { role: 'user', content: contentBlocks };
       }
       logger.info('Chat send with attachments', {
         userId: authContext.user.id,
@@ -153,7 +157,14 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     console.log(`[Chat API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`);
     
     // Additional validation for token limits based on user tier
-    const totalInputTokens = messages.reduce((total, msg) => total + estimateTokenCount(msg.content), 0);
+    const totalInputTokens = messages.reduce((total, msg) => {
+      const text = Array.isArray(msg.content)
+        ? (msg.content as OpenRouterContentBlock[])
+            .map((b) => (b.type === 'text' ? b.text : ''))
+            .join(' ')
+        : String(msg.content || '');
+      return total + estimateTokenCount(text);
+    }, 0);
     const tokenValidation = validateRequestLimits(totalInputTokens, authContext.features);
     
     if (!tokenValidation.allowed) {

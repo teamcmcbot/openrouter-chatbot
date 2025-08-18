@@ -260,8 +260,9 @@ export default function ChatInterface() {
         {/* Input Area */}
   <div className="border-t border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
           <MessageInput 
-            onSendMessage={(message) => {
-              sendMessage(message, selectedModel);
+            onSendMessage={(message, options) => {
+              // Pass through to store; store will include options downstream in API body
+              sendMessage(message, selectedModel, options);
               setSelectedPrompt(""); // Clear the selected prompt after sending
             }}
             disabled={isLoading}

@@ -1,10 +1,14 @@
 // lib/types/openrouter.ts
 
+export type OpenRouterContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export interface OpenRouterRequest {
   model: string;
   messages: {
     role: "user" | "assistant";
-    content: string;
+    content: string | OpenRouterContentBlock[];
   }[];
   max_tokens?: number;
   temperature?: number;

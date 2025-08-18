@@ -223,9 +223,9 @@ Notes:
 ## Current implementation snapshot
 
 - Models: `lib/utils/openrouter.ts` exposes `pricing.image` and `input_modalities`; `/api/models` returns image/internal_reasoning prices.
-- Backend implemented: upload/signed-url/delete endpoints, chat send URL-minting, chat messages linkage, and DB recompute for image costs.
-- Tests: backend suite passing for Phase A.
-- UI: No upload UI yet; to be addressed in later phases.
+- Backend implemented: upload/signed-url/delete endpoints, chat send URL-minting, chat messages linkage, and DB recompute for image costs. Chat send now uses proper OpenRouter multimodal content blocks (`{ type: 'text' }` + `{ type: 'image_url' }`) instead of text URL injection.
+- Tests: full suite passing (216/216). Build is green.
+- UI: Phase C implemented — composer supports attach button with gating, paste-to-upload, previews with remove, 3-image cap, draftId lifecycle; history renders message attachments with on-demand signed URLs and a lightbox modal.
 - Pricing: `specs/track-token-usage.md` anticipates image pricing; `/api/usage/costs` already has `image_cost` in selects.
 - Auth: Standard middleware in use; endpoints protected via `withProtectedAuth`.
 
@@ -395,35 +395,35 @@ Checklist
 
 - Composer: attach UX
 
-  - [ ] Attach Image button (accept=image/\*), visible for all; disabled for anonymous with tooltip; enabled for Free/Pro/Enterprise when model supports images
-  - [ ] Enforce 3 image cap in UI; disable button and show hint when cap reached
-  - [ ] Client pre-checks: MIME allowlist, size by tier (Free ≤ 5MB; Pro/Ent ≤ 10MB)
-  - [ ] Clipboard paste-to-upload in textarea; handles multiple pasted images
+  - [x] Attach Image button (accept=image/\*), visible for all; disabled for anonymous with tooltip; enabled for Free/Pro/Enterprise when model supports images
+  - [x] Enforce 3 image cap in UI; disable button and show hint when cap reached
+  - [x] Client pre-checks: MIME allowlist, size by tier (Free ≤ 5MB; Pro/Ent ≤ 10MB)
+  - [x] Clipboard paste-to-upload in textarea; handles multiple pasted images
   - [ ] Progress + error toasts for upload failures and rate limits
 
 - Upload, preview, manage
 
-  - [ ] POST /api/uploads/images with draftId and optional sessionId
-  - [ ] Immediate local preview using object URLs; revoke on removal/unmount
-  - [ ] Store returned attachmentIds in component state keyed by draftId
-  - [ ] Remove pre-send: call DELETE /api/attachments/:id; update state on success
+  - [x] POST /api/uploads/images with draftId and optional sessionId
+  - [x] Immediate local preview using object URLs; revoke on removal/unmount
+  - [x] Store returned attachmentIds in component state keyed by draftId
+  - [x] Remove pre-send: call DELETE /api/attachments/:id; update state on success
 
 - Send with attachments
 
-  - [ ] Include attachmentIds on send; server modality re-check handles unsupported model case
-  - [ ] Clear draft state and regenerate draftId after successful send
+  - [x] Include attachmentIds on send; server modality re-check handles unsupported model case
+  - [x] Clear draft state and regenerate draftId after successful send
 
 - Rendering in chat
 
-  - [ ] Show thumbnails for user messages with attachments
-  - [ ] For history: fetch signed URL on click/tap (or on visibility) and cache per id in sessionStorage with an expiry timestamp; refresh on demand if 403/expired
-  - [ ] Alt text from sanitized filename or ImageNN; basic accessible labels
-  - [ ] Lightbox modal opens on thumbnail click; supports close on overlay/ESC; prevents background scroll
+  - [x] Show thumbnails for user messages with attachments
+  - [x] For history: fetch signed URL on click/tap (or on visibility) and cache per id in sessionStorage with an expiry timestamp; refresh on demand if 403/expired
+  - [x] Alt text from sanitized filename or ImageNN; basic accessible labels
+  - [x] Lightbox modal opens on thumbnail click; supports close on overlay/ESC; prevents background scroll
 
 - Gating and safeguards
 
-  - [ ] Anonymous: attach disabled with tooltip; hide paste-to-upload by intercepting and showing sign-in tooltip
-  - [ ] Free tier allowed; enforce count/size; UI copy reflects limits
+  - [x] Anonymous: attach disabled with tooltip; hide paste-to-upload by intercepting and showing sign-in tooltip
+  - [x] Free tier allowed; enforce count/size; UI copy reflects limits
 
 - Telemetry
 
@@ -431,8 +431,15 @@ Checklist
 
 - Tests
 
-  - [ ] Unit: MessageInput attach/remove/paste; cap at 3; disabled state
+  - [ ] Unit: MessageInput attach/remove/paste; cap at 3; disabled state (partial coverage exists; add specific tests)
   - [ ] Integration: upload → send → render; history signed URL fetch on demand; error path for unsupported model
+
+## Current status (2025-08-18)
+
+- Backend endpoints (upload/signed-url/delete) complete with tests; DB recompute for image costs in place.
+- Chat send builds OpenRouter multimodal arrays with image_url blocks; no more text URL injection.
+- UI implemented per Phase C decisions: attach UI, paste, previews, delete, 3-cap, history lightbox with sessionStorage signed URL cache.
+- Build passes and all tests green (216/216). Remaining work: add targeted tests for paste/remove/history and toast UX; optional thumbnail prefetch.
 
 - Docs
   - [ ] Update docs/components/chat/image-attachments.md with attach, paste, limits, tooltips, and signed URL preview behavior

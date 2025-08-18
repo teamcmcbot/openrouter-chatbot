@@ -718,7 +718,11 @@ CREATE TRIGGER after_assistant_message_cost
 
 -- Recompute helper: when attachments link after assistant insert
 CREATE OR REPLACE FUNCTION public.recompute_image_cost_for_user_message(p_user_message_id TEXT)
-RETURNS VOID AS $$
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
     v_assistant_id TEXT;
     v_session_id TEXT;
@@ -827,11 +831,15 @@ BEGIN
         END IF;
     END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Trigger: when an attachment is linked to a message, recompute costs
 CREATE OR REPLACE FUNCTION public.on_chat_attachment_link_recompute()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
     IF NEW.message_id IS NOT NULL
        AND (OLD.message_id IS NULL OR NEW.message_id <> OLD.message_id)
@@ -840,7 +848,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS after_attachment_link_recompute_cost ON public.chat_attachments;
 CREATE TRIGGER after_attachment_link_recompute_cost
