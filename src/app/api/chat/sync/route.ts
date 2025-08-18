@@ -217,7 +217,31 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
       throw sessionsError;
     }
 
-    // Transform to frontend format
+    // Collect all message IDs across sessions to fetch their attachments in one query
+    const allMessageIds: string[] = [];
+    (sessions as DatabaseSession[]).forEach(session => {
+      session.chat_messages?.forEach((m: DatabaseMessage) => {
+        if (m.id) allMessageIds.push(m.id);
+      });
+    });
+
+    const attachmentsByMessage: Record<string, string[]> = {};
+    if (allMessageIds.length > 0) {
+      const { data: atts, error: attErr } = await supabase
+        .from('chat_attachments')
+        .select('id, message_id, status')
+        .in('message_id', allMessageIds)
+        .eq('status', 'ready');
+      if (attErr) throw attErr;
+      if (Array.isArray(atts)) {
+        for (const row of atts as { id: string; message_id: string }[]) {
+          const list = attachmentsByMessage[row.message_id] || (attachmentsByMessage[row.message_id] = []);
+          list.push(row.id);
+        }
+      }
+    }
+
+    // Transform to frontend format (including attachments)
     const conversations = (sessions as DatabaseSession[]).map(session => ({
       id: session.id,
       title: session.title,
@@ -238,6 +262,8 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
           contentType: message.content_type || 'text', // New: content type
           elapsed_ms: message.elapsed_ms || 0, // New: elapsed time (ms)
           completion_id: message.completion_id || undefined, // New: completion ID
+          has_attachments: Array.isArray(attachmentsByMessage[message.id]) && attachmentsByMessage[message.id].length > 0,
+          attachment_ids: attachmentsByMessage[message.id] || [],
           timestamp: new Date(message.message_timestamp),
           error: !!message.error_message
         })),

@@ -18,6 +18,7 @@ import {
 import PromptTabs from "./PromptTabs";
 import { fetchSignedUrl } from "../../lib/utils/signedUrlCache";
 import { sanitizeAttachmentName, fallbackImageLabel } from "../../lib/utils/sanitizeAttachmentName";
+import InlineAttachment from "./InlineAttachment";
 
 // Memoized markdown component for better performance
 const MemoizedMarkdown = memo(({ children }: { children: string }) => (
@@ -222,16 +223,14 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                     {message.attachment_ids.map((attId, idx) => {
                       const alt = sanitizeAttachmentName(undefined) || fallbackImageLabel(idx);
                       return (
-                        <button
+                        <InlineAttachment
                           key={attId}
-                          type="button"
+                          id={attId}
+                          alt={alt || undefined}
                           onClick={() => handleOpenImage(attId, alt || undefined)}
-                          className="relative group border border-gray-200 dark:border-gray-600 rounded-md overflow-hidden w-24 h-24 bg-gray-100 dark:bg-gray-800"
-                          title="Open image"
-                        >
-                          {/* Use a tiny blurred placeholder to avoid layout shift; fetch on click for privacy */}
-                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">Image</div>
-                        </button>
+                          width={96}
+                          height={96}
+                        />
                       );
                     })}
                   </div>
