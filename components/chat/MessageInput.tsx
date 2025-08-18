@@ -7,6 +7,7 @@ import Tooltip from "../ui/Tooltip";
 import { useAuth } from "../../stores/useAuthStore";
 import { useModelSelection, isEnhancedModels } from "../../stores";
 import { sanitizeAttachmentName, fallbackImageLabel } from "../../lib/utils/sanitizeAttachmentName";
+import toast from "react-hot-toast";
 
 interface MessageInputProps {
   onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string }) => void
@@ -22,14 +23,17 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const { isAuthenticated } = useAuth();
   const { availableModels, selectedModel, isEnhanced } = useModelSelection();
   const [draftId, setDraftId] = useState<string | null>(null);
-  const [attachments, setAttachments] = useState<Array<{
-    id: string;
+  type AttachmentTile = {
+    tempId: string; // local id for UI
+    id?: string; // set when ready
     mime: string;
     size: number;
     originalName?: string;
     previewUrl: string; // Object URL
-  }>>([]);
-  const [isUploading, setIsUploading] = useState(false);
+    file?: File; // kept for retry
+    status: 'uploading' | 'failed' | 'ready';
+  };
+  const [attachments, setAttachments] = useState<AttachmentTile[]>([]);
   const ATTACHMENT_CAP = 3;
 
   // Update message when initialMessage prop changes
@@ -92,7 +96,8 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const handleSend = () => {
     if (message.trim() && !disabled) {
       if (attachments.length > 0) {
-        onSendMessage(message.trim(), { attachmentIds: attachments.map(a => a.id), draftId: draftId || undefined });
+        const ready = attachments.filter(a => a.status === 'ready' && a.id);
+        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined });
       } else {
         onSendMessage(message.trim());
       }
@@ -150,33 +155,71 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     return null;
   };
 
-  const uploadOne = async (file: File) => {
+  const genTempId = () => `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  const createPendingTile = (file: File): string => {
+    const tempId = genTempId();
+    const previewUrl = URL.createObjectURL(file);
+    setAttachments(prev => {
+      const next: AttachmentTile[] = [...prev, {
+        tempId,
+        mime: file.type,
+        size: file.size,
+        originalName: file.name,
+        previewUrl,
+        file,
+        status: 'uploading',
+      }];
+      return next.slice(0, ATTACHMENT_CAP);
+    });
+    return tempId;
+  };
+
+  const performUpload = async (tempId: string, file: File) => {
     if (!draftId) return;
-    const err = validateClientFile(file);
-    if (err) {
-      // simple alert; could integrate toast
-      console.warn('Upload rejected:', err);
+    const validation = validateClientFile(file);
+    if (validation) {
+      toast.error(validation === 'Unsupported file type' ? 'Only PNG, JPG, or WebP images are allowed.' : 'Image is too large.');
+      // mark failed
+      setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'failed' } : a));
       return;
     }
     const form = new FormData();
     form.set('image', file);
     form.set('draftId', draftId);
-    // sessionId is our current conversation id; omit here as store id differs from server session id in this app
     try {
-      setIsUploading(true);
+      setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'uploading' } : a));
       const res = await fetch('/api/uploads/images', { method: 'POST', body: form });
       if (!res.ok) {
-        console.warn('Upload failed', await res.text());
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('Retry-After');
+          const msg = retryAfter ? `Rate limit hit. Try again in ${retryAfter}s.` : 'Rate limit hit. Try again in a moment.';
+          toast.error(msg);
+        } else {
+          // Try to read server message
+          try {
+            const data = await res.json();
+            const msg = data?.error || 'Upload failed.';
+            toast.error(String(msg));
+          } catch {
+            toast.error('Upload failed.');
+          }
+        }
+        setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'failed' } : a));
         return;
       }
-      const data = await res.json();
-      const previewUrl = URL.createObjectURL(file);
-      setAttachments((prev) => {
-        const next = [...prev, { id: data.id as string, mime: data.mime, size: data.size, originalName: data.originalName, previewUrl }];
-        return next.slice(0, ATTACHMENT_CAP);
-      });
-    } finally {
-      setIsUploading(false);
+  const data = await res.json();
+      setAttachments(prev => prev.map(a => a.tempId === tempId ? ({
+        ...a,
+        id: data.id as string,
+        mime: data.mime,
+        size: data.size,
+        originalName: data.originalName ?? a.originalName,
+        status: 'ready',
+      }) : a));
+  } catch {
+      toast.error('Network error during upload.');
+      setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'failed' } : a));
     }
   };
 
@@ -186,7 +229,13 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     const remaining = ATTACHMENT_CAP - attachments.length;
     const toUpload = files.slice(0, Math.max(0, remaining));
     for (const f of toUpload) {
-      await uploadOne(f);
+      const validation = validateClientFile(f);
+      if (validation) {
+        toast.error(validation === 'Unsupported file type' ? 'Only PNG, JPG, or WebP images are allowed.' : 'Image is too large.');
+        continue;
+      }
+      const tempId = createPendingTile(f);
+      await performUpload(tempId, f);
     }
     // Clear value to allow re-selecting the same file
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -204,19 +253,34 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     const remaining = ATTACHMENT_CAP - attachments.length;
     const toUpload = images.slice(0, Math.max(0, remaining));
     for (const f of toUpload) {
-      await uploadOne(f);
+      const validation = validateClientFile(f);
+      if (validation) {
+        toast.error(validation === 'Unsupported file type' ? 'Only PNG, JPG, or WebP images are allowed.' : 'Image is too large.');
+        continue;
+      }
+      const tempId = createPendingTile(f);
+      await performUpload(tempId, f);
     }
   };
 
-  const removeAttachment = async (id: string) => {
-    try {
-      await fetch(`/api/attachments/${id}`, { method: 'DELETE' });
-    } catch {}
+  const removeAttachment = async (tempIdOrId: string) => {
+    // Find by tempId first; if not found, try by id
+  const target = attachments.find(a => a.tempId === tempIdOrId) || attachments.find(a => a.id === tempIdOrId);
+    const id = target?.id;
+    if (id && target?.status === 'ready') {
+      try { await fetch(`/api/attachments/${id}`, { method: 'DELETE' }); } catch {}
+    }
     setAttachments((prev) => {
-      const att = prev.find((a) => a.id === id);
+      const att = target;
       if (att) URL.revokeObjectURL(att.previewUrl);
-      return prev.filter((a) => a.id !== id);
+      return prev.filter((a) => a !== target);
     });
+  };
+
+  const retryAttachment = async (tempId: string) => {
+    const tile = attachments.find(a => a.tempId === tempId);
+    if (!tile || !tile.file) return;
+    await performUpload(tempId, tile.file);
   };
 
   return (
@@ -288,14 +352,33 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
             <div className="mt-2 flex flex-wrap gap-2">
               {attachments.map((att, idx) => {
                 const label = sanitizeAttachmentName(att.originalName) || fallbackImageLabel(idx);
+                const key = att.tempId || att.id || idx;
+                const failed = att.status === 'failed';
+                const uploading = att.status === 'uploading';
                 return (
-                  <div key={att.id} className="relative group border border-gray-200 dark:border-gray-600 rounded-md overflow-hidden w-20 h-20">
+                  <div key={String(key)} className={`relative group rounded-md overflow-hidden w-20 h-20 ${failed ? 'border border-red-400' : 'border border-gray-200 dark:border-gray-600'}`}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={att.previewUrl} alt={label} className="w-full h-full object-cover" />
+                    <img src={att.previewUrl} alt={label} className="w-full h-full object-cover opacity-100" />
+                    {/* Controls */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      {uploading && (
+                        <div className="text-[10px] bg-black/50 text-white px-2 py-1 rounded">Uploading…</div>
+                      )}
+                      {failed && (
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-[10px] bg-red-500/80 text-white px-1.5 py-0.5 rounded">Upload failed</span>
+                          <button
+                            type="button"
+                            onClick={() => retryAttachment(att.tempId)}
+                            className="text-[10px] bg-black/60 text-white px-2 py-0.5 rounded hover:bg-black/70"
+                          >Retry</button>
+                        </div>
+                      )}
+                    </div>
                     <button
                       type="button"
                       aria-label="Remove image"
-                      onClick={() => removeAttachment(att.id)}
+                      onClick={() => removeAttachment(att.tempId || att.id!)}
                       className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition"
                     >
                       <XMarkIcon className="w-4 h-4" />
@@ -303,11 +386,6 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                   </div>
                 );
               })}
-              {isUploading && (
-                <div className="w-20 h-20 border border-dashed border-gray-300 dark:border-gray-600 rounded-md flex items-center justify-center text-xs text-gray-500">
-                  Uploading…
-                </div>
-              )}
             </div>
           )}
         </div>

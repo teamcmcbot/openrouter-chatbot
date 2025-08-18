@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { fetchSignedUrl } from "../../lib/utils/signedUrlCache";
 
@@ -17,8 +17,12 @@ export default function InlineAttachment({ id, alt, onClick, width = 96, height 
   const [url, setUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<boolean>(false);
+  const fetchedRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const loadUrl = useCallback(async () => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
     setIsLoading(true);
     setError(false);
     try {
@@ -31,8 +35,29 @@ export default function InlineAttachment({ id, alt, onClick, width = 96, height 
     }
   }, [id]);
 
+  // Lazy fetch when entering viewport
   useEffect(() => {
-    void loadUrl();
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+
+    // If IntersectionObserver is not available, fetch immediately
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+      void loadUrl();
+      return;
+    }
+
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          void loadUrl();
+          io.disconnect();
+          break;
+        }
+      }
+    }, { root: null, rootMargin: '200px', threshold: 0.01 });
+
+    io.observe(el);
+    return () => io.disconnect();
   }, [loadUrl]);
 
   const handleError = async () => {
@@ -48,6 +73,7 @@ export default function InlineAttachment({ id, alt, onClick, width = 96, height 
 
   return (
     <div
+      ref={containerRef}
       className="relative rounded-md overflow-hidden border border-white/80 dark:border-white/80 bg-gray-100 dark:bg-gray-800 shadow-sm"
       style={{ width, height }}
     >
