@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isEnhancedModelsEnabled } from "../../../../lib/utils/env";
 import { logger } from "../../../../lib/utils/logger";
 import { handleError } from "../../../../lib/utils/errors";
 import { 
@@ -8,7 +7,7 @@ import {
   filterAllowedModels 
 } from "../../../../lib/utils/openrouter";
 import { createClient } from "../../../../lib/supabase/server";
-import { ModelInfo, ModelsResponse, LegacyModelsResponse } from "../../../../lib/types/openrouter";
+import { ModelInfo, ModelsResponse } from "../../../../lib/types/openrouter";
 import { unstable_cache } from "next/cache";
 import { AuthContext } from "../../../../lib/types/auth";
 import { withEnhancedAuth } from "../../../../lib/middleware/auth";
@@ -35,12 +34,8 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
     tier: authContext.profile?.subscription_tier
   });
   try {
-    // Check if enhanced mode is requested via query parameter or feature flag
-    const { searchParams } = new URL(request.url);
-    const enhancedParam = searchParams.get("enhanced");
-    const isEnhancedRequested = enhancedParam === "true" || isEnhancedModelsEnabled();
-
-    logger.info(`Models API called - Enhanced mode: ${isEnhancedRequested}`);
+  // Enhanced-only endpoint: ignore any legacy query params
+  logger.info(`Models API called - Enhanced mode only`);
 
     // Get allowed models from database (model_access) using latest schema
     const supabase = await createClient();
@@ -137,179 +132,88 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
     }
     logger.info(`Allowed models for tier ${tier}: ${allowedModelIds.length}`);
 
-    if (isEnhancedRequested) {
+    // Fetch models from OpenRouter API with caching
+    const allModels = await getCachedModels();
+
+    // Filter to only allowed models
+    const filteredModels = filterAllowedModels(allModels, allowedModelIds);
+
+    // Default model prioritization (non-breaking)
+    if (authContext.isAuthenticated && authContext.profile?.default_model) {
       try {
-        // Fetch models from OpenRouter API with caching
-        const allModels = await getCachedModels();
+        const defaultModelId = authContext.profile.default_model.trim();
+        const userId = authContext.user?.id;
+        const totalModels = filteredModels.length;
 
-        // Filter to only allowed models
-        const filteredModels = filterAllowedModels(allModels, allowedModelIds);
+        logger.info('Processing default model prioritization', {
+          userId,
+          defaultModelId,
+          totalAvailableModels: totalModels,
+          userTier: authContext.profile?.subscription_tier,
+          timestamp: new Date().toISOString()
+        });
 
-        // ========================================
-        // DEFAULT MODEL PRIORITIZATION FEATURE
-        // ========================================
-        // This feature prioritizes the user's preferred default model by moving it 
-        // to the first position in the filtered models array when:
-        // 1. User is authenticated (has valid session)
-        // 2. User has a default_model set in their profile
-        // 3. The default model exists in the user's allowed models list
-        //
-        // Purpose: Improves UX by showing user's preferred model first in dropdowns
-        // Fallback: If default model isn't available, natural ordering is preserved
-        // Performance: O(n) array search + O(n) array reordering, minimal impact
-        // ========================================
-        
-        if (authContext.isAuthenticated && authContext.profile?.default_model) {
-          try {
-            const defaultModelId = authContext.profile.default_model.trim();
-            const userId = authContext.user?.id;
-            const totalModels = filteredModels.length;
-            
-            // Enhanced logging for monitoring default model usage patterns
-            logger.info('Processing default model prioritization', {
-              userId,
-              defaultModelId,
-              totalAvailableModels: totalModels,
-              userTier: authContext.profile?.subscription_tier,
-              timestamp: new Date().toISOString()
-            });
-            
-            if (defaultModelId && typeof defaultModelId === 'string' && defaultModelId.length > 0) {
-              // Search for the user's default model in available models
-              // Uses findIndex for efficient single-pass array search
-              const defaultModelIndex = filteredModels.findIndex(model => model && model.id === defaultModelId);
-              
-              if (defaultModelIndex > 0) { 
-                // Model found but not in first position - reorder array
-                // Remove from current position and add to beginning
-                const [defaultModel] = filteredModels.splice(defaultModelIndex, 1);
-                if (defaultModel) {
-                  filteredModels.unshift(defaultModel);
-                  
-                  // Log successful reordering with metrics for analytics
-                  logger.info('Default model prioritized successfully', {
-                    userId,
-                    defaultModelId,
-                    previousPosition: defaultModelIndex,
-                    newPosition: 0,
-                    totalModels,
-                    action: 'reordered',
-                    performance: 'optimal'
-                  });
-                }
-              } else if (defaultModelIndex === 0) {
-                // Model already at first position - no action needed
-                logger.info('Default model already prioritized', {
-                  userId,
-                  defaultModelId,
-                  position: 'first',
-                  action: 'no_change_required',
-                  totalModels
-                });
-              } else {
-                // Model not found in available models - user may have downgraded tier
-                // or model may have been deprecated
-                logger.warn('Default model not accessible to user', {
-                  userId,
-                  defaultModelId,
-                  userTier: authContext.profile?.subscription_tier,
-                  totalAvailableModels: totalModels,
-                  action: 'model_not_found',
-                  suggestion: 'user_should_update_default'
-                });
-              }
-            } else {
-              // Invalid or empty default model value detected
-              logger.debug('Invalid default model configuration detected', {
+        if (defaultModelId && typeof defaultModelId === 'string' && defaultModelId.length > 0) {
+          const defaultModelIndex = filteredModels.findIndex(model => model && model.id === defaultModelId);
+          if (defaultModelIndex > 0) {
+            const [defaultModel] = filteredModels.splice(defaultModelIndex, 1);
+            if (defaultModel) {
+              filteredModels.unshift(defaultModel);
+              logger.info('Default model prioritized successfully', {
                 userId,
-                defaultModelValue: JSON.stringify(authContext.profile.default_model),
-                valueType: typeof authContext.profile.default_model,
-                action: 'skipped_invalid_value'
+                defaultModelId,
+                previousPosition: defaultModelIndex,
+                newPosition: 0,
+                totalModels,
+                action: 'reordered',
+                performance: 'optimal'
               });
             }
-          } catch (error) {
-            // Comprehensive error handling to prevent API disruption
-            logger.error('Default model prioritization failed', {
-              userId: authContext.user?.id,
-              error: error instanceof Error ? error.message : 'Unknown error',
-              stack: error instanceof Error ? error.stack : undefined,
-              action: 'graceful_fallback',
-              impact: 'feature_disabled_for_request'
+          } else if (defaultModelIndex === 0) {
+            logger.info('Default model already prioritized', {
+              userId,
+              defaultModelId,
+              position: 'first',
+              action: 'no_change_required',
+              totalModels
             });
-            // Continue with normal flow - don't disrupt API response
-          }
-        } else {
-          // Log cases where default model prioritization doesn't apply
-          if (!authContext.isAuthenticated) {
-            logger.debug('Default model prioritization skipped - user not authenticated');
-          } else if (!authContext.profile?.default_model) {
-            logger.debug('Default model prioritization skipped - no default model set', {
-              userId: authContext.user?.id,
-              hasProfile: !!authContext.profile
+          } else {
+            logger.warn('Default model not accessible to user', {
+              userId,
+              defaultModelId,
+              userTier: authContext.profile?.subscription_tier,
+              totalAvailableModels: totalModels,
+              action: 'model_not_found',
+              suggestion: 'user_should_update_default'
             });
           }
         }
-
-        // Transform to ModelInfo format for frontend
-        const transformedModels: ModelInfo[] = filteredModels.map(transformOpenRouterModel);
-
-        const enhancedResponse: ModelsResponse = {
-          models: transformedModels
-        };
-
-        // Log metrics for monitoring
-        const responseTime = Date.now() - startTime;
-        logger.info(`Enhanced Models API response - Models: ${transformedModels.length}/${allModels.length}, Time: ${responseTime}ms`);
-
-        // Add headers for monitoring
-        const headers = new Headers();
-        headers.set('X-Enhanced-Mode', 'true');
-        headers.set('X-Response-Time', responseTime.toString());
-        headers.set('X-Models-Count', transformedModels.length.toString());
-        headers.set('X-Total-Models-Available', allModels.length.toString());
-        headers.set('X-Cache-Status', 'hit');
-
-        return NextResponse.json(enhancedResponse, { headers });
-
       } catch (error) {
-        logger.error("Error fetching enhanced models, falling back to legacy mode:", error);
-
-        // Fall back to legacy mode if enhanced mode fails
-        const fallbackResponse: LegacyModelsResponse = {
-          models: allowedModelIds.length > 0 ? allowedModelIds : ["gpt-3.5-turbo", "gpt-4", "claude-3-sonnet"]
-        };
-
-        const responseTime = Date.now() - startTime;
-        logger.info(`Enhanced Models API fallback response - Time: ${responseTime}ms`);
-
-        const headers = new Headers();
-        headers.set('X-Enhanced-Mode', 'false');
-        headers.set('X-Fallback-Used', 'true');
-        headers.set('X-Response-Time', responseTime.toString());
-        headers.set('X-Models-Count', fallbackResponse.models.length.toString());
-
-        return NextResponse.json(fallbackResponse, { headers });
+        logger.error('Default model prioritization failed', {
+          userId: authContext.user?.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
       }
-    } else {
-      // Legacy mode - return simple string array
-      const legacyModels = allowedModelIds.length > 0 
-        ? allowedModelIds 
-        : ["gpt-3.5-turbo", "gpt-4", "claude-3-sonnet"];
-
-      const legacyResponse: LegacyModelsResponse = { models: legacyModels };
-
-      // Log metrics for monitoring
-      const responseTime = Date.now() - startTime;
-      logger.info(`Legacy Models API response - Models: ${legacyModels.length}, Time: ${responseTime}ms`);
-
-      // Add headers for monitoring
-      const headers = new Headers();
-      headers.set('X-Enhanced-Mode', 'false');
-      headers.set('X-Response-Time', responseTime.toString());
-      headers.set('X-Models-Count', legacyModels.length.toString());
-
-      return NextResponse.json(legacyResponse, { headers });
     }
+
+    // Transform to ModelInfo format for frontend
+    const transformedModels: ModelInfo[] = filteredModels.map(transformOpenRouterModel);
+
+    const enhancedResponse: ModelsResponse = {
+      models: transformedModels
+    };
+
+    // Log metrics for monitoring
+    const responseTime = Date.now() - startTime;
+    logger.info(`Models API response - Models: ${transformedModels.length}/${allModels.length}, Time: ${responseTime}ms`);
+
+    // Add headers for monitoring
+    const headers = new Headers();
+    headers.set('X-Response-Time', responseTime.toString());
+    headers.set('X-Models-Count', transformedModels.length.toString());
+    headers.set('X-Total-Models-Available', allModels.length.toString());
+
+    return NextResponse.json(enhancedResponse, { headers });
 
   } catch (error) {
     logger.error("Critical error in models API:", error);

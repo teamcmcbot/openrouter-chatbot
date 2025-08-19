@@ -13,7 +13,6 @@ interface ModelDropdownProps {
   readonly selectedModel: string;
   readonly onModelSelect: (model: string) => void;
   readonly isLoading?: boolean;
-  readonly enhanced?: boolean;
   readonly onShowDetails?: (model: ModelInfo) => void;
 }
 
@@ -27,7 +26,6 @@ export default function ModelDropdown({
   selectedModel, 
   onModelSelect, 
   isLoading = false,
-  enhanced,
   onShowDetails
 }: ModelDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -39,8 +37,8 @@ export default function ModelDropdown({
   const [isSmallScreen, setIsSmallScreen] = useState<boolean>(false);
   const [fixedTop, setFixedTop] = useState<number>(0);
 
-  // Determine if we have enhanced data
-  const hasEnhancedData = enhanced ?? isEnhancedModels(models);
+  // Enhanced-only mode going forward; keep guard for safety during transition
+  const hasEnhancedData = isEnhancedModels(models);
 
   // Filter and search models
   const filteredModels = useMemo(() => {
@@ -68,19 +66,12 @@ export default function ModelDropdown({
     // Apply search filter
     if (searchTerm.trim()) {
       const search = searchTerm.toLowerCase();
-      if (hasEnhancedData) {
-        const enhancedFiltered = filtered as ModelInfo[];
-        filtered = enhancedFiltered.filter(model => (
-          model.name.toLowerCase().includes(search) ||
-          model.id.toLowerCase().includes(search) ||
-          model.description.toLowerCase().includes(search)
-        )) as typeof models;
-      } else {
-        const stringFiltered = filtered as string[];
-        filtered = stringFiltered.filter(modelId => 
-          modelId.toLowerCase().includes(search)
-        ) as typeof models;
-      }
+      const enhancedFiltered = filtered as ModelInfo[];
+      filtered = enhancedFiltered.filter(model => (
+        model.name.toLowerCase().includes(search) ||
+        model.id.toLowerCase().includes(search) ||
+        model.description.toLowerCase().includes(search)
+      )) as typeof models;
     }
 
     return filtered;
@@ -180,16 +171,12 @@ export default function ModelDropdown({
 
   // Enhanced display name function
   const getDisplayName = (model: ModelInfo | string): string => {
-    if (hasEnhancedData && typeof model === 'object') {
+  if (hasEnhancedData && typeof model === 'object') {
       return model.name;
     }
-    
-    // Fallback to formatted model ID for legacy mode
-    const modelId = typeof model === 'string' ? model : model.id;
-    return modelId
-      .replace(/^(gpt-|claude-|llama-)/i, "")
-      .replace(/-/g, " ")
-      .replace(/\b\w/g, (l) => l.toUpperCase());
+  // Fallback formatting no longer used; return safe value
+  const modelId = typeof model === 'string' ? model : model.id;
+  return modelId;
   };
 
   const getModelId = (model: ModelInfo | string): string => {
@@ -197,24 +184,22 @@ export default function ModelDropdown({
   };
 
   const getSelectedModelDisplay = (): string => {
-    if (hasEnhancedData && isEnhancedModels(models)) {
+  if (hasEnhancedData && isEnhancedModels(models)) {
       const selectedModelData = models.find(model => model.id === selectedModel);
       return selectedModelData ? selectedModelData.name : "Select Model";
     }
-    
-    // Legacy mode
-    return getDisplayName(selectedModel) || "Select Model";
+  return getDisplayName(selectedModel) || "Select Model";
   };
 
   const getModelDescription = (model: ModelInfo | string): string | null => {
-    if (hasEnhancedData && typeof model === 'object') {
+  if (hasEnhancedData && typeof model === 'object') {
       return model.description;
     }
     return null;
   };
 
   const getContextLength = (model: ModelInfo | string): number | null => {
-    if (hasEnhancedData && typeof model === 'object') {
+  if (hasEnhancedData && typeof model === 'object') {
       return model.context_length;
     }
     return null;

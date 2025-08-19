@@ -26,13 +26,10 @@ Object.defineProperty(window, 'localStorage', {
 // Mock fetch
 global.fetch = jest.fn();
 
-// Mock environment
-jest.mock('../../lib/utils/env', () => ({
-  isEnhancedModelsEnabled: jest.fn(() => true),
-}));
+// No env flag mocks needed; models API is enhanced-only
 
 // Test data
-const mockBasicModels = ['gpt-4', 'gpt-3.5-turbo', 'claude-3'];
+// Legacy basic models format removed; tests assume enhanced-only
 
 const mockEnhancedModels: ModelInfo[] = [
   {
@@ -104,33 +101,11 @@ describe('useModelStore', () => {
       expect(state.lastUpdated).toBeTruthy();
     });
 
-    it('should fetch basic models successfully', async () => {
-      // Mock enhanced API to fail, then basic API to succeed
-      (global.fetch as jest.Mock)
-        .mockRejectedValueOnce(new Error('Enhanced mode not available')) // First call (enhanced)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ models: mockBasicModels }),
-        }); // Second call (basic)
-
-      const { result } = renderHook(() => useModelStore());
-
-      await act(async () => {
-        await result.current.fetchModels();
-      });
-
-      const state = useModelStore.getState();
-      expect(state.models).toEqual(mockBasicModels);
-      expect(state.isEnhanced).toBe(false);
-      expect(state.isLoading).toBe(false);
-      expect(state.error).toBeNull();
-    });
+  // Removed: basic models fallback test (legacy path deleted)
 
     it('should handle API errors gracefully', async () => {
-      // Mock both enhanced and basic API calls to fail
-      (global.fetch as jest.Mock)
-        .mockRejectedValueOnce(new Error('Network error')) // Enhanced API fails
-        .mockRejectedValueOnce(new Error('Network error')); // Basic API also fails
+  // Mock API call to fail
+  (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
 
       const { result } = renderHook(() => useModelStore());
 

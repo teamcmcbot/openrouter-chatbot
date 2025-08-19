@@ -61,7 +61,7 @@ A comprehensive model comparison tool:
 
 - **Seamless Integration**: All components work together cohesively
 - **Backward Compatibility**: Legacy string array format still supported
-- **Feature Flags**: Enhanced features only activate when `NEXT_PUBLIC_ENABLE_ENHANCED_MODELS=true`
+- Note: Enhanced models are always enabled now; the `NEXT_PUBLIC_ENABLE_ENHANCED_MODELS` flag has been removed.
 - **Error Handling**: Graceful fallback to basic functionality if issues occur
 
 ## Validation Results

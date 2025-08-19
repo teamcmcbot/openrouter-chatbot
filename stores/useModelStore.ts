@@ -114,37 +114,16 @@ const stopBackgroundRefresh = () => {
   }
 };
 
-// API fetch function with enhanced mode detection
-const fetchModelsFromAPI = async (): Promise<{ models: ModelInfo[] | string[], isEnhanced: boolean }> => {
-  logger.debug('Fetching models from API');
-  
-  // First, try enhanced mode
-  try {
-    const enhancedResponse = await fetch('/api/models?enhanced=true');
-    if (enhancedResponse.ok) {
-      const enhancedData = await enhancedResponse.json();
-      if (enhancedData.models && enhancedData.models.length > 0) {
-        // Check if the first model has enhanced properties
-        const firstModel = enhancedData.models[0];
-        if (typeof firstModel === 'object' && firstModel.description) {
-          logger.info('Enhanced mode detected and working');
-          return { models: enhancedData.models, isEnhanced: true };
-        }
-      }
-    }
-  } catch (error) {
-    logger.warn('Enhanced mode failed, falling back to basic mode', { error });
-  }
-  
-  // Fall back to basic mode
-  logger.info('Using basic mode');
+// API fetch function: enhanced-only
+const fetchModelsFromAPI = async (): Promise<{ models: ModelInfo[], isEnhanced: boolean }> => {
+  logger.debug('Fetching models from API (enhanced-only)');
   const response = await fetch('/api/models');
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  
   const data = await response.json();
-  return { models: data.models || [], isEnhanced: false };
+  const models: ModelInfo[] = data.models || [];
+  return { models, isEnhanced: true };
 };
 
 // Create the store
@@ -158,7 +137,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
           selectedModel: '',
           isLoading: false,
           error: null,
-          isEnhanced: false, // Will be determined by API response
+          isEnhanced: true, // Enhanced is now the only mode
           lastUpdated: null,
           isHydrated: false,
           isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -179,7 +158,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               // Try to use cached data if available and valid
               const cachedData = getCachedData();
               
-              if (cachedData && cachedData.isEnhanced === state.isEnhanced) {
+              if (cachedData && cachedData.isEnhanced === true) {
                 logger.info('Using cached model data');
                 
                 // Auto-select first model if none is selected and models are available
@@ -225,7 +204,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               
               // Extract model configurations for token limits from fresh data
               const modelConfigs: Record<string, { context_length: number; description: string }> = {};
-              if (result.isEnhanced && isEnhancedModels(result.models)) {
+              if (isEnhancedModels(result.models)) {
                 result.models.forEach(model => {
                   modelConfigs[model.id] = {
                     context_length: model.context_length || 8192,
@@ -237,7 +216,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               set({
                 models: result.models,
                 selectedModel: shouldAutoSelect ? firstModelId : state.selectedModel,
-                isEnhanced: result.isEnhanced,
+                isEnhanced: true,
                 isLoading: false,
                 lastUpdated: new Date(),
                 error: null,
@@ -306,7 +285,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               
               // Extract model configurations for token limits from refresh data
               const modelConfigs: Record<string, { context_length: number; description: string }> = {};
-              if (result.isEnhanced && isEnhancedModels(result.models)) {
+              if (isEnhancedModels(result.models)) {
                 result.models.forEach(model => {
                   modelConfigs[model.id] = {
                     context_length: model.context_length || 8192,
@@ -317,7 +296,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               
               set({
                 models: result.models,
-                isEnhanced: result.isEnhanced,
+                isEnhanced: true,
                 lastUpdated: new Date(),
                 error: null,
                 modelConfigs,
@@ -341,7 +320,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
             // Validate that the model exists in available models
             const modelExists = isEnhancedModels(state.models)
               ? state.models.some(model => model.id === modelId)
-              : state.models.includes(modelId);
+              : false;
 
             if (!modelExists && state.models.length > 0) {
               logger.warn('Selected model not found, falling back to first available', {
@@ -351,7 +330,7 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
               
               const firstModelId = isEnhancedModels(state.models) 
                 ? state.models[0].id 
-                : state.models[0];
+                : '';
               
               set({ selectedModel: firstModelId });
               return;
@@ -413,9 +392,8 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
             const { models } = get();
             if (isEnhancedModels(models)) {
               return models.find(model => model.id === id);
-            } else {
-              return models.find(modelId => modelId === id);
             }
+            return undefined;
           },
 
           getAvailableModels: () => {

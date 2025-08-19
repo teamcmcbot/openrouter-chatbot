@@ -8,7 +8,7 @@ This document describes the optimization implemented to reduce redundant API cal
 
 As described in the issue analysis, the application was making two separate API calls:
 
-1. **Initial load**: `GET /api/models?enhanced=true` to populate the models dropdown
+1. **Initial load**: `GET /api/models` to populate the models dropdown
 2. **Message sending**: Direct call to `https://openrouter.ai/api/v1/models` to get context length for token estimation
 
 This resulted in:
@@ -65,7 +65,7 @@ The `tokens.ts` utility has been updated to use cached model configurations:
 
 #### Cache Population
 
-- Enhanced models from `/api/models?enhanced=true` are parsed to extract:
+- Enhanced models from `/api/models` are parsed to extract:
   - Model ID
   - Context length (`context_length`)
   - Display name for logging
@@ -168,14 +168,15 @@ See `/docs/server-side-model-caching.md` for detailed server-side implementation
 ### Before (Redundant Calls)
 
 ```
-1. Page load: GET /api/models?enhanced=true (for dropdown)
+1. Page load: GET /api/models (for dropdown)
 2. Send message: GET https://openrouter.ai/api/v1/models (for token limits)
 ```
 
 ### After (Optimized)
 
 ```
-1. Page load: GET /api/models?enhanced=true (for dropdown + cache token configs)
+1. Page load: GET /api/models (for dropdown + cache token configs)
+Note: This archived spec referenced a dual-mode endpoint; the app now uses an enhanced-only `/api/models`.
 2. Send message: Use cached token limits from store
 ```
 

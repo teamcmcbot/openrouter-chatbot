@@ -4,10 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import type React from "react";
 import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useAuth } from "../../stores/useAuthStore";
-import { useModelSelection, isEnhancedModels } from "../../stores";
+import { useModelSelection } from "../../stores";
 import AttachmentTile, { type AttachmentData } from "./AttachmentTile";
 import toast from "react-hot-toast";
 import { useUserData } from "../../hooks/useUserData";
+import type { ModelInfo } from "../../lib/types/openrouter";
 
 interface MessageInputProps {
   onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string }) => void
@@ -35,7 +36,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const gatingRef = useRef<HTMLDivElement | null>(null);
   const searchModalRef = useRef<HTMLDivElement | null>(null);
   const { isAuthenticated } = useAuth();
-  const { availableModels, selectedModel, isEnhanced } = useModelSelection();
+  const { availableModels, selectedModel } = useModelSelection();
   const [draftId, setDraftId] = useState<string | null>(null);
   const { data: userData } = useUserData({ enabled: !!isAuthenticated });
   const userTier = (userData?.profile.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise';
@@ -99,14 +100,12 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
 
   const modelSupportsImages = (() => {
     if (!selectedModel) return false;
-    // In enhanced mode we have rich model info in availableModels
-    if (isEnhanced && isEnhancedModels(availableModels)) {
-      const info = availableModels.find((m) => m.id === selectedModel);
-      const mods = info?.input_modalities;
-      return Array.isArray(mods) ? mods.includes('image') : false;
-    }
-    // Basic mode: conservatively disable (server will validate anyway)
-    return false;
+    // Enhanced-only models: read from metadata
+    const info = Array.isArray(availableModels)
+      ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
+      : undefined;
+    const mods = info?.input_modalities as string[] | undefined;
+    return Array.isArray(mods) ? mods.includes('image') : false;
   })();
 
   const handleSend = () => {

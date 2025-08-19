@@ -7,7 +7,6 @@ export default function TestEnvPage() {
       <div>
         <h3>Client-side process.env:</h3>
         <pre>{JSON.stringify({
-          NEXT_PUBLIC_ENABLE_ENHANCED_MODELS: process.env.NEXT_PUBLIC_ENABLE_ENHANCED_MODELS,
           NEXT_PUBLIC_ENABLE_CONTEXT_AWARE: process.env.NEXT_PUBLIC_ENABLE_CONTEXT_AWARE,
           allNextPublicVars: Object.keys(process.env).filter(k => k.startsWith('NEXT_PUBLIC'))
         }, null, 2)}</pre>

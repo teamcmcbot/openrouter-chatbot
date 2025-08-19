@@ -109,7 +109,7 @@ const transformedModels: ModelInfo[] = filteredModels.map(
 
    ```bash
    # Test authenticated request with default model
-   curl -X GET "http://localhost:3000/api/models?enhanced=true" \
+   curl -X GET "http://localhost:3000/api/models" \
         -H "Cookie: your-auth-cookie"
 
    # Verify first model in response matches user's default

@@ -203,19 +203,18 @@ The app can be deployed to any platform that supports Next.js:
 
 ## Environment Variables
 
-| Variable                             | Description                         | Default                          |
-| ------------------------------------ | ----------------------------------- | -------------------------------- |
-| `OPENROUTER_API_KEY`                 | Your OpenRouter API key             | Required                         |
-| `OPENROUTER_API_MODEL`               | Default model to use                | `deepseek/deepseek-r1-0528:free` |
-| `OPENROUTER_MODELS_LIST`             | Comma separated list of models      | See `.env.example`               |
-| `OPENROUTER_BASE_URL`                | OpenRouter API base URL             | `https://openrouter.ai/api/v1`   |
-| `OPENROUTER_MAX_TOKENS`              | Maximum tokens per response         | `1000`                           |
-| `CONTEXT_MESSAGE_PAIRS`              | Number of message pairs for context | `5`                              |
-| `CONTEXT_RATIO`                      | Ratio of context tokens             | `0.6`                            |
-| `OUTPUT_RATIO`                       | Ratio of output tokens              | `0.4`                            |
-| `RESERVE_TOKENS`                     | Tokens reserved for system prompts  | `150`                            |
-| `NEXT_PUBLIC_ENABLE_CONTEXT_AWARE`   | Expose context-aware flag to client | `true`                           |
-| `NEXT_PUBLIC_ENABLE_ENHANCED_MODELS` | Allow using enhanced models         | `true`                           |
+| Variable                           | Description                         | Default                          |
+| ---------------------------------- | ----------------------------------- | -------------------------------- |
+| `OPENROUTER_API_KEY`               | Your OpenRouter API key             | Required                         |
+| `OPENROUTER_API_MODEL`             | Default model to use                | `deepseek/deepseek-r1-0528:free` |
+| `OPENROUTER_MODELS_LIST`           | Comma separated list of models      | See `.env.example`               |
+| `OPENROUTER_BASE_URL`              | OpenRouter API base URL             | `https://openrouter.ai/api/v1`   |
+| `OPENROUTER_MAX_TOKENS`            | Maximum tokens per response         | `1000`                           |
+| `CONTEXT_MESSAGE_PAIRS`            | Number of message pairs for context | `5`                              |
+| `CONTEXT_RATIO`                    | Ratio of context tokens             | `0.6`                            |
+| `OUTPUT_RATIO`                     | Ratio of output tokens              | `0.4`                            |
+| `RESERVE_TOKENS`                   | Tokens reserved for system prompts  | `150`                            |
+| `NEXT_PUBLIC_ENABLE_CONTEXT_AWARE` | Expose context-aware flag to client | `true`                           |
 
 ## License
 

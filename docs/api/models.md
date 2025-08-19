@@ -4,9 +4,9 @@
 
 ## Overview
 
-Provides the client with the list of models that are currently allowed for the user. When the `enhanced` query parameter is `true` (or the `NEXT_PUBLIC_ENABLE_ENHANCED_MODELS` feature flag is enabled) the endpoint contacts the OpenRouter API to fetch detailed model metadata, caches the result and returns the filtered metadata. Without the flag it returns a simple list of model IDs.
+Provides the client with the list of models that are currently allowed for the user. The endpoint always returns enhanced model metadata from OpenRouter (with caching) filtered by the user's tier. Legacy string[] responses are removed.
 
-**✨ New Feature**: For authenticated users in enhanced mode, the API automatically prioritizes the user's default model by placing it first in the response when available.
+**✨ Behavior**: For authenticated users, the API automatically prioritizes the user's default model by placing it first in the response when available.
 
 ## Authentication & Authorization
 
@@ -23,14 +23,12 @@ Provides the client with the list of models that are currently allowed for the u
 ## Request
 
 ```http
-GET /api/models?enhanced=true
+GET /api/models
 ```
-
-`enhanced` (optional): When `true`, model metadata is fetched from OpenRouter.
 
 ## Response
 
-### Enhanced Mode
+### Response Shape
 
 **Default Model Prioritization**: When a user is authenticated and has a default model configured, their preferred model will appear first in the response, improving UX by reducing selection time.
 
@@ -38,7 +36,7 @@ GET /api/models?enhanced=true
 {
   "models": [
     {
-      "id": "claude-3-5-sonnet",  // ← User's default model (moved to first position)
+      "id": "claude-3-5-sonnet", // ← User's default model (moved to first position)
       "name": "Claude 3.5 Sonnet",
       "description": "...",
       "context_length": 200000,
@@ -61,32 +59,22 @@ GET /api/models?enhanced=true
 }
 ```
 
-### Legacy Mode
-
-```json
-{
-  "models": ["gpt-3.5-turbo", "gpt-4", "claude-3-sonnet"]
-}
-```
+Legacy response format has been removed.
 
 ## Data Flow
 
 1. **Database Query**  
    Uses the Supabase client to read active rows from the `model_access` table.  
    Based on the user's tier, only the models with the corresponding flags (`is_free`, `is_pro`, `is_enterprise`) are allowed.
-2. **Enhanced Model Fetch**  
-   If enhanced mode is requested, the service calls `fetchOpenRouterModels()` to retrieve metadata from the OpenRouter API.  
+2. **Model Fetch**  
+   The service calls `fetchOpenRouterModels()` to retrieve metadata from the OpenRouter API.  
    The call is wrapped in `unstable_cache` so results are cached for 10 minutes. Subsequent requests within that window reuse the cached response.
 3. **Filtering & Transformation**  
    The OpenRouter result is filtered against the allowed model IDs and each entry is converted into the simplified `ModelInfo` structure via `transformOpenRouterModel()`.
-   
 4. **Default Model Prioritization** ⭐  
    For authenticated users with a `default_model` configured in their profile, the system searches for this model in the filtered results and moves it to the first position. This provides better UX by showing the user's preferred model first in dropdown menus. The feature includes comprehensive logging and graceful error handling.
-   
-5. **Fallback**  
-   Should the OpenRouter request fail, the endpoint falls back to legacy mode and returns only the model IDs.
 5. **Headers**  
-   Monitoring headers such as `X-Enhanced-Mode`, `X-Response-Time`, `X-Cache-Status`, and `X-Fallback-Used` are included for observability. Rate limit headers are also included.
+   Monitoring headers such as `X-Response-Time`, `X-Models-Count`, and `X-Total-Models-Available` are included for observability. Rate limit headers are also included.
 
 ## Rate Limit Headers
 

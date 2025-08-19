@@ -49,47 +49,33 @@ This specification outlines the implementation plan for enhancing the `/api/mode
 - ✅ Comprehensive logging and monitoring headers added
 - ✅ Backward compatibility maintained
 
-#### Task 0.1: Feature Flag Infrastructure ✅ COMPLETED
+#### Task 0.1: Feature Flag Infrastructure ✅ COMPLETED (Deprecated)
 
 **File**: `lib/utils/env.ts`
 **Estimated Time**: 1 hour
 
-- [x] Add environment variable for enabling enhanced models API
-- [x] Add feature flag utility functions
-- [x] Update existing environment validation
+- Originally added env flags for enhanced models; this is now deprecated as the endpoint is enhanced-only.
 
 **Implementation Details**:
 
-- Added `isFeatureEnabled()` utility function for boolean feature flags
-- Added `getEnvNumber()` helper for numeric environment variables
-- Added specific functions: `isEnhancedModelsEnabled()`, `getModelsCacheTTL()`, etc.
-- Updated `validateEnvVars()` to include new optional environment variables
-- Added logging for feature flag status during validation
+- Feature-flag utilities related to enhanced models have been removed in favor of a single enhanced-only endpoint.
 
-#### Task 0.2: Dual API Endpoint Strategy ✅ COMPLETED
+#### Task 0.2: Dual API Endpoint Strategy ✅ COMPLETED (Deprecated)
 
 **File**: `src/app/api/models/route.ts`
 **Estimated Time**: 2 hours
 
-- [x] Modify existing endpoint to support both response formats
-- [x] Add query parameter `?enhanced=true` for new format
-- [x] Maintain current behavior as default
-- [x] Add comprehensive logging for monitoring adoption
+- The dual-mode strategy has since been simplified; `/api/models` now always returns enhanced model metadata. The `?enhanced=true` parameter is no longer used.
 
 **Implementation Details**:
 
-- Added support for `?enhanced=true` query parameter detection
-- Integrated with feature flag system (`NEXT_PUBLIC_ENABLE_ENHANCED_MODELS`)
-- Added comprehensive logging with performance metrics
-- Added response headers for monitoring (`X-Enhanced-Mode`, `X-Response-Time`, etc.)
-- Maintained backward compatibility with existing response format
-- Enhanced error handling with fallback logging
+- Query parameter detection and feature-flag integration were removed. `X-Enhanced-Mode` header is no longer emitted.
 
 ### Phase 1: Backend Type Definitions and API Enhancement ✅ COMPLETED
 
 **Status**: All tasks completed successfully
 **Total Time**: 10 hours (as estimated)
-**Deliverables**: Complete backend implementation with OpenRouter API integration, type definitions, and enhanced models endpoint
+**Deliverables**: Complete backend implementation with OpenRouter API integration, type definitions, and enhanced-only models endpoint
 
 **Validation Results**:
 
@@ -98,7 +84,7 @@ This specification outlines the implementation plan for enhancing the `/api/mode
 - ✅ OpenRouter API client with robust error handling and retry logic
 - ✅ Enhanced models API endpoint with caching and fallback mechanisms
 - ✅ Complete type definitions matching OpenRouter API v1
-- ✅ Dual-mode API support (legacy and enhanced)
+- ✅ Enhanced-only API (legacy mode removed)
 - ✅ Comprehensive logging and monitoring capabilities
 
 #### Task 1.1: Update Type Definitions ✅ COMPLETED
@@ -116,7 +102,7 @@ This specification outlines the implementation plan for enhancing the `/api/mode
 - Created complete `OpenRouterModel` interface matching OpenRouter API specification
 - Added simplified `ModelInfo` interface for frontend consumption
 - Implemented `ModelsResponse` for enhanced API responses
-- Added `LegacyModelsResponse` for backward compatibility
+- Removed `LegacyModelsResponse`; the API returns enhanced model metadata only.
 - Fixed TypeScript strict mode compliance for `per_request_limits` field
 
 #### Task 1.2: Create OpenRouter API Client Function ✅ COMPLETED
@@ -146,8 +132,7 @@ This specification outlines the implementation plan for enhancing the `/api/mode
 - [x] Fetch models from OpenRouter API using new client function
 - [x] Filter models based on `OPENROUTER_MODELS_LIST` environment variable
 - [x] Implement Next.js 15 compatible caching with `unstable_cache`
-- [x] Add graceful error fallback to current string array behavior
-- [x] Return enhanced model data with backward compatibility option
+- [x] Return enhanced model data; legacy string[] fallback removed
 - [x] Add proper TypeScript error handling
 
 **Implementation Details**:
@@ -163,8 +148,7 @@ This specification outlines the implementation plan for enhancing the `/api/mode
 **Key Features Implemented**:
 
 - Server-side caching using Next.js 15's `unstable_cache` (10-minute TTL)
-- Graceful fallback to environment variable list if OpenRouter API fails
-- Feature flag support for gradual rollout (`NEXT_PUBLIC_ENABLE_ENHANCED_MODELS`)
+- Feature flag support removed; endpoint is always enhanced-only
 - Comprehensive error logging and monitoring headers
 - Rate limiting protection with exponential backoff
 - Backward compatibility maintained through dual-mode API design
@@ -235,7 +219,7 @@ allowedModelIds.includes(model.canonical_slug)
 - ✅ Chat interface updated with enhanced model information
 - ✅ Loading states and error handling implemented
 
-#### Task 2.1: Update Model Selection Hook ✅ COMPLETED
+#### Task 2.1: Update Model Selection Hook ✅ COMPLETED (Updated)
 
 **File**: `hooks/useModelSelection.ts`
 **Estimated Time**: 2 hours
@@ -246,8 +230,7 @@ allowedModelIds.includes(model.canonical_slug)
 
 **Implementation Details**:
 
-- Added support for both `ModelInfo[]` and `string[]` formats using type guards
-- Enhanced hook to request models with `?enhanced=true` parameter
+- Simplified to enhanced-only `ModelInfo[]`; request models from `/api/models` (no query params)
 - Added loading states, error handling, and enhanced mode detection
 - Implemented proper model validation and fallback logic
 - Added `refreshModels()` function for manual refresh capability
@@ -286,7 +269,7 @@ allowedModelIds.includes(model.canonical_slug)
 - **Improved Accessibility**: Enhanced ARIA support and keyboard navigation
 - **Visual Enhancements**: Better typography, spacing, and information hierarchy
 
-#### Task 2.3: Update Chat Interface ✅ COMPLETED
+#### Task 2.3: Update Chat Interface ✅ COMPLETED (Updated)
 
 **File**: `components/chat/ChatInterface.tsx`
 **Estimated Time**: 1 hour
@@ -298,7 +281,7 @@ allowedModelIds.includes(model.canonical_slug)
 
 - Updated to use enhanced model selection hook properties
 - Added loading state support for model dropdown
-- Enhanced UI to show "Enhanced" indicator when using enhanced mode
+- Header indicator repurposed to show account tier (Anonymous | Free | Pro | Enterprise)
 - Maintained backward compatibility with existing chat API integration
 - Verified model IDs continue to flow correctly to chat endpoint
 - Added visual feedback for enhanced mode status
@@ -529,8 +512,7 @@ OPENROUTER_MODELS_API_URL=https://openrouter.ai/api/v1/models
 # Cache TTL in minutes (optional, defaults to 30)
 MODELS_CACHE_TTL_MINUTES=30
 
-# Enable enhanced models API (optional, defaults to false for gradual rollout)
-NEXT_PUBLIC_ENABLE_ENHANCED_MODELS=false
+# Note: Enhanced models API flag removed; endpoint is enhanced-only by default
 
 # Site URL for OpenRouter API headers (required for API access)
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
@@ -794,7 +776,7 @@ Each task is designed to be independently implementable and testable, allowing f
 
 During implementation, an optimization opportunity was identified where the application was making redundant API calls:
 
-1. **Initial load**: `GET /api/models?enhanced=true` to populate models dropdown
+1. **Initial load**: `GET /api/models` to populate models dropdown
 2. **Message sending**: Direct call to `https://openrouter.ai/api/v1/models` for token limit calculations
 
 ### Solution Implemented
