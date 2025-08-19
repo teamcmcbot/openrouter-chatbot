@@ -16,30 +16,31 @@ Forward-only tracking of assistant message token costs using per-token (prompt/c
 - Increment target: `public.user_usage_daily.estimated_cost` updated atomically
 - RLS: row visibility restricted to owner; admins via `public.is_admin()` helper
 
-## Cost Formula (Per-Token Basis)
+## Cost Formula (Per-Token Basis + Web Search)
 
 ```
 prompt_cost     = ROUND( prompt_tokens     * prompt_unit_price, 6 )
 completion_cost = ROUND( completion_tokens * completion_unit_price, 6 )
 image_cost      = ROUND( image_units       * image_unit_price, 6 )  -- future use
-total_cost      = prompt_cost + completion_cost + image_cost
+websearch_cost  = ROUND( LEAST(websearch_results, 50) * web_search_price, 6 )  -- unit basis: per result (fallback 0.004)
+total_cost      = prompt_cost + completion_cost + image_cost + websearch_cost
 ```
 
 ## Insert Flow
 
 1. Assistant `chat_messages` row INSERT succeeds.
 2. AFTER INSERT trigger invokes function.
-3. Function loads `model_access` pricing snapshot, computes costs, inserts row into `message_token_costs`.
+3. Function loads `model_access` pricing snapshot (including `web_search_price`), computes costs (including `websearch_cost`), and upserts a row into `message_token_costs`.
 4. `user_usage_daily.estimated_cost` incremented in the same transaction.
 5. View & admin function pick up new data automatically.
 
-### Unit Correction (Patch 003)
+### Unit Correction (Patch 003) and Web Search
 
 Initial implementation assumed pricing was per million tokens, producing near-zero costs. Patch 003:
 
 - Reinterpreted `prompt_price` / `completion_price` as per-token.
 - Recalculated existing zero-cost rows.
-- Replaced the cost function in canonical schema.
+- Replaced the cost function in canonical schema and extended it to compute `websearch_cost` using `web_search_price` (fallback 0.004) with a 50-result cap.
 - Added this audit note (no schema change needed beyond the function replacement).
 
 ## No Backfill

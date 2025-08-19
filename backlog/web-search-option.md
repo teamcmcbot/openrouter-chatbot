@@ -2,7 +2,7 @@
 
 ## Summary
 
-Add an opt‑in, per‑message Web Search feature powered by OpenRouter’s model‑agnostic `web` plugin. Enable by appending `:online` to the model slug (exact shortcut to `plugins: [{ id: "web" }]`) and customize defaults (set `max_results` to 3). Return and render standardized URL citations from the response annotations. Track web search usage and costs at $4 per 1000 results.
+Opt‑in, per‑message Web Search powered by OpenRouter’s model‑agnostic `web` plugin is implemented. We explicitly send `plugins: [{ id: "web", max_results: 3 }]` when the toggle is ON. We normalize `annotations` → `url_citation[]`, persist citations, and compute websearch cost at $4 per 1000 results (0.004/result) with a hard cap of 50 results for billing.
 
 Key facts from official docs:
 
@@ -13,9 +13,10 @@ Key facts from official docs:
 
 ## Current implementation snapshot
 
-- UI: `MessageInput.tsx` already shows a Web Search button with tier gating and an ON/OFF toggle modal (UI-only state `webSearchOn`).
-- Server: `/api/chat` does not yet set `:online` nor `plugins` and does not parse/forward `annotations`.
-- DB: no columns/tables to persist citations or web search costs; `message_token_costs` only tracks token/image costs.
+- UI: Web Search toggle available (tier‑gated). Assistant messages with web search show a small "Web" chip and a compact Sources list with title‑only links (mobile friendly; no horizontal scroll).
+- Server: `/api/chat` conditionally sends `plugins: [{ id: 'web', max_results: 3 }]`, parses `annotations` and returns normalized citations. `completion_id` is propagated.
+- Sync: `/api/chat/sync` POST persists annotations and web flags; GET returns them so clients can render Sources after reload.
+- DB: Canonical schema updated. `chat_messages` has `has_websearch BOOLEAN NOT NULL DEFAULT false`, `websearch_result_count INTEGER NOT NULL DEFAULT 0 CHECK (websearch_result_count >= 0 AND websearch_result_count <= 50)`. New table `public.chat_message_annotations` stores `url_citation` rows with RLS. `message_token_costs` includes `websearch_cost DECIMAL(12,6)` and pricing snapshot; recompute function includes websearch with fallback unit price `0.004`.
 
 ## Approach (contract)
 
@@ -36,93 +37,62 @@ Key facts from official docs:
   - Model disabled (Perplexity) → toggle hidden/disabled.
   - Provider/API errors surface as regular chat errors.
 
-## Data model & analytics changes
+## Data model & analytics changes (implemented)
 
-Minimal viable, normalized for analytics:
+1. chat_messages
 
-1. chat_messages (new columns)
-
-- has_websearch BOOLEAN DEFAULT false
-- websearch_result_count INTEGER DEFAULT 0 CHECK (websearch_result_count >= 0)
-- websearch_options JSONB DEFAULT '{}' (store `{ max_results, search_prompt? }` used for this request)
-- web_annotations JSONB DEFAULT '[]' (optional denormalized cache of citations for faster reads)
+- has_websearch BOOLEAN NOT NULL DEFAULT false
+- websearch_result_count INTEGER NOT NULL DEFAULT 0 CHECK (websearch_result_count >= 0 AND websearch_result_count <= 50)
+- Indexes: partial index on `has_websearch=true`; btree on `websearch_result_count`.
 
 2. chat_message_annotations (new table)
 
-- id UUID PK DEFAULT gen_random_uuid()
-- message_id TEXT NOT NULL REFERENCES public.chat_messages(id) ON DELETE CASCADE
-- type TEXT NOT NULL CHECK (type IN ('url_citation'))
-- url TEXT NOT NULL
-- title TEXT NULL
-- content TEXT NULL
-- start_index INTEGER NULL
-- end_index INTEGER NULL
-- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  Indexes: `idx_msg_annotations_message_id (message_id)`, consider `idx_msg_annotations_type (type)`; RLS aligned to session ownership via join on `chat_messages` → `chat_sessions`.
+- Columns: id UUID PK, user_id UUID, session_id TEXT, message_id TEXT, annotation_type TEXT CHECK IN ('url_citation'), url TEXT, title TEXT, content TEXT, start_index INT, end_index INT, created_at TIMESTAMPTZ DEFAULT now()
+- Constraints: start/end index sanity check
+- Indexes: by message_id; (user_id, created_at desc); by session_id
+- RLS: owner‑scoped select/insert/delete
 
-3. message_token_costs (new web-search fields)
+3. message_token_costs
 
-- websearch_results INTEGER NOT NULL DEFAULT 0
-- websearch_unit_price DECIMAL(12,8) NULL (fallback to 0.004 when absent)
-- websearch_cost DECIMAL(12,6) NULL
-- total_cost updated to include websearch_cost
+- Added websearch_cost DECIMAL(12,6); pricing_source JSON includes `web_search_price` (unit), `websearch_results`, `websearch_unit_basis='per_result'`
+- total_cost includes websearch_cost
 
-4. user_usage_daily (new aggregates)
+4. Pricing source
 
-- websearch_results INTEGER DEFAULT 0
-- websearch_cost DECIMAL(12,6) DEFAULT 0.000000
+- model_access includes `web_search_price VARCHAR(20)`; compute fallback `0.004` per result when zero/empty
 
-5. model_access (no schema change)
+5. Aggregates
 
-- We already store `web_search_price` (string). If OpenRouter omits it, we treat plugin price as $4/1000 results (`0.004`) at compute time.
+- `user_usage_daily.estimated_cost` updated by delta including websearch_cost (no separate websearch counters yet)
 
-6. api_user_summary (view)
-
-- Optionally extend to expose today’s `websearch_results` and `websearch_cost` alongside tokens/messages.
-
-## Server flow changes
+## Server flow changes (implemented)
 
 1. /api/chat (enhanced auth)
 
-- When request indicates `webSearchOn: true` (front-end flag), send:
-  - `plugins: [{ id: 'web', max_results: 3 }]`
-  - Keep base model unchanged (no `:online` needed since `plugins` is explicit). Alternatively, we can still append `:online` as a safety shortcut.
-- Parse response `choices[0].message.annotations` and keep `url_citation[]` list.
-- Return annotations in `ChatResponse` as `citations` array (stable, typed).
+- When `webSearchOn: true`, send `plugins: [{ id: 'web', max_results: 3 }]` (no `:online` necessary).
+- Parse response annotations and normalize to `url_citation[]`.
+- Return `citations`, plus `has_websearch` and `websearch_result_count`; propagate `completion_id`.
 
 2. /api/chat/messages (protected)
 
-- For assistant message inserts, accept optional `citations` payload and `web_search_options` used.
-- Persist:
-  - `has_websearch = citations.length > 0 || web_search_options?.enabled === true`
-  - `websearch_result_count = citations.length`
-  - `websearch_options = { max_results: 3, ... }`
-  - Insert one row per citation into `chat_message_annotations`.
+- Persist assistant messages with `has_websearch`, `websearch_result_count` and insert one row per citation into `chat_message_annotations`.
 
 3. Cost computation
 
-- Extend cost recompute path to add web search cost:
-  - Determine `results_used = websearch_result_count` for the assistant message.
-  - Determine `websearch_unit_price = COALESCE(model_access.web_search_price::decimal, 0.004)`.
-  - `websearch_cost = ROUND(results_used * websearch_unit_price, 6)`.
-  - Upsert into `message_token_costs` with new fields; recompute `total_cost` to include websearch.
-- Update `user_usage_daily` by delta:
-  - Increment `websearch_results` and `websearch_cost` for today.
+- Recompute function now includes web search: `websearch_cost = ROUND(LEAST(results_used,50) * unit_price, 6)` with unit_price fallback `0.004`. total_cost includes it. `user_usage_daily.estimated_cost` increments by delta.
 
-Functions/triggers to update
+Functions/triggers
 
-- public.recompute_image_cost_for_user_message → generalize to `recompute_message_costs(p_user_message_id TEXT)` to also compute web search costs, or add a sibling `recompute_websearch_cost_for_user_message(p_assistant_message_id TEXT)`; then call both from the assistant insert trigger.
-- public.calculate_and_record_message_cost (assistant insert trigger) → after insert, call recompute(s) to ensure web/image costs converge once annotations/options are stored.
-- public.track_user_usage → keep signature; add new helper `public.update_websearch_usage(p_user_id UUID, p_results INT, p_cost DECIMAL)` that upserts `user_usage_daily` deltas and can be called inside recompute.
+- `public.recompute_image_cost_for_user_message(p_user_message_id TEXT)` now also computes websearch_cost.
+- Called by existing triggers (assistant insert and attachment link) to converge costs.
 
-## Frontend rendering
+## Frontend rendering (implemented)
 
 - ChatResponse additions:
   - `citations: Array<{ url: string; title?: string; content?: string; start_index?: number; end_index?: number }>`
-- UI: In each assistant message bubble, render a compact “Sources” section when citations exist:
-  - Show domain-labeled markdown links, e.g., `[nytimes.com](https://nytimes.com/...)`.
-  - Optionally highlight cited ranges using `start_index/end_index` when we switch to rich rendering; v1 can omit inline highlighting.
-  - Add a small “Web” chip on the message header when `has_websearch`.
+- Each assistant message with citations renders a compact “Sources” list.
+- Title‑only clickable links, wrapping nicely on mobile (no horizontal scroll).
+- A small “Web” chip appears when `has_websearch` is true.
 
 Accessibility
 
@@ -130,45 +100,18 @@ Accessibility
 
 ## Phases
 
-- [ ] Phase 1 — Capability detection & UI
-
-  - [ ] Always show the Web Search button for allowed (non‑Perplexity) models; keep tier gating as implemented.
-  - [ ] Settings modal toggle remains per-message; add a one-line note about cost/privacy (e.g., “Web lookups may share your query with third‑party search providers. Up to 3 results. Max ~$0.012 per request.”).
-  - [ ] User verification: toggle appears for non‑Perplexity models; gating works for anonymous/free.
-
-- [ ] Phase 2 — API wiring
-
-  - [ ] Add `plugins: [{ id: 'web', max_results: 3 }]` to `/api/chat` when enabled; do not rely on `pricing.web_search`.
-  - [ ] Parse `annotations` from OpenRouter response; include `citations` in `ChatResponse`.
-  - [ ] Pass `citations` and `web_search_options` to `/api/chat/messages` when persisting.
-  - [ ] User verification: server logs show plugins payload; a sample request shows `citations` returned.
-
-- [ ] Phase 3 — Database migration
-
-  - [ ] Add columns to `chat_messages`: `has_websearch`, `websearch_result_count`, `websearch_options`, `web_annotations`.
-  - [ ] Create `chat_message_annotations` with RLS inheriting session ownership.
-  - [ ] Extend `message_token_costs` with `websearch_results`, `websearch_unit_price`, `websearch_cost`.
-  - [ ] Extend `user_usage_daily` with `websearch_results`, `websearch_cost`.
-  - [ ] Update relevant indexes and policies.
-  - [ ] User verification: run migration; insert a fixture assistant message with 3 citations; verify counts and costs computed.
-
-- [ ] Phase 4 — Cost & telemetry
-
-  - [ ] Implement recompute path to calculate `websearch_cost` using results used and unit price fallback `0.004`.
-  - [ ] Update daily aggregates and admin analytics queries; optionally extend `api_user_summary` to expose today’s websearch metrics.
-  - [ ] User verification: daily usage shows `websearch_results`/`websearch_cost`; per-message `message_token_costs` rows include websearch fields.
-
-- [ ] Phase 5 — Docs & tests
-  - [ ] Add `/docs/components/chat/web-search.md` covering UX, privacy, and cost.
-  - [ ] Add unit tests for MessageInput gating/toggle and Chat API payload (plugins present when ON).
-  - [ ] Add DB migration tests for cost recompute and usage deltas.
+- [x] Phase 1 — Capability detection & UI
+- [x] Phase 2 — API wiring
+- [x] Phase 3 — Database migration (merged into canonical schema)
+- [x] Phase 4 — Cost & telemetry
+- [ ] Phase 5 — Docs & tests (this task)
 
 ## Clarifying questions (updated)
 
 1. Confirm we will NOT enable Perplexity models at launch; OK to show Web Search for all other allowed models?
 2. Is per‑message toggle the desired UX long‑term, or should we add a per‑session default in user preferences later?
 3. For citations rendering, is a “Sources” list acceptable for v1, or do you want inline highlight using `start_index/end_index`?
-4. Any retention or privacy constraints on storing `web_annotations` (URLs/snippets) in our DB? If sensitive, we can store minimal `{url,title}` only.
+4. Any retention or privacy constraints on storing citations (URLs/snippets) in our DB? If sensitive, we can store minimal `{url,title}` only.
 5. For pricing, shall we hard‑fallback to `0.004`/result if `model_access.web_search_price` is empty, and surface that basis in `pricing_source` JSON?
 
 ## Risks

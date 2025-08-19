@@ -15,6 +15,8 @@
 
 Synchronizes conversations between the client and the server. `POST` accepts an array of conversations from the client and upserts them into Supabase. `GET` returns the latest conversations (with messages) for the authenticated user. The endpoint enforces conversation ownership, validates feature access and rate limits requests.
 
+Web Search: When assistant messages include web citations, the server persists them into `chat_message_annotations` and stores `has_websearch` / `websearch_result_count` on the message. `GET` returns these fields and a `citations` array so the client can render Sources after reload.
+
 ## Authentication & Authorization
 
 - **Authentication Required:** Wrapped by `withConversationOwnership`, which in turn uses `withProtectedAuth` to require a signedin user.
@@ -72,7 +74,20 @@ GET /api/chat/sync
     {
       "id": "conv-1",
       "title": "Example",
-      "messages": [{ "id": "msg-1", "role": "user", "content": "Hello" }],
+      "messages": [
+        { "id": "msg-1", "role": "user", "content": "Hello" },
+        {
+          "id": "msg-2",
+          "role": "assistant",
+          "content": "Hi!",
+          "has_websearch": true,
+          "websearch_result_count": 2,
+          "citations": [
+            { "url": "https://example.com/a", "title": "Example A" },
+            { "url": "https://example.com/b", "title": "Example B" }
+          ]
+        }
+      ],
       "createdAt": "2025-07-29T11:59:00Z",
       "updatedAt": "2025-07-29T12:00:00Z"
     }
