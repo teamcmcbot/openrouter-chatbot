@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ChatMessage } from '../../../../../lib/types/chat';
+import type { OpenRouterUrlCitation } from '../../../../../lib/types/openrouter';
 import { withConversationOwnership } from '../../../../../lib/middleware/auth';
 import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
@@ -46,6 +47,9 @@ interface DatabaseMessage {
   message_timestamp: string;
   error_message?: string;
   is_streaming: boolean;
+  // Web search metadata (assistant messages)
+  has_websearch?: boolean;
+  websearch_result_count?: number;
 }
 
 interface DatabaseSession {
@@ -135,6 +139,8 @@ async function syncHandler(request: NextRequest, authContext: AuthContext): Prom
             content_type: message.contentType || 'text', // New: content type
             elapsed_ms: message.elapsed_ms || 0, // New: elapsed time (ms)
             completion_id: message.completion_id || null, // New: completion ID
+            has_websearch: message.has_websearch ?? null,
+            websearch_result_count: message.websearch_result_count ?? null,
             message_timestamp: typeof message.timestamp === 'string'
               ? message.timestamp
               : message.timestamp?.toISOString() || new Date().toISOString(),
@@ -148,6 +154,39 @@ async function syncHandler(request: NextRequest, authContext: AuthContext): Prom
 
           if (messagesError) {
             throw messagesError;
+          }
+
+          // Persist annotations for assistant messages, if provided
+          const annotated = conversation.messages.filter(m => m.role === 'assistant' && Array.isArray(m.annotations) && m.annotations.length > 0);
+          if (annotated.length > 0) {
+            const annotatedIds = annotated.map(m => m.id);
+            // Remove existing annotations for these messages to avoid duplicates, then insert fresh
+            const { error: delErr } = await supabase
+              .from('chat_message_annotations')
+              .delete()
+              .in('message_id', annotatedIds);
+            if (delErr) {
+              logger.warn('Failed to delete existing annotations during sync', { error: delErr.message });
+            }
+            const rows = annotated.flatMap(m => (m.annotations || []).map(a => ({
+              user_id: user!.id,
+              session_id: databaseId,
+              message_id: m.id,
+              annotation_type: 'url_citation',
+              url: a.url,
+              title: a.title ?? null,
+              content: a.content ?? null,
+              start_index: typeof a.start_index === 'number' ? a.start_index : null,
+              end_index: typeof a.end_index === 'number' ? a.end_index : null,
+            })));
+            if (rows.length > 0) {
+              const { error: insErr } = await supabase
+                .from('chat_message_annotations')
+                .insert(rows);
+              if (insErr) {
+                logger.warn('Failed to insert annotations during sync', { error: insErr.message });
+              }
+            }
           }
         }
 
@@ -217,7 +256,7 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
       throw sessionsError;
     }
 
-    // Collect all message IDs across sessions to fetch their attachments in one query
+    // Collect all message IDs across sessions to fetch their attachments and annotations in one query
     const allMessageIds: string[] = [];
     (sessions as DatabaseSession[]).forEach(session => {
       session.chat_messages?.forEach((m: DatabaseMessage) => {
@@ -226,6 +265,7 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
     });
 
     const attachmentsByMessage: Record<string, string[]> = {};
+    const annotationsByMessage: Record<string, OpenRouterUrlCitation[]> = {};
     if (allMessageIds.length > 0) {
       const { data: atts, error: attErr } = await supabase
         .from('chat_attachments')
@@ -237,6 +277,27 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
         for (const row of atts as { id: string; message_id: string }[]) {
           const list = attachmentsByMessage[row.message_id] || (attachmentsByMessage[row.message_id] = []);
           list.push(row.id);
+        }
+      }
+
+      // Fetch URL citations for these messages
+      const { data: anns, error: annErr } = await supabase
+        .from('chat_message_annotations')
+        .select('message_id, annotation_type, url, title, content, start_index, end_index')
+        .in('message_id', allMessageIds);
+      if (annErr) throw annErr;
+      if (Array.isArray(anns)) {
+        for (const row of anns as { message_id: string; annotation_type: string; url: string; title?: string | null; content?: string | null; start_index?: number | null; end_index?: number | null }[]) {
+          if (row.annotation_type !== 'url_citation' || typeof row.url !== 'string') continue;
+          const list = annotationsByMessage[row.message_id] || (annotationsByMessage[row.message_id] = []);
+          list.push({
+            type: 'url_citation',
+            url: row.url,
+            title: row.title ?? undefined,
+            content: row.content ?? undefined,
+            start_index: typeof row.start_index === 'number' ? row.start_index : undefined,
+            end_index: typeof row.end_index === 'number' ? row.end_index : undefined,
+          });
         }
       }
     }
@@ -262,6 +323,9 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
           contentType: message.content_type || 'text', // New: content type
           elapsed_ms: message.elapsed_ms || 0, // New: elapsed time (ms)
           completion_id: message.completion_id || undefined, // New: completion ID
+          has_websearch: !!message.has_websearch,
+          websearch_result_count: typeof message.websearch_result_count === 'number' ? message.websearch_result_count : 0,
+          annotations: annotationsByMessage[message.id] || [],
           has_attachments: Array.isArray(attachmentsByMessage[message.id]) && attachmentsByMessage[message.id].length > 0,
           attachment_ids: attachmentsByMessage[message.id] || [],
           timestamp: new Date(message.message_timestamp),

@@ -246,23 +246,20 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
 
                 {/* URL Citations (Sources) */}
                 {message.role === "assistant" && Array.isArray(message.annotations) && message.annotations.length > 0 && (
-                  <div className="mt-3 border-t border-black/10 dark:border-white/10 pt-2">
+                  <div className="mt-3 border-t border-black/10 dark:border-white/10 pt-2 overflow-x-hidden">
                     <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Sources</div>
-                    <ul className="list-disc pl-5 space-y-1">
+                    <ul className="list-disc pl-5 space-y-1 max-w-full overflow-x-hidden">
                       {message.annotations.map((ann, i) => (
-                        <li key={`${message.id}-ann-${i}`} className="text-xs leading-snug">
+                        <li key={`${message.id}-ann-${i}`} className="text-xs leading-snug max-w-full">
                           <a
                             href={ann.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="underline text-blue-700 dark:text-blue-300 hover:text-blue-500 dark:hover:text-blue-200"
+                            className="block max-w-full underline text-blue-700 dark:text-blue-300 hover:text-blue-500 dark:hover:text-blue-200 whitespace-normal break-words break-all"
                             title={ann.title || ann.url}
                           >
                             {ann.title || ann.url}
                           </a>
-                          {ann.content && (
-                            <span className="ml-1 text-gray-600 dark:text-gray-300 truncate inline-block max-w-full align-top">– {ann.content}</span>
-                          )}
                         </li>
                       ))}
                     </ul>
