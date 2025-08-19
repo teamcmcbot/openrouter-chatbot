@@ -11,6 +11,13 @@ Internal scheduled job for cleaning up orphan image attachments without a user s
   - `X-Signature: <hex(hmacSHA256(body, INTERNAL_CLEANUP_SECRET))>`
 - Returns headers: `X-Response-Time`, `X-Items-Processed`
 
+### Cron wrapper (GET)
+
+- Method: GET
+- Path: `/api/cron/attachments/cleanup`
+- Auth: `Authorization: Bearer ${CRON_SECRET}`
+- Behavior: Forwards to the POST internal endpoint with defaults from env
+
 ## Request Body
 
 ```
@@ -31,6 +38,7 @@ Internal scheduled job for cleaning up orphan image attachments without a user s
 ```
 INTERNAL_CLEANUP_TOKEN=dev_cleanup_token
 INTERNAL_CLEANUP_SECRET=dev_cleanup_secret
+CRON_SECRET=dev_cron_secret
 ```
 
 ## Local setup
@@ -38,9 +46,14 @@ INTERNAL_CLEANUP_SECRET=dev_cleanup_secret
 1. Create `.env.local` with the secrets above and Supabase variables.
 2. Start the dev server.
 3. Trigger a run:
+
    - npm: `npm run cleanup:internal`
    - curl (Bearer):
      - `curl -s -X POST http://localhost:3000/api/internal/attachments/cleanup -H "Authorization: Bearer $INTERNAL_CLEANUP_TOKEN" -H "Content-Type: application/json" -d '{"hours":24,"limit":200,"source":"local-test"}' | jq`
+
+4. Test the GET wrapper locally (requires CRON_SECRET):
+
+- `curl -s -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/attachments/cleanup | jq`
 
 - HMAC mode (npm): `npm run cleanup:internal:hmac`
 - HMAC with curl (example):

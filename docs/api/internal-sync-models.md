@@ -11,6 +11,13 @@ This document explains the internal scheduled job endpoint that triggers model s
   - `X-Signature: <hex(hmacSHA256(body, INTERNAL_SYNC_SECRET))>`
 - Returns headers: `X-Response-Time`, `X-Sync-Log-ID`, `X-Models-Processed`
 
+### Cron wrapper (GET)
+
+- Method: GET
+- Path: `/api/cron/models/sync`
+- Auth: `Authorization: Bearer ${CRON_SECRET}`
+- Behavior: Forwards to the POST internal endpoint
+
 ## Security
 
 - Local development: use the Bearer token for simplicity.
@@ -20,6 +27,7 @@ This document explains the internal scheduled job endpoint that triggers model s
 ```
 INTERNAL_SYNC_TOKEN=dev_token
 INTERNAL_SYNC_SECRET=dev_secret
+CRON_SECRET=dev_cron_secret
 ```
 
 ## Local setup
@@ -38,6 +46,10 @@ INTERNAL_SYNC_SECRET=dev_secret
   3. curl -s -X POST http://localhost:3000/api/internal/sync-models \
      -H "X-Signature: $sig" -H "Content-Type: application/json" \
       -d "$body" | jq
+
+4. Test the GET wrapper locally (requires CRON_SECRET):
+
+- `curl -s -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/models/sync | jq`
 
 ## Verifying results
 

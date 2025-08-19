@@ -11,6 +11,13 @@ Internal scheduled job for tier-based retention of image attachments.
   - `X-Signature: <hex(hmacSHA256(body, INTERNAL_CLEANUP_SECRET))>`
 - Returns headers: `X-Response-Time`
 
+### Cron wrapper (GET)
+
+- Method: GET
+- Path: `/api/cron/attachments/retention`
+- Auth: `Authorization: Bearer ${CRON_SECRET}` (Vercel Cron sends this automatically when CRON_SECRET is set)
+- Behavior: Forwards to the POST internal endpoint with defaults from env
+
 ## Request Body
 
 ```
@@ -42,8 +49,14 @@ Internal scheduled job for tier-based retention of image attachments.
 
 - Configure environment variables in Vercel (Production/Staging):
   - `INTERNAL_CLEANUP_TOKEN` and/or `INTERNAL_CLEANUP_SECRET`
+  - `CRON_SECRET` (for GET wrapper)
 - Retention reuses the same internal cleanup middleware secrets to avoid env sprawl.
 - If you want separate secrets for retention, we can extend the middleware to accept alternative envs.
+
+### vercel.json scheduling
+
+This repo includes `vercel.json` with a schedule for `/api/cron/attachments/retention`.
+Vercel will call the GET path on schedule and include the `Authorization: Bearer ${CRON_SECRET}` header.
 
 ## Local usage
 
@@ -52,3 +65,11 @@ Internal scheduled job for tier-based retention of image attachments.
   - `npm run retention:internal:hmac`
 - Overrides via env for local runs:
   - `FREE_DAYS`, `PRO_DAYS`, `ENTERPRISE_DAYS`, `LIMIT`, `DRY_RUN=1`, `USE_HMAC=1`
+
+### Local test of the GET wrapper
+
+```
+curl -s \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  http://localhost:3000/api/cron/attachments/retention | jq
+```
