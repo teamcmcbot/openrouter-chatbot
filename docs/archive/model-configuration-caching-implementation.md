@@ -4,7 +4,7 @@
 
 The application was making redundant API calls to fetch model information:
 
-1. **Page Load**: `GET /api/models?enhanced=true` to populate the models dropdown
+1. **Page Load**: `GET /api/models` to populate the models dropdown
 2. **Message Send**: `GET https://openrouter.ai/api/v1/models` to get context length for token estimation
 
 This caused unnecessary API calls, increased latency, and potential rate limiting issues.
@@ -64,7 +64,7 @@ Enhanced the existing model store to cache model configurations (context lengths
 
 ```
 1. User loads /chat page
-   → GET /api/models?enhanced=true (for dropdown)
+   → GET /api/models (for dropdown)
    → Store caches: selectedModel, isEnhanced
 
 2. User sends message
@@ -76,7 +76,8 @@ Enhanced the existing model store to cache model configurations (context lengths
 
 ```
 1. User loads /chat page
-   → GET /api/models?enhanced=true (for dropdown)
+   → GET /api/models (for dropdown)
+Note: The `?enhanced=true` parameter has been removed; the endpoint is enhanced-only.
    → Store caches: selectedModel, isEnhanced, modelConfigs
 
 2. User sends message

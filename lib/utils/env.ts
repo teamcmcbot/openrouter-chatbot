@@ -14,14 +14,10 @@ export function getEnvVar(name: string, defaultValue?: string): string {
   throw new Error(`Environment variable ${name} is not set and no default value was provided.`);
 }
 
-// Feature flag utility functions
+// Feature flag utility functions (generic)
 export function isFeatureEnabled(featureName: string, defaultValue: boolean = false): boolean {
   const envValue = process.env[featureName];
-  
-  if (envValue === undefined) {
-    return defaultValue;
-  }
-  
+  if (envValue === undefined) return defaultValue;
   return envValue.toLowerCase() === 'true' || envValue === '1';
 }
 
@@ -41,11 +37,6 @@ export function getEnvNumber(name: string, defaultValue?: number): number {
   }
   
   return parsed;
-}
-
-// Enhanced models API feature flags
-export function isEnhancedModelsEnabled(): boolean {
-  return isFeatureEnabled('NEXT_PUBLIC_ENABLE_ENHANCED_MODELS', false);
 }
 
 export function getModelsCacheTTL(): number {
@@ -71,7 +62,6 @@ export function validateEnvVars() {
   // Optional environment variables (will use defaults if not provided)
   const optionalEnvVars = [
     'OPENROUTER_MODELS_LIST', // Comma-separated list of available models
-    'NEXT_PUBLIC_ENABLE_ENHANCED_MODELS', // Feature flag for enhanced models API
     'OPENROUTER_MODELS_API_URL', // OpenRouter models API endpoint
     'MODELS_CACHE_TTL_MINUTES', // Cache TTL in minutes
     'NEXT_PUBLIC_SITE_URL', // Site URL for OpenRouter API headers
@@ -92,7 +82,5 @@ export function validateEnvVars() {
     }
   });
 
-  // Log feature flag status
-  console.info(`Enhanced models API: ${isEnhancedModelsEnabled() ? 'ENABLED' : 'DISABLED'}`);
   console.info(`Models cache TTL: ${getModelsCacheTTL()} minutes`);
 }

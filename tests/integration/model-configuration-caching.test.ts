@@ -37,13 +37,7 @@ global.fetch = jest.fn();
 
 // Mock environment
 jest.mock('../../lib/utils/env', () => ({
-  isEnhancedModelsEnabled: jest.fn(() => true),
-  getEnvVar: jest.fn((key: string, defaultValue: string) => {
-    if (key === 'OPENROUTER_MODELS_LIST') {
-      return 'gpt-4,claude-3,mistral-small';
-    }
-    return defaultValue;
-  }),
+  getEnvVar: jest.fn((key: string, defaultValue: string) => defaultValue),
 }));
 
 // Test data
@@ -107,7 +101,7 @@ describe('Model Configuration Caching Integration', () => {
     
     // Mock successful API responses
     (global.fetch as jest.Mock).mockImplementation((url: string) => {
-      if (url.includes('/api/models?enhanced=true')) {
+      if (url.includes('/api/models')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ models: mockEnhancedModels }),

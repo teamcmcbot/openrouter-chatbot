@@ -5,6 +5,7 @@ import { createClient } from '../../../lib/supabase/server';
 import ModelsPanel from '@/app/admin/ModelsPanel';
 import UsersPanel from '@/app/admin/UsersPanel';
 import AnalyticsPanel from '@/app/admin/AnalyticsPanel';
+import AttachmentsPanel from '@/app/admin/AttachmentsPanel';
 import ClientTabs from '@/app/admin/tabs';
 
 async function fetchProfile() {
@@ -45,6 +46,7 @@ export default async function AdminPage() {
           { id: 'models', label: 'Models', content: <ModelsPanel /> },
           { id: 'users', label: 'Users', content: <UsersPanel /> },
           { id: 'analytics', label: 'Analytics', content: <AnalyticsPanel /> },
+          { id: 'attachments', label: 'Attachments', content: <AttachmentsPanel /> },
         ]}
         defaultTab="models"
       />

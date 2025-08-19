@@ -11,7 +11,11 @@
     "test:watch": "NODE_OPTIONS='--no-deprecation' jest --watch",
     "test:coverage": "NODE_OPTIONS='--no-deprecation' jest --coverage",
     "sync:internal": "node scripts/test-internal-sync.js",
-    "sync:internal:hmac": "USE_HMAC=1 node scripts/test-internal-sync.js"
+    "sync:internal:hmac": "USE_HMAC=1 node scripts/test-internal-sync.js",
+    "cleanup:internal": "node scripts/test-internal-cleanup.js",
+    "cleanup:internal:hmac": "USE_HMAC=1 node scripts/test-internal-cleanup.js",
+    "retention:internal": "node scripts/test-internal-retention.js",
+    "retention:internal:hmac": "USE_HMAC=1 node scripts/test-internal-retention.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

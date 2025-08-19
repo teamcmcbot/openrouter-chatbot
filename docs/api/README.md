@@ -58,6 +58,9 @@ These endpoints require user authentication and implement full rate limiting:
 - [`/api/chat/session`](./chat-session.md) - Individual session updates
 - [`/api/chat/clear-all`](./chat-clear-all.md) - Bulk conversation deletion
 - [`/api/chat/sync`](./chat-sync.md) - Conversation synchronization
+- [`/api/uploads/images`](./uploads-images.md) - Image attachment upload (multipart)
+- [`/api/attachments/:id/signed-url`](./attachments-signed-url.md) - Mint short‑lived signed URL
+- [`/api/attachments/:id`](./attachments-delete.md) - Delete pending attachment
 - [`/api/user/data`](./user-data-endpoint.md) - User data and preferences
 - [`/api/usage/costs`](./usage-costs.md) - Token usage and cost records
 - [`/api/usage/costs/daily`](./usage-costs-daily.md) - Daily aggregated usage costs
@@ -77,7 +80,10 @@ These endpoints work for both anonymous and authenticated users with graceful de
 - [`/api/admin/model-access`](./admin-model-access.md) — protected via `withAdminAuth`
 - [`/api/admin/users`](./admin-users.md) — protected via `withAdminAuth`
 - [`/api/admin/sync-models`](./admin-sync-models.md) — protected via `withAdminAuth`
+- [`/api/admin/attachments/cleanup`](./admin-attachments-cleanup.md) — protected via `withAdminAuth`
+- [`/api/admin/attachments/stats`](./admin-attachments-stats.md) — protected via `withAdminAuth`
 - `/api/internal/sync-models` — internal-only (Bearer or HMAC)
+- `/api/internal/attachments/cleanup` — internal-only (Bearer or HMAC)
   - See: [internal-sync-models.md](./internal-sync-models.md)
 
 ### 🌐 Public Endpoints (No Authentication)
@@ -271,5 +277,5 @@ This standardization provides:
 
 ---
 
-_Last Updated: August 7, 2025_
+_Last Updated: August 19, 2025_
 _Status: All endpoints migrated to standardized authentication and rate limiting_

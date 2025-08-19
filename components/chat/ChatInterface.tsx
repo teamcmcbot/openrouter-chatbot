@@ -16,6 +16,9 @@ import { ModelDetailsSidebar } from "../ui/ModelDetailsSidebar";
 import { ChatSidebar } from "../ui/ChatSidebar";
 import { ModelInfo } from "../../lib/types/openrouter";
 import { Bars3Icon } from "@heroicons/react/24/outline";
+import { useAuth } from "../../stores/useAuthStore";
+import { useUserData } from "../../hooks/useUserData";
+import TierBadge from "../ui/TierBadge";
 
 export default function ChatInterface() {
   const { messages, isLoading, error, sendMessage, clearError, retryLastMessage } = useChat();
@@ -24,8 +27,7 @@ export default function ChatInterface() {
     availableModels, 
     selectedModel, 
     setSelectedModel, 
-    isLoading: modelsLoading, 
-    isEnhanced 
+    isLoading: modelsLoading
   } = useModelSelection();
 
   // UI state from Zustand store
@@ -147,6 +149,14 @@ export default function ChatInterface() {
     setSelectedPrompt(prompt);
   };
 
+  // Account tier indicator (Anonymous | Free | Pro | Enterprise)
+  const { isAuthenticated } = useAuth();
+  const { data: userData } = useUserData({ enabled: !!isAuthenticated });
+  const accountTier = isAuthenticated
+    ? (userData?.profile.subscription_tier || 'free')
+    : 'anonymous';
+  // Tier label now rendered by TierBadge
+
   return (
     <div className="flex h-full overflow-visible mobile-safe-area">
   {/* Left Sidebar - Chat History (15%) */}
@@ -181,21 +191,16 @@ export default function ChatInterface() {
                       selectedModel={selectedModel}
                       onModelSelect={handleModelSelect}
                       isLoading={modelsLoading}
-                      enhanced={isEnhanced}
                       onShowDetails={handleShowDetails}
                     />
                   </div>
                 )}
               </div>
 
-              {/* Right cluster: messages + Enhanced; wraps with right alignment */}
-              <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400 max-w-full">
-                <div className="whitespace-nowrap order-1">{messages.length} messages</div>
-                {isEnhanced && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 whitespace-nowrap order-2">
-                    Enhanced
-                  </span>
-                )}
+              {/* Right cluster: messages + account tier; wraps with right alignment */}
+              <div className="flex flex-col items-end gap-1 text-xs text-gray-500 dark:text-gray-400 max-w-full">
+                <div className="whitespace-nowrap">{messages.length} messages</div>
+                <TierBadge tier={accountTier} side="bottom" align="end" />
               </div>
             </div>
           </div>
@@ -210,21 +215,16 @@ export default function ChatInterface() {
                     selectedModel={selectedModel}
                     onModelSelect={handleModelSelect}
                     isLoading={modelsLoading}
-                    enhanced={isEnhanced}
                     onShowDetails={handleShowDetails}
                   />
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col items-end gap-1">
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 {messages.length} messages
               </div>
-              {isEnhanced && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                  Enhanced
-                </span>
-              )}
+              <TierBadge tier={accountTier} side="bottom" align="end" />
             </div>
           </div>
         </div>
@@ -260,8 +260,9 @@ export default function ChatInterface() {
         {/* Input Area */}
   <div className="border-t border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
           <MessageInput 
-            onSendMessage={(message) => {
-              sendMessage(message, selectedModel);
+            onSendMessage={(message, options) => {
+              // Pass through to store; store will include options downstream in API body
+              sendMessage(message, selectedModel, options);
               setSelectedPrompt(""); // Clear the selected prompt after sending
             }}
             disabled={isLoading}

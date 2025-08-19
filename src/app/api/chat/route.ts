@@ -1,17 +1,18 @@
 // src/app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getOpenRouterCompletion } from '../../../../lib/utils/openrouter';
+import { getOpenRouterCompletion, fetchOpenRouterModels } from '../../../../lib/utils/openrouter';
 import { validateChatRequestWithAuth, validateRequestLimits } from '../../../../lib/utils/validation';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../lib/utils/errors';
 import { createSuccessResponse } from '../../../../lib/utils/response';
 import { logger } from '../../../../lib/utils/logger';
 import { detectMarkdownContent } from '../../../../lib/utils/markdown';
 import { ChatResponse } from '../../../../lib/types';
-import { OpenRouterRequest } from '../../../../lib/types/openrouter';
+import { OpenRouterRequest, OpenRouterContentBlock } from '../../../../lib/types/openrouter';
 import { AuthContext } from '../../../../lib/types/auth';
 import { withEnhancedAuth } from '../../../../lib/middleware/auth';
 import { withRateLimit } from '../../../../lib/middleware/rateLimitMiddleware';
 import { estimateTokenCount, getModelTokenLimits } from '../../../../lib/utils/tokens';
+import { createClient } from '../../../../lib/supabase/server';
 
 async function chatHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   logger.info('Chat request received', {
@@ -21,7 +22,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   });
   
   try {
-    const body = await request.json();
+  const body = await request.json();
     
     // Create request data structure for validation
     const requestData = {
@@ -58,10 +59,88 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     });
 
     // Phase 2: Support both old and new message formats
-    const messages: OpenRouterRequest['messages'] = enhancedData.messages.map(msg => ({
+    const supabase = await createClient();
+
+  const attachmentIds: string[] = Array.isArray(body.attachmentIds) ? body.attachmentIds : [];
+
+  const messages: OpenRouterRequest['messages'] = enhancedData.messages.map(msg => ({
       role: msg.role as 'user' | 'assistant',
       content: msg.content
     }));
+
+    // If images provided, validate modality, ownership and allowlist; mint signed URLs and append to last user message
+    if (attachmentIds.length > 0) {
+      if (!authContext.isAuthenticated || !authContext.user) {
+        throw new ApiErrorResponse('Attachments require authentication', ErrorCode.AUTH_REQUIRED);
+      }
+      // Re-validate that selected model supports image input modality
+      try {
+        const requestedModelId: string = enhancedData.model;
+        const models = await fetchOpenRouterModels();
+        const model = models.find(m => m.id === requestedModelId);
+        if (model && Array.isArray(model.architecture?.input_modalities) && !model.architecture.input_modalities.includes('image')) {
+          throw new ApiErrorResponse('Selected model does not support image input', ErrorCode.BAD_REQUEST);
+        }
+      } catch (e) {
+        if (e instanceof ApiErrorResponse) throw e;
+        logger.warn('Model modality re-validation skipped (fetch failed or model not found)');
+      }
+      // Fetch attachments
+      const { data: atts, error } = await supabase
+        .from('chat_attachments')
+        .select('*')
+        .in('id', attachmentIds)
+        .eq('user_id', authContext.user.id)
+        .eq('status', 'ready');
+      if (error) throw error;
+      if (!atts || atts.length !== attachmentIds.length) {
+        throw new ApiErrorResponse('Some attachments not found', ErrorCode.NOT_FOUND);
+      }
+      // Enforce ≤ 3
+      if (atts.length > 3) {
+        throw new ApiErrorResponse('Attachment limit exceeded (max 3)', ErrorCode.BAD_REQUEST);
+      }
+      // Check MIME allowlist
+      const invalid = atts.find(a => !['image/png','image/jpeg','image/webp'].includes(a.mime));
+      if (invalid) {
+        throw new ApiErrorResponse('Unsupported attachment type', ErrorCode.BAD_REQUEST);
+      }
+  // Mint signed URLs
+      const signedUrls: string[] = [];
+      for (const a of atts) {
+        const { data: signed, error: signErr } = await supabase.storage
+          .from(a.storage_bucket)
+          .createSignedUrl(a.storage_path, 300);
+        if (signErr || !signed?.signedUrl) {
+          throw new ApiErrorResponse('Failed to create signed URL', ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+        signedUrls.push(signed.signedUrl);
+      }
+
+      // Attach image parts to the most recent user message in multimodal format
+      const lastUserIndex = [...enhancedData.messages].reverse().findIndex(m => m.role === 'user');
+      if (lastUserIndex !== -1) {
+        const idx = enhancedData.messages.length - 1 - lastUserIndex;
+        const userMsg = enhancedData.messages[idx];
+        const contentBlocks: OpenRouterContentBlock[] = [];
+        if (typeof userMsg.content === 'string' && userMsg.content.trim().length > 0) {
+          contentBlocks.push({ type: 'text', text: userMsg.content });
+        } else if (typeof userMsg.content !== 'string' && Array.isArray(userMsg.content)) {
+          // If upstream already provided blocks, start with them
+          contentBlocks.push(...(userMsg.content as OpenRouterContentBlock[]));
+        }
+        for (const url of signedUrls) {
+          contentBlocks.push({ type: 'image_url', image_url: { url } });
+        }
+        messages[idx] = { role: 'user', content: contentBlocks };
+      }
+      logger.info('Chat send with attachments', {
+        userId: authContext.user.id,
+        model: enhancedData.model,
+        attachments_count: attachmentIds.length,
+        draft_id: body.draftId,
+      });
+    }
     
     // Phase 2: Log request format for human verification
     console.log(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
@@ -78,7 +157,14 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     console.log(`[Chat API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`);
     
     // Additional validation for token limits based on user tier
-    const totalInputTokens = messages.reduce((total, msg) => total + estimateTokenCount(msg.content), 0);
+    const totalInputTokens = messages.reduce((total, msg) => {
+      const text = Array.isArray(msg.content)
+        ? (msg.content as OpenRouterContentBlock[])
+            .map((b) => (b.type === 'text' ? b.text : ''))
+            .join(' ')
+        : String(msg.content || '');
+      return total + estimateTokenCount(text);
+    }, 0);
     const tokenValidation = validateRequestLimits(totalInputTokens, authContext.features);
     
     if (!tokenValidation.allowed) {

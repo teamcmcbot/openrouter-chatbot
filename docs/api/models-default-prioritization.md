@@ -8,22 +8,21 @@ The Models API (`/api/models`) includes intelligent default model prioritization
 
 ### When It Activates
 
-The default model prioritization feature activates when **all** of the following conditions are met:
+The default model prioritization feature activates when the following conditions are met:
 
 1. **User is authenticated** - Valid session with `authContext.isAuthenticated = true`
-2. **Enhanced mode is enabled** - Either via `?enhanced=true` query parameter or environment configuration
-3. **User has default model set** - `authContext.profile.default_model` is not null/empty
-4. **Default model is accessible** - The model exists in the user's tier-based allowed models list
+2. **User has default model set** - `authContext.profile.default_model` is not null/empty
+3. **Default model is accessible** - The model exists in the user's tier-based allowed models list
 
 ### Behavior
 
-| Scenario | Action | Logging |
-|----------|--------|---------|
-| Default model found (position > 0) | Move to first position | `default_model_prioritized` |
-| Default model already first | No change | `already_prioritized` |
-| Default model not in allowed list | No change | `model_not_accessible` (WARN) |
-| Invalid default model value | Skip feature | `invalid_configuration` (DEBUG) |
-| Authentication/processing error | Skip feature | `prioritization_failed` (ERROR) |
+| Scenario                           | Action                 | Logging                         |
+| ---------------------------------- | ---------------------- | ------------------------------- |
+| Default model found (position > 0) | Move to first position | `default_model_prioritized`     |
+| Default model already first        | No change              | `already_prioritized`           |
+| Default model not in allowed list  | No change              | `model_not_accessible` (WARN)   |
+| Invalid default model value        | Skip feature           | `invalid_configuration` (DEBUG) |
+| Authentication/processing error    | Skip feature           | `prioritization_failed` (ERROR) |
 
 ### Performance Impact
 
@@ -38,18 +37,18 @@ The prioritized models response maintains the same format as the standard enhanc
 
 ```typescript
 interface ModelsResponse {
-  models: ModelInfo[]
+  models: ModelInfo[];
 }
 
 interface ModelInfo {
-  id: string
-  name: string
-  context_length: number
-  description?: string
+  id: string;
+  name: string;
+  context_length: number;
+  description?: string;
   pricing: {
-    prompt: string
-    completion: string
-  }
+    prompt: string;
+    completion: string;
+  };
   // ... other fields
 }
 ```
@@ -58,7 +57,7 @@ interface ModelInfo {
 
 ### Code Location
 
-The prioritization logic is implemented in `/src/app/api/models/route.ts` within the enhanced mode path, after the `filterAllowedModels()` call and before the `transformOpenRouterModel()` transformation.
+The prioritization logic is implemented in `/src/app/api/models/route.ts` after the `filterAllowedModels()` call and before the `transformOpenRouterModel()` transformation.
 
 ### Key Components
 
@@ -121,7 +120,6 @@ Response headers include performance metrics:
 
 - `X-Response-Time` - Total API response time
 - `X-Models-Count` - Number of models returned
-- `X-Enhanced-Mode` - Whether enhanced mode was used
 - `X-Cache-Status` - OpenRouter API cache status
 
 ## User Experience Impact
@@ -163,12 +161,7 @@ Response headers include performance metrics:
 
 ### Environment Variables
 
-The feature respects the enhanced models environment configuration:
-
-```bash
-# Enable enhanced models mode by default
-ENHANCED_MODELS_ENABLED=true
-```
+No special flags are required; the endpoint is enhanced-only by default.
 
 ### Database Requirements
 
@@ -189,18 +182,15 @@ profiles (
 
 ### Backward Compatibility
 
-- Feature is completely backward compatible
-- Legacy API mode (`enhanced=false`) ignores prioritization
-- Unauthenticated users receive same response as before
-- No breaking changes to existing API contracts
+- The endpoint always returns enhanced model metadata. Legacy string[] responses were removed.
+- Unauthenticated users receive the same enhanced format filtered by public access.
 
 ### Rollback Plan
 
 To disable the feature:
 
-1. Set `ENHANCED_MODELS_ENABLED=false` (disables enhanced mode entirely)
-2. Or comment out the prioritization block in `/src/app/api/models/route.ts`
-3. Feature gracefully degrades - no API changes needed
+1. Comment out the prioritization block in `/src/app/api/models/route.ts` if needed.
+2. The API will continue to return enhanced model data.
 
 ## Security Considerations
 

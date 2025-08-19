@@ -22,6 +22,10 @@ This guide explains how to access and use the Admin Dashboard features safely.
 - Sync Controls
   - View current sync status
   - Manually trigger a sync (admin only)
+- Attachments Cleanup
+  - Remove orphaned image uploads (older than cutoff) from Storage and soft-delete rows
+  - Run via the Attachments tab; see [Attachments Cleanup](./attachments-cleanup.md) for setup and details
+  - Can also be scheduled via internal endpoint; see [Internal Attachments Cleanup](../api/internal-attachments-cleanup.md)
 
 ## Expected Outcomes
 

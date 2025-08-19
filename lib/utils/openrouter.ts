@@ -46,13 +46,14 @@ import {
   OpenRouterResponse,
   OpenRouterModelsResponse,
   OpenRouterModel,
-  ModelInfo
+  ModelInfo,
+  OpenRouterContentBlock,
 } from '../types/openrouter';
 
 // Redefine OpenRouterRequest here to allow 'system' role for internal use
 type OpenRouterMessage = {
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string | OpenRouterContentBlock[];
 };
 type OpenRouterRequestWithSystem = {
   model: string;

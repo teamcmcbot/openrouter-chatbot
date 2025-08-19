@@ -16,6 +16,9 @@ import {
   CustomPreBlock 
 } from "./markdown/MarkdownComponents";
 import PromptTabs from "./PromptTabs";
+import { fetchSignedUrl } from "../../lib/utils/signedUrlCache";
+import { sanitizeAttachmentName, fallbackImageLabel } from "../../lib/utils/sanitizeAttachmentName";
+import InlineAttachment from "./InlineAttachment";
 
 // Memoized markdown component for better performance
 const MemoizedMarkdown = memo(({ children }: { children: string }) => (
@@ -50,6 +53,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
+  const [lightbox, setLightbox] = useState<{ open: boolean; url?: string; alt?: string }>(() => ({ open: false }));
   
   // Get user from auth store
   const user = useAuthStore((state) => state.user);
@@ -104,6 +108,29 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
 
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
+
+  const handleOpenImage = async (attachmentId: string, alt?: string) => {
+    try {
+      const url = await fetchSignedUrl(attachmentId);
+      setLightbox({ open: true, url, alt });
+    } catch (e) {
+      console.warn('Failed to open image', e);
+    }
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox({ open: false });
+    };
+    if (lightbox.open) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', onKey);
+    }
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [lightbox.open]);
 
 
   return (
@@ -188,6 +215,25 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                   </div>
                 ) : (
                   <p className="whitespace-pre-wrap">{message.content}</p>
+                )}
+
+                {/* Linked image attachments (history and recent) */}
+                {message.has_attachments && Array.isArray(message.attachment_ids) && message.attachment_ids.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {message.attachment_ids.map((attId, idx) => {
+                      const alt = sanitizeAttachmentName(undefined) || fallbackImageLabel(idx);
+                      return (
+                        <InlineAttachment
+                          key={attId}
+                          id={attId}
+                          alt={alt || undefined}
+                          onClick={() => handleOpenImage(attId, alt || undefined)}
+                          width={96}
+                          height={96}
+                        />
+                      );
+                    })}
+                  </div>
                 )}
                 
                 {/* Error icon for failed user messages */}
@@ -298,6 +344,31 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Lightbox modal */}
+      {lightbox.open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setLightbox({ open: false })}
+        >
+          <div className="max-w-5xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
+            {lightbox.url && (
+              <Image src={lightbox.url} alt={lightbox.alt || 'Attachment'} width={1600} height={1200} className="w-full h-auto max-h-[90vh] object-contain rounded" />
+            )}
+            <div className="mt-2 text-right">
+              <button
+                type="button"
+                onClick={() => setLightbox({ open: false })}
+                className="px-3 py-1 rounded bg-white/90 text-gray-800 hover:bg-white"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

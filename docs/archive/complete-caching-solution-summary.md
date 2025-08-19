@@ -4,7 +4,7 @@
 
 **Original Issue**: Redundant API calls to fetch model configurations
 
-1. **Client-side**: `GET /api/models?enhanced=true` for dropdown + `GET https://openrouter.ai/api/v1/models` for token limits
+1. **Client-side**: `GET /api/models` for dropdown + `GET https://openrouter.ai/api/v1/models` for token limits
 2. **Server-side**: `GET https://openrouter.ai/api/v1/models` on every `/api/chat` request
 
 ## ✅ Comprehensive Solution Implemented
@@ -42,7 +42,7 @@
 ### Before (Inefficient)
 
 ```
-Client Load: GET /api/models?enhanced=true → Cache selection only
+Client Load: GET /api/models → Cache selection only
 Client Send: GET https://openrouter.ai/api/v1/models → Parse 318 models
 Server Chat: GET https://openrouter.ai/api/v1/models → Parse 318 models again
 ```
@@ -50,7 +50,8 @@ Server Chat: GET https://openrouter.ai/api/v1/models → Parse 318 models again
 ### After (Optimized)
 
 ```
-Client Load: GET /api/models?enhanced=true → Cache models + token configs
+Client Load: GET /api/models → Cache models + token configs
+Note: This document refers to an older dual-mode API. The application now uses an enhanced-only `/api/models` endpoint; references to `?enhanced=true` are deprecated.
 Client Send: Use cached token config (0ms)
 Server Chat: Use in-memory cached config (<1ms)
 ```

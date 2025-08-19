@@ -872,7 +872,7 @@ SELECT * FROM public.update_model_tier_access('test-model', true, false, false, 
 curl -H "Authorization: Bearer <token>" http://localhost:3000/api/models
 
 # Test enhanced mode
-curl -H "Authorization: Bearer <token>" http://localhost:3000/api/models?enhanced=true
+curl -H "Authorization: Bearer <token>" http://localhost:3000/api/models
 
 # Test sync job
 curl -H "Authorization: Bearer <cron-secret>" -X POST http://localhost:3000/api/cron/sync-models

@@ -18,6 +18,8 @@ interface TooltipProps {
   showCloseOnMobile?: boolean; // default true
   // Appearance: use a brand-tinted panel in light mode
   tinted?: boolean; // default true
+  // Exclusivity: close other tooltips when this opens
+  exclusive?: boolean; // default true
 }
 
 // Lightweight, accessible tooltip. Opens on hover/focus, can be pinned with Enter/Space, closes with Escape.
@@ -32,6 +34,7 @@ export default function Tooltip({
   closeOnOutsideClick = true,
   showCloseOnMobile = true,
   tinted = true,
+  exclusive = true,
 }: TooltipProps) {
   const id = useId();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -42,12 +45,16 @@ export default function Tooltip({
   const OPEN_EVENT = "app:tooltip-open";
 
   const openAndAnnounce = () => {
+    // Open locally first
     setOpen(true);
-    try {
-      window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: id }));
-    } catch {
-      // no-op in non-browser
-    }
+    // Defer cross-instance event to next microtask to avoid setState during sibling render
+    Promise.resolve().then(() => {
+      try {
+        window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: id }));
+      } catch {
+        /* no-op */
+      }
+    });
   };
 
   // Detect touch devices (coarse pointers)
@@ -69,11 +76,15 @@ export default function Tooltip({
       }
     };
     const onOtherOpen = (e: Event) => {
+      if (!exclusive) return; // allow multiple if opted out
       const ce = e as CustomEvent<string>;
       // Dismiss if another tooltip (different id) opened
       if (ce.detail !== id) {
-        setPinned(false);
-        setOpen(false);
+        // Defer state updates to avoid setState during another component's render
+        queueMicrotask(() => {
+          setPinned(false);
+          setOpen(false);
+        });
       }
     };
     if (open) {
@@ -84,7 +95,7 @@ export default function Tooltip({
       window.removeEventListener("keydown", onKey);
       window.removeEventListener(OPEN_EVENT, onOtherOpen as EventListener);
     };
-  }, [open, id]);
+  }, [open, id, exclusive]);
 
   // Close on outside click/tap when open
   useEffect(() => {

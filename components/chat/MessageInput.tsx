@@ -2,18 +2,56 @@
 
 import { useState, useEffect, useRef } from "react";
 import type React from "react";
-import { PaperAirplaneIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { useAuth } from "../../stores/useAuthStore";
+import { useModelSelection } from "../../stores";
+import AttachmentTile, { type AttachmentData } from "./AttachmentTile";
+import toast from "react-hot-toast";
+import { useUserData } from "../../hooks/useUserData";
+import type { ModelInfo } from "../../lib/types/openrouter";
 
 interface MessageInputProps {
-  onSendMessage: (message: string) => void
+  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string }) => void
   disabled?: boolean;
   initialMessage?: string;
 }
 
 export default function MessageInput({ onSendMessage, disabled = false, initialMessage }: Readonly<MessageInputProps>) {
   const [message, setMessage] = useState("");
+  const [showCount, setShowCount] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [webSearchOn, setWebSearchOn] = useState(false); // UI-only toggle
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [gatingOpen, setGatingOpen] = useState<
+    | false
+    | 'images'
+    | 'search'
+    | 'images-unsupported'
+    | 'images-cap'
+    | 'images-signin'
+  >(false);
   const composingRef = useRef(false);
+  const hideCountTimerRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const gatingRef = useRef<HTMLDivElement | null>(null);
+  const searchModalRef = useRef<HTMLDivElement | null>(null);
+  const { isAuthenticated } = useAuth();
+  const { availableModels, selectedModel } = useModelSelection();
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const { data: userData } = useUserData({ enabled: !!isAuthenticated });
+  const userTier = (userData?.profile.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise';
+  type LocalAttachment = {
+    tempId: string; // local id for UI
+    id?: string; // set when ready
+    mime: string;
+    size: number;
+    originalName?: string;
+    previewUrl: string; // Object URL
+    file?: File; // kept for retry
+    status: 'uploading' | 'failed' | 'ready';
+  };
+  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const ATTACHMENT_CAP = 3;
 
   // Update message when initialMessage prop changes
   useEffect(() => {
@@ -44,10 +82,49 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     return () => window.removeEventListener("resize", update);
   }, []);
 
+  const genDraftId = () => {
+    try {
+      if (typeof crypto !== 'undefined' && typeof (crypto as Crypto & { randomUUID?: () => string }).randomUUID === 'function') {
+        return (crypto as Crypto & { randomUUID?: () => string }).randomUUID!();
+      }
+    } catch {}
+    return `draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  };
+
+  // Create a fresh draftId when composer becomes active
+  useEffect(() => {
+    if (!draftId) {
+      setDraftId(genDraftId());
+    }
+  }, [draftId]);
+
+  const modelSupportsImages = (() => {
+    if (!selectedModel) return false;
+    // Enhanced-only models: read from metadata
+    const info = Array.isArray(availableModels)
+      ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
+      : undefined;
+    const mods = info?.input_modalities as string[] | undefined;
+    return Array.isArray(mods) ? mods.includes('image') : false;
+  })();
+
   const handleSend = () => {
     if (message.trim() && !disabled) {
-      onSendMessage(message.trim());
+      if (attachments.length > 0) {
+        const ready = attachments.filter(a => a.status === 'ready' && a.id);
+        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined });
+      } else {
+        onSendMessage(message.trim());
+      }
       setMessage("");
+      // Reset draft and clear pending attachments
+      setAttachments((prev) => {
+        // Revoke object URLs
+        prev.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+        return [];
+      });
+      // Generate a new draftId for the next compose
+  setDraftId(genDraftId());
       // Reset textarea height responsively and focus/select
       setTimeout(() => {
         const textarea = document.getElementById('message-input') as HTMLTextAreaElement;
@@ -77,21 +154,240 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     }
   };
 
+  const tierBlocksImages = isAuthenticated && userTier === 'free';
+  const tierBlocksSearch = isAuthenticated && userTier === 'free';
+
+  // Close gating on outside click and Escape
+  useEffect(() => {
+    if (!gatingOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setGatingOpen(false);
+    };
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      const el = gatingRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) setGatingOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer, { capture: true } as EventListenerOptions);
+    };
+  }, [gatingOpen]);
+
+  // Close search settings modal on outside click and Escape
+  useEffect(() => {
+    if (!searchModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSearchModalOpen(false);
+    };
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      const el = searchModalRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) setSearchModalOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer, { capture: true } as EventListenerOptions);
+    };
+  }, [searchModalOpen]);
+
+  const handlePickFiles = () => {
+    // Disabled via prop: do nothing
+    if (disabled) return;
+    // Not signed in → small anchored notice
+    if (!isAuthenticated) {
+      setGatingOpen('images-signin');
+      return;
+    }
+    // Model does not support images → anchored notice
+    if (!modelSupportsImages) {
+      setGatingOpen('images-unsupported');
+      return;
+    }
+    // Over capacity → anchored notice
+    if (attachments.length >= ATTACHMENT_CAP) {
+      setGatingOpen('images-cap');
+      return;
+    }
+    // Tier gating for images
+    if (tierBlocksImages) {
+      setGatingOpen('images');
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const validateClientFile = (file: File): string | null => {
+    const allowed = new Set(['image/png','image/jpeg','image/webp']);
+    if (!allowed.has(file.type)) return 'Unsupported file type';
+    // Note: size limits are enforced server-side; optionally mirror here for UX
+    const maxBytes = 10 * 1024 * 1024; // optimistic max; server enforces tier
+    if (file.size > maxBytes) return 'File too large';
+    return null;
+  };
+
+  const genTempId = () => `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  const createPendingTile = (file: File): string => {
+    const tempId = genTempId();
+    const previewUrl = URL.createObjectURL(file);
+    setAttachments(prev => {
+      const next: LocalAttachment[] = [...prev, {
+        tempId,
+        mime: file.type,
+        size: file.size,
+        originalName: file.name,
+        previewUrl,
+        file,
+        status: 'uploading',
+      }];
+      return next.slice(0, ATTACHMENT_CAP);
+    });
+    return tempId;
+  };
+
+  const performUpload = async (tempId: string, file: File) => {
+    if (!draftId) return;
+    const validation = validateClientFile(file);
+    if (validation) {
+      toast.error(validation === 'Unsupported file type' ? 'Only PNG, JPG, or WebP images are allowed.' : 'Image is too large.');
+      // mark failed
+      setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'failed' } : a));
+      return;
+    }
+    const form = new FormData();
+    form.set('image', file);
+    form.set('draftId', draftId);
+    try {
+      setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'uploading' } : a));
+      const res = await fetch('/api/uploads/images', { method: 'POST', body: form });
+      if (!res.ok) {
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('Retry-After');
+          const msg = retryAfter ? `Rate limit hit. Try again in ${retryAfter}s.` : 'Rate limit hit. Try again in a moment.';
+          toast.error(msg);
+        } else {
+          // Try to read server message
+          try {
+            const data = await res.json();
+            const msg = data?.error || 'Upload failed.';
+            toast.error(String(msg));
+          } catch {
+            toast.error('Upload failed.');
+          }
+        }
+        setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'failed' } : a));
+        return;
+      }
+  const data = await res.json();
+      setAttachments(prev => prev.map(a => a.tempId === tempId ? ({
+        ...a,
+        id: data.id as string,
+        mime: data.mime,
+        size: data.size,
+        originalName: data.originalName ?? a.originalName,
+        status: 'ready',
+      }) : a));
+  } catch {
+      toast.error('Network error during upload.');
+      setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'failed' } : a));
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const remaining = ATTACHMENT_CAP - attachments.length;
+    const toUpload = files.slice(0, Math.max(0, remaining));
+    for (const f of toUpload) {
+      const validation = validateClientFile(f);
+      if (validation) {
+        toast.error(validation === 'Unsupported file type' ? 'Only PNG, JPG, or WebP images are allowed.' : 'Image is too large.');
+        continue;
+      }
+      const tempId = createPendingTile(f);
+      await performUpload(tempId, f);
+    }
+    // Clear value to allow re-selecting the same file
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!isAuthenticated || !modelSupportsImages || disabled) return; // rely on tooltip/disabled
+    if (tierBlocksImages) {
+      // Gate paste as well
+      setGatingOpen('images');
+      e.preventDefault();
+      return;
+    }
+    const items = Array.from(e.clipboardData.items || []);
+    const images = items
+      .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+      .map((it) => it.getAsFile())
+      .filter((f): f is File => !!f);
+    if (images.length === 0) return;
+    e.preventDefault();
+    const remaining = ATTACHMENT_CAP - attachments.length;
+    const toUpload = images.slice(0, Math.max(0, remaining));
+    for (const f of toUpload) {
+      const validation = validateClientFile(f);
+      if (validation) {
+        toast.error(validation === 'Unsupported file type' ? 'Only PNG, JPG, or WebP images are allowed.' : 'Image is too large.');
+        continue;
+      }
+      const tempId = createPendingTile(f);
+      await performUpload(tempId, f);
+    }
+  };
+
+  const removeAttachment = async (tempIdOrId: string) => {
+    // Find by tempId first; if not found, try by id
+  const target = attachments.find(a => a.tempId === tempIdOrId) || attachments.find(a => a.id === tempIdOrId);
+    const id = target?.id;
+    if (id && target?.status === 'ready') {
+      try { await fetch(`/api/attachments/${id}`, { method: 'DELETE' }); } catch {}
+    }
+    setAttachments((prev) => {
+      const att = target;
+      if (att) URL.revokeObjectURL(att.previewUrl);
+      return prev.filter((a) => a !== target);
+    });
+  };
+
+  const retryAttachment = async (tempId: string) => {
+    const tile = attachments.find(a => a.tempId === tempId);
+    if (!tile || !tile.file) return;
+    await performUpload(tempId, tile.file);
+  };
+
   return (
     <div className="px-4 sm:px-6 py-4">
-      <div className="flex items-start space-x-4">
-        <div className="flex-1">
+      {/* Composer Dock (pill) */}
+      <div className="rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-2 sm:px-3 sm:py-3 flex flex-col gap-2">
+        {/* Row 1: Textarea */}
+        <div className="relative flex-1 min-w-0">
           <textarea
             id="message-input"
             name="message"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              // Show counter while typing and schedule hide
+              setShowCount(true);
+              if (hideCountTimerRef.current) window.clearTimeout(hideCountTimerRef.current);
+              hideCountTimerRef.current = window.setTimeout(() => setShowCount(false), 1200);
+            }}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             onCompositionStart={() => (composingRef.current = true)}
             onCompositionEnd={() => (composingRef.current = false)}
             placeholder="Type your message..."
             disabled={disabled}
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
+            className="w-full px-3 py-2 bg-transparent border-0 outline-none resize-none focus:ring-0 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 disabled:cursor-not-allowed"
             rows={1}
             style={{
               minHeight: "48px",
@@ -105,30 +401,228 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
             }}
           />
         </div>
-        <button
-          onClick={handleSend}
-          disabled={!message.trim() || disabled}
-          className="flex-shrink-0 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200 h-12"
-          aria-label="Send message"
-        >
-          {disabled ? (
-            <ArrowPathIcon className="w-5 h-5 animate-spin" />
-          ) : (
-            <PaperAirplaneIcon className="w-5 h-5" />
+
+        {/* Row 2: Attachment previews (inside pill) */}
+        {attachments.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto sm:overflow-x-visible snap-x snap-mandatory -mx-1 px-1">
+            {attachments.map((att, idx) => (
+              <AttachmentTile
+                key={att.tempId || att.id || idx}
+                data={att as unknown as AttachmentData}
+                index={idx}
+                onRemove={(id) => removeAttachment(id)}
+                onRetry={(tid) => retryAttachment(tid)}
+                className="w-16 h-16 sm:w-20 sm:h-20"
+              />
+            ))}
+          </div>
+        )}
+
+  {/* Row 3: Controls (left features, right send) */}
+  <div className="relative flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label={webSearchOn ? 'Web Search: ON' : 'Web Search'}
+              onClick={() => {
+                if (disabled) return;
+                // Free or anonymous → upgrade modal
+                if (!isAuthenticated || tierBlocksSearch) {
+                  setGatingOpen('search');
+                  return;
+                }
+                // Eligible tiers → open settings modal
+                setSearchModalOpen(true);
+              }}
+              className={`inline-flex items-center justify-center w-10 h-10 rounded-lg border text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed 
+                ${webSearchOn
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300'
+                  : 'bg-transparent border-gray-300 dark:border-gray-600'}`}
+              disabled={disabled}
+            >
+              <GlobeAltIcon className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={handlePickFiles}
+              disabled={disabled}
+              className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed"
+              aria-label="Attach image"
+            >
+              <PaperClipIcon className="w-5 h-5" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              hidden
+              onChange={handleFileChange}
+            />
+          </div>
+
+          <button
+            onClick={handleSend}
+            disabled={!message.trim() || disabled}
+            className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
+            aria-label="Send message"
+          >
+            {disabled ? (
+              <ArrowPathIcon className="w-5 h-5 animate-spin" />
+            ) : (
+              <PaperAirplaneIcon className="w-5 h-5" />
+            )}
+          </button>
+
+          {/* Floating character counter centered in controls row (no layout shift) */}
+          <div
+            aria-live="polite"
+            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-0 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border 
+              ${showCount ? 'opacity-100' : 'opacity-0'} 
+              bg-gray-100/80 text-gray-700 border-gray-300 
+              dark:bg-gray-800/70 dark:text-gray-200 dark:border-gray-600`}
+          >
+            {`${message.length} characters`}
+          </div>
+
+          {/* Gating popovers anchored above the left buttons. */}
+          {gatingOpen && (
+            <>
+              {/* Web Search upgrade popover */}
+              {gatingOpen === 'search' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="mb-1.5 pr-6 font-semibold text-emerald-900 dark:text-emerald-200">Upgrade to use Web Search</div>
+                  <div className="mb-3 text-gray-800 dark:text-gray-200">Your current plan doesn’t include web search.</div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Images gating upgrade popover */}
+              {gatingOpen === 'images' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="mb-1.5 pr-6 font-semibold text-emerald-900 dark:text-emerald-200">Upgrade to attach images</div>
+                  <div className="mb-3 text-gray-800 dark:text-gray-200">Your current plan doesn’t include image uploads.</div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Images: model unsupported notice */}
+              {gatingOpen === 'images-unsupported' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="pr-6 text-gray-800 dark:text-gray-200">Selected model doesn’t support image input</div>
+                </div>
+              )}
+
+              {/* Images: capacity reached notice */}
+              {gatingOpen === 'images-cap' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="pr-6 text-gray-800 dark:text-gray-200">Maximum 3 images per message</div>
+                </div>
+              )}
+
+              {/* Images: sign-in required notice */}
+              {gatingOpen === 'images-signin' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="pr-6 text-gray-800 dark:text-gray-200">Please sign in to use this feature</div>
+                </div>
+              )}
+            </>
           )}
-        </button>
-      </div>
-      
-      {/* Character count and hint */}
-      <div className="flex justify-between items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
-        <span>
-          {message.length > 0 && `${message.length} characters`}
-        </span>
-        <span className="hidden sm:inline">
-          {isMobile
-            ? "Tap Send to send • Return for new line"
-            : "Press Enter to send • Shift+Enter for new line"}
-        </span>
+
+          {/* Web Search settings popover (pro/enterprise) anchored above buttons */}
+          {searchModalOpen && (
+            <div
+              ref={searchModalRef}
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 shadow-2xl"
+            >
+              <button
+                aria-label="Close"
+                onClick={() => setSearchModalOpen(false)}
+                className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+              <div className="mb-2 pr-6 text-sm font-semibold text-slate-900 dark:text-gray-100">Enable web search</div>
+              <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">Allow the assistant to perform web lookups for fresher results.</div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-800 dark:text-gray-200">Web Search</span>
+                <button
+                  type="button"
+                  data-testid="websearch-toggle"
+                  aria-pressed={webSearchOn}
+                  onClick={() => setWebSearchOn(v => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${webSearchOn ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${webSearchOn ? 'translate-x-5' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
