@@ -284,7 +284,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Send Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -342,6 +342,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     current_message_id: userMessage.id,
                     attachmentIds: options?.attachmentIds,
                     draftId: options?.draftId,
+                    webSearch: options?.webSearch,
                   };
                 } else {
                   // Build request with conversation context
@@ -351,6 +352,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     current_message_id: userMessage.id,
                     attachmentIds: options?.attachmentIds,
                     draftId: options?.draftId,
+                    webSearch: options?.webSearch,
                   };
                 }
                 
@@ -361,7 +363,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId };
+                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch };
                 if (model) {
                   requestBody.model = model;
                 }
@@ -417,6 +419,9 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 model: data.model || model,
                 contentType: data.contentType || "text",
                 completion_id: data.id,
+                has_websearch: !!data.has_websearch,
+                websearch_result_count: typeof data.websearch_result_count === 'number' ? data.websearch_result_count : undefined,
+                annotations: Array.isArray(data.annotations) ? data.annotations : undefined,
               };
 
               // Add assistant response and update conversation metadata
@@ -1061,6 +1066,9 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 model: data.model || model,
                 contentType: data.contentType || "text",
                 completion_id: data.id,
+                has_websearch: !!data.has_websearch,
+                websearch_result_count: typeof data.websearch_result_count === 'number' ? data.websearch_result_count : undefined,
+                annotations: Array.isArray(data.annotations) ? data.annotations : undefined,
               };
 
               // Update the conversation: clear error on retried message and add assistant response

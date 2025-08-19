@@ -21,7 +21,7 @@ describe('MessageInput', () => {
     fireEvent.change(textarea, { target: { value: 'Hello, world!' } });
     fireEvent.click(sendButton);
     
-    expect(mockSendMessage).toHaveBeenCalledWith('Hello, world!');
+    expect(mockSendMessage).toHaveBeenCalledWith('Hello, world!', {"webSearch": false});
   });
 
   it('disables input when disabled prop is true', () => {

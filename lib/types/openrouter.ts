@@ -15,6 +15,16 @@ export interface OpenRouterRequest {
   stream?: boolean;
 }
 
+// Annotations returned by OpenRouter (e.g., web search URL citations)
+export interface OpenRouterUrlCitation {
+  type: 'url_citation';
+  url: string;
+  title?: string;
+  content?: string;
+  start_index?: number;
+  end_index?: number;
+}
+
 export interface OpenRouterResponse {
   id: string;
   object: string;
@@ -25,6 +35,7 @@ export interface OpenRouterResponse {
     message: {
       role: "assistant";
       content: string;
+      annotations?: OpenRouterUrlCitation[];
     };
     finish_reason: string;
   }[];

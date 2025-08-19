@@ -157,7 +157,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
     if (requestData.messages && Array.isArray(requestData.messages)) {
       // Process multiple messages atomically
       for (const message of requestData.messages) {
-        const { data: newMessage, error: messageError } = await supabase
+    const { data: newMessage, error: messageError } = await supabase
           .from('chat_messages')
           .upsert({
             id: message.id,
@@ -172,6 +172,8 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
             elapsed_ms: message.elapsed_ms || 0,
             completion_id: message.completion_id || null,
             user_message_id: message.user_message_id || null,
+      has_websearch: message.has_websearch ?? false,
+      websearch_result_count: message.websearch_result_count ?? 0,
             message_timestamp: typeof message.timestamp === 'string' 
               ? message.timestamp 
               : message.timestamp.toISOString(),
@@ -190,7 +192,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
     } else if (requestData.message) {
       // Process single message (existing logic)
       const message = requestData.message;
-      const { data: newMessage, error: messageError } = await supabase
+    const { data: newMessage, error: messageError } = await supabase
         .from('chat_messages')
         .upsert({
           id: message.id,
@@ -205,6 +207,8 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
           elapsed_ms: message.elapsed_ms || 0,
           completion_id: message.completion_id || null,
           user_message_id: message.user_message_id || null,
+      has_websearch: message.has_websearch ?? false,
+      websearch_result_count: message.websearch_result_count ?? 0,
           message_timestamp: typeof message.timestamp === 'string' 
             ? message.timestamp 
             : message.timestamp.toISOString(),
@@ -315,6 +319,45 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
     if (updateError) {
       console.error('Error updating session stats:', updateError);
       // Don't fail the request for stats update errors
+    }
+
+    // Persist URL citations for assistant messages if provided
+    try {
+      const assistantMessages = (requestData.messages || (requestData.message ? [requestData.message] : []))
+        .filter((m) => m && m.role === 'assistant' && Array.isArray(m.annotations) && m.annotations.length > 0);
+      if (assistantMessages.length > 0) {
+        // Fetch user_id once
+        const { data: sessionRow, error: sessionErr } = await supabase
+          .from('chat_sessions')
+          .select('user_id')
+          .eq('id', requestData.sessionId)
+          .single();
+        if (!sessionErr && sessionRow?.user_id) {
+          const rows = assistantMessages.flatMap((m) =>
+            (m.annotations || []).map((a) => ({
+              user_id: sessionRow.user_id,
+              session_id: requestData.sessionId,
+              message_id: m.id,
+              annotation_type: 'url_citation',
+              url: a.url,
+              title: a.title || null,
+              content: a.content || null,
+              start_index: a.start_index ?? null,
+              end_index: a.end_index ?? null,
+            }))
+          );
+          if (rows.length > 0) {
+            const { error: annErr } = await supabase
+              .from('chat_message_annotations')
+              .insert(rows);
+            if (annErr) {
+              logger.warn('Failed to persist chat_message_annotations', annErr);
+            }
+          }
+        }
+      }
+    } catch (annEx) {
+      logger.warn('Annotations insert skipped due to error', annEx);
     }
 
     return NextResponse.json({

@@ -1,4 +1,5 @@
 // lib/types/chat.ts
+import type { OpenRouterUrlCitation } from "../types/openrouter";
 
 export interface ChatMessage {
   id: string;
@@ -23,6 +24,10 @@ export interface ChatMessage {
   // Attachments metadata (linked on persistence)
   has_attachments?: boolean;
   attachment_ids?: string[];
+  // Web search metadata (assistant messages)
+  has_websearch?: boolean;
+  websearch_result_count?: number;
+  annotations?: OpenRouterUrlCitation[];
 }
 
 export interface ChatRequest {
@@ -45,4 +50,7 @@ export interface ChatResponse {
   elapsed_ms: number;
   contentType?: "text" | "markdown"; // New field
   id: string; // OpenRouter response id for metadata lookup
+  annotations?: OpenRouterUrlCitation[]; // Optional URL citations from OpenRouter
+  has_websearch?: boolean;
+  websearch_result_count?: number;
 }

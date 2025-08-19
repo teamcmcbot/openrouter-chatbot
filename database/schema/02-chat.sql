@@ -665,6 +665,7 @@ DECLARE
     v_elapsed_ms INTEGER;
     v_prompt_tokens INTEGER := 0;
     v_completion_tokens INTEGER := 0;
+    v_completion_id VARCHAR(255);
     v_prompt_price DECIMAL(12,8) := 0;
     v_completion_price DECIMAL(12,8) := 0;
     v_image_price DECIMAL(12,8) := 0;
@@ -679,9 +680,9 @@ DECLARE
 BEGIN
     -- Find the assistant message that references this user message
     SELECT m2.id, m2.session_id, s.user_id, m2.model, m2.message_timestamp, m2.elapsed_ms,
-           COALESCE(m2.input_tokens,0), COALESCE(m2.output_tokens,0)
+        COALESCE(m2.input_tokens,0), COALESCE(m2.output_tokens,0), m2.completion_id
     INTO v_assistant_id, v_session_id, v_user_id, v_model, v_message_timestamp, v_elapsed_ms,
-         v_prompt_tokens, v_completion_tokens
+      v_prompt_tokens, v_completion_tokens, v_completion_id
     FROM public.chat_messages m2
     JOIN public.chat_sessions s ON s.id = m2.session_id
     WHERE m2.user_message_id = p_user_message_id
@@ -726,7 +727,7 @@ BEGIN
         prompt_unit_price, completion_unit_price, image_units, image_unit_price,
         prompt_cost, completion_cost, image_cost, total_cost, pricing_source
     ) VALUES (
-        v_user_id, v_session_id, v_assistant_id, p_user_message_id, NULL,
+    v_user_id, v_session_id, v_assistant_id, p_user_message_id, v_completion_id,
         v_model, v_message_timestamp, v_prompt_tokens, v_completion_tokens, COALESCE(v_elapsed_ms,0),
         v_prompt_price, v_completion_price, v_image_units, v_image_price,
         v_prompt_cost, v_completion_cost, v_image_cost, v_total_cost,

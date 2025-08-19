@@ -61,6 +61,7 @@ type OpenRouterRequestWithSystem = {
   max_tokens?: number;
   temperature?: number;
   stream?: boolean;
+  plugins?: { id: string; max_results?: number }[];
 };
 import { ApiErrorResponse, ErrorCode } from './errors';
 import { getEnvVar } from './env';
@@ -128,7 +129,8 @@ export async function getOpenRouterCompletion(
   maxTokens?: number,
   temperature?: number,
   systemPrompt?: string,
-  authContext?: AuthContext | null
+  authContext?: AuthContext | null,
+  options?: { webSearch?: boolean; webMaxResults?: number }
 ): Promise<OpenRouterResponse> {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OPENROUTER_API_KEY is not set');
@@ -175,6 +177,15 @@ export async function getOpenRouterCompletion(
     max_tokens: dynamicMaxTokens,
     temperature: finalTemperature,
   };
+
+  // Enable OpenRouter web search plugin when requested
+  if (options?.webSearch) {
+    const maxResults = Number.isFinite(options.webMaxResults as number)
+      ? Math.max(1, Math.min(10, Math.trunc(options.webMaxResults as number)))
+      : 3; // default per spec
+    requestBody.plugins = [{ id: 'web', max_results: maxResults }];
+    console.log(`[OpenRouter Request] Web search enabled (max_results=${maxResults})`);
+  }
   logger.debug('OpenRouter request body:', requestBody);
 
   let lastError: Error | null = null;

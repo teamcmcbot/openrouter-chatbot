@@ -7,7 +7,7 @@ import { createSuccessResponse } from '../../../../lib/utils/response';
 import { logger } from '../../../../lib/utils/logger';
 import { detectMarkdownContent } from '../../../../lib/utils/markdown';
 import { ChatResponse } from '../../../../lib/types';
-import { OpenRouterRequest, OpenRouterContentBlock } from '../../../../lib/types/openrouter';
+import { OpenRouterRequest, OpenRouterContentBlock, OpenRouterUrlCitation } from '../../../../lib/types/openrouter';
 import { AuthContext } from '../../../../lib/types/auth';
 import { withEnhancedAuth } from '../../../../lib/middleware/auth';
 import { withRateLimit } from '../../../../lib/middleware/rateLimitMiddleware';
@@ -142,13 +142,14 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       });
     }
     
-    // Phase 2: Log request format for human verification
+  // Phase 2: Log request format for human verification
     console.log(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
     console.log(`[Chat API] Message count: ${messages.length} messages`);
     console.log(`[Chat API] Current message: "${body.message}"`);
     console.log(`[Chat API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`);
+  console.log(`[Chat API] Web search enabled: ${!!body.webSearch}`);
     
-    // Phase 4: Calculate model-aware max tokens
+  // Phase 4: Calculate model-aware max tokens
     const tokenStrategy = await getModelTokenLimits(enhancedData.model);
     const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
     
@@ -181,11 +182,42 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       dynamicMaxTokens,
       enhancedData.temperature,
       enhancedData.systemPrompt,
-      authContext
+      authContext,
+      { webSearch: !!body.webSearch, webMaxResults: 3 }
     );
     logger.debug('OpenRouter response received:', openRouterResponse);
-    const assistantResponse = openRouterResponse.choices[0].message.content;
+  const assistantResponse = openRouterResponse.choices[0].message.content;
     const usage = openRouterResponse.usage;
+  const rawAnnotations = openRouterResponse?.choices?.[0]?.message?.annotations ?? [];
+  // Normalize annotations to a flat OpenRouterUrlCitation[] regardless of provider shape
+  const annotations: OpenRouterUrlCitation[] = Array.isArray(rawAnnotations)
+    ? (rawAnnotations
+        .map((ann: unknown) => {
+          if (!ann || typeof ann !== 'object') return null;
+          const a = ann as Record<string, unknown>;
+          // Already flat
+          if (a.type === 'url_citation' && typeof a.url === 'string') {
+            return a as unknown as OpenRouterUrlCitation;
+          }
+          // Nested provider shape: { type: 'url_citation', url_citation: { ... } }
+          const nested = a.url_citation as Record<string, unknown> | undefined;
+          if (a.type === 'url_citation' && nested && typeof nested.url === 'string') {
+            const { url, title, content, start_index, end_index } = nested as {
+              url: string; title?: string; content?: string; start_index?: number; end_index?: number;
+            };
+            return { type: 'url_citation', url, title, content, start_index, end_index } satisfies OpenRouterUrlCitation;
+          }
+          // Fallback: objects with URL but missing type
+          if (typeof a.url === 'string' && !a.type) {
+            const { url, title, content, start_index, end_index } = a as {
+              url: string; title?: string; content?: string; start_index?: number; end_index?: number;
+            };
+            return { type: 'url_citation', url, title, content, start_index, end_index } satisfies OpenRouterUrlCitation;
+          }
+          return null;
+        })
+        .filter((x): x is OpenRouterUrlCitation => !!x))
+    : [];
 
     // Detect if the response contains markdown
     const hasMarkdown = detectMarkdownContent(assistantResponse);
@@ -226,7 +258,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       });
     }
 
-    const response: ChatResponse = {
+  const response: ChatResponse = {
       response: assistantResponse,
       usage: {
         prompt_tokens: usage.prompt_tokens,
@@ -239,6 +271,11 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       contentType: hasMarkdown ? "markdown" : "text", // Add content type detection
       id: openRouterResponse.id, // Pass OpenRouter response id to ChatResponse
     };
+  // Attach annotations if present (for future UI rendering); ignored by client if unknown
+  response.annotations = annotations;
+  // Echo web search activation for persistence layer
+  response.has_websearch = !!body.webSearch;
+  response.websearch_result_count = Array.isArray(annotations) ? annotations.length : 0;
 
     logger.info('Chat request successful', {
       userId: authContext.user?.id,
@@ -247,7 +284,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       tier: authContext.profile?.subscription_tier
     });
     
-    return createSuccessResponse(response);
+  return createSuccessResponse(response);
   } catch (error) {
     logger.error('Error processing chat request:', error);
     return handleError(error);

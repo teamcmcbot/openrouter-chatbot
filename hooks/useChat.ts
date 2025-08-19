@@ -46,6 +46,7 @@ export function useChat(): UseChatReturn {
         model?: string;
         messages?: ChatMessage[];
         current_message_id?: string;
+        webSearch?: boolean;
       } = {
         message: content,
         messages: [userMessage], // Send the user message with its ID

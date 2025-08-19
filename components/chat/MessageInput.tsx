@@ -11,7 +11,7 @@ import { useUserData } from "../../hooks/useUserData";
 import type { ModelInfo } from "../../lib/types/openrouter";
 
 interface MessageInputProps {
-  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string }) => void
+  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean }) => void
   disabled?: boolean;
   initialMessage?: string;
 }
@@ -112,9 +112,9 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     if (message.trim() && !disabled) {
       if (attachments.length > 0) {
         const ready = attachments.filter(a => a.status === 'ready' && a.id);
-        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined });
+        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined, webSearch: webSearchOn });
       } else {
-        onSendMessage(message.trim());
+        onSendMessage(message.trim(), { webSearch: webSearchOn });
       }
       setMessage("");
       // Reset draft and clear pending attachments

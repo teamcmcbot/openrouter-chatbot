@@ -205,6 +205,14 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                     {message.model}
                   </button>
                 )}
+                {message.role === "assistant" && message.has_websearch && (
+                  <span
+                    className="inline-block mb-1 mr-2 px-2 py-0.5 text-[10px] font-semibold rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 align-middle"
+                    title="Response used web search"
+                  >
+                    Web
+                  </span>
+                )}
                 
                 {/* Message Content - Conditional Markdown Rendering */}
                 {message.contentType === "markdown" ? (
@@ -233,6 +241,31 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                         />
                       );
                     })}
+                  </div>
+                )}
+
+                {/* URL Citations (Sources) */}
+                {message.role === "assistant" && Array.isArray(message.annotations) && message.annotations.length > 0 && (
+                  <div className="mt-3 border-t border-black/10 dark:border-white/10 pt-2">
+                    <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Sources</div>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {message.annotations.map((ann, i) => (
+                        <li key={`${message.id}-ann-${i}`} className="text-xs leading-snug">
+                          <a
+                            href={ann.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline text-blue-700 dark:text-blue-300 hover:text-blue-500 dark:hover:text-blue-200"
+                            title={ann.title || ann.url}
+                          >
+                            {ann.title || ann.url}
+                          </a>
+                          {ann.content && (
+                            <span className="ml-1 text-gray-600 dark:text-gray-300 truncate inline-block max-w-full align-top">– {ann.content}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
                 
