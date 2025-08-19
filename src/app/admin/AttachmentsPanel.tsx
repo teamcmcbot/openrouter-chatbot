@@ -2,6 +2,18 @@
 'use client';
 import React from 'react';
 
+type StatsResponse = {
+  success: boolean;
+  stats?: {
+    totalAttachments: number;
+    uploadedToday: number;
+    unlinkedAll: number;
+    unlinkedOlder24h: number;
+    totalBytesApprox: number;
+  };
+  error?: string;
+};
+
 type CleanupResponse = {
   success: boolean;
   hours: number;
@@ -21,6 +33,33 @@ export default function AttachmentsPanel() {
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<CleanupResponse | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [stats, setStats] = React.useState<StatsResponse | null>(null);
+  const [statsLoading, setStatsLoading] = React.useState<boolean>(false);
+
+  const formatBytes = (bytes: number) => {
+    if (!bytes || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const val = bytes / Math.pow(1024, i);
+    return `${val.toFixed(val >= 10 ? 0 : 1)} ${units[i]}`;
+  };
+
+  async function loadStats() {
+    setStatsLoading(true);
+    try {
+      const res = await fetch('/api/admin/attachments/stats', { cache: 'no-store' });
+      const json: StatsResponse = await res.json();
+      setStats(json);
+    } catch (e) {
+      setStats({ success: false, error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setStatsLoading(false);
+    }
+  }
+
+  React.useEffect(() => {
+    loadStats();
+  }, []);
 
   async function triggerCleanup() {
     setLoading(true);
@@ -46,6 +85,27 @@ export default function AttachmentsPanel() {
       <div>
         <h2 className="text-lg font-semibold">Attachments Maintenance</h2>
         <p className="text-sm text-gray-600">Delete orphaned image uploads older than a cutoff (unlinked for 24h+).</p>
+      </div>
+      <div className="rounded border p-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-medium">Current Storage Stats</h3>
+          <button onClick={loadStats} className="text-sm text-blue-600 disabled:opacity-60" disabled={statsLoading}>
+            {statsLoading ? 'Refreshing…' : 'Refresh'}
+          </button>
+        </div>
+        {stats?.success && stats.stats ? (
+          <ul className="mt-2 text-sm space-y-1">
+            <li>Total attachments: {stats.stats.totalAttachments}</li>
+            <li>Uploaded today: {stats.stats.uploadedToday}</li>
+            <li>Unlinked (all): {stats.stats.unlinkedAll}</li>
+            <li>Unlinked (&gt;24h): {stats.stats.unlinkedOlder24h}</li>
+            <li>Total size (approx): {formatBytes(stats.stats.totalBytesApprox)}</li>
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-gray-600">
+            {statsLoading ? 'Loading…' : (stats?.error ? `Failed to load stats: ${stats.error}` : 'No stats available')}
+          </p>
+        )}
       </div>
       <div className="flex items-end gap-3">
         <label className="flex flex-col text-sm">

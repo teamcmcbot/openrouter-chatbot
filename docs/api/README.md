@@ -80,6 +80,8 @@ These endpoints work for both anonymous and authenticated users with graceful de
 - [`/api/admin/model-access`](./admin-model-access.md) — protected via `withAdminAuth`
 - [`/api/admin/users`](./admin-users.md) — protected via `withAdminAuth`
 - [`/api/admin/sync-models`](./admin-sync-models.md) — protected via `withAdminAuth`
+- [`/api/admin/attachments/cleanup`](./admin-attachments-cleanup.md) — protected via `withAdminAuth`
+- [`/api/admin/attachments/stats`](./admin-attachments-stats.md) — protected via `withAdminAuth`
 - `/api/internal/sync-models` — internal-only (Bearer or HMAC)
   - See: [internal-sync-models.md](./internal-sync-models.md)
 
@@ -274,5 +276,5 @@ This standardization provides:
 
 ---
 
-_Last Updated: August 7, 2025_
+_Last Updated: August 19, 2025_
 _Status: All endpoints migrated to standardized authentication and rate limiting_
