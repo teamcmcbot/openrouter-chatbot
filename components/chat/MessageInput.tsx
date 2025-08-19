@@ -403,7 +403,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           {/* Floating character counter centered in controls row (no layout shift) */}
           <div
             aria-live="polite"
-            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-2 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border 
+            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-0 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border 
               ${showCount ? 'opacity-100' : 'opacity-0'} 
               bg-gray-100/80 text-gray-700 border-gray-300 
               dark:bg-gray-800/70 dark:text-gray-200 dark:border-gray-600`}
