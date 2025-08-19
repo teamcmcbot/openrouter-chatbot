@@ -73,7 +73,11 @@ CREATE TABLE public.chat_messages (
 
     -- Attachments metadata
     has_attachments BOOLEAN DEFAULT false NOT NULL,
-    attachment_count INTEGER DEFAULT 0 NOT NULL CHECK (attachment_count >= 0 AND attachment_count <= 3)
+    attachment_count INTEGER DEFAULT 0 NOT NULL CHECK (attachment_count >= 0 AND attachment_count <= 3),
+
+    -- Web search metadata (assistant-only)
+    has_websearch BOOLEAN DEFAULT false NOT NULL,
+    websearch_result_count INTEGER DEFAULT 0 NOT NULL CHECK (websearch_result_count >= 0 AND websearch_result_count <= 50)
 );
 
 -- Attachments table (images only for now)
@@ -100,6 +104,25 @@ CREATE TABLE public.chat_attachments (
 );
 
 -- =============================================================================
+-- CHAT MESSAGE ANNOTATIONS (URL citations)
+-- =============================================================================
+CREATE TABLE public.chat_message_annotations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    annotation_type TEXT NOT NULL CHECK (annotation_type IN ('url_citation')),
+    url TEXT NOT NULL,
+    title TEXT,
+    content TEXT,
+    start_index INTEGER,
+    end_index INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CHECK ((start_index IS NULL AND end_index IS NULL) OR (start_index >= 0 AND end_index >= start_index))
+);
+
+-- =============================================================================
 -- INDEXES FOR PERFORMANCE
 -- =============================================================================
 
@@ -123,6 +146,12 @@ CREATE INDEX idx_chat_messages_tokens_role
 CREATE INDEX idx_chat_messages_has_attachments_true
     ON public.chat_messages(has_attachments)
     WHERE has_attachments = true;
+-- Messages with web search (optional indexes)
+CREATE INDEX idx_chat_messages_has_websearch_true
+    ON public.chat_messages(has_websearch)
+    WHERE has_websearch = true;
+CREATE INDEX idx_chat_messages_websearch_count
+    ON public.chat_messages(websearch_result_count);
 
 -- Chat attachments indexes
 CREATE INDEX idx_chat_attachments_message_id ON public.chat_attachments(message_id);
@@ -136,6 +165,11 @@ CREATE INDEX idx_chat_attachments_message_ready
 CREATE INDEX idx_chat_attachments_status_deleted
     ON public.chat_attachments(status, deleted_at);
 
+-- Chat message annotations indexes
+CREATE INDEX idx_msg_annotations_message ON public.chat_message_annotations(message_id);
+CREATE INDEX idx_msg_annotations_user_time ON public.chat_message_annotations(user_id, created_at DESC);
+CREATE INDEX idx_msg_annotations_session ON public.chat_message_annotations(session_id);
+
 -- =============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- =============================================================================
@@ -144,6 +178,7 @@ CREATE INDEX idx_chat_attachments_status_deleted
 ALTER TABLE public.chat_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_message_annotations ENABLE ROW LEVEL SECURITY;
 
 -- Chat Sessions Policies
 CREATE POLICY "Users can view their own chat sessions" ON public.chat_sessions
@@ -219,6 +254,14 @@ CREATE POLICY "Users can update their own attachments" ON public.chat_attachment
 
 CREATE POLICY "Users can delete their own attachments" ON public.chat_attachments
     FOR DELETE USING (user_id = auth.uid());
+
+-- Chat Message Annotations Policies
+CREATE POLICY "Users can view their own message annotations" ON public.chat_message_annotations
+    FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own message annotations" ON public.chat_message_annotations
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own message annotations" ON public.chat_message_annotations
+    FOR DELETE USING (auth.uid() = user_id);
 
 -- =============================================================================
 -- UTILITY FUNCTIONS
@@ -609,6 +652,7 @@ CREATE TABLE public.message_token_costs (
     prompt_cost DECIMAL(12,6),
     completion_cost DECIMAL(12,6),
     image_cost DECIMAL(12,6),
+    websearch_cost DECIMAL(12,6),
     total_cost DECIMAL(12,6),
     pricing_source JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -618,6 +662,7 @@ CREATE TABLE public.message_token_costs (
 CREATE INDEX idx_message_token_costs_user_time ON public.message_token_costs(user_id, message_timestamp DESC);
 CREATE INDEX idx_message_token_costs_session_time ON public.message_token_costs(session_id, message_timestamp);
 CREATE INDEX idx_message_token_costs_model ON public.message_token_costs(model_id);
+CREATE INDEX idx_message_token_costs_websearch_cost ON public.message_token_costs(websearch_cost);
 
 -- RLS for cost table
 ALTER TABLE public.message_token_costs ENABLE ROW LEVEL SECURITY;
@@ -677,12 +722,19 @@ DECLARE
     v_pricing_snapshot JSONB := '{}'::jsonb;
     v_existing_total DECIMAL(12,6) := 0;
     v_delta DECIMAL(12,6) := 0;
+    -- Web search additions
+    v_has_websearch BOOLEAN := false;
+    v_websearch_results INTEGER := 0;
+    v_websearch_price DECIMAL(12,8) := 0;
+    v_websearch_cost DECIMAL(12,6) := 0;
 BEGIN
     -- Find the assistant message that references this user message
     SELECT m2.id, m2.session_id, s.user_id, m2.model, m2.message_timestamp, m2.elapsed_ms,
-        COALESCE(m2.input_tokens,0), COALESCE(m2.output_tokens,0), m2.completion_id
+           COALESCE(m2.input_tokens,0), COALESCE(m2.output_tokens,0), m2.completion_id,
+           COALESCE(m2.has_websearch,false), COALESCE(m2.websearch_result_count,0)
     INTO v_assistant_id, v_session_id, v_user_id, v_model, v_message_timestamp, v_elapsed_ms,
-      v_prompt_tokens, v_completion_tokens, v_completion_id
+         v_prompt_tokens, v_completion_tokens, v_completion_id,
+         v_has_websearch, v_websearch_results
     FROM public.chat_messages m2
     JOIN public.chat_sessions s ON s.id = m2.session_id
     WHERE m2.user_message_id = p_user_message_id
@@ -695,15 +747,22 @@ BEGIN
         RETURN; -- Nothing to do yet
     END IF;
 
-    -- Pricing snapshot
+    -- Pricing snapshot incl. optional web_search_price
     SELECT 
         COALESCE(prompt_price, '0'),
         COALESCE(completion_price, '0'),
         COALESCE(image_price, '0'),
+        COALESCE(web_search_price, '0'),
         to_jsonb(ma.*)
-    INTO v_prompt_price, v_completion_price, v_image_price, v_pricing_snapshot
+    INTO v_prompt_price, v_completion_price, v_image_price, v_websearch_price, v_pricing_snapshot
     FROM public.model_access ma
     WHERE ma.model_id = v_model;
+
+    -- Fallback for web search price if not configured
+    v_websearch_price := COALESCE(v_websearch_price, 0);
+    IF v_websearch_price = 0 THEN
+        v_websearch_price := 0.004; -- $4 per 1000 results
+    END IF;
 
     -- Count linked attachments (cap at 3)
     SELECT LEAST(COALESCE(COUNT(*),0), 3) INTO v_image_units
@@ -714,7 +773,14 @@ BEGIN
     v_prompt_cost := ROUND( (COALESCE(v_prompt_tokens,0) * COALESCE(v_prompt_price,0))::numeric, 6 );
     v_completion_cost := ROUND( (COALESCE(v_completion_tokens,0) * COALESCE(v_completion_price,0))::numeric, 6 );
     v_image_cost := ROUND( (COALESCE(v_image_units,0) * COALESCE(v_image_price,0))::numeric, 6 );
-    v_total_cost := COALESCE(v_prompt_cost,0) + COALESCE(v_completion_cost,0) + COALESCE(v_image_cost,0);
+
+    IF v_has_websearch THEN
+        v_websearch_cost := ROUND( (LEAST(COALESCE(v_websearch_results,0), 50) * COALESCE(v_websearch_price,0))::numeric, 6 );
+    ELSE
+        v_websearch_cost := 0;
+    END IF;
+
+    v_total_cost := COALESCE(v_prompt_cost,0) + COALESCE(v_completion_cost,0) + COALESCE(v_image_cost,0) + COALESCE(v_websearch_cost,0);
 
     -- Fetch existing total (if any) to compute delta later
     SELECT total_cost INTO v_existing_total
@@ -725,25 +791,29 @@ BEGIN
         user_id, session_id, assistant_message_id, user_message_id, completion_id,
         model_id, message_timestamp, prompt_tokens, completion_tokens, elapsed_ms,
         prompt_unit_price, completion_unit_price, image_units, image_unit_price,
-        prompt_cost, completion_cost, image_cost, total_cost, pricing_source
+        prompt_cost, completion_cost, image_cost, websearch_cost, total_cost, pricing_source
     ) VALUES (
-    v_user_id, v_session_id, v_assistant_id, p_user_message_id, v_completion_id,
+        v_user_id, v_session_id, v_assistant_id, p_user_message_id, v_completion_id,
         v_model, v_message_timestamp, v_prompt_tokens, v_completion_tokens, COALESCE(v_elapsed_ms,0),
         v_prompt_price, v_completion_price, v_image_units, v_image_price,
-        v_prompt_cost, v_completion_cost, v_image_cost, v_total_cost,
+        v_prompt_cost, v_completion_cost, v_image_cost, v_websearch_cost, v_total_cost,
         jsonb_build_object(
             'model_id', v_model,
-            'pricing_basis', 'per_token_plus_image',
+            'pricing_basis', 'per_token_plus_image_plus_websearch',
             'prompt_price', v_prompt_price,
             'completion_price', v_completion_price,
             'image_price', v_image_price,
             'image_units', v_image_units,
-            'image_unit_basis', 'per_image'
+            'image_unit_basis', 'per_image',
+            'web_search_price', v_websearch_price,
+            'websearch_results', v_websearch_results,
+            'websearch_unit_basis', 'per_result'
         )
     ) ON CONFLICT (assistant_message_id) DO UPDATE SET
         image_units = EXCLUDED.image_units,
         image_unit_price = EXCLUDED.image_unit_price,
         image_cost = EXCLUDED.image_cost,
+        websearch_cost = EXCLUDED.websearch_cost,
         total_cost = EXCLUDED.total_cost,
         pricing_source = EXCLUDED.pricing_source;
 
