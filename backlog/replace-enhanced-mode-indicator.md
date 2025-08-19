@@ -1,5 +1,7 @@
 # Replace Enhanced Mode Indicator
 
+Status: PASS (2025-08-19) — Components refactor and validation completed
+
 ## Overview
 
 The current model dropdown api call is `/api/models` (enhanced-only) and we should not fallback to the old mode of retrieving models from .env file.
@@ -144,6 +146,42 @@ User Test Steps:
 
 - Build: PASS (Next.js optimized production build succeeded)
 - Tests: PASS (227 tests, 34 suites)
+
+---
+
+## Components Refactor & Validation (PASS)
+
+- Shared constants
+
+  - Added `lib/constants/tiers.ts` exporting `Tier`, `TIER_LABELS`, and `TIER_LIMITS`, aligned with `createFeatureFlags`.
+
+- `components/ui/TierBadge.tsx`
+
+  - Reusable account-type badge with tooltip showing tier benefits.
+  - Now consumes `TIER_LABELS`/`TIER_LIMITS` from `lib/constants/tiers.ts` (no hardcoded values).
+  - Used in chat header and `UserSettings` for consistent UX.
+
+- `components/chat/ChatInterface.tsx`
+
+  - Replaced the old “Enhanced” indicator with `<TierBadge />`.
+  - Header stacks into two rows on mobile and desktop: top = “x messages”, bottom = right-aligned `<TierBadge />`.
+
+- `components/ui/ModelDropdown.tsx`
+
+  - Simplified to enhanced-only data; removed `enhanced` prop and legacy rendering/formatting.
+
+- `components/chat/MessageInput.tsx`
+
+  - Simplified capability checks (e.g., image support) to use enhanced model metadata directly.
+
+- `components/ui/UserSettings.tsx`
+  - Refactored to reuse `<TierBadge />`; removed duplicate badge and per-tier limits logic.
+
+Validation
+
+- Build: PASS — Next.js 15.3.5 optimized production build with typecheck/lint OK.
+- Tests: PASS — 34/34 suites, 227/227 tests (Jest).
+- Visual smoke: Tier badge renders Anonymous | Free | Pro | Enterprise; tooltip reflects centralized tier limits.
 
 ---
 
