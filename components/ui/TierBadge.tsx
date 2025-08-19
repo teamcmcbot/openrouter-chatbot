@@ -3,8 +3,7 @@
 import { ShieldCheckIcon } from "@heroicons/react/24/outline";
 import Tooltip from "./Tooltip";
 import React from "react";
-
-export type Tier = "anonymous" | "free" | "pro" | "enterprise";
+import { TIER_LABELS, TIER_LIMITS, Tier } from "../../lib/constants/tiers";
 
 interface TierBadgeProps {
   tier: Tier | string; // tolerate unknown strings, fallback to gray style
@@ -26,9 +25,7 @@ export default function TierBadge({
   widthClassName = "w-64 sm:w-72",
 }: Readonly<TierBadgeProps>) {
   const tierLower = (tier || "").toString().toLowerCase() as Tier;
-  const label = tierLower === "anonymous"
-    ? "Anonymous"
-    : tierLower.charAt(0).toUpperCase() + tierLower.slice(1);
+  const label = TIER_LABELS[tierLower] ?? (tierLower.charAt(0).toUpperCase() + tierLower.slice(1));
 
   const subscriptionBadgeClass =
     tierLower === "enterprise"
@@ -56,54 +53,26 @@ export default function TierBadge({
       content={
         <div className="space-y-1">
           <div className="text-xs text-gray-600 dark:text-gray-400">Tier-Based Limits</div>
-          {tierLower === "enterprise" ? (
-            <>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Requests/hour</span>
-                <span className="font-medium">Bypass</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Tokens/request</span>
-                <span className="font-medium">50,000</span>
-              </div>
-              <div className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
-                Enterprise accounts bypass hourly rate limits.
-              </div>
-            </>
-          ) : tierLower === "pro" ? (
-            <>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Requests/hour</span>
-                <span className="font-medium">500</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Tokens/request</span>
-                <span className="font-medium">20,000</span>
-              </div>
-            </>
-          ) : tierLower === "free" ? (
-            <>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Requests/hour</span>
-                <span className="font-medium">100</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Tokens/request</span>
-                <span className="font-medium">10,000</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Requests/hour</span>
-                <span className="font-medium">20</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Tokens/request</span>
-                <span className="font-medium">5,000</span>
-              </div>
-            </>
-          )}
+          {(() => {
+            const limits = TIER_LIMITS[tierLower] ?? TIER_LIMITS["free"];
+            return (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Requests/hour</span>
+                  <span className="font-medium">{limits.hasRateLimitBypass ? "Bypass" : limits.maxRequestsPerHour.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Tokens/request</span>
+                  <span className="font-medium">{limits.maxTokensPerRequest.toLocaleString()}</span>
+                </div>
+                {limits.hasRateLimitBypass && (
+                  <div className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
+                    Enterprise accounts bypass hourly rate limits.
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       }
     >

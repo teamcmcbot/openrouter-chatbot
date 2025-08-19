@@ -72,7 +72,7 @@ In the ChatInteface header `chat-header` there is a visual indicator to show `En
 - [x] Drop `X-Enhanced-Mode` header and keep/standardize `X-Models-Count` (optional). (implemented)
 - [x] Ensure tier filtering and `default_model` prioritization still work. (implemented)
 - [x] Add minimal error handling that returns an error (no legacy fallback to string array). (implemented)
-- [ ] User verification: Confirm the endpoint returns enriched models and no longer accepts/depends on `enhanced=true`.
+- [x] User verification: Confirm the endpoint returns enriched models and no longer accepts/depends on `enhanced=true`.
 
 User Test Steps:
 
@@ -84,7 +84,7 @@ User Test Steps:
 
 - [x] Remove `isEnhancedModelsEnabled()` and related feature flag logic from `lib/utils/env.ts`. (implemented)
 - [x] Remove `NEXT_PUBLIC_ENABLE_ENHANCED_MODELS` mentions from docs/examples. (implemented in code/docs)
-- [ ] User verification: no build-time/type errors; no dead imports.
+- [x] User verification: no build-time/type errors; no dead imports.
 
 User Test Steps:
 
@@ -95,7 +95,7 @@ User Test Steps:
 - [x] Update `stores/useModelStore.ts` to fetch `/api/models` only and assume enhanced response. (implemented)
 - [x] Remove `isEnhanced` state and legacy parsing; keep `modelConfigs` and caching based on enhanced data. (implemented)
 - [x] Update exports (e.g., remove `isEnhancedModels` guard if present in `stores/index.ts`). (implemented)
-- [ ] User verification: models load on first render, cache refresh behaves, selectors work.
+- [x] User verification: models load on first render, cache refresh behaves, selectors work.
 
 User Test Steps:
 
@@ -108,7 +108,7 @@ User Test Steps:
 - [x] `ChatInterface.tsx`: remove Enhanced badge; add account-type indicator using `useUserData` (+ `useAuth` for anonymous detection). (implemented)
 - [x] `ChatInterface.tsx`: stack header meta into two rows: top line shows "x messages", bottom line shows the right-aligned TierBadge on both mobile and desktop. (implemented)
 - [x] `MessageInput.tsx`: simplify image capability check to rely on enhanced model info. (implemented)
-- [ ] User verification: header displays Anonymous | Free | Pro | Enterprise correctly; dropdown looks/works the same or better.
+- [x] User verification: header displays Anonymous | Free | Pro | Enterprise correctly; dropdown looks/works the same or better.
 
 User Test Steps:
 
