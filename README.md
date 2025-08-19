@@ -240,3 +240,11 @@ If you encounter any issues or have questions:
 ---
 
 Built with ❤️ using Next.js, TypeScript, and Tailwind CSS.
+
+### Documentation Highlights
+
+- Web Search (UX): `docs/components/chat/web-search.md`
+- Chat API (Web Search): `docs/api/chat.md`
+- Chat Sync API (citations): `docs/api/chat-sync.md`
+- Database (Web Search schema): `docs/database/web-search.md`
+- Cost Tracking (includes websearch): `docs/database/token-cost-tracking.md`
