@@ -83,6 +83,7 @@ These endpoints work for both anonymous and authenticated users with graceful de
 - [`/api/admin/attachments/cleanup`](./admin-attachments-cleanup.md) — protected via `withAdminAuth`
 - [`/api/admin/attachments/stats`](./admin-attachments-stats.md) — protected via `withAdminAuth`
 - `/api/internal/sync-models` — internal-only (Bearer or HMAC)
+- `/api/internal/attachments/cleanup` — internal-only (Bearer or HMAC)
   - See: [internal-sync-models.md](./internal-sync-models.md)
 
 ### 🌐 Public Endpoints (No Authentication)

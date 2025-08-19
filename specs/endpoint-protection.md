@@ -74,19 +74,20 @@ interface AuthContext {
 
 ### ✅ **FULLY PROTECTED (AuthContext + Middleware)**
 
-| Endpoint                    | Middleware                  | Access Level  | Notes                                                     |
-| --------------------------- | --------------------------- | ------------- | --------------------------------------------------------- |
-| `/api/chat`                 | `withEnhancedAuth`          | **ENHANCED**  | Optional auth, graceful degradation                       |
-| `/api/chat/sync`            | `withConversationOwnership` | **PROTECTED** | Required auth + ownership validation                      |
-| `/api/models`               | `withEnhancedAuth`          | **ENHANCED**  | Optional auth with tier-based model filtering             |
-| `/api/admin/sync-models`    | `withAdminAuth`             | **ADMIN**     | Admin-only access; triggers manual model sync             |
-| `/api/internal/sync-models` | `withInternalAuth`          | **INTERNAL**  | Internal-only (HMAC or service Bearer); used by scheduler |
-| `/api/generation/[id]`      | `withEnhancedAuth`          | **ENHANCED**  | ✅ **MIGRATED** - Phase 2 complete                        |
-| `/api/chat/messages`        | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
-| `/api/chat/sessions`        | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
-| `/api/chat/session`         | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
-| `/api/chat/clear-all`       | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
-| `/api/user/data`            | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
+| Endpoint                            | Middleware                  | Access Level  | Notes                                                     |
+| ----------------------------------- | --------------------------- | ------------- | --------------------------------------------------------- |
+| `/api/chat`                         | `withEnhancedAuth`          | **ENHANCED**  | Optional auth, graceful degradation                       |
+| `/api/chat/sync`                    | `withConversationOwnership` | **PROTECTED** | Required auth + ownership validation                      |
+| `/api/models`                       | `withEnhancedAuth`          | **ENHANCED**  | Optional auth with tier-based model filtering             |
+| `/api/admin/sync-models`            | `withAdminAuth`             | **ADMIN**     | Admin-only access; triggers manual model sync             |
+| `/api/internal/sync-models`         | `withInternalAuth`          | **INTERNAL**  | Internal-only (HMAC or service Bearer); used by scheduler |
+| `/api/internal/attachments/cleanup` | `withInternalCleanupAuth`   | **INTERNAL**  | Internal-only (HMAC or service Bearer); scheduled cleanup |
+| `/api/generation/[id]`              | `withEnhancedAuth`          | **ENHANCED**  | ✅ **MIGRATED** - Phase 2 complete                        |
+| `/api/chat/messages`                | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
+| `/api/chat/sessions`                | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
+| `/api/chat/session`                 | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
+| `/api/chat/clear-all`               | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
+| `/api/user/data`                    | `withProtectedAuth`         | **PROTECTED** | ✅ **MIGRATED** - Phase 1 complete                        |
 
 ### ⚠️ **MANUALLY PROTECTED (No AuthContext)** - None remaining after Phase 1 ✅
 
@@ -259,7 +260,10 @@ export const GET = withAdminAuth(handler);
 7. **INTERNAL**: Scheduler/Service only (no user cookies)
 
 ```typescript
-import { withInternalAuth } from "../../lib/middleware/internalAuth";
+import {
+  withInternalAuth,
+  withInternalCleanupAuth,
+} from "../../lib/middleware/internalAuth";
 
 async function jobHandler(request: NextRequest) {
   // Validate internal caller via Authorization: Bearer or X-Signature (HMAC)
@@ -267,10 +271,17 @@ async function jobHandler(request: NextRequest) {
 }
 
 export const POST = withInternalAuth(jobHandler);
+// Attachments cleanup example
+async function cleanupJobHandler(request: NextRequest) {
+  // Authorization validated via Bearer or HMAC by middleware
+  // Call cleanup service here...
+}
+
+export const POST = withInternalCleanupAuth(cleanupJobHandler);
 ```
 
-- Use Authorization: `Bearer ${process.env.INTERNAL_SYNC_TOKEN}` or
-- `X-Signature: hex(hmacSHA256(body, process.env.INTERNAL_SYNC_SECRET))`
+- Use Authorization: `Bearer ${process.env.INTERNAL_SYNC_TOKEN}` (sync) or `Bearer ${process.env.INTERNAL_CLEANUP_TOKEN}` (cleanup), or
+- `X-Signature: hex(hmacSHA256(body, process.env.INTERNAL_SYNC_SECRET))` (sync) / `hex(hmacSHA256(body, process.env.INTERNAL_CLEANUP_SECRET))` (cleanup)
 - Never rely on browser cookies for internal endpoints
 
 See also: `docs/api/internal-sync-models.md` for local testing and setup.

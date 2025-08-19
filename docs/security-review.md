@@ -28,17 +28,18 @@ The markdown implementation follows security best practices and is safe for prod
 
 ## Internal Job Endpoint Security (New)
 
-- Internal endpoints (e.g., `/api/internal/sync-models`) are not user-facing and must not depend on cookies.
-- Authentication is enforced via:
-  - Authorization: `Bearer INTERNAL_SYNC_TOKEN`, or
-  - `X-Signature` HMAC-SHA256 over the raw request body using `INTERNAL_SYNC_SECRET`.
+- Internal endpoints (e.g., `/api/internal/sync-models`, `/api/internal/attachments/cleanup`) are not user-facing and must not depend on cookies.
+- Authentication is enforced via per-endpoint secrets:
+  - Authorization: `Bearer <INTERNAL_*_TOKEN>` (e.g., `INTERNAL_SYNC_TOKEN`, `INTERNAL_CLEANUP_TOKEN`), or
+  - `X-Signature` HMAC-SHA256 over the raw request body using `INTERNAL_*_SECRET`.
 - Benefits:
   - Consistent authorization independent of browser context
   - Tamper detection with HMAC where used
   - Standardized error handling and timing-safe comparisons
 - Recommendations:
+  - Use per-endpoint secrets for least privilege and easier rotation/disable.
   - Rotate secrets periodically and store them only in server-side env.
-  - Use a scheduler (Vercel Cron or Supabase Edge Function) that injects the secret header.
+  - Use a scheduler (Vercel Cron/Workflows or Supabase Scheduled Function) that injects the secret header.
   - Keep rate limiting enabled at the middleware or platform edge where possible.
 
 ---

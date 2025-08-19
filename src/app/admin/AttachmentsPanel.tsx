@@ -30,6 +30,10 @@ type CleanupResponse = {
 export default function AttachmentsPanel() {
   const [hours, setHours] = React.useState(24);
   const [limit, setLimit] = React.useState(500);
+  const [freeDays, setFreeDays] = React.useState(30);
+  const [proDays, setProDays] = React.useState(60);
+  const [enterpriseDays, setEnterpriseDays] = React.useState(90);
+  const [dryRun, setDryRun] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<CleanupResponse | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -70,6 +74,32 @@ export default function AttachmentsPanel() {
       const json = await res.json();
       if (!res.ok || !json.success) {
         throw new Error(json.error || 'Cleanup failed');
+      }
+      setResult(json);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function triggerRetention() {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const params = new URLSearchParams({
+        freeDays: String(freeDays),
+        proDays: String(proDays),
+        enterpriseDays: String(enterpriseDays),
+        limit: String(Math.max(1, limit)),
+        dryRun: String(dryRun),
+      });
+      const res = await fetch(`/api/admin/attachments/retention?${params.toString()}`, { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Retention cleanup failed');
       }
       setResult(json);
     } catch (e: unknown) {
@@ -137,6 +167,58 @@ export default function AttachmentsPanel() {
         >
           {loading ? 'Cleaning…' : 'Run Orphan Cleanup'}
         </button>
+      </div>
+
+      <div className="mt-4 rounded border p-3 space-y-3">
+        <h3 className="font-medium">Retention Cleanup (by Tier)</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <label className="flex flex-col text-sm">
+            Free days
+            <input
+              type="number"
+              className="mt-1 rounded border px-2 py-1 w-28"
+              min={1}
+              max={365}
+              value={freeDays}
+              onChange={(e) => setFreeDays(Math.max(1, Math.min(365, parseInt(e.target.value || '30', 10))))}
+            />
+          </label>
+          <label className="flex flex-col text-sm">
+            Pro days
+            <input
+              type="number"
+              className="mt-1 rounded border px-2 py-1 w-28"
+              min={1}
+              max={365}
+              value={proDays}
+              onChange={(e) => setProDays(Math.max(1, Math.min(365, parseInt(e.target.value || '60', 10))))}
+            />
+          </label>
+          <label className="flex flex-col text-sm">
+            Enterprise days
+            <input
+              type="number"
+              className="mt-1 rounded border px-2 py-1 w-28"
+              min={1}
+              max={730}
+              value={enterpriseDays}
+              onChange={(e) => setEnterpriseDays(Math.max(1, Math.min(730, parseInt(e.target.value || '90', 10))))}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
+            Dry run (no deletions)
+          </label>
+        </div>
+        <div>
+          <button
+            className="inline-flex items-center rounded bg-amber-600 px-3 py-2 text-white disabled:opacity-60"
+            onClick={triggerRetention}
+            disabled={loading}
+          >
+            {loading ? 'Running…' : 'Run Retention Cleanup'}
+          </button>
+        </div>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {result && (

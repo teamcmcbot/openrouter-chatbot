@@ -24,24 +24,57 @@
   - Mark rows with deleted_at timestamp and attempt storage delete; if storage object is already missing, proceed without error.
   - Re-running should skip already-deleted rows.
 
-## Implementation Options
+## Implemented Endpoints
 
-1. Database function + pg_cron
+- Internal (for scheduled jobs):
+  - `POST /api/internal/attachments/retention` – tier-based retention cleanup
+  - `POST /api/internal/attachments/cleanup` – orphan cleanup (>24h unlinked)
+  - Auth: Bearer `INTERNAL_CLEANUP_TOKEN` or HMAC `INTERNAL_CLEANUP_SECRET`
+- Admin (manual trigger):
+  - `GET|POST /api/admin/attachments/retention` – run batch with optional overrides
+  - `GET|POST /api/admin/attachments/cleanup` – orphan cleanup batch
 
-- Create function `cleanup_expired_attachments()` that:
-  - Determines retention window based on owner tier by joining user_id -> user_profiles (or billing/tier table).
-  - Selects candidate rows for deletion (expired by tier or orphan >24h).
-  - Updates DB: set deleted_at = now() RETURNING rows for storage deletion.
-  - Calls HTTP RPC or emits NOTIFY payload for a worker to delete storage objects.
-- Schedule via `pg_cron` daily off-peak (e.g., 03:15 UTC).
+Both internal routes share the same internal auth middleware and secrets for simplicity.
 
-2. Edge worker / server cron (preferred for storage deletion)
+## Scheduling on Vercel (Recommended)
 
-- Server task (Next.js route or Vercel/CRON/Supabase Edge Function) that:
-  - Paginates through candidates (limit 500 per run) based on DB query.
-  - For each, performs best-effort storage remove using Supabase Storage API.
-  - On success, sets deleted_at if not already set; on missing object, still mark deleted.
-  - Retries transient errors up to N times with exponential backoff.
+Vercel Cron cannot attach custom headers directly. Use wrapper GET endpoints that run on the server and forward to internal POST routes with the right auth.
+
+### Wrapper pattern (example)
+
+Create these small handlers (paths are examples):
+
+- `GET /api/cron/attachments/retention` → server-side fetch `POST /api/internal/attachments/retention`
+- `GET /api/cron/attachments/cleanup` → server-side fetch `POST /api/internal/attachments/cleanup`
+
+Each wrapper should:
+
+- Read `INTERNAL_CLEANUP_TOKEN` or `INTERNAL_CLEANUP_SECRET` from env
+- Build a JSON body with defaults/overrides (e.g., `limit`, `dryRun`, `daysByTier`)
+- Add either `Authorization: Bearer ...` or `X-Signature` (HMAC-SHA256 of the exact body)
+- Call the internal route and return the response JSON
+
+### Vercel setup steps
+
+1. Project → Settings → Environment Variables (Production + Preview):
+   - `INTERNAL_CLEANUP_TOKEN` and/or `INTERNAL_CLEANUP_SECRET` (strong random values)
+2. Project → Settings → Cron Jobs:
+   - Add job: `GET /api/cron/attachments/retention` → schedule `0 4 * * *`
+   - Add job: `GET /api/cron/attachments/cleanup` → schedule `30 4 * * *`
+3. Deploy. Use the Vercel logs to confirm runs and durations.
+
+### Local testing
+
+- Start the dev server and use the npm helpers:
+  - `npm run retention:internal` (or `:hmac`)
+  - `npm run cleanup:internal` (or `:hmac`)
+- Optional overrides via env: `FREE_DAYS`, `PRO_DAYS`, `ENTERPRISE_DAYS`, `LIMIT`, `DRY_RUN=1`.
+
+## Observability & Safety
+
+- Logs include `X-Response-Time`; service returns counts and sample IDs.
+- DB rows are soft-deleted via `deleted_at`; storage objects are removed when present; missing objects are tolerated.
+- For high volumes, prefer small `limit` with daily cadence to avoid timeouts.
 
 ## Data Model & Queries
 

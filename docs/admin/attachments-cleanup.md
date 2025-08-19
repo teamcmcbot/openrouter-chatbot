@@ -92,3 +92,28 @@ For auditing or dry-run analysis, see `database/maintenance/cleanup-orphan-attac
 - Add audit logging of cleanup runs (admin id, counts, parameters).
 - Add a scheduled retention job for stale linked attachments per tier.
 - Extend to other buckets if you support non-image attachments.
+
+---
+
+## Scheduled runs (Internal Endpoint)
+
+In addition to manual runs from the dashboard, you can schedule automated cleanup via an internal-only endpoint.
+
+- Endpoint: `POST /api/internal/attachments/cleanup`
+- Auth: Authorization: `Bearer ${INTERNAL_CLEANUP_TOKEN}` or `X-Signature: hex(hmacSHA256(body, INTERNAL_CLEANUP_SECRET))`
+- Env (server only):
+  - `INTERNAL_CLEANUP_TOKEN`
+  - `INTERNAL_CLEANUP_SECRET`
+
+Example request body:
+
+```
+{ "hours": 24, "limit": 200, "source": "vercel-cron" }
+```
+
+Local testing scripts:
+
+- Bearer: `npm run cleanup:internal`
+- HMAC: `npm run cleanup:internal:hmac`
+
+See also: `docs/api/internal-attachments-cleanup.md` and `docs/ops/scheduling.md` for scheduler setup.

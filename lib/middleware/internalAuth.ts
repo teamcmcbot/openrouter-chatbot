@@ -9,14 +9,15 @@ import { logger } from '../utils/logger';
  *   2) X-Signature: <hex(hmacSHA256(body, INTERNAL_SYNC_SECRET))>
  * - No user context; for server-to-server only.
  */
-export function withInternalAuth<T extends NextRequest>(
-  handler: (req: T) => Promise<NextResponse>
+function createWithInternalAuth<T extends NextRequest>(
+  handler: (req: T) => Promise<NextResponse>,
+  options: { tokenEnv: string; secretEnv: string }
 ) {
   return async (req: T): Promise<NextResponse> => {
     try {
       // Read env
-      const token = process.env.INTERNAL_SYNC_TOKEN || '';
-      const secret = process.env.INTERNAL_SYNC_SECRET || '';
+      const token = (process.env as Record<string, string | undefined>)[options.tokenEnv] || '';
+      const secret = (process.env as Record<string, string | undefined>)[options.secretEnv] || '';
 
       // Fast path: Bearer token
       const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
@@ -66,6 +67,41 @@ export function withInternalAuth<T extends NextRequest>(
       );
     }
   };
+}
+
+/**
+ * Default internal auth for sync-models endpoint (backwards compatible)
+ */
+export function withInternalAuth<T extends NextRequest>(
+  handler: (req: T) => Promise<NextResponse>
+) {
+  return createWithInternalAuth(handler, {
+    tokenEnv: 'INTERNAL_SYNC_TOKEN',
+    secretEnv: 'INTERNAL_SYNC_SECRET',
+  });
+}
+
+/**
+ * Parametrized internal auth for other internal jobs (e.g., attachments cleanup)
+ */
+export function withInternalAuthFor<T extends NextRequest>(
+  handler: (req: T) => Promise<NextResponse>,
+  tokenEnv: string,
+  secretEnv: string
+) {
+  return createWithInternalAuth(handler, { tokenEnv, secretEnv });
+}
+
+/**
+ * Convenience wrapper for attachments cleanup internal endpoint
+ */
+export function withInternalCleanupAuth<T extends NextRequest>(
+  handler: (req: T) => Promise<NextResponse>
+) {
+  return createWithInternalAuth(handler, {
+    tokenEnv: 'INTERNAL_CLEANUP_TOKEN',
+    secretEnv: 'INTERNAL_CLEANUP_SECRET',
+  });
 }
 
 async function hmacSha256Hex(secret: string, data: string): Promise<string> {
