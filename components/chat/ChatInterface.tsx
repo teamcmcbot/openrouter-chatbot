@@ -198,11 +198,9 @@ export default function ChatInterface() {
               </div>
 
               {/* Right cluster: messages + account tier; wraps with right alignment */}
-              <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400 max-w-full">
-                <div className="whitespace-nowrap order-1">{messages.length} messages</div>
-                <div className="order-2">
-                  <TierBadge tier={accountTier} side="bottom" align="end" />
-                </div>
+              <div className="flex flex-col items-end gap-1 text-xs text-gray-500 dark:text-gray-400 max-w-full">
+                <div className="whitespace-nowrap">{messages.length} messages</div>
+                <TierBadge tier={accountTier} side="bottom" align="end" />
               </div>
             </div>
           </div>
@@ -222,7 +220,7 @@ export default function ChatInterface() {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col items-end gap-1">
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 {messages.length} messages
               </div>
