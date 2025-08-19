@@ -4,9 +4,9 @@ This document proposes a refreshed design for the chat composer (MessageInput) t
 
 ## Decisions from this session
 
-- Web Search: per-message toggle inside the dock; visually lights up when ON. For now it’s a UI-only stub (no behavior change).
+- Web Search: Clicking the button opens a modal. For free/anonymous users, show an "Upgrade to use Web Search" gating modal. For pro/enterprise users, open a centered settings modal with a per-message "Enable web search" toggle. The previous tooltip was removed.
 - Send/Stop: no Stop state for now (streaming not implemented).
-- Character count: show under the dock in the status row.
+- Character count: floating badge centered in the controls row (no longer below the dock), non-interactive and IME-safe.
 - Attachment tiles: 80px on desktop, 64px on mobile.
 - Gating flow: if Add is disabled, clicking opens a modal immediately, anchored near the left feature buttons; modal includes an Upgrade button that is currently a no-op.
 
@@ -16,6 +16,7 @@ This document proposes a refreshed design for the chat composer (MessageInput) t
 - Keep two primary actions on the left: Web Search and Add files (images).
 - Keep Send on the right, visually tied to the input.
 - Provide clear affordances and gentle gating for tiers that don’t allow image uploads (upgrade / sign-in prompts).
+- Provide consistent gating for Web Search: anonymous/free open an upgrade modal; eligible tiers get a settings modal to toggle Web Search per message.
 - Preserve current keyboard and IME behaviors (Enter to send on desktop, tap Send on mobile; Shift+Enter for newline; composition aware).
 - Maintain accessibility, responsiveness, and theme parity (light/dark).
 
@@ -68,7 +69,7 @@ This document proposes a refreshed design for the chat composer (MessageInput) t
 ## Buttons & placement
 
 - Left side inside the dock:
-  - Web Search (per-message toggle; lights up when ON; currently a no-op stub)
+  - Web Search (opens modal; ON/OFF controlled by modal toggle for eligible tiers; aria-label reflects state)
   - Add files (outline icon button)
 - Right side inside the dock:
   - Send (filled, high-contrast). Disabled when message is empty or globally disabled. No Stop state for now.
@@ -85,13 +86,21 @@ This document proposes a refreshed design for the chat composer (MessageInput) t
 
 ## Gating behavior (tiers / auth)
 
-- Clicking a disabled Add button opens a modal immediately, anchored near the left feature buttons (top/left of the dock). On small screens, fall back to a centered sheet/modal.
-- Modal variants:
-  - Not signed in → prompt to sign in.
-  - Tier restriction → prompt to upgrade.
-  - Unsupported model → prompt to choose a different model.
-- Upgrade/Sign-in buttons can be wired later; for now Upgrade is a no-op, and Sign-in routes only if existing flow is available.
-- Keyboard and paste: still allowed to paste images only when feature is enabled; otherwise show the same gating modal or a toast on paste.
+- Images (Add button)
+
+  - Clicking a disabled Add button opens a modal immediately, anchored near the left feature buttons (top/left of the dock). On small screens, fall back to a centered sheet/modal.
+  - Modal variants:
+    - Not signed in → prompt to sign in.
+    - Tier restriction → prompt to upgrade.
+    - Unsupported model → prompt to choose a different model.
+  - Upgrade/Sign-in buttons can be wired later; for now Upgrade is a no-op, and Sign-in routes only if existing flow is available.
+  - Keyboard and paste: still allowed to paste images only when feature is enabled; otherwise show the same gating modal or a toast on paste.
+
+- Web Search
+  - Tooltip removed. Clicking the Web Search button opens a modal.
+  - Anonymous or free tiers → centered upgrade gating modal titled "Upgrade to use Web Search"; closes on outside click and Escape.
+  - Pro/Enterprise → centered settings modal titled "Enable web search" with a simple ON/OFF toggle that sets per-message state; closes on outside click and Escape.
+  - No analytics added for this flow.
 
 ### Detailed flows
 
@@ -120,6 +129,20 @@ This document proposes a refreshed design for the chat composer (MessageInput) t
      - Primary: "Upgrade" (no-op for now)
      - Secondary: "Maybe later"
 
+3b. Web Search (anonymous/free)
+
+    - Click Web Search → centered upgrade modal
+       - Title: "Upgrade to use Web Search"
+       - Primary: "Upgrade" (no-op for now)
+       - Secondary: "Maybe later"
+
+3c. Web Search (pro/enterprise)
+
+    - Click Web Search → centered settings modal
+       - Title: "Enable web search"
+       - Control: a single toggle to turn Web Search ON/OFF for the pending message
+       - Close: outside click or Escape
+
 4. At attachment cap (3)
 
    - Tooltip: "Maximum 3 images per message". Button disabled.
@@ -130,7 +153,7 @@ This document proposes a refreshed design for the chat composer (MessageInput) t
 ## Interaction details
 
 - Textarea grows up to a max height; then scrolls. Auto-resize on input, reset on send.
-- Character count and hint appear under the dock in the status row.
+- Character count moved to a floating badge centered in the controls row; no overlay on the textarea.
 - Enter submits on desktop unless Shift is held; on mobile, Enter inserts newline and the Send button is used.
 - IME composition respected; Enter during composition does not submit.
 - Add supports drag-and-drop (desktop) and paste; both honor gating and limits.
@@ -161,7 +184,7 @@ This document proposes a refreshed design for the chat composer (MessageInput) t
    - Preserve current handlers and state; move markup only.
    - Add utility CSS classes for sticky bottom and safe-area insets on mobile.
 2. Left Buttons
-   - Web Search: UI-only per-message toggle with ON styling (stores ephemeral UI state only; no functional change yet). Tooltip: "Web Search" (and when ON, "Web Search: ON").
+   - Web Search: Button opens modal. Anonymous/free: upgrade modal; pro/enterprise: settings modal with ON/OFF toggle that controls per-message state. Tooltip removed.
    - Add files: reuse existing validations and upload pipeline; wire disabled state and immediate modal when gated.
 3. Right Button (Send)
    - Keep existing `handleSend` and keyboard behaviors; ensure accessible label. No Stop state.
@@ -182,7 +205,7 @@ This document proposes a refreshed design for the chat composer (MessageInput) t
 
 - Phase 1: Layout refactor (dock + buttons placement) — no functional changes.
 - Phase 2: Attachment row extraction + mobile horizontal scroll.
-- Phase 3: Gating UX modal + centralized reason helper + Web Search toggle UI state.
+- Phase 3: Gating UX modal + centralized reason helper + Web Search modal (upgrade gating for anonymous/free; settings modal with toggle for pro/enterprise).
 - Phase 4: Polish (animations, focus management, a11y review) and tests.
 
 ### Risks / mitigations
@@ -195,9 +218,11 @@ This document proposes a refreshed design for the chat composer (MessageInput) t
 ## Acceptance criteria
 
 - Unified dock with left buttons and right send is rendered on desktop and mobile.
-- Character count is visible under the dock in a status row.
+- Character count is visible as a floating badge centered in the controls row.
 - Attachment row appears beneath the dock; tiles are 80px (desktop) / 64px (mobile) with upload/fail states; remove and retry work as before.
-- Web Search toggle visually indicates ON/OFF but has no functional effect yet.
+- Web Search tooltip is removed. Clicking Web Search:
+  - Anonymous/free → shows upgrade modal titled "Upgrade to use Web Search"; closes on outside click and Escape.
+  - Pro/enterprise → shows a settings modal titled "Enable web search" with a working ON/OFF toggle for the pending message; closes on outside click and Escape.
 - Add button shows modal immediately when gated (anchored near left buttons) with an Upgrade button that does nothing for now; paste/drag shows consistent gating.
 - Enter/Shift+Enter and IME composition behaviors unchanged.
 - Accessibility: tabbable controls, aria-labels, visible focus, screen-reader status for uploads.
@@ -205,7 +230,7 @@ This document proposes a refreshed design for the chat composer (MessageInput) t
 
 ## Open questions
 
-None at this time.
+Open item: Final destination/behavior for the "Upgrade" CTA (current implementation is a no-op). Options include routing to a Pricing/Plans page or opening User Settings with a subscription panel.
 
 ## Next steps (for sign-off)
 

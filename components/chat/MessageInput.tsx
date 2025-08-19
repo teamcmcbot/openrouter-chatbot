@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import type React from "react";
-import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon } from "@heroicons/react/24/outline";
-import Tooltip from "../ui/Tooltip";
+import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useAuth } from "../../stores/useAuthStore";
 import { useModelSelection, isEnhancedModels } from "../../stores";
 import AttachmentTile, { type AttachmentData } from "./AttachmentTile";
 import toast from "react-hot-toast";
+import { useUserData } from "../../hooks/useUserData";
 
 interface MessageInputProps {
   onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string }) => void
@@ -19,12 +19,26 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const [message, setMessage] = useState("");
   const [showCount, setShowCount] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [webSearchOn, setWebSearchOn] = useState(false); // UI-only toggle
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [gatingOpen, setGatingOpen] = useState<
+    | false
+    | 'images'
+    | 'search'
+    | 'images-unsupported'
+    | 'images-cap'
+    | 'images-signin'
+  >(false);
   const composingRef = useRef(false);
   const hideCountTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const gatingRef = useRef<HTMLDivElement | null>(null);
+  const searchModalRef = useRef<HTMLDivElement | null>(null);
   const { isAuthenticated } = useAuth();
   const { availableModels, selectedModel, isEnhanced } = useModelSelection();
   const [draftId, setDraftId] = useState<string | null>(null);
+  const { data: userData } = useUserData({ enabled: !!isAuthenticated });
+  const userTier = (userData?.profile.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise';
   type LocalAttachment = {
     tempId: string; // local id for UI
     id?: string; // set when ready
@@ -141,10 +155,70 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     }
   };
 
-  const canAttach = isAuthenticated && modelSupportsImages && !disabled;
+  const tierBlocksImages = isAuthenticated && userTier === 'free';
+  const tierBlocksSearch = isAuthenticated && userTier === 'free';
+
+  // Close gating on outside click and Escape
+  useEffect(() => {
+    if (!gatingOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setGatingOpen(false);
+    };
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      const el = gatingRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) setGatingOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer, { capture: true } as EventListenerOptions);
+    };
+  }, [gatingOpen]);
+
+  // Close search settings modal on outside click and Escape
+  useEffect(() => {
+    if (!searchModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSearchModalOpen(false);
+    };
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      const el = searchModalRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) setSearchModalOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer, { capture: true } as EventListenerOptions);
+    };
+  }, [searchModalOpen]);
 
   const handlePickFiles = () => {
-    if (!canAttach) return;
+    // Disabled via prop: do nothing
+    if (disabled) return;
+    // Not signed in → small anchored notice
+    if (!isAuthenticated) {
+      setGatingOpen('images-signin');
+      return;
+    }
+    // Model does not support images → anchored notice
+    if (!modelSupportsImages) {
+      setGatingOpen('images-unsupported');
+      return;
+    }
+    // Over capacity → anchored notice
+    if (attachments.length >= ATTACHMENT_CAP) {
+      setGatingOpen('images-cap');
+      return;
+    }
+    // Tier gating for images
+    if (tierBlocksImages) {
+      setGatingOpen('images');
+      return;
+    }
     fileInputRef.current?.click();
   };
 
@@ -244,7 +318,13 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   };
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (!canAttach) return; // show tooltip via disabled UI instead
+    if (!isAuthenticated || !modelSupportsImages || disabled) return; // rely on tooltip/disabled
+    if (tierBlocksImages) {
+      // Gate paste as well
+      setGatingOpen('images');
+      e.preventDefault();
+      return;
+    }
     const items = Array.from(e.clipboardData.items || []);
     const images = items
       .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
@@ -342,41 +422,36 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   {/* Row 3: Controls (left features, right send) */}
   <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-1">
-      <Tooltip content="Web Search (coming soon)" side="top" align="start" tinted>
-              <button
-                type="button"
-                aria-label="Web Search (coming soon)"
-                className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled
-              >
-        <GlobeAltIcon className="w-5 h-5" />
-              </button>
-            </Tooltip>
-
-            <Tooltip
-              content={
-                !isAuthenticated
-                  ? 'Please sign in to use this feature'
-                  : !modelSupportsImages
-                  ? 'Selected model doesn’t support image input'
-                  : attachments.length >= ATTACHMENT_CAP
-                  ? 'Maximum 3 images per message'
-                  : 'Attach image (png, jpg, webp)'
-              }
-              side="top"
-              align="start"
-              tinted
+            <button
+              type="button"
+              aria-label={webSearchOn ? 'Web Search: ON' : 'Web Search'}
+              onClick={() => {
+                if (disabled) return;
+                // Free or anonymous → upgrade modal
+                if (!isAuthenticated || tierBlocksSearch) {
+                  setGatingOpen('search');
+                  return;
+                }
+                // Eligible tiers → open settings modal
+                setSearchModalOpen(true);
+              }}
+              className={`inline-flex items-center justify-center w-10 h-10 rounded-lg border text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed 
+                ${webSearchOn
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300'
+                  : 'bg-transparent border-gray-300 dark:border-gray-600'}`}
+              disabled={disabled}
             >
-              <button
-                type="button"
-                onClick={handlePickFiles}
-                disabled={!canAttach || attachments.length >= ATTACHMENT_CAP}
-                className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed"
-                aria-label="Attach image"
-              >
-                <PaperClipIcon className="w-5 h-5" />
-              </button>
-            </Tooltip>
+              <GlobeAltIcon className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={handlePickFiles}
+              disabled={disabled}
+              className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed"
+              aria-label="Attach image"
+            >
+              <PaperClipIcon className="w-5 h-5" />
+            </button>
             <input
               ref={fileInputRef}
               type="file"
@@ -410,6 +485,143 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           >
             {`${message.length} characters`}
           </div>
+
+          {/* Gating popovers anchored above the left buttons. */}
+          {gatingOpen && (
+            <>
+              {/* Web Search upgrade popover */}
+              {gatingOpen === 'search' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="mb-1.5 pr-6 font-semibold text-emerald-900 dark:text-emerald-200">Upgrade to use Web Search</div>
+                  <div className="mb-3 text-gray-800 dark:text-gray-200">Your current plan doesn’t include web search.</div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Images gating upgrade popover */}
+              {gatingOpen === 'images' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="mb-1.5 pr-6 font-semibold text-emerald-900 dark:text-emerald-200">Upgrade to attach images</div>
+                  <div className="mb-3 text-gray-800 dark:text-gray-200">Your current plan doesn’t include image uploads.</div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Images: model unsupported notice */}
+              {gatingOpen === 'images-unsupported' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="pr-6 text-gray-800 dark:text-gray-200">Selected model doesn’t support image input</div>
+                </div>
+              )}
+
+              {/* Images: capacity reached notice */}
+              {gatingOpen === 'images-cap' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="pr-6 text-gray-800 dark:text-gray-200">Maximum 3 images per message</div>
+                </div>
+              )}
+
+              {/* Images: sign-in required notice */}
+              {gatingOpen === 'images-signin' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="pr-6 text-gray-800 dark:text-gray-200">Please sign in to use this feature</div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Web Search settings popover (pro/enterprise) anchored above buttons */}
+          {searchModalOpen && (
+            <div
+              ref={searchModalRef}
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 shadow-2xl"
+            >
+              <button
+                aria-label="Close"
+                onClick={() => setSearchModalOpen(false)}
+                className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+              <div className="mb-2 pr-6 text-sm font-semibold text-slate-900 dark:text-gray-100">Enable web search</div>
+              <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">Allow the assistant to perform web lookups for fresher results.</div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-800 dark:text-gray-200">Web Search</span>
+                <button
+                  type="button"
+                  data-testid="websearch-toggle"
+                  aria-pressed={webSearchOn}
+                  onClick={() => setWebSearchOn(v => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${webSearchOn ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${webSearchOn ? 'translate-x-5' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>
