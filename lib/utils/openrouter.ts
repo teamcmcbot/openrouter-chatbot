@@ -132,7 +132,7 @@ export async function getOpenRouterCompletion(
   temperature?: number,
   systemPrompt?: string,
   authContext?: AuthContext | null,
-  options?: { webSearch?: boolean; webMaxResults?: number }
+  options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
 ): Promise<OpenRouterResponse> {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OPENROUTER_API_KEY is not set');
@@ -173,7 +173,9 @@ export async function getOpenRouterCompletion(
   // Always prepend root system prompt, and user's system prompt if provided
   const finalMessages: OpenRouterMessage[] = appendSystemPrompt(messages, finalSystemPrompt);
 
-  const requestBody: OpenRouterRequestWithSystem = {
+  type ReasoningOption = { effort?: 'low' | 'medium' | 'high' };
+  type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption };
+  const requestBody: OpenRouterRequestWithReasoning = {
     model: selectedModel,
     messages: finalMessages,
     max_tokens: dynamicMaxTokens,
@@ -204,6 +206,12 @@ export async function getOpenRouterCompletion(
       : 3; // default per spec
     requestBody.plugins = [{ id: 'web', max_results: maxResults }];
     console.log(`[OpenRouter Request] Web search enabled (max_results=${maxResults})`);
+  }
+  // Forward unified reasoning option if provided and user is enterprise (checked upstream)
+  if (options?.reasoning) {
+    // Attach to request; OpenRouter will normalize per provider
+    requestBody.reasoning = options.reasoning;
+    console.log(`[OpenRouter Request] Reasoning enabled (effort=${options.reasoning.effort || 'low'})`);
   }
   logger.debug('OpenRouter request body:', requestBody);
 

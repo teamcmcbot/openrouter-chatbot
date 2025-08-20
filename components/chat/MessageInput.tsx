@@ -11,7 +11,7 @@ import { useUserData } from "../../hooks/useUserData";
 import type { ModelInfo } from "../../lib/types/openrouter";
 
 interface MessageInputProps {
-  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean }) => void
+  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => void
   disabled?: boolean;
   initialMessage?: string;
   // Optional: allow parent to open the model selector with a preset filter (e.g., 'multimodal')
@@ -136,9 +136,9 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     if (message.trim() && !disabled) {
       if (attachments.length > 0) {
         const ready = attachments.filter(a => a.status === 'ready' && a.id);
-        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined, webSearch: webSearchOn });
+        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined, webSearch: webSearchOn, reasoning: reasoningOn ? { effort: 'low' } : undefined });
       } else {
-        onSendMessage(message.trim(), { webSearch: webSearchOn });
+        onSendMessage(message.trim(), { webSearch: webSearchOn, reasoning: reasoningOn ? { effort: 'low' } : undefined });
       }
       setMessage("");
       // Reset draft and clear pending attachments

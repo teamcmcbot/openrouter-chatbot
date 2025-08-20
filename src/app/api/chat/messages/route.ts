@@ -154,9 +154,11 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
     const insertedMessages = [];
 
     // Handle both single message and message arrays
-    if (requestData.messages && Array.isArray(requestData.messages)) {
+  if (requestData.messages && Array.isArray(requestData.messages)) {
       // Process multiple messages atomically
       for (const message of requestData.messages) {
+    type MessageWithReasoning = ChatMessage & { reasoning?: string; reasoning_details?: Record<string, unknown> };
+    const mwr = message as MessageWithReasoning;
     const { data: newMessage, error: messageError } = await supabase
           .from('chat_messages')
           .upsert({
@@ -172,6 +174,8 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
             elapsed_ms: message.elapsed_ms || 0,
             completion_id: message.completion_id || null,
             user_message_id: message.user_message_id || null,
+      reasoning: mwr.reasoning || null,
+      reasoning_details: mwr.reasoning_details || null,
       has_websearch: message.has_websearch ?? false,
       websearch_result_count: message.websearch_result_count ?? 0,
             message_timestamp: typeof message.timestamp === 'string' 
@@ -189,9 +193,11 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
         
         insertedMessages.push(newMessage);
       }
-    } else if (requestData.message) {
+  } else if (requestData.message) {
       // Process single message (existing logic)
       const message = requestData.message;
+    type MessageWithReasoning = ChatMessage & { reasoning?: string; reasoning_details?: Record<string, unknown> };
+    const mwr = message as MessageWithReasoning;
     const { data: newMessage, error: messageError } = await supabase
         .from('chat_messages')
         .upsert({
@@ -207,6 +213,8 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
           elapsed_ms: message.elapsed_ms || 0,
           completion_id: message.completion_id || null,
           user_message_id: message.user_message_id || null,
+      reasoning: mwr.reasoning || null,
+      reasoning_details: mwr.reasoning_details || null,
       has_websearch: message.has_websearch ?? false,
       websearch_result_count: message.websearch_result_count ?? 0,
           message_timestamp: typeof message.timestamp === 'string' 

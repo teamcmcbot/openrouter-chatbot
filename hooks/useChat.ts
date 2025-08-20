@@ -15,7 +15,7 @@ interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
   error: ChatError | null;
-  sendMessage: (content: string, model?: string) => Promise<void>;
+  sendMessage: (content: string, model?: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
   clearMessageError: (messageId: string) => void;
@@ -92,6 +92,8 @@ export function useChat(): UseChatReturn {
         total_tokens: data.usage?.total_tokens
       });
 
+      type ChatResponseWithReasoning = { reasoning?: string; reasoning_details?: Record<string, unknown> };
+      const respWithReasoning = data as ChatResponseWithReasoning;
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         content: data.response,
@@ -105,6 +107,8 @@ export function useChat(): UseChatReturn {
         model: data.model || model,
         contentType: data.contentType || "text",
         completion_id: data.id,
+        reasoning: typeof respWithReasoning.reasoning === 'string' ? respWithReasoning.reasoning : undefined,
+        reasoning_details: respWithReasoning.reasoning_details && typeof respWithReasoning.reasoning_details === 'object' ? respWithReasoning.reasoning_details : undefined,
       };
 
       console.log('Created assistant message:', assistantMessage);

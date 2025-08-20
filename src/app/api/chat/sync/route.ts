@@ -50,6 +50,9 @@ interface DatabaseMessage {
   // Web search metadata (assistant messages)
   has_websearch?: boolean;
   websearch_result_count?: number;
+  // Reasoning fields (assistant messages)
+  reasoning?: string | null;
+  reasoning_details?: Record<string, unknown> | null;
 }
 
 interface DatabaseSession {
@@ -141,6 +144,9 @@ async function syncHandler(request: NextRequest, authContext: AuthContext): Prom
             completion_id: message.completion_id || null, // New: completion ID
             has_websearch: message.has_websearch ?? null,
             websearch_result_count: message.websearch_result_count ?? null,
+            // Reasoning fields
+            reasoning: message.reasoning ?? null,
+            reasoning_details: message.reasoning_details ?? null,
             message_timestamp: typeof message.timestamp === 'string'
               ? message.timestamp
               : message.timestamp?.toISOString() || new Date().toISOString(),
@@ -325,6 +331,9 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
           completion_id: message.completion_id || undefined, // New: completion ID
           has_websearch: !!message.has_websearch,
           websearch_result_count: typeof message.websearch_result_count === 'number' ? message.websearch_result_count : 0,
+          // Reasoning fields
+          reasoning: typeof message.reasoning === 'string' ? message.reasoning : undefined,
+          reasoning_details: message.reasoning_details && typeof message.reasoning_details === 'object' ? message.reasoning_details : undefined,
           annotations: annotationsByMessage[message.id] || [],
           has_attachments: Array.isArray(attachmentsByMessage[message.id]) && attachmentsByMessage[message.id].length > 0,
           attachment_ids: attachmentsByMessage[message.id] || [],

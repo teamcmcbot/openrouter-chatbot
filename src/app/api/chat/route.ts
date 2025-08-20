@@ -62,6 +62,9 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     const supabase = await createClient();
 
   const attachmentIds: string[] = Array.isArray(body.attachmentIds) ? body.attachmentIds : [];
+  const reasoning: { effort?: 'low' | 'medium' | 'high' } | undefined = body?.reasoning && typeof body.reasoning === 'object'
+      ? { effort: ['low','medium','high'].includes(body.reasoning.effort) ? body.reasoning.effort : 'low' }
+      : undefined;
 
   const messages: OpenRouterRequest['messages'] = enhancedData.messages.map(msg => ({
       role: msg.role as 'user' | 'assistant',
@@ -148,6 +151,28 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     console.log(`[Chat API] Current message: "${body.message}"`);
     console.log(`[Chat API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`);
   console.log(`[Chat API] Web search enabled: ${!!body.webSearch}`);
+  console.log(`[Chat API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`);
+
+    // Enterprise gating for reasoning
+    if (reasoning) {
+      const tier = authContext.profile?.subscription_tier;
+      if (tier !== 'enterprise') {
+        throw new ApiErrorResponse('Reasoning is available for enterprise accounts only', ErrorCode.FORBIDDEN);
+      }
+      // Re-validate model supports reasoning
+      try {
+        const requestedModelId: string = enhancedData.model;
+        const models = await fetchOpenRouterModels();
+        const model = models.find(m => m.id === requestedModelId);
+        const supported = Array.isArray(model?.supported_parameters) && (model!.supported_parameters.includes('reasoning') || model!.supported_parameters.includes('include_reasoning'));
+        if (!supported) {
+          throw new ApiErrorResponse('Selected model does not support reasoning', ErrorCode.BAD_REQUEST);
+        }
+      } catch (e) {
+        if (e instanceof ApiErrorResponse) throw e;
+        logger.warn('Model reasoning support re-validation skipped (fetch failed or model not found)');
+      }
+    }
     
   // Phase 4: Calculate model-aware max tokens
     const tokenStrategy = await getModelTokenLimits(enhancedData.model);
@@ -183,10 +208,15 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       enhancedData.temperature,
       enhancedData.systemPrompt,
       authContext,
-      { webSearch: !!body.webSearch, webMaxResults: 3 }
+      { webSearch: !!body.webSearch, webMaxResults: 3, reasoning }
     );
     logger.debug('OpenRouter response received:', openRouterResponse);
   const assistantResponse = openRouterResponse.choices[0].message.content;
+  // Some providers may include reasoning/thinking text in non-standard fields; map if available
+  type MaybeReasoningMessage = { choices?: { message?: { reasoning?: string } }[]; reasoning?: Record<string, unknown> };
+  const maybe = openRouterResponse as unknown as MaybeReasoningMessage;
+  const reasoningText = maybe?.choices?.[0]?.message?.reasoning;
+  const reasoningDetails = maybe?.reasoning;
     const usage = openRouterResponse.usage;
   const rawAnnotations = openRouterResponse?.choices?.[0]?.message?.annotations ?? [];
   // Normalize annotations to a flat OpenRouterUrlCitation[] regardless of provider shape
@@ -271,6 +301,8 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       contentType: hasMarkdown ? "markdown" : "text", // Add content type detection
       id: openRouterResponse.id, // Pass OpenRouter response id to ChatResponse
     };
+  if (typeof reasoningText === 'string' && reasoningText.length > 0) response.reasoning = reasoningText;
+  if (reasoningDetails && typeof reasoningDetails === 'object') response.reasoning_details = reasoningDetails;
   // Attach annotations if present (for future UI rendering); ignored by client if unknown
   response.annotations = annotations;
   // Echo web search activation for persistence layer
