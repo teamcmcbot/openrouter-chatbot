@@ -144,7 +144,26 @@ export default function Toaster() {
   }, [toastHeight])
 
   return (
-    <HotToaster
+    <>
+      {/* Themed class-based variants (e.g., className: 'toast-warning') */}
+  <style
+        // Inject light/dark aware styles for custom variants like warning
+        // Usage: toast(message, { className: 'toast-warning', icon: '⚠️' })
+        dangerouslySetInnerHTML={{
+          __html: `
+            .app-toaster .toast-warning {
+      background: ${isDarkMode ? '#78350f' : '#fffbeb'}; /* amber-900 | amber-50 */
+      color: ${isDarkMode ? '#fde68a' : '#78350f'}; /* amber-200 | amber-900 */
+      border: 1px solid ${isDarkMode ? '#f59e0b' : '#fbbf24'}; /* amber-500 | amber-400 */
+              border-radius: 0.5rem;
+              max-width: 28rem;
+      box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.25), 0 2px 6px -2px rgba(0, 0, 0, 0.20);
+      font-weight: 600;
+            }
+          `,
+        }}
+      />
+      <HotToaster
       position="top-center"
       containerClassName="app-toaster"
       containerStyle={{
@@ -175,7 +194,21 @@ export default function Toaster() {
             secondary: isDarkMode ? '#14532d' : '#f0fdf4', // dark:bg-green-900/20 / bg-green-50
           },
         },
+        error: {
+          style: {
+            // Solid, high-contrast backgrounds for readability
+            background: isDarkMode ? '#881337' : '#fee2e2', // dark: rose-900, light: rose-200
+            color: isDarkMode ? '#ffe4e6' : '#7f1d1d', // dark: rose-100, light: rose-900
+            border: isDarkMode ? '1px solid #fda4af' : '1px solid #fecaca', // dark: rose-300, light: rose-300
+            fontWeight: 600,
+          },
+          iconTheme: {
+            primary: isDarkMode ? '#fda4af' : '#ef4444', // rose-300 / red-500
+            secondary: isDarkMode ? '#881337' : '#fee2e2',
+          },
+        },
       }}
     />
+    </>
   )
 }

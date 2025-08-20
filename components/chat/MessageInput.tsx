@@ -110,6 +110,12 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     return Array.isArray(mods) ? mods.includes('image') : false;
   })();
 
+  // Resolve a human-friendly model display name
+  const getModelDisplayName = (info: Partial<ModelInfo> | null | undefined, fallbackId?: string) => {
+    const anyInfo = info as unknown as { name?: string; label?: string } | null | undefined;
+    return (anyInfo?.name || anyInfo?.label || fallbackId || 'Selected model');
+  };
+
   const handleSend = () => {
     if (message.trim() && !disabled) {
       if (attachments.length > 0) {
@@ -341,11 +347,8 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     // If input is disabled, let browser handle paste (likely no-op)
     if (disabled) return;
 
-    // If not authenticated or model doesn't support image input, allow default text paste.
-    if (!isAuthenticated || !modelSupportsImages) return;
-
-    // Important: detect whether the clipboard actually contains image files first.
-    // We should only gate when user is attempting to paste images, not plain text.
+    // 1) Detect whether the clipboard actually contains image files first.
+    // We should only apply image-related gating when images are present.
     const items = Array.from(e.clipboardData?.items || []);
     const images = items
       .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
@@ -355,14 +358,24 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     // No images present → allow normal text paste without any gating.
     if (images.length === 0) return;
 
-    // Images present but tier blocks image uploads → show upgrade popover and block paste handling.
+    // 2) If not signed in, allow default behavior (text paste if any), ignore image paste.
+    if (!isAuthenticated) return;
+
+    // 3) Free tier → gate with upgrade popover.
     if (tierBlocksImages) {
       setGatingOpen('images');
       e.preventDefault();
       return;
     }
 
-    // Eligible tier and model supports images → intercept paste and upload images.
+    // 4) Pro/Enterprise but selected model is text-only → show a toast with model name and block image paste.
+    if (!modelSupportsImages) {
+      toast.error(`This model does not support image input.`);
+      e.preventDefault();
+      return;
+    }
+
+    // 5) Eligible tier and model supports images → intercept paste and upload images.
     e.preventDefault();
     const remaining = ATTACHMENT_CAP - attachments.length;
     const toUpload = images.slice(0, Math.max(0, remaining));
@@ -487,7 +500,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                     const selectedModelData = Array.isArray(availableModels) && availableModels.length > 0 
                       ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
                       : null;
-                    const name = selectedModelData ? selectedModelData.name : selectedModel;
+                    const name = getModelDisplayName(selectedModelData ?? undefined, selectedModel ?? undefined);
                     return (
                       <>
                         <span className="font-semibold">{name}</span> doesn&apos;t support image input.
