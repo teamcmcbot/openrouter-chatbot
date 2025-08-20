@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type React from "react";
-import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon } from "@heroicons/react/24/outline";
 import { useAuth } from "../../stores/useAuthStore";
 import { useModelSelection } from "../../stores";
 import AttachmentTile, { type AttachmentData } from "./AttachmentTile";
@@ -23,12 +23,16 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const [showCount, setShowCount] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [webSearchOn, setWebSearchOn] = useState(false); // UI-only toggle
+  const [reasoningOn, setReasoningOn] = useState(false); // UI-only toggle
   const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [reasoningModalOpen, setReasoningModalOpen] = useState(false);
   const [gatingOpen, setGatingOpen] = useState<
     | false
     | 'images'
     | 'search'
+    | 'reasoning'
     | 'images-unsupported'
+    | 'reasoning-unsupported'
     | 'images-cap'
     | 'images-signin'
   >(false);
@@ -37,6 +41,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const gatingRef = useRef<HTMLDivElement | null>(null);
   const searchModalRef = useRef<HTMLDivElement | null>(null);
+  const reasoningModalRef = useRef<HTMLDivElement | null>(null);
   const { isAuthenticated } = useAuth();
   const { availableModels, selectedModel } = useModelSelection();
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -108,6 +113,17 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
       : undefined;
     const mods = info?.input_modalities as string[] | undefined;
     return Array.isArray(mods) ? mods.includes('image') : false;
+  })();
+
+  const modelSupportsReasoning = (() => {
+    if (!selectedModel) return false;
+    const info = Array.isArray(availableModels)
+      ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
+      : undefined;
+    const params = info?.supported_parameters as string[] | undefined;
+    return Array.isArray(params)
+      ? (params.includes('reasoning') || params.includes('include_reasoning'))
+      : false;
   })();
 
   // Resolve a human-friendly model display name
@@ -183,6 +199,8 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
 
   const tierBlocksImages = isAuthenticated && userTier === 'free';
   const tierBlocksSearch = isAuthenticated && userTier === 'free';
+  // Reasoning: enterprise only
+  const eligibleForReasoning = isAuthenticated && userTier === 'enterprise';
 
   // Close gating on outside click and Escape
   useEffect(() => {
@@ -221,6 +239,25 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
       document.removeEventListener('pointerdown', onPointer, { capture: true } as EventListenerOptions);
     };
   }, [searchModalOpen]);
+
+  // Close reasoning settings modal on outside click and Escape
+  useEffect(() => {
+    if (!reasoningModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setReasoningModalOpen(false);
+    };
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      const el = reasoningModalRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) setReasoningModalOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer, { capture: true } as EventListenerOptions);
+    };
+  }, [reasoningModalOpen]);
 
   const handlePickFiles = () => {
     // Disabled via prop: do nothing
@@ -559,6 +596,32 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
             </button>
             <button
               type="button"
+              aria-label={reasoningOn ? 'Reasoning: ON' : 'Reasoning'}
+              onClick={() => {
+                if (disabled) return;
+                // Unsupported model → explain
+                if (!modelSupportsReasoning) {
+                  setGatingOpen('reasoning-unsupported');
+                  return;
+                }
+                // Anonymous or non-enterprise → upgrade popover
+                if (!eligibleForReasoning) {
+                  setGatingOpen('reasoning');
+                  return;
+                }
+                // Eligible enterprise → open settings popover
+                setReasoningModalOpen(true);
+              }}
+              className={`inline-flex items-center justify-center w-10 h-10 rounded-lg border text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed 
+                ${reasoningOn
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300'
+                  : 'bg-transparent border-gray-300 dark:border-gray-600'}`}
+              disabled={disabled}
+            >
+              <LightBulbIcon className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
               onClick={handlePickFiles}
               disabled={disabled}
               className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -626,6 +689,29 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 </div>
               )}
 
+              {/* Reasoning upgrade popover */}
+              {gatingOpen === 'reasoning' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="mb-1.5 pr-6 font-semibold text-emerald-900 dark:text-emerald-200">Upgrade to enable Reasoning</div>
+                  <div className="mb-3 text-gray-800 dark:text-gray-200">Reasoning is available for enterprise accounts only.</div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
+                  </div>
+                </div>
+              )}
+
               {/* Images gating upgrade popover */}
               {gatingOpen === 'images' && (
                 <div
@@ -664,6 +750,24 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                     <XMarkIcon className="w-4 h-4" />
                   </button>
                   <div className="pr-6 text-gray-800 dark:text-gray-200">Selected model doesn’t support image input</div>
+                </div>
+              )}
+
+              {/* Reasoning: model unsupported notice */}
+              {gatingOpen === 'reasoning-unsupported' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="pr-6 text-gray-800 dark:text-gray-200">Selected model doesn’t support reasoning</div>
                 </div>
               )}
 
@@ -731,6 +835,38 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 >
                   <span
                     className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${webSearchOn ? 'translate-x-5' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Reasoning settings popover (enterprise) anchored above buttons */}
+          {reasoningModalOpen && (
+            <div
+              ref={reasoningModalRef}
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 shadow-2xl"
+            >
+              <button
+                aria-label="Close"
+                onClick={() => setReasoningModalOpen(false)}
+                className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+              <div className="mb-2 pr-6 text-sm font-semibold text-slate-900 dark:text-gray-100">Enable reasoning</div>
+              <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">Enables model thinking steps; increases output tokens and latency. Default is low effort.</div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-800 dark:text-gray-200">Reasoning</span>
+                <button
+                  type="button"
+                  data-testid="reasoning-toggle"
+                  aria-pressed={reasoningOn}
+                  onClick={() => setReasoningOn(v => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${reasoningOn ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${reasoningOn ? 'translate-x-5' : 'translate-x-1'}`}
                   />
                 </button>
               </div>

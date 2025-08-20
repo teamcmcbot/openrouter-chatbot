@@ -122,28 +122,30 @@ UI/UX plan for display:
 
 ## Phases
 
-- [ ] Phase 1 — Database patch (prepare, verify, merge)
+- [x] Phase 1 — Database patch (prepare, verify, merge)
 
-  - [ ] Create patch at `database/patches/reasoning-mode/` with forward/reverse SQL and verification:
-    - [ ] ALTER TABLE `public.chat_messages` ADD COLUMNS (idempotent):
+  - [x] Create patch at `database/patches/reasoning-mode/` with forward/reverse SQL and verification:
+    - [x] ALTER TABLE `public.chat_messages` ADD COLUMNS (idempotent):
       - `reasoning` TEXT NULL
       - `reasoning_details` JSONB NULL
-      - `native_tokens_reasoning` INTEGER NOT NULL DEFAULT 0
-    - [ ] Update functions to handle new fields:
-  - Note: We removed unused DB functions `public.sync_user_conversations(...)` and `public.get_session_with_messages(...)` from the schema. Reasoning fields are handled directly via table columns; no function changes required.
-    - [ ] Ensure RLS unchanged (columns are additive); add any needed indexes later if warranted.
-  - [ ] User verification: run forward migration locally; confirm new columns exist. No DB function updates required.
-  - [ ] After verification, merge the patch into canonical schema files (e.g., update `database/schema/02-chat.sql`) per repo workflow.
+      - (intentionally omitted) `native_tokens_reasoning` — not available in current flow
+    - [x] No function changes required
+  - Note: We removed unused DB functions `public.sync_user_conversations(...)` and `public.get_session_with_messages(...)` from the schema. A dedicated drop patch exists under `database/patches/drop-orphaned-chat-functions/` for live DB cleanup.
+    - [x] Ensure RLS unchanged (columns are additive); add indexes later if warranted.
+  - [x] User verification: ran forward migration; confirmed new columns exist. No DB function updates required.
+  - [x] Canonical schema updated (`database/schema/02-chat.sql`).
 
 - [ ] Phase 2 — UI elements (no backend wiring yet)
 
-  - [ ] From `/api/models`, surface `supported_parameters` and `pricing.internal_reasoning` to the client (keep internal_reasoning for forward-compat only).
-  - [ ] Add a Reasoning control in the input toolbar mirroring the Web Search button:
-    - [ ] Button opens a popover.
-    - [ ] Enterprise: popover shows "Enable reasoning" with brief cost/latency note and confirm.
-    - [ ] Non-enterprise: popover shows "Upgrade to enable reasoning" with upgrade action.
-  - [ ] Enable the control only when selected model’s `supported_parameters` includes `reasoning` or `include_reasoning`; otherwise show disabled state with explanation tooltip.
-  - [ ] User verification: on supported models, enterprise sees enable popover; non-enterprise sees upgrade popover; disabled on unsupported models.
+  - [x] From `/api/models`, surface `supported_parameters` and `pricing.internal_reasoning` to the client (keep internal_reasoning for forward-compat only).
+    - Note: `supported_parameters` is already present in client `ModelInfo` and used for capability checks.
+  - [x] Add a Reasoning control in the input toolbar mirroring the Web Search button:
+    - [x] Button opens a popover.
+    - [x] Enterprise: popover shows "Enable reasoning" with brief cost/latency note and confirm.
+    - [x] Non-enterprise: popover shows "Upgrade to enable Reasoning" with upgrade action.
+  - [x] Enable the control only when selected model’s `supported_parameters` includes `reasoning` or `include_reasoning`; otherwise show an anchored notice on click.
+  - [x] Tests: add UI gating tests for free tier, unsupported model, and enterprise ON state.
+  - [x] User verification: on supported models, enterprise sees enable popover and can toggle ON; non-enterprise sees upgrade popover; unsupported model shows notice.
 
 - [ ] Phase 3 — API wiring and data flow
 
