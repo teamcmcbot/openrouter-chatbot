@@ -19,6 +19,7 @@ import PromptTabs from "./PromptTabs";
 import { fetchSignedUrl } from "../../lib/utils/signedUrlCache";
 import { sanitizeAttachmentName, fallbackImageLabel } from "../../lib/utils/sanitizeAttachmentName";
 import InlineAttachment from "./InlineAttachment";
+import { getDomainFromUrl, getFaviconUrl } from "../../lib/utils/url";
 
 // Memoized markdown component for better performance
 const MemoizedMarkdown = memo(({ children }: { children: string }) => (
@@ -136,7 +137,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
   return (
     <div 
       ref={messagesContainerRef}
-  className="h-full overflow-y-auto px-4 sm:px-6 py-4 scroll-smooth"
+  className="h-full overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 scroll-smooth"
     >
       <div className="space-y-4">
         {messages.length === 0 && !isLoading && (
@@ -186,7 +187,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
               </div>
 
         {/* Message Content */}
-        <div className={`rounded-lg px-3 sm:px-4 py-2 transition-all duration-200 relative flex-1 sm:flex-initial ${
+  <div className={`rounded-lg px-3 sm:px-4 py-2 transition-all duration-200 relative flex-1 sm:flex-initial max-w-full overflow-x-hidden ${
                 message.role === "user"
                   ? `bg-emerald-600 text-white`
           : `bg-slate-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-slate-300/80 dark:border-white/10 shadow-sm ${
@@ -246,22 +247,48 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
 
                 {/* URL Citations (Sources) */}
                 {message.role === "assistant" && Array.isArray(message.annotations) && message.annotations.length > 0 && (
-                  <div className="mt-3 border-t border-black/10 dark:border-white/10 pt-2 overflow-x-hidden">
+                  <div className="mt-3 border-t border-black/10 dark:border-white/10 pt-2 overflow-x-hidden max-w-full">
                     <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Sources</div>
-                    <ul className="list-disc pl-5 space-y-1 max-w-full overflow-x-hidden">
-                      {message.annotations.map((ann, i) => (
-                        <li key={`${message.id}-ann-${i}`} className="text-xs leading-snug max-w-full">
-                          <a
-                            href={ann.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block max-w-full underline text-blue-700 dark:text-blue-300 hover:text-blue-500 dark:hover:text-blue-200 whitespace-normal break-words break-all"
-                            title={ann.title || ann.url}
-                          >
-                            {ann.title || ann.url}
-                          </a>
-                        </li>
-                      ))}
+                    <ul className="space-y-1.5 max-w-full overflow-x-hidden">
+                      {message.annotations.map((ann, i) => {
+                        const host = getDomainFromUrl(ann.url) || ann.url;
+                        const favicon = getFaviconUrl(ann.url, 32);
+                        const title = ann.title?.trim() || host;
+                        return (
+                          <li key={`${message.id}-ann-${i}`} className="w-full max-w-full min-w-0">
+                            <a
+                              href={ann.url}
+                              target="_blank"
+                              rel="noopener noreferrer nofollow"
+                              title={title}
+                              className="group flex items-start gap-2 rounded-md px-2 py-1 transition-colors hover:bg-gray-200/70 dark:hover:bg-gray-700/40 w-full max-w-full overflow-hidden"
+                            >
+                              {/* Favicon (32x32, contrasting border) */}
+                              {favicon ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={favicon}
+                                  alt=""
+                                  width={32}
+                                  height={32}
+                                  className="mt-0.5 h-8 w-8 rounded bg-white dark:bg-gray-900 border border-black/40 dark:border-white/60 shadow-sm flex-shrink-0"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <span className="mt-0.5 h-8 w-8 rounded bg-gray-300 dark:bg-gray-600 border border-black/40 dark:border-white/60 inline-block flex-shrink-0" aria-hidden="true" />
+                              )}
+                              <span className="min-w-0 leading-4 w-full max-w-full">
+                                <span className="block max-w-full overflow-hidden text-xs font-medium text-blue-700 dark:text-blue-300 group-hover:underline truncate whitespace-nowrap" title={title}>
+                                  {title}
+                                </span>
+                                <span className="block max-w-full overflow-hidden text-[11px] text-gray-600 dark:text-gray-400 truncate whitespace-nowrap" title={host}>
+                                  {host}
+                                </span>
+                              </span>
+                            </a>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 )}
