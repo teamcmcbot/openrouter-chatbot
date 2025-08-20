@@ -14,9 +14,11 @@ interface MessageInputProps {
   onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean }) => void
   disabled?: boolean;
   initialMessage?: string;
+  // Optional: allow parent to open the model selector with a preset filter (e.g., 'multimodal')
+  onOpenModelSelector?: (presetFilter?: 'all' | 'free' | 'paid' | 'multimodal' | 'reasoning') => void;
 }
 
-export default function MessageInput({ onSendMessage, disabled = false, initialMessage }: Readonly<MessageInputProps>) {
+export default function MessageInput({ onSendMessage, disabled = false, initialMessage, onOpenModelSelector }: Readonly<MessageInputProps>) {
   const [message, setMessage] = useState("");
   const [showCount, setShowCount] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -124,7 +126,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
         return [];
       });
       // Generate a new draftId for the next compose
-  setDraftId(genDraftId());
+      setDraftId(genDraftId());
       // Reset textarea height responsively and focus/select
       setTimeout(() => {
         const textarea = document.getElementById('message-input') as HTMLTextAreaElement;
@@ -134,6 +136,25 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
         }
       }, 0);
     }
+  };
+
+  // Primary banner action: discard images and send text only
+  const handleDiscardImagesAndSend = async () => {
+    if (!message.trim() || disabled) return;
+    // Best-effort cleanup of any uploaded attachments before sending
+    const toDelete = attachments.filter(a => a.status === 'ready' && a.id).map(a => a.id!) as string[];
+    // Fire-and-forget delete requests
+    for (const id of toDelete) {
+      try { fetch(`/api/attachments/${id}`, { method: 'DELETE' }); } catch {}
+    }
+    onSendMessage(message.trim(), { webSearch: webSearchOn });
+    // Clear local state
+    setMessage("");
+    setAttachments((prev) => {
+      prev.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      return [];
+    });
+    setDraftId(genDraftId());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -415,6 +436,31 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 className="w-16 h-16 sm:w-20 sm:h-20"
               />
             ))}
+          </div>
+        )}
+
+        {/* Row 2.5: Inline banner if images present but selected model is text-only */}
+        {attachments.length > 0 && !modelSupportsImages && (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-yellow-900/40 dark:bg-yellow-900/20 px-3 py-2">
+            <div className="text-xs text-amber-900 dark:text-yellow-200">
+              This model can’t accept images. You can discard them and send text only, or switch to a multimodal model.
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDiscardImagesAndSend}
+                className="text-xs px-2.5 py-1 rounded-md bg-amber-600 text-white hover:bg-amber-700"
+              >
+                Discard images and send
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenModelSelector?.('multimodal')}
+                className="text-xs px-2.5 py-1 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600/60"
+              >
+                Switch model
+              </button>
+            </div>
           </div>
         )}
 

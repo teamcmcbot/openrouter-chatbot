@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 
 // Utility to detect mobile devices
 function isMobileDevice() {
@@ -14,6 +14,10 @@ interface ModelDropdownProps {
   readonly onModelSelect: (model: string) => void;
   readonly isLoading?: boolean;
   readonly onShowDetails?: (model: ModelInfo) => void;
+  // NEW: controlled open state and preset filter
+  readonly open?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
+  readonly presetFilter?: 'all' | 'free' | 'paid' | 'multimodal' | 'reasoning';
 }
 
 // Type guard to check if models are enhanced
@@ -26,9 +30,19 @@ export default function ModelDropdown({
   selectedModel, 
   onModelSelect, 
   isLoading = false,
-  onShowDetails
+  onShowDetails,
+  open,
+  onOpenChange,
+  presetFilter,
 }: ModelDropdownProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  // Controlled/uncontrolled open state
+  const [isOpenInternal, setIsOpenInternal] = useState(false);
+  const isOpen = typeof open === 'boolean' ? open : isOpenInternal;
+  const setIsOpen = useCallback((next: boolean) => {
+    if (onOpenChange) onOpenChange(next);
+    else setIsOpenInternal(next);
+  }, [onOpenChange]);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBy, setFilterBy] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -39,6 +53,13 @@ export default function ModelDropdown({
 
   // Enhanced-only mode going forward; keep guard for safety during transition
   const hasEnhancedData = isEnhancedModels(models);
+
+  // Apply preset filter when opened
+  useEffect(() => {
+    if (isOpen && presetFilter) {
+      setFilterBy(presetFilter);
+    }
+  }, [isOpen, presetFilter]);
 
   // Filter and search models
   const filteredModels = useMemo(() => {
@@ -124,19 +145,38 @@ export default function ModelDropdown({
     };
   }, [isOpen, isSmallScreen]);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside (ignore hidden instances)
   useEffect(() => {
+    if (!isOpen) return;
+    const el = dropdownRef.current;
+    if (!el) return;
+    // Only attach for visible instance
+    const isVisible = () => {
+      try {
+        const rects = el.getClientRects();
+        if (!rects || rects.length === 0) return false;
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+      } catch {
+        return true;
+      }
+    };
+    if (!isVisible()) return;
+
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (dropdownRef.current && !dropdownRef.current.contains(target)) {
         setIsOpen(false);
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside);
+    // Use 'click' so item onClick runs before this listener
+    document.addEventListener("click", handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("click", handleClickOutside);
     };
-  }, []);
+  }, [isOpen, setIsOpen]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -162,7 +202,7 @@ export default function ModelDropdown({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, setIsOpen]);
 
   const handleModelSelect = (modelId: string) => {
     onModelSelect(modelId);
