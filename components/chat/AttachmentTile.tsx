@@ -31,7 +31,7 @@ export default function AttachmentTile({ data, index, onRemove, onRetry, classNa
 
   return (
     <div
-      className={`relative group rounded-md overflow-hidden border ${failed ? "border-red-400" : "border-gray-200 dark:border-gray-600"} ${className} shrink-0 snap-start`}
+  className={`relative group rounded-md overflow-hidden border ${failed ? "border-red-400" : "border-gray-200 dark:border-gray-600"} ${className} shrink-0 snap-start cursor-pointer`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

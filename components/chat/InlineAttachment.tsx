@@ -88,7 +88,7 @@ export default function InlineAttachment({ id, alt, onClick, width = 96, height 
           type="button"
           title={alt || "Open image"}
           onClick={onClick}
-          className="block w-full h-full"
+          className="block w-full h-full cursor-pointer"
         >
           <Image
             src={url}
