@@ -199,7 +199,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                 {message.role === "assistant" && message.model && (
                   <button
                     onClick={() => onModelClick?.(message.model!, 'overview', undefined)}
-                    className="inline-block mb-1 mr-2 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-purple-800 dark:text-purple-300 align-middle hover:bg-gray-400 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                    className="inline-block mb-1 mr-1 px-2 py-0.5 text-xs font-semibold rounded bg-gray-300 dark:bg-gray-800 text-purple-800 dark:text-purple-300 align-middle hover:bg-gray-400 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                     title={`View details for ${message.model}`}
                   >
                     {message.model}
@@ -207,10 +207,10 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                 )}
                 {message.role === "assistant" && message.has_websearch && (
                   <span
-                    className="inline-block mb-1 mr-2 px-2 py-0.5 text-[10px] font-semibold rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 align-middle"
-                    title="Response used web search"
+                    className="inline-flex items-center mb-1 mr-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border border-blue-300/70 bg-blue-100 text-blue-700 shadow-sm align-middle dark:border-blue-300/30 dark:bg-blue-900/30 dark:text-blue-200"
+                    title="Includes web search results"
                   >
-                    Web
+                    Web Search
                   </span>
                 )}
                 
