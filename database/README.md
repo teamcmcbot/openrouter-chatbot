@@ -1,3 +1,7 @@
+## Functions and triggers (high level)
+
+Note: Legacy helpers `public.get_session_with_messages` and `public.sync_user_conversations` were removed from the canonical schema in August 2025 and are no longer used by the application. A drop patch exists under `database/patches/drop-orphaned-chat-functions/` for live DB cleanup.
+
 # 🗃️ Database Setup Guide
 
 ## Overview
