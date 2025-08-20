@@ -43,7 +43,7 @@ GET /api/models
       "pricing": { "prompt": "...", "completion": "..." },
       "input_modalities": ["text"],
       "output_modalities": ["text"],
-      "supported_parameters": ["max_tokens"]
+      "supported_parameters": ["max_tokens", "reasoning"]
     },
     {
       "id": "gpt-3.5-turbo",
@@ -95,6 +95,11 @@ Retry-After: 3600 (when rate limit exceeded)
 ## Usage in the Codebase
 
 - Invoked from `stores/useModelStore.ts` to populate the model selector.
+
+### Reasoning capability note
+
+- Clients use `supported_parameters` to detect reasoning support (`"reasoning"` or legacy `"include_reasoning"`).
+- When present and the user is Enterprise tier, the UI shows a Reasoning toggle. Otherwise, the toggle is hidden or shows an upgrade notice.
 
 ## Related Documentation
 

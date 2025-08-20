@@ -164,17 +164,18 @@ UI/UX plan for display:
   - [x] User verification: network requests show correct `reasoning` object; DB rows include reasoning fields; UI displays reasoning where available.
 
 - [ ] Phase 4 — History sync and chat rendering
+
   - [x] Ensure GET `/api/chat/sync` includes `reasoning`, `reasoning_details`, and `native_tokens_reasoning` for assistant messages.
   - [x] `ChatInterface` renders reasoning data properly from synced history (collapsed by default, expandable on click).
     - Manual test steps:
-      1) Use a reasoning-capable model and enable Reasoning (default low).
-      2) Send a message; confirm assistant reply shows a collapsed “Reasoning” panel.
-      3) Reload the page or open the session again; confirm the “Reasoning” panel appears for the saved assistant message.
-      4) Expand to see `reasoning` text and any `reasoning_details` JSON.
+      1. Use a reasoning-capable model and enable Reasoning (default low).
+      2. Send a message; confirm assistant reply shows a collapsed “Reasoning” panel.
+      3. Reload the page or open the session again; confirm the “Reasoning” panel appears for the saved assistant message.
+      4. Expand to see `reasoning` text and any `reasoning_details` JSON.
   - [ ] User verification: history loads with reasoning intact; expanding shows stored reasoning blocks/text consistently.
 
-- [ ] Phase 5 — Docs
-  - [ ] Add `/docs/components/chat/reasoning-mode.md` and update model capability docs.
+- [x] Phase 5 — Docs
+  - [x] Add `/docs/components/chat/reasoning-mode.md` and update model capability docs.
 
 ## Open questions (defer for later)
 

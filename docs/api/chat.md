@@ -48,6 +48,49 @@ Content-Type: application/json
 
 `messages` may be omitted in favor of a single `message` string for legacy clients.
 
+### Addendum: Reasoning Mode (optional)
+
+Enterprise users can enable provider-agnostic reasoning on supported models. When enabled, include a `reasoning` object in the request:
+
+```json
+{
+  "messages": [{ "role": "user", "content": "Help plan my week" }],
+  "model": "<reasoning-capable-model>",
+  "reasoning": { "effort": "low" }
+}
+```
+
+Allowed fields for `reasoning`:
+
+- `effort`: "low" | "medium" | "high" (recommended; default we send "low")
+- `max_tokens`: number (advanced; Anthropic-style budget)
+- `exclude`: boolean (use internal reasoning but omit reasoning text in response)
+- `enabled`: boolean (if true alone, providers may default to medium effort)
+
+Validation and behavior:
+
+- Enterprise-only feature; requests from lower tiers are rejected.
+- Model must advertise `supported_parameters` including `reasoning` or `include_reasoning`.
+- Prefer `effort` OR `max_tokens`, not both.
+- Reasoning tokens are billed as output tokens and may increase latency.
+- Some models won’t return visible reasoning even when enabled.
+
+Response may include (when provider returns them):
+
+```json
+{
+  "response": "...",
+  "reasoning": "Model thinking text (optional)",
+  "reasoning_details": {
+    "blocks": [
+      /* provider-structured blocks */
+    ]
+  }
+}
+```
+
+Both fields are persisted to `chat_messages.reasoning` (TEXT) and `chat_messages.reasoning_details` (JSONB) and included in `/api/chat/sync` for assistant messages.
+
 ## Response
 
 ```json
