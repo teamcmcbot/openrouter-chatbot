@@ -338,19 +338,31 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   };
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (!isAuthenticated || !modelSupportsImages || disabled) return; // rely on tooltip/disabled
-    if (tierBlocksImages) {
-      // Gate paste as well
-      setGatingOpen('images');
-      e.preventDefault();
-      return;
-    }
-    const items = Array.from(e.clipboardData.items || []);
+    // If input is disabled, let browser handle paste (likely no-op)
+    if (disabled) return;
+
+    // If not authenticated or model doesn't support image input, allow default text paste.
+    if (!isAuthenticated || !modelSupportsImages) return;
+
+    // Important: detect whether the clipboard actually contains image files first.
+    // We should only gate when user is attempting to paste images, not plain text.
+    const items = Array.from(e.clipboardData?.items || []);
     const images = items
       .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
       .map((it) => it.getAsFile())
       .filter((f): f is File => !!f);
+
+    // No images present → allow normal text paste without any gating.
     if (images.length === 0) return;
+
+    // Images present but tier blocks image uploads → show upgrade popover and block paste handling.
+    if (tierBlocksImages) {
+      setGatingOpen('images');
+      e.preventDefault();
+      return;
+    }
+
+    // Eligible tier and model supports images → intercept paste and upload images.
     e.preventDefault();
     const remaining = ATTACHMENT_CAP - attachments.length;
     const toUpload = images.slice(0, Math.max(0, remaining));
