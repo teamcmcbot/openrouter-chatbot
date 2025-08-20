@@ -50,7 +50,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     originalName?: string;
     previewUrl: string; // Object URL
     file?: File; // kept for retry
-    status: 'uploading' | 'failed' | 'ready';
+    status: 'uploading' | 'failed' | 'ready' | 'deleting';
   };
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const ATTACHMENT_CAP = 3;
@@ -367,16 +367,41 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
 
   const removeAttachment = async (tempIdOrId: string) => {
     // Find by tempId first; if not found, try by id
-  const target = attachments.find(a => a.tempId === tempIdOrId) || attachments.find(a => a.id === tempIdOrId);
-    const id = target?.id;
-    if (id && target?.status === 'ready') {
-      try { await fetch(`/api/attachments/${id}`, { method: 'DELETE' }); } catch {}
+    const target = attachments.find(a => a.tempId === tempIdOrId) || attachments.find(a => a.id === tempIdOrId);
+    if (!target) return;
+    const previousStatus = target.status;
+  // Optimistic: mark as deleting so the tile shows overlay and button disables
+  setAttachments(prev => prev.map(a => ((a.tempId === target.tempId) || (target.id && a.id === target.id)) ? { ...a, status: 'deleting' } : a));
+    const id = target.id;
+    let ok = true;
+    if (id && (previousStatus === 'ready' || previousStatus === 'deleting')) {
+      try {
+        const res = await fetch(`/api/attachments/${id}`, { method: 'DELETE' });
+        ok = res.ok;
+        if (!res.ok && res.status !== 204) {
+          try {
+            const data = await res.json();
+            if (data?.error) toast.error(String(data.error));
+          } catch {}
+        }
+      } catch {
+        ok = false;
+      }
     }
-    setAttachments((prev) => {
-      const att = target;
-      if (att) URL.revokeObjectURL(att.previewUrl);
-      return prev.filter((a) => a !== target);
-    });
+    if (ok) {
+      setAttachments((prev) => {
+        const keyId = target.id;
+        const keyTemp = target.tempId;
+        const idx = prev.findIndex(a => (keyId ? a.id === keyId : a.tempId === keyTemp));
+        const toRemove = idx >= 0 ? prev[idx] : undefined;
+        if (toRemove) URL.revokeObjectURL(toRemove.previewUrl);
+        return prev.filter(a => (keyId ? a.id !== keyId : a.tempId !== keyTemp));
+      });
+    } else {
+      // Rollback: restore previous status and notify
+      toast.error('Failed to delete image. Please try again.');
+      setAttachments(prev => prev.map(a => ((a.tempId === target.tempId) || (target.id && a.id === target.id)) ? { ...a, status: previousStatus } : a));
+    }
   };
 
   const retryAttachment = async (tempId: string) => {
