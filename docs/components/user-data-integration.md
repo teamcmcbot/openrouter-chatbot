@@ -279,20 +279,22 @@ const { data, loading, error } = useUserData(isOpen);
 
 ### 2. Request Deduplication
 
-```typescript
-// Prevent multiple simultaneous requests
-const [isRequesting, setIsRequesting] = useState(false);
+Update (Aug 2025): Cross-instance dedupe is now built into `useUserData`.
 
-const fetchData = useCallback(async () => {
-  if (isRequesting) return;
-  setIsRequesting(true);
-  try {
-    // Fetch logic
-  } finally {
-    setIsRequesting(false);
-  }
-}, [isRequesting]);
-```
+Key changes
+
+- `hooks/useUserData.ts` maintains a module-level cache and in-flight map keyed by `userId` (via `globalThis`) to coalesce concurrent requests across components.
+- `forceRefresh()` bypasses cache but still shares the same in-flight promise to avoid double-calling when multiple triggers occur simultaneously (e.g., modal open + manual refresh).
+- `components/system/ThemeInitializer.tsx` now consumes `useUserData` instead of calling the service directly, so all components share a single GET on page load.
+
+Implications
+
+- On `/chat` load, ThemeInitializer, ChatInterface, and MessageInput all read from the same `useUserData` source: only one GET `/api/user/data` is executed.
+- Opening User Settings triggers a fresh fetch once; overlapping triggers dedupe.
+
+Testing
+
+- See `tests/hooks/useUserData.dedupe.test.tsx` for unit coverage: concurrent mounts → one GET; overlapping refresh → one GET; subsequent force refresh → new GET.
 
 ### 3. Optimistic Updates
 

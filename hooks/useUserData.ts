@@ -17,6 +17,43 @@ interface UseUserDataReturn {
   forceRefresh: () => Promise<void>;
 }
 
+// Module-level shared cache and in-flight map to de-duplicate requests across components
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const g: any = globalThis as any;
+if (!g.__userDataCache) {
+  g.__userDataCache = new Map<string, UserDataResponse>();
+}
+if (!g.__userDataInFlight) {
+  g.__userDataInFlight = new Map<string, Promise<UserDataResponse>>();
+}
+const CACHE: Map<string, UserDataResponse> = g.__userDataCache as Map<string, UserDataResponse>;
+const IN_FLIGHT: Map<string, Promise<UserDataResponse>> = g.__userDataInFlight as Map<string, Promise<UserDataResponse>>;
+
+async function fetchUserDataShared(userId: string, opts?: { force?: boolean }): Promise<UserDataResponse> {
+  const force = opts?.force === true;
+
+  if (!force) {
+    const cached = CACHE.get(userId);
+    if (cached) return cached;
+  }
+
+  const existing = IN_FLIGHT.get(userId);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    try {
+      const result = await fetchUserData();
+      CACHE.set(userId, result);
+      return result;
+    } finally {
+      IN_FLIGHT.delete(userId);
+    }
+  })();
+
+  IN_FLIGHT.set(userId, promise);
+  return promise;
+}
+
 /**
  * Custom hook for managing user data fetching and updates
  * Includes caching to prevent duplicate API calls for the same user
@@ -62,7 +99,7 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
         return;
       }
 
-      const userData = await fetchUserData();
+  const userData = await fetchUserDataShared(currentUserId, { force: false });
       
       // Double-check user hasn't changed during fetch
       if (user?.id === currentUserId) {
@@ -97,7 +134,8 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
         return;
       }
 
-      const userData = await fetchUserData();
+  // Bypass cache but still share in-flight request among multiple refresh triggers
+  const userData = await fetchUserDataShared(currentUserId, { force: true });
       
       // Double-check user hasn't changed during fetch
       if (user?.id === currentUserId) {

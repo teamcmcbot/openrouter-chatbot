@@ -274,8 +274,8 @@ This standardization provides:
 - [JWT Authentication Architecture](../jwt/phase-1-authentication-architecture.md) - Authentication system design
 - [Feature Flagging Implementation](../jwt/phase-2-feature-flagging-implementation.md) - Feature control system
 - [Security Review](../security-review.md) - Comprehensive security analysis
- - Web Search UX: ../../docs/components/chat/web-search.md
- - Web Search DB Schema: ../../docs/database/web-search.md
+- Web Search UX: ../../docs/components/chat/web-search.md
+- Web Search DB Schema: ../../docs/database/web-search.md
 
 ---
 
