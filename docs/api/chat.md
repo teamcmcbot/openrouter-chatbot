@@ -17,6 +17,8 @@ Handles chat completion requests by sending user messages to the OpenRouter API 
 
 When Web Search is enabled (per-message toggle), the request includes `plugins: [{ id: 'web', max_results: 3 }]`. The response may include `annotations` with `type: "url_citation"`; these are normalized and returned to the client as `citations` and used to mark `has_websearch` and `websearch_result_count`.
 
+Note: When enabled, authenticated requests include a stable `user` identifier forwarded to OpenRouter. See `docs/api/openrouter-user-tracking.md` for configuration and privacy details.
+
 ## Authentication & Authorization
 
 - **Optional Authentication:** Wrapped by `withEnhancedAuth`, so anonymous requests are allowed.

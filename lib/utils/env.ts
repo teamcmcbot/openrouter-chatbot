@@ -63,6 +63,7 @@ export function validateEnvVars() {
   const optionalEnvVars = [
     'OPENROUTER_MODELS_LIST', // Comma-separated list of available models
     'OPENROUTER_MODELS_API_URL', // OpenRouter models API endpoint
+  'OPENROUTER_USER_TRACKING', // Enable/disable sending user id to OpenRouter
     'MODELS_CACHE_TTL_MINUTES', // Cache TTL in minutes
     'NEXT_PUBLIC_SITE_URL', // Site URL for OpenRouter API headers
     'MODELS_BACKGROUND_REFRESH_INTERVAL', // Background refresh interval
@@ -83,4 +84,20 @@ export function validateEnvVars() {
   });
 
   console.info(`Models cache TTL: ${getModelsCacheTTL()} minutes`);
+}
+
+/**
+ * Returns whether OpenRouter user tracking is enabled.
+ * Accepted truthy values: 'on', 'true', '1', 'yes' (case-insensitive)
+ * Accepted falsy values: 'off', 'false', '0', 'no' (case-insensitive)
+ * Default: enabled (true) to satisfy product requirement.
+ */
+export function isUserTrackingEnabled(): boolean {
+  const raw = process.env.OPENROUTER_USER_TRACKING;
+  if (raw == null) return true; // default ON for authenticated users
+  const v = raw.trim().toLowerCase();
+  if (["off", "false", "0", "no"].includes(v)) return false;
+  if (["on", "true", "1", "yes"].includes(v)) return true;
+  // Fallback: treat any other non-empty value as enabled to be permissive
+  return true;
 }

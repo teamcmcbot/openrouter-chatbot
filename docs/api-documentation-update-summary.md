@@ -249,3 +249,12 @@ npm test
 
 **Status**: ✅ All API documentation successfully updated and verified  
 **Next Steps**: Documentation maintenance as new endpoints are added or patterns evolve
+
+---
+
+## Update: OpenRouter User Tracking (August 20, 2025)
+
+- New doc added: `docs/api/openrouter-user-tracking.md`
+- Describes default-on forwarding of authenticated Supabase `user.id` to OpenRouter chat/completions as `user` field.
+- Config via `OPENROUTER_USER_TRACKING` env var (on/true/1/yes to enable; off/false/0/no to disable; default enabled when unset).
+- Anonymous sessions never include the `user` field.

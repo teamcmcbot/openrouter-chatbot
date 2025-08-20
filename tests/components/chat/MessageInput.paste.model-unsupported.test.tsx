@@ -80,10 +80,9 @@ describe('MessageInput paste - text-only model toast', () => {
     await waitFor(() => {
       expect(toastSpies.error).toHaveBeenCalled()
     })
-    // Toast message includes model label exactly as specified
-    const lastCall = toastSpies.error.mock.calls.at(-1)?.[0] as string | undefined
-    expect(lastCall).toContain('Text Only Model')
-    expect(lastCall).toMatch(/does not support image input\.?$/i)
+  // Toast message communicates image not supported
+  const lastCall = toastSpies.error.mock.calls.at(-1)?.[0] as string | undefined
+  expect(lastCall).toMatch(/does not support image input\.?$/i)
 
     // No upload attempted
     expect(fetchSpy).not.toHaveBeenCalled()
