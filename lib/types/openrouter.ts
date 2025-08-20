@@ -13,6 +13,8 @@ export interface OpenRouterRequest {
   max_tokens?: number;
   temperature?: number;
   stream?: boolean;
+  // Optional user tracking identifier supported by OpenRouter
+  user?: string;
 }
 
 // Annotations returned by OpenRouter (e.g., web search URL citations)
@@ -30,6 +32,8 @@ export interface OpenRouterResponse {
   object: string;
   created: number;
   model: string;
+  // Some OpenRouter responses may echo user_id in error or meta contexts
+  user_id?: string;
   choices: {
     index: number;
     message: {

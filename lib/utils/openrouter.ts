@@ -62,9 +62,11 @@ type OpenRouterRequestWithSystem = {
   temperature?: number;
   stream?: boolean;
   plugins?: { id: string; max_results?: number }[];
+  // OpenRouter user tracking identifier (optional)
+  user?: string;
 };
 import { ApiErrorResponse, ErrorCode } from './errors';
-import { getEnvVar } from './env';
+import { getEnvVar, isUserTrackingEnabled } from './env';
 import { logger } from './logger';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -177,6 +179,23 @@ export async function getOpenRouterCompletion(
     max_tokens: dynamicMaxTokens,
     temperature: finalTemperature,
   };
+
+  // Attach user tracking if enabled and authenticated
+  try {
+    if (isUserTrackingEnabled() && authContext?.isAuthenticated && authContext.user?.id) {
+      // Use the Supabase user id directly as per requirement
+      requestBody.user = authContext.user.id;
+      logger.debug('[OpenRouter Request] user tracking enabled', { user_present: true });
+    } else {
+      logger.debug('[OpenRouter Request] user tracking disabled or unauthenticated', {
+        enabled: isUserTrackingEnabled(),
+        isAuthenticated: !!authContext?.isAuthenticated,
+      });
+    }
+  } catch (e) {
+    // Never fail the request due to user tracking wiring
+    logger.warn('Failed to attach user tracking to OpenRouter request (continuing without user):', e);
+  }
 
   // Enable OpenRouter web search plugin when requested
   if (options?.webSearch) {

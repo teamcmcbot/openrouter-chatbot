@@ -3,7 +3,7 @@
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { sanitizeAttachmentName, fallbackImageLabel } from "../../lib/utils/sanitizeAttachmentName";
 
-export type AttachmentStatus = "uploading" | "failed" | "ready";
+export type AttachmentStatus = "uploading" | "failed" | "ready" | "deleting";
 
 export interface AttachmentData {
   tempId: string;
@@ -27,23 +27,27 @@ export default function AttachmentTile({ data, index, onRemove, onRetry, classNa
   const label = sanitizeAttachmentName(data.originalName) || fallbackImageLabel(index);
   const failed = data.status === "failed";
   const uploading = data.status === "uploading";
+  const deleting = data.status === "deleting";
   const idOrTemp = data.tempId || data.id || String(index);
 
   return (
     <div
-      className={`relative group rounded-md overflow-hidden border ${failed ? "border-red-400" : "border-gray-200 dark:border-gray-600"} ${className} shrink-0 snap-start`}
+  className={`relative group rounded-md overflow-hidden border ${failed ? "border-red-400" : "border-gray-200 dark:border-gray-600"} ${className} shrink-0 snap-start cursor-pointer`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={data.previewUrl}
         alt={label}
-        className="w-full h-full object-cover opacity-100"
+        className={`w-full h-full object-cover opacity-100 ${deleting ? 'grayscale-[60%] opacity-75' : ''}`}
         draggable={false}
       />
 
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         {uploading && (
           <div className="text-[10px] bg-black/50 text-white px-2 py-1 rounded">Uploading…</div>
+        )}
+        {deleting && (
+          <div className="text-[10px] bg-black/50 text-white px-2 py-1 rounded">Removing…</div>
         )}
         {failed && (
           <div className="flex flex-col items-center gap-1">
@@ -63,7 +67,8 @@ export default function AttachmentTile({ data, index, onRemove, onRetry, classNa
         type="button"
         aria-label="Remove image"
         onClick={() => onRemove(idOrTemp as string)}
-        className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition"
+        disabled={uploading || deleting}
+        className={`absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition ${uploading || deleting ? 'pointer-events-none opacity-60' : ''}`}
       >
         <XMarkIcon className="w-4 h-4" />
       </button>

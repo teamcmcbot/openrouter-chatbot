@@ -51,6 +51,9 @@ export default function ChatInterface() {
   const [scrollToCompletionId, setScrollToCompletionId] = useState<string | undefined>(undefined);
   // Local state for prompt selection
   const [selectedPrompt, setSelectedPrompt] = useState<string>("");
+  // Control for the model dropdown from child actions (e.g., MessageInput banner)
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [modelDropdownPreset, setModelDropdownPreset] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning' | undefined>(undefined);
 
   // Retry function to resend the last user message
   const handleRetry = () => {
@@ -184,7 +187,7 @@ export default function ChatInterface() {
                 >
                   <Bars3Icon className="w-5 h-5" />
                 </button>
-                {availableModels.length > 0 && (
+        {availableModels.length > 0 && (
                   <div className="min-w-0 sm:transform sm:scale-[1.05]">
                     <ModelDropdown
                       models={availableModels}
@@ -192,6 +195,9 @@ export default function ChatInterface() {
                       onModelSelect={handleModelSelect}
                       isLoading={modelsLoading}
                       onShowDetails={handleShowDetails}
+          open={isModelDropdownOpen}
+          onOpenChange={setIsModelDropdownOpen}
+          presetFilter={modelDropdownPreset}
                     />
                   </div>
                 )}
@@ -208,7 +214,7 @@ export default function ChatInterface() {
           {/* Desktop/tablet layout: model selector left, meta right (>= lg) */}
           <div className="hidden lg:flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {availableModels.length > 0 && (
+      {availableModels.length > 0 && (
                 <div className="transform scale-[1.05]">
                   <ModelDropdown
                     models={availableModels}
@@ -216,6 +222,9 @@ export default function ChatInterface() {
                     onModelSelect={handleModelSelect}
                     isLoading={modelsLoading}
                     onShowDetails={handleShowDetails}
+        open={isModelDropdownOpen}
+        onOpenChange={setIsModelDropdownOpen}
+        presetFilter={modelDropdownPreset}
                   />
                 </div>
               )}
@@ -267,6 +276,10 @@ export default function ChatInterface() {
             }}
             disabled={isLoading}
             initialMessage={selectedPrompt}
+            onOpenModelSelector={(preset) => {
+              setModelDropdownPreset(preset ?? 'all');
+              setIsModelDropdownOpen(true);
+            }}
           />
         </div>
       </div>

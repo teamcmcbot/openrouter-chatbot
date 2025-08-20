@@ -1,5 +1,6 @@
 // lib/utils/errors.ts
-import { NextResponse } from 'next/server';
+// Use type-only import to avoid runtime dependency on Next.js in Jest/node contexts
+import type { NextResponse } from 'next/server';
 import { ApiError } from '../types';
 import { AuthErrorCode, AuthError } from '../types/auth';
 
@@ -121,7 +122,12 @@ export function handleError(error: unknown): NextResponse<ApiError> {
     status = 500;
   }
 
-  return NextResponse.json(errorResponse, { status });
+  // Return a standard Response in non-Next runtimes (e.g., unit tests)
+  const res = new Response(JSON.stringify(errorResponse), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return res as unknown as NextResponse<ApiError>;
 }
 
 /**
@@ -236,5 +242,9 @@ export function handleAuthError(authError: AuthError): NextResponse<ApiError> {
     suggestions: authError.suggestedAction ? [authError.suggestedAction] : undefined,
   };
 
-  return NextResponse.json(errorResponse, { status });
+  const res = new Response(JSON.stringify(errorResponse), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return res as unknown as NextResponse<ApiError>;
 }

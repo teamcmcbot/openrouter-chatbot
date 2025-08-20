@@ -14,9 +14,11 @@ interface MessageInputProps {
   onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean }) => void
   disabled?: boolean;
   initialMessage?: string;
+  // Optional: allow parent to open the model selector with a preset filter (e.g., 'multimodal')
+  onOpenModelSelector?: (presetFilter?: 'all' | 'free' | 'paid' | 'multimodal' | 'reasoning') => void;
 }
 
-export default function MessageInput({ onSendMessage, disabled = false, initialMessage }: Readonly<MessageInputProps>) {
+export default function MessageInput({ onSendMessage, disabled = false, initialMessage, onOpenModelSelector }: Readonly<MessageInputProps>) {
   const [message, setMessage] = useState("");
   const [showCount, setShowCount] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -48,7 +50,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     originalName?: string;
     previewUrl: string; // Object URL
     file?: File; // kept for retry
-    status: 'uploading' | 'failed' | 'ready';
+    status: 'uploading' | 'failed' | 'ready' | 'deleting';
   };
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const ATTACHMENT_CAP = 3;
@@ -108,6 +110,12 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     return Array.isArray(mods) ? mods.includes('image') : false;
   })();
 
+  // Resolve a human-friendly model display name
+  const getModelDisplayName = (info: Partial<ModelInfo> | null | undefined, fallbackId?: string) => {
+    const anyInfo = info as unknown as { name?: string; label?: string } | null | undefined;
+    return (anyInfo?.name || anyInfo?.label || fallbackId || 'Selected model');
+  };
+
   const handleSend = () => {
     if (message.trim() && !disabled) {
       if (attachments.length > 0) {
@@ -124,7 +132,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
         return [];
       });
       // Generate a new draftId for the next compose
-  setDraftId(genDraftId());
+      setDraftId(genDraftId());
       // Reset textarea height responsively and focus/select
       setTimeout(() => {
         const textarea = document.getElementById('message-input') as HTMLTextAreaElement;
@@ -134,6 +142,25 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
         }
       }, 0);
     }
+  };
+
+  // Primary banner action: discard images and send text only
+  const handleDiscardImagesAndSend = async () => {
+    if (!message.trim() || disabled) return;
+    // Best-effort cleanup of any uploaded attachments before sending
+    const toDelete = attachments.filter(a => a.status === 'ready' && a.id).map(a => a.id!) as string[];
+    // Fire-and-forget delete requests
+    for (const id of toDelete) {
+      try { fetch(`/api/attachments/${id}`, { method: 'DELETE' }); } catch {}
+    }
+    onSendMessage(message.trim(), { webSearch: webSearchOn });
+    // Clear local state
+    setMessage("");
+    setAttachments((prev) => {
+      prev.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      return [];
+    });
+    setDraftId(genDraftId());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -317,19 +344,38 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   };
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (!isAuthenticated || !modelSupportsImages || disabled) return; // rely on tooltip/disabled
-    if (tierBlocksImages) {
-      // Gate paste as well
-      setGatingOpen('images');
-      e.preventDefault();
-      return;
-    }
-    const items = Array.from(e.clipboardData.items || []);
+    // If input is disabled, let browser handle paste (likely no-op)
+    if (disabled) return;
+
+    // 1) Detect whether the clipboard actually contains image files first.
+    // We should only apply image-related gating when images are present.
+    const items = Array.from(e.clipboardData?.items || []);
     const images = items
       .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
       .map((it) => it.getAsFile())
       .filter((f): f is File => !!f);
+
+    // No images present → allow normal text paste without any gating.
     if (images.length === 0) return;
+
+    // 2) If not signed in, allow default behavior (text paste if any), ignore image paste.
+    if (!isAuthenticated) return;
+
+    // 3) Free tier → gate with upgrade popover.
+    if (tierBlocksImages) {
+      setGatingOpen('images');
+      e.preventDefault();
+      return;
+    }
+
+    // 4) Pro/Enterprise but selected model is text-only → show a toast with model name and block image paste.
+    if (!modelSupportsImages) {
+      toast.error(`This model does not support image input.`);
+      e.preventDefault();
+      return;
+    }
+
+    // 5) Eligible tier and model supports images → intercept paste and upload images.
     e.preventDefault();
     const remaining = ATTACHMENT_CAP - attachments.length;
     const toUpload = images.slice(0, Math.max(0, remaining));
@@ -346,16 +392,41 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
 
   const removeAttachment = async (tempIdOrId: string) => {
     // Find by tempId first; if not found, try by id
-  const target = attachments.find(a => a.tempId === tempIdOrId) || attachments.find(a => a.id === tempIdOrId);
-    const id = target?.id;
-    if (id && target?.status === 'ready') {
-      try { await fetch(`/api/attachments/${id}`, { method: 'DELETE' }); } catch {}
+    const target = attachments.find(a => a.tempId === tempIdOrId) || attachments.find(a => a.id === tempIdOrId);
+    if (!target) return;
+    const previousStatus = target.status;
+  // Optimistic: mark as deleting so the tile shows overlay and button disables
+  setAttachments(prev => prev.map(a => ((a.tempId === target.tempId) || (target.id && a.id === target.id)) ? { ...a, status: 'deleting' } : a));
+    const id = target.id;
+    let ok = true;
+    if (id && (previousStatus === 'ready' || previousStatus === 'deleting')) {
+      try {
+        const res = await fetch(`/api/attachments/${id}`, { method: 'DELETE' });
+        ok = res.ok;
+        if (!res.ok && res.status !== 204) {
+          try {
+            const data = await res.json();
+            if (data?.error) toast.error(String(data.error));
+          } catch {}
+        }
+      } catch {
+        ok = false;
+      }
     }
-    setAttachments((prev) => {
-      const att = target;
-      if (att) URL.revokeObjectURL(att.previewUrl);
-      return prev.filter((a) => a !== target);
-    });
+    if (ok) {
+      setAttachments((prev) => {
+        const keyId = target.id;
+        const keyTemp = target.tempId;
+        const idx = prev.findIndex(a => (keyId ? a.id === keyId : a.tempId === keyTemp));
+        const toRemove = idx >= 0 ? prev[idx] : undefined;
+        if (toRemove) URL.revokeObjectURL(toRemove.previewUrl);
+        return prev.filter(a => (keyId ? a.id !== keyId : a.tempId !== keyTemp));
+      });
+    } else {
+      // Rollback: restore previous status and notify
+      toast.error('Failed to delete image. Please try again.');
+      setAttachments(prev => prev.map(a => ((a.tempId === target.tempId) || (target.id && a.id === target.id)) ? { ...a, status: previousStatus } : a));
+    }
   };
 
   const retryAttachment = async (tempId: string) => {
@@ -415,6 +486,50 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 className="w-16 h-16 sm:w-20 sm:h-20"
               />
             ))}
+          </div>
+        )}
+
+        {/* Row 2.5: Inline banner if images present but selected model is text-only */}
+        {attachments.length > 0 && !modelSupportsImages && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 dark:border-emerald-700/60 dark:bg-emerald-900/40 px-3 py-2.5">
+            <div className="flex flex-col gap-2.5">
+              <div className="text-xs text-emerald-800 dark:text-emerald-200 leading-relaxed">
+                <div className="text-emerald-900 dark:text-emerald-100">
+                  {(() => {
+                    // Get the selected model's display name
+                    const selectedModelData = Array.isArray(availableModels) && availableModels.length > 0 
+                      ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
+                      : null;
+                    const name = getModelDisplayName(selectedModelData ?? undefined, selectedModel ?? undefined);
+                    return (
+                      <>
+                        <span className="font-semibold">{name}</span> doesn&apos;t support image input.
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="mt-1">
+                  You can discard the {attachments.length === 1 ? 'image' : 'images'} and send text only, or switch to a multimodal model.
+                </div>
+              </div>
+        <div className="flex items-stretch gap-2">
+                <button
+                  type="button"
+                  onClick={handleDiscardImagesAndSend}
+                  disabled={!message.trim() || disabled}
+                  className="flex-1 sm:flex-none sm:w-32 h-9 flex items-center justify-center text-xs font-medium px-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-2 focus:ring-offset-emerald-50 dark:focus:ring-offset-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
+                >
+                  Send without image{attachments.length === 1 ? '' : 's'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenModelSelector?.('multimodal')}
+                  className="flex-1 sm:flex-none sm:w-32 h-9 flex items-center justify-center text-xs font-medium px-3 rounded-md border border-emerald-300 dark:border-emerald-600 text-emerald-700 dark:text-emerald-200 bg-white dark:bg-transparent hover:bg-emerald-50 hover:border-emerald-400 dark:hover:bg-emerald-900/40 dark:hover:border-emerald-400 dark:hover:text-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-2 focus:ring-offset-emerald-50 dark:focus:ring-offset-emerald-900/20 transition-colors duration-150"
+                >
+                  Switch model
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
