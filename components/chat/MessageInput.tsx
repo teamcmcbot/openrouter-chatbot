@@ -441,25 +441,44 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
 
         {/* Row 2.5: Inline banner if images present but selected model is text-only */}
         {attachments.length > 0 && !modelSupportsImages && (
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-yellow-900/40 dark:bg-yellow-900/20 px-3 py-2">
-            <div className="text-xs text-amber-900 dark:text-yellow-200">
-              This model can’t accept images. You can discard them and send text only, or switch to a multimodal model.
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleDiscardImagesAndSend}
-                className="text-xs px-2.5 py-1 rounded-md bg-amber-600 text-white hover:bg-amber-700"
-              >
-                Discard images and send
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenModelSelector?.('multimodal')}
-                className="text-xs px-2.5 py-1 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600/60"
-              >
-                Switch model
-              </button>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 dark:border-emerald-700/60 dark:bg-emerald-900/40 px-3 py-2.5">
+            <div className="flex flex-col gap-2.5">
+              <div className="text-xs text-emerald-800 dark:text-emerald-200 leading-relaxed">
+                <div className="text-emerald-900 dark:text-emerald-100">
+                  {(() => {
+                    // Get the selected model's display name
+                    const selectedModelData = Array.isArray(availableModels) && availableModels.length > 0 
+                      ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
+                      : null;
+                    const name = selectedModelData ? selectedModelData.name : selectedModel;
+                    return (
+                      <>
+                        <span className="font-semibold">{name}</span> doesn&apos;t support image input.
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="mt-1">
+                  You can discard the {attachments.length === 1 ? 'image' : 'images'} and send text only, or switch to a multimodal model.
+                </div>
+              </div>
+        <div className="flex items-stretch gap-2">
+                <button
+                  type="button"
+                  onClick={handleDiscardImagesAndSend}
+                  disabled={!message.trim() || disabled}
+                  className="flex-1 sm:flex-none sm:w-32 h-9 flex items-center justify-center text-xs font-medium px-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-2 focus:ring-offset-emerald-50 dark:focus:ring-offset-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
+                >
+                  Send without image{attachments.length === 1 ? '' : 's'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenModelSelector?.('multimodal')}
+                  className="flex-1 sm:flex-none sm:w-32 h-9 flex items-center justify-center text-xs font-medium px-3 rounded-md border border-emerald-300 dark:border-emerald-600 text-emerald-700 dark:text-emerald-200 bg-white dark:bg-transparent hover:bg-emerald-50 hover:border-emerald-400 dark:hover:bg-emerald-900/40 dark:hover:border-emerald-400 dark:hover:text-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-2 focus:ring-offset-emerald-50 dark:focus:ring-offset-emerald-900/20 transition-colors duration-150"
+                >
+                  Switch model
+                </button>
+              </div>
             </div>
           </div>
         )}
