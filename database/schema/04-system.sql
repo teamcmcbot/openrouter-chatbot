@@ -331,3 +331,89 @@ BEGIN
     VALUES (p_actor_user_id, p_action, p_target, p_payload);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- =============================================================================
+-- CTA EVENTS ANALYTICS (MERGED FROM PATCH analytics-cta-events/001_create_cta_events.sql)
+-- =============================================================================
+
+-- Table to store CTA click events (anonymous or authenticated)
+CREATE TABLE IF NOT EXISTS public.cta_events (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    page text NOT NULL,
+    cta_id text NOT NULL,
+    location text NULL,
+    is_authenticated boolean NOT NULL DEFAULT false,
+    user_id uuid NULL,
+    ip_hash text NULL,
+    meta jsonb NULL
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_cta_events_created_at ON public.cta_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cta_events_page_cta ON public.cta_events(page, cta_id);
+CREATE INDEX IF NOT EXISTS idx_cta_events_user ON public.cta_events(user_id, created_at DESC);
+
+-- Enable RLS
+ALTER TABLE public.cta_events ENABLE ROW LEVEL SECURITY;
+
+-- Policies: admin can read, server roles can insert
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='cta_events' AND policyname='Admin can read CTA events'
+    ) THEN
+        EXECUTE 'DROP POLICY "Admin can read CTA events" ON public.cta_events';
+    END IF;
+    EXECUTE 'CREATE POLICY "Admin can read CTA events" ON public.cta_events FOR SELECT USING (public.is_admin(auth.uid()))';
+
+    IF EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='cta_events' AND policyname='Allow inserts from server roles'
+    ) THEN
+        EXECUTE 'DROP POLICY "Allow inserts from server roles" ON public.cta_events';
+    END IF;
+    EXECUTE 'CREATE POLICY "Allow inserts from server roles" ON public.cta_events FOR INSERT WITH CHECK (auth.role() = ''service_role'' OR auth.role() = ''authenticated'')';
+END$$;
+
+-- Retention helper
+CREATE OR REPLACE FUNCTION public.cleanup_cta_events(days_to_keep integer DEFAULT 90)
+RETURNS int AS $$
+DECLARE
+    cutoff timestamptz := now() - make_interval(days => days_to_keep);
+    deleted_count int;
+BEGIN
+    DELETE FROM public.cta_events WHERE created_at < cutoff;
+    GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    RETURN deleted_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- RPC for safe ingestion from web tier
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public' AND p.proname = 'ingest_cta_event'
+    ) THEN
+        EXECUTE 'DROP FUNCTION public.ingest_cta_event(text, text, text, boolean, uuid, text, jsonb)';
+    END IF;
+END$$;
+
+CREATE OR REPLACE FUNCTION public.ingest_cta_event(
+    p_page text,
+    p_cta_id text,
+    p_location text DEFAULT NULL,
+    p_is_authenticated boolean DEFAULT false,
+    p_user_id uuid DEFAULT NULL,
+    p_ip_hash text DEFAULT NULL,
+    p_meta jsonb DEFAULT NULL
+) RETURNS void AS $$
+BEGIN
+    INSERT INTO public.cta_events(page, cta_id, location, is_authenticated, user_id, ip_hash, meta)
+    VALUES (p_page, p_cta_id, p_location, p_is_authenticated, p_user_id, p_ip_hash, p_meta);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+REVOKE ALL ON FUNCTION public.ingest_cta_event(text, text, text, boolean, uuid, text, jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ingest_cta_event(text, text, text, boolean, uuid, text, jsonb) TO anon, authenticated;

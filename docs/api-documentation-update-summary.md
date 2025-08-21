@@ -258,3 +258,11 @@ npm test
 - Describes default-on forwarding of authenticated Supabase `user.id` to OpenRouter chat/completions as `user` field.
 - Config via `OPENROUTER_USER_TRACKING` env var (on/true/1/yes to enable; off/false/0/no to disable; default enabled when unset).
 - Anonymous sessions never include the `user` field.
+
+## Update: Reasoning Mode (August 21, 2025)
+
+- Endpoints: `/api/chat`, `/api/chat/messages`, `/api/chat/sync`.
+- Request: optional `reasoning` object `{ effort?: 'low'|'medium'|'high'; max_tokens?: number; exclude?: boolean; enabled?: boolean }` (enterprise-only; model must support reasoning).
+- Response: assistant messages may include `reasoning` (text) and `reasoning_details` (JSON).
+- Persistence: saved to `chat_messages.reasoning` and `chat_messages.reasoning_details`; returned via `/api/chat/sync` for assistant messages.
+- UI: Reasoning toggle shown for reasoning-capable models; default sends `{ effort: 'low' }`.

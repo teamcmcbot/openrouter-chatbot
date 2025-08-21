@@ -28,7 +28,7 @@ Item 3 in [sync-endpoint.md](sync-endpoint.md) proposes removing reliance on the
 4. **Handling async write failures**
    - If the new background API call fails, queue the unsynced message locally. A periodic job (a trimmed version of current auto-sync) can retry only those unsent messages instead of re‑syncing all history, avoiding double counting in `user_usage_daily`.
 5. **Database functions**
-   - Existing functions in `02-complete-chat-history.sql` already support insert/update logic (`update_session_stats`, `sync_user_conversations`). We may extend or reuse `sync_user_conversations()` for a single-conversation insert to ensure deduplication.
+   - Existing core function `update_session_stats` remains in use. The legacy helper `sync_user_conversations()` has been removed from the schema as unused; bulk sync is handled directly via the `/api/chat/sync` endpoint performing Supabase upserts.
    - No new analytics function is required, but we must ensure `input_tokens` are not updated for assistant rows (see item 1 in the issue).
 
 ## Open Questions
@@ -40,35 +40,37 @@ Item 3 in [sync-endpoint.md](sync-endpoint.md) proposes removing reliance on the
 ### Analysis and Proposed Approach
 
 1. **Persisting failed messages**
-   - *Option A – Insert immediately:* store the user message with `error: true` and no assistant row. This captures token usage and keeps the timeline intact.
+
+   - _Option A – Insert immediately:_ store the user message with `error: true` and no assistant row. This captures token usage and keeps the timeline intact.
      - **Pros:** reflects actual tokens spent; enables syncing failed attempts across devices; user can still see the message.
      - **Cons:** updating this row later triggers `update_session_stats()` again which may double count unless tokens remain unchanged.
-   - *Option B – Defer write until success:* keep the failed message only in local state and insert once a retry succeeds.
+   - _Option B – Defer write until success:_ keep the failed message only in local state and insert once a retry succeeds.
      - **Pros:** avoids duplicate updates and analytics complications.
      - **Cons:** loses visibility of failed attempts and discards token usage from unsuccessful calls.
-   - *Recommendation:* insert the failed user message immediately with tokens so that usage tracking remains accurate. On retry, update the same row’s `error` flag without modifying `input_tokens` to avoid recounting.
+   - _Recommendation:_ insert the failed user message immediately with tokens so that usage tracking remains accurate. On retry, update the same row’s `error` flag without modifying `input_tokens` to avoid recounting.
 
 2. **Handling successful retries**
-   - *Option A – Update existing row:* continue using the same message ID and update its content/error status. Insert a new assistant message linked by `user_message_id`.
+
+   - _Option A – Update existing row:_ continue using the same message ID and update its content/error status. Insert a new assistant message linked by `user_message_id`.
      - **Pros:** maintains conversation order and prevents analytics from treating the retry as a new message, provided token values are unchanged.
      - **Cons:** triggers `update_session_stats()` on update; must ensure triggers ignore unchanged token fields.
-   - *Option B – Insert a new row:* keep the failed message as-is and create a fresh user+assistant pair on retry.
+   - _Option B – Insert a new row:_ keep the failed message as-is and create a fresh user+assistant pair on retry.
      - **Pros:** avoids extra UPDATE triggers.
      - **Cons:** double counts message attempts and clutters the history.
-   - *Recommendation:* update the existing user message in place while ensuring `track_user_usage()` is idempotent on updates (e.g., only increment when token counts change).
+   - _Recommendation:_ update the existing user message in place while ensuring `track_user_usage()` is idempotent on updates (e.g., only increment when token counts change).
 
 3. **Authentication for async writes**
-   - *Option A – Server-side call with service role key:* Next.js route uses Supabase admin credentials to invoke a stored procedure.
+   - _Option A – Server-side call with service role key:_ Next.js route uses Supabase admin credentials to invoke a stored procedure.
      - **Pros:** simplest implementation and avoids exposing elevated keys to the client.
      - **Cons:** requires secure environment variables on the server.
-   - *Option B – Client-side Supabase write:* front‑end writes directly to `chat_messages` via the user's session.
+   - _Option B – Client-side Supabase write:_ front‑end writes directly to `chat_messages` via the user's session.
      - **Pros:** no extra endpoint; uses existing auth context.
      - **Cons:** harder to ensure atomic updates and may expose rate‑limited insert operations to the client.
-   - *Recommendation:* perform a server-side call using the service role key to a dedicated function (e.g., `insert_chat_message`) so the chat API remains the single source of truth.
+   - _Recommendation:_ perform a server-side call using the service role key to a dedicated function (e.g., `insert_chat_message`) so the chat API remains the single source of truth.
 
 ## Next Steps
 
 1. Design a new endpoint or server-side function invoked from the chat API to insert the new messages and update the session in a single transaction.
 2. Modify `sendMessage`/`retryMessage` flows to remove auto-sync calls.
-3. Keep sign-in sync but ensure it performs insert-only logic—potentially using `sync_user_conversations()`.
+3. Keep sign-in sync but ensure it performs insert-only logic—handled by `/api/chat/sync` upserts (no Postgres `sync_user_conversations()`).
 4. Document the new flow and update analytics tests to verify only new messages impact `user_usage_daily`.

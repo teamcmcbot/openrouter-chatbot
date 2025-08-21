@@ -55,6 +55,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
   const [lightbox, setLightbox] = useState<{ open: boolean; url?: string; alt?: string }>(() => ({ open: false }));
+  const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(() => new Set());
   
   // Get user from auth store
   const user = useAuthStore((state) => state.user);
@@ -224,6 +225,53 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                   </div>
                 ) : (
                   <p className="whitespace-pre-wrap">{message.content}</p>
+                )}
+
+                {/* Reasoning (assistant) - collapsed by default */}
+                {message.role === "assistant" && (message.reasoning || message.reasoning_details) && (
+                  <div className="mt-2 border rounded-md bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300/80 dark:border-yellow-700/60">
+                    <button
+                      type="button"
+                      aria-expanded={expandedReasoning.has(message.id)}
+                      onClick={() => {
+                        setExpandedReasoning(prev => {
+                          const next = new Set(prev);
+                          if (next.has(message.id)) next.delete(message.id); else next.add(message.id);
+                          return next;
+                        });
+                      }}
+                      className="w-full text-left px-2 py-1 flex items-center justify-between hover:bg-yellow-100/70 dark:hover:bg-yellow-900/40 rounded-t-md"
+                    >
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-900 dark:text-yellow-100">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                          <path d="M10 2a6 6 0 00-3.832 10.59c.232.186.332.49.245.776l-.451 1.486a1 1 0 001.265 1.265l1.486-.451c.286-.087.59.013.776.245A6 6 0 1010 2z" />
+                        </svg>
+                        Reasoning
+                      </span>
+                      <span className="text-[11px] text-yellow-900/80 dark:text-yellow-200/80">
+                        {expandedReasoning.has(message.id) ? 'Hide' : 'Show'}
+                      </span>
+                    </button>
+                    {expandedReasoning.has(message.id) && (
+                      <div className="px-2 pb-2 pt-1 border-t border-yellow-300/60 dark:border-yellow-800/60 text-yellow-950 dark:text-yellow-50">
+                        {typeof message.reasoning === 'string' && message.reasoning.trim().length > 0 && (
+                          <div className="prose prose-sm max-w-none dark:prose-invert">
+                            <MemoizedMarkdown>
+                              {message.reasoning}
+                            </MemoizedMarkdown>
+                          </div>
+                        )}
+                        {message.reasoning_details && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-xs text-yellow-900/80 dark:text-yellow-200/90">Details</summary>
+                            <pre className="mt-1 text-[11px] whitespace-pre-wrap break-words p-2 rounded bg-yellow-100/70 dark:bg-yellow-900/40 border border-yellow-300/60 dark:border-yellow-800/60 overflow-x-auto">
+{JSON.stringify(message.reasoning_details, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Linked image attachments (history and recent) */}

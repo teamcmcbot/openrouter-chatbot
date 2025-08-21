@@ -122,23 +122,60 @@ UI/UX plan for display:
 
 ## Phases
 
-- [ ] Phase 1 — Capability discovery
-  - [ ] From `/api/models`, surface `supported_parameters` and `pricing.internal_reasoning` to the client (keep internal_reasoning for forward-compat only).
-  - [ ] UI toggle appears only for models that list `reasoning` or `include_reasoning`.
-  - [ ] Implement UI control matching Web Search button pattern (button with popover):
-    - Enterprise: popover shows "Enable reasoning" with brief cost/latency note and confirm.
-    - Non-enterprise: popover shows "Upgrade to enable reasoning".
-  - [ ] User verification: toggle visible only for supported models; enterprise sees enable popover; non-enterprise sees upgrade popover.
-- [ ] Phase 2 — API wiring
-  - [ ] Extend chat request to pass `reasoning` object when enabled (default `{ effort: "low" }`).
-  - [ ] Validate against feature flags and tier allowances; reject if unsupported model or non-enterprise.
-  - [ ] User verification: requests contain correct params; blocked when unsupported; legacy `include_reasoning` not used in new code.
-- [ ] Phase 3 — Pricing & limits
-  - [ ] Persist `native_tokens_reasoning` if returned; otherwise reasoning cost is folded into output tokens.
-  - [ ] UI warning explains cost and latency tradeoffs; optional sub-toggle for `exclude` to hide reasoning text.
-  - [ ] User verification: totals consistent with/without reasoning; no separate line item unless provider exposes `internal_reasoning` pricing.
-- [ ] Phase 4 — Docs
-  - [ ] Add `/docs/components/chat/reasoning-mode.md` and update model capability docs.
+- [x] Phase 1 — Database patch (prepare, verify, merge)
+
+  - [x] Create patch at `database/patches/reasoning-mode/` with forward/reverse SQL and verification:
+    - [x] ALTER TABLE `public.chat_messages` ADD COLUMNS (idempotent):
+      - `reasoning` TEXT NULL
+      - `reasoning_details` JSONB NULL
+      - (intentionally omitted) `native_tokens_reasoning` — not available in current flow
+    - [x] No function changes required
+  - Note: We removed unused DB functions `public.sync_user_conversations(...)` and `public.get_session_with_messages(...)` from the schema. A dedicated drop patch exists under `database/patches/drop-orphaned-chat-functions/` for live DB cleanup.
+    - [x] Ensure RLS unchanged (columns are additive); add indexes later if warranted.
+  - [x] User verification: ran forward migration; confirmed new columns exist. No DB function updates required.
+  - [x] Canonical schema updated (`database/schema/02-chat.sql`).
+
+- [x] Phase 2 — UI elements (no backend wiring yet)
+
+  - [x] From `/api/models`, surface `supported_parameters` and `pricing.internal_reasoning` to the client (keep internal_reasoning for forward-compat only).
+    - Note: `supported_parameters` is already present in client `ModelInfo` and used for capability checks.
+  - [x] Add a Reasoning control in the input toolbar mirroring the Web Search button:
+    - [x] Button opens a popover.
+    - [x] Enterprise: popover shows "Enable reasoning" with brief cost/latency note and confirm.
+    - [x] Non-enterprise: popover shows "Upgrade to enable Reasoning" with upgrade action.
+  - [x] Enable the control only when selected model’s `supported_parameters` includes `reasoning` or `include_reasoning`; otherwise show an anchored notice on click.
+  - [x] Tests: add UI gating tests for free tier, unsupported model, and enterprise ON state.
+  - [x] User verification: on supported models, enterprise sees enable popover and can toggle ON; non-enterprise sees upgrade popover; unsupported model shows notice.
+
+- [ ] Phase 3 — API wiring and data flow
+
+  - [x] Frontend: when enabled, send `reasoning` object with default `{ effort: "low" }` in POST `/api/chat`.
+  - [ ] Backend `/api/chat`:
+    - [x] Gate by tier using standardized auth middleware; validate model support; reject if unsupported/non-enterprise.
+    - [x] Forward unified `reasoning` to OpenRouter.
+    - [x] Parse response; capture `message.reasoning`, `message.reasoning_details`, and any `native_tokens_reasoning` if present.
+    - [x] Persist to `public.chat_messages` (new columns) and maintain existing token counts.
+  - [ ] Frontend rendering:
+    - [x] Render a collapsible Reasoning section when reasoning or reasoning_details exists.
+    - [ ] Support streaming of reasoning where provided (delta.reasoning) alongside content.
+  - [ ] Tool-calling continuity:
+    - [ ] Frontend to include preserved `reasoning_details` when sending follow-up messages via POST `/api/chat/messages`.
+    - [ ] Backend to merge/forward reasoning blocks unmodified.
+  - [x] User verification: network requests show correct `reasoning` object; DB rows include reasoning fields; UI displays reasoning where available.
+
+- [ ] Phase 4 — History sync and chat rendering
+
+  - [x] Ensure GET `/api/chat/sync` includes `reasoning`, `reasoning_details`, and `native_tokens_reasoning` for assistant messages.
+  - [x] `ChatInterface` renders reasoning data properly from synced history (collapsed by default, expandable on click).
+    - Manual test steps:
+      1. Use a reasoning-capable model and enable Reasoning (default low).
+      2. Send a message; confirm assistant reply shows a collapsed “Reasoning” panel.
+      3. Reload the page or open the session again; confirm the “Reasoning” panel appears for the saved assistant message.
+      4. Expand to see `reasoning` text and any `reasoning_details` JSON.
+  - [ ] User verification: history loads with reasoning intact; expanding shows stored reasoning blocks/text consistently.
+
+- [x] Phase 5 — Docs
+  - [x] Add `/docs/components/chat/reasoning-mode.md` and update model capability docs.
 
 ## Open questions (defer for later)
 

@@ -60,8 +60,7 @@ Caching and health‑monitoring tables introduced in Phase 4 for optimization a
 - `sync_profile_from_auth` – Manual profile sync.
 - `update_session_stats` & `update_session_timestamp` – Maintain session statistics.
 - `get_user_recent_sessions` – Returns the latest sessions with summary info.
-- `get_session_with_messages` – Returns a session plus all messages.
-- `sync_user_conversations` – Bulk upsert of conversations from the client.
+  (Note: legacy helper functions `get_session_with_messages` and `sync_user_conversations` were removed as unused.)
 - `track_user_usage` – Records daily usage totals.
 - `get_user_allowed_models` / `can_user_use_model` – Determines which models a user may access.
 - `update_user_tier` – Changes a user’s subscription tier (valid values: `free`, `pro`, `enterprise`; admin privilege is managed by `profiles.account_type`).
@@ -100,7 +99,7 @@ The Next.js API routes under `src/app/api/chat` interact with chat tables:
 
 - `sessions/route.ts` creates, lists and deletes rows in `chat_sessions`.
 - `messages/route.ts` fetches and inserts rows in `chat_messages` and updates session statistics.
-- `sync/route.ts` bulk upserts sessions and messages using client‑generated IDs. It aligns with the `sync_user_conversations` function defined in Phase 2.
+- `sync/route.ts` bulk upserts sessions and messages using client‑generated IDs (no Postgres sync function; done via Supabase client upserts).
 - `clear-all/route.ts` removes all sessions and messages for the signed‑in user.
 
 The triggers ensure `chat_sessions` remain up‑to‑date whenever these APIs modify `chat_messages`.

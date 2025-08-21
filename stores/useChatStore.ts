@@ -284,7 +284,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Send Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -343,6 +343,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     attachmentIds: options?.attachmentIds,
                     draftId: options?.draftId,
                     webSearch: options?.webSearch,
+                    reasoning: options?.reasoning,
                   };
                 } else {
                   // Build request with conversation context
@@ -353,6 +354,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     attachmentIds: options?.attachmentIds,
                     draftId: options?.draftId,
                     webSearch: options?.webSearch,
+                    reasoning: options?.reasoning,
                   };
                 }
                 
@@ -363,7 +365,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch };
+                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch, reasoning: options?.reasoning };
                 if (model) {
                   requestBody.model = model;
                 }
@@ -406,6 +408,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 throw new Error(data.error);
               }
 
+              type ChatResponseWithReasoning = {
+                reasoning?: string;
+                reasoning_details?: Record<string, unknown>;
+              };
+              const respWithReasoning = data as ChatResponseWithReasoning;
               const assistantMessage: ChatMessage = {
                 id: generateMessageId(),
                 content: data.response,
@@ -422,6 +429,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 has_websearch: !!data.has_websearch,
                 websearch_result_count: typeof data.websearch_result_count === 'number' ? data.websearch_result_count : undefined,
                 annotations: Array.isArray(data.annotations) ? data.annotations : undefined,
+                reasoning: typeof respWithReasoning.reasoning === 'string' ? respWithReasoning.reasoning : undefined,
+                reasoning_details: respWithReasoning.reasoning_details && typeof respWithReasoning.reasoning_details === 'object' ? respWithReasoning.reasoning_details : undefined,
               };
 
               // Add assistant response and update conversation metadata
@@ -930,7 +939,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Retry Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -1052,6 +1061,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 throw new Error(data.error);
               }
 
+              type ChatResponseWithReasoning2 = {
+                reasoning?: string;
+                reasoning_details?: Record<string, unknown>;
+              };
+              const respWithReasoning2 = data as ChatResponseWithReasoning2;
               const assistantMessage: ChatMessage = {
                 id: generateMessageId(),
                 content: data.response,
@@ -1069,6 +1083,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 has_websearch: !!data.has_websearch,
                 websearch_result_count: typeof data.websearch_result_count === 'number' ? data.websearch_result_count : undefined,
                 annotations: Array.isArray(data.annotations) ? data.annotations : undefined,
+                reasoning: typeof respWithReasoning2.reasoning === 'string' ? respWithReasoning2.reasoning : undefined,
+                reasoning_details: respWithReasoning2.reasoning_details && typeof respWithReasoning2.reasoning_details === 'object' ? respWithReasoning2.reasoning_details : undefined,
               };
 
               // Update the conversation: clear error on retried message and add assistant response

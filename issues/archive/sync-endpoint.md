@@ -111,7 +111,7 @@ Because the sync endpoint upserts **all** conversations and messages provided by
 ## Suggestions
 
 - Avoid unnecessary updates by checking whether a message or session already exists and whether any fields changed before upserting.
-- Alternatively, call the database function `sync_user_conversations()` (defined in the schema) which could be extended to handle deduplication within PostgreSQL.
+- Previously we considered a Postgres function `sync_user_conversations()` for deduplication; this function has since been removed as unused. Prefer API-level upserts with dedupe checks before write.
 - Review the trigger logic in `update_session_stats()` so that updates that do not modify token counts do not call `track_user_usage()` again.
 
 ## Relevant Scenario Summary
@@ -381,6 +381,6 @@ $$ LANGUAGE plpgsql;
 
 ~~1. input_tokens should not be updated for assistant messages, this is causing the calculation of input/output/total tokens in user_usage_daily to be incorrect.~~
 
-2. Sync endpoints should only be used for 1 scenario: when user has existing conversations while unauthenticated, and then signs in, we should sync NEW conversations from local storage to supabase. This shoud be an insert only operation, IF for any reason intentional or untintentional the local storage contains existing conversations in DB, we must not update them, we should only insert new conversations. TODO: check if functon sync_user_conversations() is doing this correctly, currently this function is not used anywhere in the codebase.
+2. Sync endpoints should only be used for 1 scenario: when user has existing conversations while unauthenticated, and then signs in, we should sync NEW conversations from local storage to supabase. This should be an insert-only operation; if the local storage contains existing conversations in DB, do not update them. Note: the legacy function `sync_user_conversations()` is removed; handle dedupe in the API before upsert.
 
 3. The chat endpoint when receiving a successful assistant response, should asynchronously call the messages or sessions endpoint to update database with the new message, we should not wait for frontend to call the sync endpoint. A successful assistant response means we are updating 2 new messages (user,assistant) with their relevant metadata AND sessions table with the new message count, total tokens, last model, last message preview, last message timestamp, updated_at. TODO: what about unsuccessful assistant responses? Do we update database? If not, when they retry, do the current code retry with the same message with the same metadata?

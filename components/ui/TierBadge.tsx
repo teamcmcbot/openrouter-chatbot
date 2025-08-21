@@ -3,7 +3,7 @@
 import { ShieldCheckIcon } from "@heroicons/react/24/outline";
 import Tooltip from "./Tooltip";
 import React from "react";
-import { TIER_LABELS, TIER_LIMITS, Tier } from "../../lib/constants/tiers";
+import { TIER_LABELS, TIER_LIMITS, TIER_FEATURES, Tier } from "../../lib/constants/tiers";
 
 interface TierBadgeProps {
   tier: Tier | string; // tolerate unknown strings, fallback to gray style
@@ -51,28 +51,55 @@ export default function TierBadge({
       align={align}
       widthClassName={widthClassName}
       content={
-        <div className="space-y-1">
-          <div className="text-xs text-gray-600 dark:text-gray-400">Tier-Based Limits</div>
-          {(() => {
-            const limits = TIER_LIMITS[tierLower] ?? TIER_LIMITS["free"];
-            return (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Requests/hour</span>
-                  <span className="font-medium">{limits.hasRateLimitBypass ? "Bypass" : limits.maxRequestsPerHour.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Tokens/request</span>
-                  <span className="font-medium">{limits.maxTokensPerRequest.toLocaleString()}</span>
-                </div>
-                {limits.hasRateLimitBypass && (
-                  <div className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
-                    Enterprise accounts bypass hourly rate limits.
+        <div className="space-y-4">
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Tier-Based Limits</div>
+            {(() => {
+              const limits = TIER_LIMITS[tierLower] ?? TIER_LIMITS["free"];
+              return (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-gray-700 dark:text-gray-300">Requests/hour</span>
+                    <span className="font-medium">{limits.hasRateLimitBypass ? "Bypass" : limits.maxRequestsPerHour.toLocaleString()}</span>
                   </div>
-                )}
-              </>
-            );
-          })()}
+                  <div className="flex justify-between">
+                    <span className="text-gray-700 dark:text-gray-300">Tokens/request</span>
+                    <span className="font-medium">{limits.maxTokensPerRequest.toLocaleString()}</span>
+                  </div>
+                  {limits.hasRateLimitBypass && (
+                    <div className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
+                      Enterprise accounts bypass hourly rate limits.
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Feature Access</div>
+            {(() => {
+              const f = TIER_FEATURES[tierLower] ?? TIER_FEATURES["free"];
+              const Row = ({ label, enabled }: { label: string; enabled: boolean }) => (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="inline-flex items-center gap-1.5">
+                    <ShieldCheckIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
+                    <span className="text-gray-700 dark:text-gray-300">{label}</span>
+                  </span>
+                  <span className={enabled ? "text-emerald-700 dark:text-emerald-400 font-medium" : "text-gray-500 dark:text-gray-500"}>
+                    {enabled ? "Yes" : "No"}
+                  </span>
+                </div>
+              );
+              return (
+                <>
+                  <Row label="Web Search" enabled={f.webSearch} />
+                  <Row label="Reasoning" enabled={f.reasoning} />
+                  <Row label="Image attachments" enabled={f.imageAttachments} />
+                </>
+              );
+            })()}
+          </div>
         </div>
       }
     >

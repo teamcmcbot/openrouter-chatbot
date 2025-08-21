@@ -12,7 +12,7 @@ Purpose: Allow Vercel Cron (GET-only) to securely trigger internal POST maintena
 
 - GET `/api/cron/attachments/cleanup` → POST `/api/internal/attachments/cleanup`
 - GET `/api/cron/attachments/retention` → POST `/api/internal/attachments/retention`
-- GET `/api/cron/models/sync` → POST `/api/internal/sync-models`
+- GET `/api/cron/models/sync` → POST `/api/internal/sync-models` **(Runs hourly)**
 
 All wrappers return the JSON response of the underlying internal call and set `Cache-Control: no-store`.
 

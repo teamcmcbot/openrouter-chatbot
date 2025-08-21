@@ -15,6 +15,9 @@ export interface ChatMessage {
   model?: string;
   contentType?: "text" | "markdown"; // New field to specify content type
   completion_id?: string; // OpenRouter response id for metadata lookup
+  // Reasoning metadata (assistant messages)
+  reasoning?: string;
+  reasoning_details?: Record<string, unknown>;
   error?: boolean; // Flag to indicate if this message failed to send
   error_message?: string; // Error message text
   error_code?: string; // Error code for categorization
@@ -53,4 +56,7 @@ export interface ChatResponse {
   annotations?: OpenRouterUrlCitation[]; // Optional URL citations from OpenRouter
   has_websearch?: boolean;
   websearch_result_count?: number;
+  // Reasoning payload from provider if available
+  reasoning?: string;
+  reasoning_details?: Record<string, unknown>;
 }

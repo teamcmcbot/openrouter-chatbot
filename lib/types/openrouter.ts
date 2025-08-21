@@ -15,6 +15,8 @@ export interface OpenRouterRequest {
   stream?: boolean;
   // Optional user tracking identifier supported by OpenRouter
   user?: string;
+  // Unified reasoning option (provider-normalized)
+  reasoning?: { effort?: 'low' | 'medium' | 'high' };
 }
 
 // Annotations returned by OpenRouter (e.g., web search URL citations)

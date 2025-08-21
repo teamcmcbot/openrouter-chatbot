@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { trackCtaClick } from "../../../lib/analytics/track";
 
 export default function HomePage() {
   return (
@@ -28,6 +29,7 @@ export default function HomePage() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
           <Link
             href="/chat"
+            onClick={() => trackCtaClick({ page: "landing", cta_id: "start_chat", location: "hero" })}
             className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-white bg-emerald-700 hover:bg-emerald-600 border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
           >
             Start Chatting Now
@@ -46,7 +48,7 @@ export default function HomePage() {
             </svg>
           </Link>
           <button 
-            onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+            onClick={() => { trackCtaClick({ page: "landing", cta_id: "learn_more", location: "hero" }); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); }}
             className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded-lg hover:bg-slate-50 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
           >
             Learn More
@@ -225,6 +227,7 @@ export default function HomePage() {
               </div>
               <Link
                 href="/chat"
+                onClick={() => trackCtaClick({ page: "landing", cta_id: "try_it_now", location: "footerBanner" })}
                 aria-label="Start chatting now for free"
                 className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-base font-medium text-white bg-emerald-700 hover:bg-emerald-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200 shadow-sm hover:shadow-md"
               >
