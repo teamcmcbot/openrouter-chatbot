@@ -396,19 +396,23 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     // No images present → allow normal text paste without any gating.
     if (images.length === 0) return;
 
-    // 2) If not signed in, allow default behavior (text paste if any), ignore image paste.
-    if (!isAuthenticated) return;
+    // 2) Capability check first: if a model is selected but doesn't support images → toast for everyone.
+    if (selectedModel && !modelSupportsImages) {
+      toast.error(`This model does not support image input.`);
+      e.preventDefault();
+      return;
+    }
 
-    // 3) Free tier → gate with upgrade popover.
-    if (tierBlocksImages) {
+    // 3) If not signed in and model supports images → show upgrade popover and block image paste.
+    if (!isAuthenticated) {
       setGatingOpen('images');
       e.preventDefault();
       return;
     }
 
-    // 4) Pro/Enterprise but selected model is text-only → show a toast with model name and block image paste.
-    if (!modelSupportsImages) {
-      toast.error(`This model does not support image input.`);
+    // 4) Free tier → gate with upgrade popover.
+    if (tierBlocksImages) {
+      setGatingOpen('images');
       e.preventDefault();
       return;
     }
