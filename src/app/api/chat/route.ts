@@ -153,6 +153,15 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   console.log(`[Chat API] Web search enabled: ${!!body.webSearch}`);
   console.log(`[Chat API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`);
 
+    // Tier gating for Web Search (Pro/Enterprise only)
+    // Anonymous and Free are both forbidden for this feature
+    if (body.webSearch) {
+      const tier = authContext.profile?.subscription_tier || 'anonymous';
+      if (!authContext.isAuthenticated || tier === 'free') {
+        throw new ApiErrorResponse('Web Search is available for Pro and Enterprise plans', ErrorCode.FORBIDDEN);
+      }
+    }
+
     // Enterprise gating for reasoning
     if (reasoning) {
       const tier = authContext.profile?.subscription_tier;

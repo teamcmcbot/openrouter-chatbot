@@ -1,6 +1,6 @@
 // src/app/api/uploads/images/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { withTierAuth } from '../../../../../lib/middleware/auth';
 import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
@@ -152,8 +152,13 @@ async function uploadImageHandler(req: NextRequest, authContext: AuthContext): P
   }
 }
 
-export const POST = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(uploadImageHandler, {
-    customLimit: computeUploadRateLimitPerHour((authContext.profile?.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise'),
-  })(req, authContext)
+// Require Pro tier or higher for image uploads to align with UI gating
+export const POST = withTierAuth(
+  (req: NextRequest, authContext: AuthContext) =>
+    withRateLimit(uploadImageHandler, {
+      customLimit: computeUploadRateLimitPerHour(
+        (authContext.profile?.subscription_tier || 'pro') as 'free' | 'pro' | 'enterprise'
+      ),
+    })(req, authContext),
+  'pro'
 );

@@ -262,14 +262,15 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const handlePickFiles = () => {
     // Disabled via prop: do nothing
     if (disabled) return;
-    // Not signed in → small anchored notice
-    if (!isAuthenticated) {
-      setGatingOpen('images-signin');
+    // If a model is selected but does not support images → anchored notice first (consistent with Free tier behavior)
+    if (selectedModel && !modelSupportsImages) {
+      setGatingOpen('images-unsupported');
       return;
     }
-    // Model does not support images → anchored notice
-    if (!modelSupportsImages) {
-      setGatingOpen('images-unsupported');
+    // Not signed in → upgrade-oriented notice (only after capability check)
+    if (!isAuthenticated) {
+      // Show the same upgrade popover as Free tier
+      setGatingOpen('images');
       return;
     }
     // Over capacity → anchored notice
@@ -681,7 +682,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                     <XMarkIcon className="w-4 h-4" />
                   </button>
                   <div className="mb-1.5 pr-6 font-semibold text-emerald-900 dark:text-emerald-200">Upgrade to use Web Search</div>
-                  <div className="mb-3 text-gray-800 dark:text-gray-200">Your current plan doesn’t include web search.</div>
+                  <div className="mb-3 text-gray-800 dark:text-gray-200">Your current plan doesn’t include web search. Available on Pro and Enterprise.</div>
                   <div className="flex items-center justify-end gap-2">
                     <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
                     <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
@@ -727,7 +728,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                     <XMarkIcon className="w-4 h-4" />
                   </button>
                   <div className="mb-1.5 pr-6 font-semibold text-emerald-900 dark:text-emerald-200">Upgrade to attach images</div>
-                  <div className="mb-3 text-gray-800 dark:text-gray-200">Your current plan doesn’t include image uploads.</div>
+                  <div className="mb-3 text-gray-800 dark:text-gray-200">Your current plan doesn’t include image uploads. Available on Pro and Enterprise.</div>
                   <div className="flex items-center justify-end gap-2">
                     <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
                     <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
@@ -803,7 +804,8 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                   >
                     <XMarkIcon className="w-4 h-4" />
                   </button>
-                  <div className="pr-6 text-gray-800 dark:text-gray-200">Please sign in to use this feature</div>
+                  <div className="mb-1.5 pr-6 font-semibold text-slate-900 dark:text-gray-100">Upgrade to attach images</div>
+                  <div className="pr-6 text-gray-800 dark:text-gray-200">Available on Pro and Enterprise. Sign in to upgrade.</div>
                 </div>
               )}
             </>
