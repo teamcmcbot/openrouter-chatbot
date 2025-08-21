@@ -480,7 +480,9 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   return (
     <div className="px-4 sm:px-6 py-4">
       {/* Composer Dock (pill) */}
-      <div className="rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-2 sm:px-3 sm:py-3 flex flex-col gap-2">
+      <div className="rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-2 sm:px-3 sm:py-3 flex flex-col gap-2 
+        transition-colors duration-150 
+        focus-within:border-transparent focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-inset">
         {/* Row 1: Textarea */}
         <div className="relative flex-1 min-w-0">
           <textarea
