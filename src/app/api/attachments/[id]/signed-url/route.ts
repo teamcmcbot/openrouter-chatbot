@@ -1,7 +1,7 @@
 // src/app/api/attachments/[id]/signed-url/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { withProtectedAuth } from '../../../../../../lib/middleware/auth';
-import { withRateLimit } from '../../../../../../lib/middleware/rateLimitMiddleware';
+import { withRedisRateLimit } from '../../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../../lib/types/auth';
 import { createClient } from '../../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../../lib/utils/errors';
@@ -9,13 +9,6 @@ import { logger } from '../../../../../../lib/utils/logger';
 
 const BUCKET = 'attachments-images';
 const URL_TTL_SECONDS = 300; // ~5 minutes
-
-function computeSignedUrlRateLimitPerHour(tier: 'free' | 'pro' | 'enterprise'): number {
-  // Base: 120/min => 7200/hr; Pro/Enterprise ×2
-  const basePerHour = 120 * 60;
-  const multiplier = tier === 'free' ? 1 : 2;
-  return basePerHour * multiplier;
-}
 
 async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
@@ -71,8 +64,6 @@ async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): 
   }
 }
 
-export const GET = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(getSignedUrlHandler, {
-    customLimit: computeSignedUrlRateLimitPerHour((authContext.profile?.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise'),
-  })(req, authContext)
+export const GET = withProtectedAuth(
+  withRedisRateLimit(getSignedUrlHandler)
 );

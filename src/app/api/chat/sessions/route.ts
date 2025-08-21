@@ -3,7 +3,7 @@
 import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
-import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
+import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
@@ -126,12 +126,12 @@ async function deleteSessionsHandler(request: NextRequest, authContext: AuthCont
 }
 
 // Apply middleware to handlers
-export const GET = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(getSessionsHandler)(req, authContext)
+export const GET = withProtectedAuth(
+  withRedisRateLimit(getSessionsHandler)
 );
-export const POST = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(postSessionsHandler)(req, authContext)
+export const POST = withProtectedAuth(
+  withRedisRateLimit(postSessionsHandler)
 );
-export const DELETE = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(deleteSessionsHandler)(req, authContext)
+export const DELETE = withProtectedAuth(
+  withRedisRateLimit(deleteSessionsHandler)
 );

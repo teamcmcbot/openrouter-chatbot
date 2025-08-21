@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withEnhancedAuth } from "../../../../../lib/middleware/auth";
-import { withRateLimit } from "../../../../../lib/middleware/rateLimitMiddleware";
+import { withRedisRateLimit } from "../../../../../lib/middleware/redisRateLimitMiddleware";
 import { logger } from "../../../../../lib/utils/logger";
 import { createClient as createServerSupabaseClient } from "../../../../../lib/supabase/server";
 import type { AuthContext } from "../../../../../lib/types/auth";
@@ -68,6 +68,6 @@ async function ctaHandler(req: NextRequest, authContext: AuthContext) {
   return NextResponse.json({ ok: true, auth: authFlag });
 }
 
-export const POST = withEnhancedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(ctaHandler)!(req, authContext)
+export const POST = withEnhancedAuth(
+  withRedisRateLimit(ctaHandler)
 );

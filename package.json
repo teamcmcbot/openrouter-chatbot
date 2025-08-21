@@ -21,15 +21,17 @@
     "@heroicons/react": "^2.2.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.51.0",
+    "@upstash/redis": "^1.35.3",
+    "dotenv": "^17.2.1",
     "highlight.js": "^11.11.1",
     "next": "15.3.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.5.2",
     "react-markdown": "^10.1.0",
+    "recharts": "^2.12.7",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
-    "recharts": "^2.12.7",
     "zustand": "^5.0.6"
   },
   "devDependencies": {

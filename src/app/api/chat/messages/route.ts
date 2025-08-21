@@ -3,7 +3,7 @@ import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ChatMessage } from '../../../../../lib/types/chat';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
-import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
+import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
@@ -381,11 +381,11 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
 }
 
 // Apply middleware to handlers
-export const GET = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(getMessagesHandler)(req, authContext)
+export const GET = withProtectedAuth(
+  withRedisRateLimit(getMessagesHandler)
 );
-export const POST = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(postMessagesHandler)(req, authContext)
+export const POST = withProtectedAuth(
+  withRedisRateLimit(postMessagesHandler)
 );
 
 // Helper functions

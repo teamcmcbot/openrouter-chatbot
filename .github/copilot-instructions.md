@@ -174,13 +174,13 @@ export const POST = withConversationOwnership(myHandler);
 #### 🌐 **PUBLIC** - Rate Limiting Only (Use Sparingly)
 
 ```typescript
-import { withRateLimit } from "../../../../lib/middleware/rateLimitMiddleware";
+import { withRedisRateLimit } from "../../../../lib/middleware/redisRateLimitMiddleware";
 
 async function myHandler(request: NextRequest) {
   // Public endpoint with rate limiting - document security implications
 }
 
-export const GET = withRateLimit(myHandler);
+export const GET = withRedisRateLimit(myHandler);
 ```
 
 ### AuthContext Interface
@@ -220,21 +220,46 @@ if (!user) {
 ```typescript
 // DO: Use standardized middleware
 export const GET = withProtectedAuth(myHandler);
+// OR for rate limiting only:
+export const GET = withRedisRateLimit(myHandler);
 ```
 
 ### Security Benefits of Middleware
 
 - **Consistent Authentication** across all endpoints
-- **Automatic Rate Limiting** for abuse prevention
+- **Redis-Based Rate Limiting** that works in serverless environments
 - **Tier-based Feature Flags** for subscription control
 - **Standardized Error Handling** with proper error codes
 - **Audit Logging** for security monitoring
 - **Type Safety** with TypeScript interfaces
 
+### Rate Limiting Implementation
+
+**IMPORTANT**: Use `withRedisRateLimit` instead of the deprecated `withRateLimit`:
+
+```typescript
+// ✅ CORRECT: Redis-based rate limiting (works on serverless)
+import { withRedisRateLimit } from "../../../../lib/middleware/redisRateLimitMiddleware";
+export const POST = withProtectedAuth(withRedisRateLimit(myHandler));
+
+// ❌ DEPRECATED: In-memory rate limiting (broken on Vercel)
+import { withRateLimit } from "../../../../lib/middleware/rateLimitMiddleware"; // DON'T USE
+```
+
+**Rate Limiting Features:**
+
+- **Serverless Compatible**: Uses Redis for persistent state
+- **Tier-based Limits**: Automatically respects user subscription levels
+- **IP-based Protection**: Anonymous users get IP-based rate limiting
+- **Sliding Window**: Prevents burst attacks
+- **Graceful Fallback**: Continues working if Redis is temporarily unavailable
+
 ### Reference Documentation
 
+- See `/docs/architecture/redis-rate-limiting.md` for implementation details
+- See `/docs/ops/redis-rate-limiting-setup.md` for deployment guide
 - See `/specs/endpoint-protection.md` for comprehensive security analysis
-- See `/lib/middleware/auth.ts` for middleware implementation details
+- See `/lib/middleware/redisRateLimitMiddleware.ts` for middleware implementation
 - See `/lib/types/auth.ts` for type definitions
 
 ---
