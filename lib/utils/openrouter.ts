@@ -605,6 +605,63 @@ export function transformOpenRouterModel(model: OpenRouterModel): ModelInfo {
   };
 }
 
+// Transform database model_access row to ModelInfo for frontend consumption
+export function transformDatabaseModel(row: {
+  model_id: string;
+  canonical_slug?: string;
+  hugging_face_id?: string;
+  model_name?: string;
+  model_description?: string;
+  context_length?: number;
+  created_timestamp?: number;
+  modality?: string;
+  input_modalities?: string[];
+  output_modalities?: string[];
+  tokenizer?: string;
+  prompt_price?: string;
+  completion_price?: string;
+  request_price?: string;
+  image_price?: string;
+  web_search_price?: string;
+  internal_reasoning_price?: string;
+  input_cache_read_price?: string;
+  input_cache_write_price?: string;
+  max_completion_tokens?: number;
+  is_moderated?: boolean;
+  supported_parameters?: string[];
+  status: string;
+  is_free: boolean;
+  is_pro: boolean;
+  is_enterprise: boolean;
+  daily_limit?: number;
+  monthly_limit?: number;
+  last_synced_at?: string;
+  openrouter_last_seen?: string;
+  created_at?: string;
+  updated_at?: string;
+}): ModelInfo {
+  return {
+    id: row.model_id,
+    name: row.model_name || row.model_id,
+    description: row.model_description || '',
+    context_length: row.context_length || 8192,
+    pricing: {
+      prompt: row.prompt_price || '0',
+      completion: row.completion_price || '0',
+      request: row.request_price || '0',
+      image: row.image_price || '0',
+      web_search: row.web_search_price || '0',
+      internal_reasoning: row.internal_reasoning_price || '0',
+      input_cache_read: row.input_cache_read_price,
+      input_cache_write: row.input_cache_write_price,
+    },
+    input_modalities: row.input_modalities || [],
+    output_modalities: row.output_modalities || [],
+    supported_parameters: row.supported_parameters || [],
+    created: row.created_timestamp || Math.floor(Date.now() / 1000),
+  };
+}
+
 // Filter models based on allowed list
 export function filterAllowedModels(
   models: OpenRouterModel[], 

@@ -2,28 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { logger } from "../../../../lib/utils/logger";
 import { handleError } from "../../../../lib/utils/errors";
 import { 
-  fetchOpenRouterModels, 
-  transformOpenRouterModel, 
-  filterAllowedModels 
+  transformDatabaseModel
 } from "../../../../lib/utils/openrouter";
 import { createClient } from "../../../../lib/supabase/server";
 import { ModelInfo, ModelsResponse } from "../../../../lib/types/openrouter";
-import { unstable_cache } from "next/cache";
 import { AuthContext } from "../../../../lib/types/auth";
 import { withEnhancedAuth } from "../../../../lib/middleware/auth";
-
-// Cache the OpenRouter models data for 10 minutes to reduce API calls
-const getCachedModels = unstable_cache(
-  async () => {
-    const models = await fetchOpenRouterModels();
-    return models;
-  },
-  ['openrouter-models'],
-  {
-    revalidate: 600, // 10 minutes
-    tags: ['models']
-  }
-);
 
 async function modelsHandler(request: NextRequest, authContext: AuthContext) {
   const startTime = Date.now();
@@ -39,8 +23,13 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
 
     // Get allowed models from database (model_access) using latest schema
     const supabase = await createClient();
-    // Always get all active models
-    const { data, error } = await supabase
+    
+    // Determine user tier for query optimization
+    const tier = authContext.profile?.subscription_tier || 'free';
+    logger.info(`User subscription tier: ${tier}`);
+    
+    // Build dynamic query based on subscription tier
+    let query = supabase
       .from('model_access')
       .select(`
         model_id,
@@ -77,10 +66,30 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
         updated_at
       `)
       .eq('status', 'active');
+    
+    // Apply tier-specific filtering at database level
+    if (tier === 'free' || !tier) {
+      // Free tier: only models marked as free
+      query = query.eq('is_free', true);
+    } else if (tier === 'pro') {
+      // Pro tier: free models OR pro models
+      query = query.or('is_free.eq.true,is_pro.eq.true');
+    } else if (tier === 'enterprise') {
+      // Enterprise tier: free models OR pro models OR enterprise models
+      query = query.or('is_free.eq.true,is_pro.eq.true,is_enterprise.eq.true');
+    } else {
+      // fallback: treat unknown tiers as free
+      query = query.eq('is_free', true);
+    }
+
+    
+    const { data, error } = await query;
+    
     if (error) {
       logger.error('Error fetching models from database', error);
       throw error;
     }
+    
     type ModelRow = {
       model_id: string;
       canonical_slug?: string;
@@ -115,35 +124,20 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
       created_at?: string;
       updated_at?: string;
     };
-    const allActiveModels = (data as ModelRow[]) || [];
-    // Now filter by actual user subscription tier
-    let allowedModelIds: string[] = [];
-    const tier = authContext.profile?.subscription_tier || 'free';
-    logger.info(`User subscription tier: ${tier}`);
-    if (tier === 'free') {
-      allowedModelIds = allActiveModels.filter(row => row.is_free).map(row => row.model_id);
-    } else if (tier === 'pro') {
-      allowedModelIds = allActiveModels.filter(row => row.is_pro).map(row => row.model_id);
-    } else if (tier === 'enterprise') {
-      allowedModelIds = allActiveModels.filter(row => row.is_enterprise).map(row => row.model_id);
-    } else {
-      // fallback: treat as free
-      allowedModelIds = allActiveModels.filter(row => row.is_free).map(row => row.model_id);
-    }
-    logger.info(`Allowed models for tier ${tier}: ${allowedModelIds.length}`);
+    
+    const allowedModels = (data as ModelRow[]) || [];
+    logger.info(`Allowed models for tier ${tier}: ${allowedModels.length}`);
 
-    // Fetch models from OpenRouter API with caching
-    const allModels = await getCachedModels();
-
-    // Filter to only allowed models
-    const filteredModels = filterAllowedModels(allModels, allowedModelIds);
+    // Transform database rows to ModelInfo format for frontend
+    // eslint-disable-next-line prefer-const
+    let transformedModels: ModelInfo[] = allowedModels.map(transformDatabaseModel);
 
     // Default model prioritization (non-breaking)
     if (authContext.isAuthenticated && authContext.profile?.default_model) {
       try {
         const defaultModelId = authContext.profile.default_model.trim();
         const userId = authContext.user?.id;
-        const totalModels = filteredModels.length;
+        const totalModels = transformedModels.length;
 
         logger.info('Processing default model prioritization', {
           userId,
@@ -154,11 +148,11 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
         });
 
         if (defaultModelId && typeof defaultModelId === 'string' && defaultModelId.length > 0) {
-          const defaultModelIndex = filteredModels.findIndex(model => model && model.id === defaultModelId);
+          const defaultModelIndex = transformedModels.findIndex(model => model && model.id === defaultModelId);
           if (defaultModelIndex > 0) {
-            const [defaultModel] = filteredModels.splice(defaultModelIndex, 1);
+            const [defaultModel] = transformedModels.splice(defaultModelIndex, 1);
             if (defaultModel) {
-              filteredModels.unshift(defaultModel);
+              transformedModels.unshift(defaultModel);
               logger.info('Default model prioritized successfully', {
                 userId,
                 defaultModelId,
@@ -196,22 +190,20 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
       }
     }
 
-    // Transform to ModelInfo format for frontend
-    const transformedModels: ModelInfo[] = filteredModels.map(transformOpenRouterModel);
-
     const enhancedResponse: ModelsResponse = {
       models: transformedModels
     };
 
     // Log metrics for monitoring
     const responseTime = Date.now() - startTime;
-    logger.info(`Models API response - Models: ${transformedModels.length}/${allModels.length}, Time: ${responseTime}ms`);
+    logger.info(`Models API response - Models: ${transformedModels.length}, Tier: ${tier}, Time: ${responseTime}ms, Source: database`);
 
     // Add headers for monitoring
     const headers = new Headers();
     headers.set('X-Response-Time', responseTime.toString());
     headers.set('X-Models-Count', transformedModels.length.toString());
-    headers.set('X-Total-Models-Available', allModels.length.toString());
+    headers.set('X-User-Tier', tier);
+    headers.set('X-Models-Source', 'database');
 
     return NextResponse.json(enhancedResponse, { headers });
 
