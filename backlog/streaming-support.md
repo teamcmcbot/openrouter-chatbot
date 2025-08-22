@@ -449,33 +449,490 @@ Typical Journey:
 - **Fly.io**: "Global edge deployment, predictable pricing"
 - **Self-hosted**: "Full control, $20/month VPS handles 10k+ users"
 
-## Phases (DEPRECATED - Not Recommended for Implementation)
+## Implementation Plan - Detailed Phase Breakdown
 
-- [ ] ~~Phase 1 — Provider capability and server plumbing~~
+Based on the analysis showing **zero cost penalty** for streaming implementation, here's the detailed implementation plan:
 
-  - ~~Add streaming option to `/api/chat` and a streamed variant endpoint~~
-  - ~~Use Next.js `ReadableStream` or `SSE` to forward chunks~~
-  - **BLOCKED**: Vercel timeout limits make this impossible
+### 🎯 **Phase 1: Backend Streaming Foundation** (Week 1)
 
-- [ ] ~~Phase 2 — Client rendering~~
+**Goal:** Implement streaming chat endpoint with OpenRouter integration while maintaining full backward compatibility
 
-  - ~~Introduce a simple stream consumer hook~~
-  - ~~Markdown detection during streaming~~
-  - **BLOCKED**: Server-side streaming prerequisite not feasible
+**Tasks:**
 
-- [ ] ~~Phase 3 — Sync & persistence~~
+- [ ] **1.1:** Install and configure Vercel AI SDK dependencies
 
-  - ~~Stream completion persistence~~
-  - **BLOCKED**: No streaming to persist
+  - Install `ai` package and required dependencies
+  - Update `tsconfig.json` for AI SDK compatibility
+  - Test basic SDK functionality
 
-- [ ] ~~Phase 4 — Feature flags & tiers~~
+- [ ] **1.2:** Create streaming endpoint `/api/chat/stream`
 
-  - ~~Gate streaming by subscription tier~~
-  - **BLOCKED**: Infrastructure costs make tiers irrelevant
+  - Create `src/app/api/chat/stream/route.ts`
+  - Apply **TierA rate limiting** (same as `/api/chat`) using `withTieredRateLimit(handler, { tier: "tierA" })`
+  - Implement `withEnhancedAuth` middleware
+  - Configure `maxDuration = 300` for extended timeout support
 
-- [ ] ~~Phase 5 — Docs~~
-  - ~~Add streaming documentation~~
-  - **BLOCKED**: Feature not implementable
+- [ ] **1.3:** Implement OpenRouter streaming integration
+
+  - Extend `lib/utils/openrouter.ts` with `getOpenRouterCompletionStream()`
+  - Add streaming support with `stream: true` parameter
+  - Maintain all current features (reasoning, web search, attachments, system prompts)
+  - Preserve authentication context and user tracking
+
+- [ ] **1.4:** Metadata preservation during streaming
+  - Implement final chunk handling with complete response metadata
+  - Ensure reasoning, annotations, usage tokens are captured
+  - Test metadata completeness matches non-streaming response
+
+**User Verification Steps for Phase 1:**
+
+1. **Backend Functionality Test:**
+   - Send POST request to `/api/chat/stream` with same payload as `/api/chat`
+   - Verify streaming response arrives in chunks
+   - Confirm final chunk contains complete metadata (usage, id, reasoning, annotations)
+2. **Feature Parity Test:**
+
+   - Test reasoning mode (Enterprise users)
+   - Test web search functionality (Pro+ users)
+   - Test image attachments
+   - Verify all responses match non-streaming endpoint data structure
+
+3. **Rate Limiting Test:**
+   - Confirm TierA rate limits apply correctly
+   - Test rate limit sharing between `/api/chat` and `/api/chat/stream`
+
+**Success Criteria Phase 1:** Streaming endpoint returns identical metadata to non-streaming endpoint, with proper rate limiting and authentication.
+
+---
+
+### 🎯 **Phase 2: Frontend Streaming Integration** (Week 2)
+
+**Goal:** Replace current chat interface with streaming-capable components while maintaining existing UX patterns
+
+**Tasks:**
+
+- [ ] **2.1:** Update chat hook to use Vercel AI SDK
+
+  - Refactor `hooks/useChat.ts` to use `useChat` from `ai/react`
+  - Map streaming API to existing interface for backward compatibility
+  - Implement `onFinish` callback for metadata handling
+  - Add streaming cancellation (`stop` function)
+  - **Error handling integration**: Handle streaming failures, timeouts, network drops
+  - **State management**: Maintain streaming state, partial content, and completion status
+
+- [ ] **2.2:** Update message rendering components
+
+  - Modify `components/chat/MessageContent.tsx` for streaming support
+    - **Incremental content updates**: Handle partial markdown rendering without breaking syntax
+    - **Word-boundary chunking**: Prevent mid-word cuts during streaming
+    - **Code block handling**: Buffer incomplete code blocks until closing markers arrive
+    - **Link/citation parsing**: Wait for complete URLs before rendering clickable links
+    - **Math expression handling**: Buffer LaTeX/MathJax until complete expressions
+  - Add streaming indicator (typing dots animation) with context-aware placement
+  - Update `components/chat/MessageList.tsx` for real-time updates
+    - **Auto-scroll behavior**: Maintain scroll position during streaming with user scroll override
+    - **Performance optimization**: Debounce renders, prevent excessive re-renders on each chunk
+    - **Memory management**: Clean up streaming state on component unmount
+  - Preserve existing markdown rendering and syntax highlighting
+    - **Progressive highlighting**: Apply syntax highlighting to complete code blocks during streaming
+
+- [ ] **2.3:** Implement streaming UI components
+
+  - Create `components/chat/StreamingIndicator.tsx`
+    - **Contextual indicators**: Different animations for text vs reasoning vs web search
+    - **Progress estimation**: Show estimated completion when possible (based on token estimation)
+    - **Accessibility**: Screen reader announcements for streaming status
+  - Create `components/chat/StreamingControls.tsx` (stop button)
+    - **Stop functionality**: Graceful stream cancellation with user confirmation
+    - **Loading states**: Show cancellation in progress
+    - **Keyboard shortcuts**: Escape key to cancel streaming
+  - Create `components/chat/StreamingErrorBoundary.tsx` **[NEW]**
+    - **Error boundary**: Catch and handle streaming component errors
+    - **Fallback UI**: Show user-friendly error message when streaming fails
+    - **Recovery options**: Retry streaming or fallback to non-streaming mode
+  - Add progressive content rendering
+    - **Chunk buffering**: Smart buffering to prevent flicker (minimum 50ms delays)
+    - **Syntax highlighting**: Live syntax highlighting for code during streaming
+    - **Content validation**: Validate chunks before rendering to prevent XSS
+  - Maintain existing message metadata display (tokens, timing, model info)
+    - **Streaming metadata**: Show partial token counts during generation (estimated)
+    - **Final metadata**: Replace with complete data when streaming finishes
+
+- [ ] **2.4:** Database sync integration
+  - Update sync logic to trigger `onFinish` when streaming completes
+  - Ensure `POST /api/chat/messages` receives complete streaming metadata
+  - Set `is_streaming: true` flag in database records
+  - Test cost calculation and token tracking with streaming messages
+  - **Error recovery**: Handle sync failures after successful streaming
+  - **Retry logic**: Implement retry mechanism for failed database syncs
+
+**[NEW] 2.5:** Comprehensive error handling and recovery
+
+- **Network error handling**: Detect connection drops, retry streaming connections
+- **Timeout handling**: Graceful degradation when streams exceed expected duration
+- **Malformed chunk handling**: Skip invalid chunks, continue streaming
+- **Partial content recovery**: Save partial content when streaming fails
+- **User notifications**: Clear error messages with actionable recovery options
+- **Fallback mechanisms**: Auto-fallback to non-streaming when streaming consistently fails
+- **Client-side rate limiting**: Prevent spam requests when streaming fails repeatedly
+
+**User Verification Steps for Phase 2:**
+
+1. **Streaming UX Test:**
+
+   - Send message and observe real-time streaming text appearance
+     - **Verify**: Text appears smoothly without flicker or artifacts
+     - **Test**: Markdown elements render correctly during streaming (headers, lists, code blocks)
+     - **Check**: Math expressions and special characters display properly
+     - **Test**: URLs become clickable only after complete
+   - Verify streaming indicator shows during generation
+     - **Test**: Different indicators for text, reasoning, web search modes
+     - **Check**: Indicator disappears when streaming completes
+     - **Verify**: Accessibility announcements for screen readers
+   - Test stop/cancel functionality interrupts generation
+     - **Verify**: Stop button is accessible and responsive
+     - **Test**: Cancelled streams preserve partial content appropriately
+     - **Check**: Proper cleanup after cancellation (no memory leaks)
+     - **Test**: Keyboard shortcut (Escape) works for cancellation
+   - Confirm final message shows complete content with metadata
+     - **Test**: Token counts, timing, and model info appear correctly
+     - **Verify**: Citations and annotations render properly
+     - **Check**: Reasoning content (Enterprise) displays correctly
+
+2. **Database Sync Test:**
+
+   - Verify streaming messages sync to database with `is_streaming: true`
+     - **Test**: Both user and assistant messages saved correctly
+     - **Check**: Partial content not saved if streaming fails
+     - **Verify**: Message IDs and relationships preserved
+   - Check token usage tracking works correctly
+     - **Verify**: Token counts match between streaming response and database
+     - **Test**: Cost calculations accurate for streaming requests
+     - **Check**: Usage analytics include streaming metrics
+   - Confirm session statistics update properly
+     - **Check**: Message counts and token totals reflect streaming messages
+     - **Test**: Session titles generated from streaming content
+   - Test message cost calculations match streaming responses
+     - **Verify**: Reasoning, web search, and attachment costs calculated correctly
+     - **Test**: Per-token pricing applied accurately
+
+3. **UI Consistency Test:**
+
+   - Compare streaming vs non-streaming message display
+     - **Test**: Final rendered output identical between modes
+     - **Verify**: Message formatting and styling consistent
+     - **Check**: No visual differences in completed messages
+   - Verify markdown rendering works during and after streaming
+     - **Test**: Code syntax highlighting, headers, lists, links
+     - **Check**: No rendering artifacts or incomplete markup
+     - **Test**: Progressive rendering doesn't break complex markdown
+   - Test reasoning mode display (Enterprise)
+     - **Verify**: Reasoning content streams and displays correctly
+     - **Test**: Reasoning toggle functionality works during streaming
+     - **Check**: Reasoning metadata preserved in final message
+   - Confirm web search annotations appear correctly
+     - **Test**: Citations appear as content references complete URLs
+     - **Verify**: Clickable links work properly
+     - **Check**: Annotation count matches web search results
+
+4. **[NEW] Error Handling Test:**
+
+   - **Network interruption scenarios**:
+     - **Test**: Disconnect/reconnect internet during streaming
+     - **Verify**: Graceful error message shown to user
+     - **Test**: Retry functionality works correctly
+     - **Check**: No duplicate content or corrupted state
+   - **Backend timeout scenarios**:
+     - **Test**: Reasoning mode or slow models that exceed timeout
+     - **Check**: Clear timeout warnings displayed to user
+     - **Verify**: Option to continue or cancel presented
+     - **Test**: Fallback to non-streaming mode works
+   - **Malformed response handling**:
+     - **Test**: Simulate corrupted chunk data
+     - **Test**: Invalid chunks skipped, streaming continues
+     - **Verify**: User not shown broken/incomplete content
+     - **Check**: Error boundary prevents component crashes
+   - **Cancellation scenarios**:
+     - **Test**: Stop button during different streaming phases (text, reasoning, web search)
+     - **Verify**: Partial content preserved appropriately
+     - **Test**: Database sync handles cancelled streams correctly
+     - **Check**: No orphaned data or inconsistent state
+
+5. **[NEW] Performance & Accessibility Test:**
+   - **Memory and performance**:
+     - **Test**: Monitor memory usage during long streaming sessions
+     - **Verify**: No memory leaks with multiple consecutive streams
+     - **Test**: UI remains responsive during fast streaming
+     - **Check**: Component cleanup after streaming completion
+   - **Mobile compatibility**:
+     - **Test**: Streaming on various mobile devices
+     - **Verify**: Touch interactions work (scroll, stop button)
+     - **Test**: Performance acceptable on slower devices
+     - **Check**: Responsive design maintains during streaming
+   - **Accessibility verification**:
+     - **Test**: Screen reader announcements for streaming status
+     - **Verify**: Keyboard navigation works during streaming
+     - **Test**: High contrast mode compatibility
+     - **Check**: Focus management during streaming state changes
+
+**Success Criteria Phase 2:** Users can send messages via streaming with identical final results to non-streaming, plus improved perceived performance.
+
+---
+
+### 🎯 **Phase 3: Feature Toggle & User Preferences** (Week 3)
+
+**Goal:** Allow users to choose between streaming and non-streaming modes, with smart defaults based on subscription tier
+
+**Tasks:**
+
+- [ ] **3.1:** Implement user preference system
+
+  - Add `streaming_enabled` field to user profiles table
+  - Create user settings UI toggle for streaming preference
+  - Update `useUserData` hook to include streaming preference
+  - Set smart defaults: Pro/Enterprise = streaming enabled, Free/Anonymous = disabled
+
+- [ ] **3.2:** Smart streaming logic
+
+  - Implement duration estimation for different models/contexts
+  - Create hybrid logic: stream fast models, warn for slow/reasoning models
+  - Add user notifications for long-running requests
+  - Implement graceful fallback from streaming to non-streaming on errors
+
+- [ ] **3.3:** Enhanced error handling
+
+  - Add streaming-specific error messages and recovery
+  - Implement reconnection logic for dropped streams
+  - Add timeout warnings with option to continue or cancel
+  - Create user-friendly error messages for streaming failures
+
+- [ ] **3.4:** Performance monitoring integration
+  - Add streaming metrics to existing analytics
+  - Track streaming vs non-streaming usage patterns
+  - Monitor streaming success/failure rates
+  - Create admin dashboard for streaming performance
+
+**User Verification Steps for Phase 3:**
+
+1. **User Preference Test:**
+
+   - Access user settings and toggle streaming preference
+   - Verify setting persists across sessions
+   - Test different subscription tiers get appropriate defaults
+   - Confirm non-streaming fallback works when streaming disabled
+
+2. **Smart Logic Test:**
+
+   - Send fast model requests → should use streaming
+   - Send reasoning mode requests → should warn about duration
+   - Test error scenarios → should fallback gracefully
+   - Verify timeout warnings appear for long requests
+
+3. **Admin Monitoring Test:**
+   - Check streaming usage appears in analytics
+   - Verify performance metrics are tracked
+   - Test admin can view streaming success rates
+   - Confirm cost tracking works for both streaming modes
+
+**Success Criteria Phase 3:** Users can choose their preferred mode, with smart defaults and graceful error handling.
+
+---
+
+### 🎯 **Phase 4: Testing & Optimization** (Week 4)
+
+**Goal:** Comprehensive testing, performance optimization, and production readiness
+
+**Tasks:**
+
+- [ ] **4.1:** Comprehensive testing suite
+
+  - Unit tests for streaming endpoints and components
+  - Integration tests for end-to-end streaming flow
+  - Load testing for concurrent streaming requests
+  - Error scenario testing (network drops, timeouts, etc.)
+
+- [ ] **4.2:** Performance optimization
+
+  - Optimize chunk processing for better streaming performance
+  - Minimize re-renders during streaming
+  - Implement smart caching for streaming metadata
+  - Add performance monitoring and alerting
+
+- [ ] **4.3:** Production deployment preparation
+
+  - Update deployment configuration for streaming support
+  - Add monitoring and logging for streaming requests
+  - Create rollback plan if streaming issues occur
+  - Update documentation and user guides
+
+- [ ] **4.4:** User acceptance testing
+  - Beta testing with select users across all tiers
+  - Collect feedback on streaming vs non-streaming preferences
+  - Performance comparison analysis (perceived vs actual)
+  - Final UX polishing based on user feedback
+
+**User Verification Steps for Phase 4:**
+
+1. **Performance Test:**
+
+   - Compare streaming vs non-streaming response times
+   - Test with various message lengths and complexities
+   - Verify no memory leaks during extended streaming sessions
+   - Confirm UI remains responsive during streaming
+
+2. **Reliability Test:**
+
+   - Test streaming over slow/unstable connections
+   - Verify graceful degradation when streaming fails
+   - Test concurrent streaming requests from same user
+   - Confirm proper cleanup when streams are cancelled
+
+3. **User Experience Test:**
+   - A/B test streaming vs non-streaming with beta users
+   - Measure user satisfaction and preference metrics
+   - Test accessibility features work with streaming
+   - Verify mobile device compatibility
+
+**Success Criteria Phase 4:** Streaming implementation is production-ready with comprehensive testing and monitoring.
+
+---
+
+## 📋 **Implementation Checklist**
+
+### Backend Requirements
+
+- [ ] `/api/chat/stream` endpoint with TierA rate limiting
+- [ ] OpenRouter streaming integration preserving all current features
+- [ ] Metadata preservation (usage, reasoning, annotations, etc.)
+- [ ] Database sync with `is_streaming` flag
+- [ ] Error handling and timeout configuration
+
+### Frontend Requirements
+
+- [ ] Vercel AI SDK integration with `useChat` hook
+  - **Stream state management**: Track streaming status, partial content, completion
+  - **Error handling**: Network failures, timeouts, malformed chunks
+  - **Cancellation support**: User-initiated stream cancellation with cleanup
+- [ ] Real-time streaming UI with typing indicators
+  - **Progressive text rendering**: Smooth text appearance without flicker
+  - **Context-aware indicators**: Different animations for text/reasoning/web search
+  - **Performance optimization**: Debounced renders, minimal re-renders
+- [ ] Stop/cancel streaming functionality
+  - **Graceful cancellation**: Preserve partial content, proper state cleanup
+  - **User confirmation**: Prevent accidental cancellation
+  - **Keyboard shortcuts**: Escape key support for accessibility
+- [ ] Backward compatibility with existing message display
+  - **Identical final output**: Streaming and non-streaming produce same results
+  - **Metadata preservation**: Tokens, timing, model info, citations
+  - **Component reuse**: Existing message components work with streaming data
+- [ ] Progressive markdown rendering during streaming
+  - **Syntax-aware chunking**: Prevent broken markdown during streaming
+  - **Code block buffering**: Wait for complete code blocks before highlighting
+  - **Link validation**: Ensure complete URLs before making clickable
+  - **Math expression handling**: Buffer LaTeX/MathJax until complete
+- [ ] **[NEW] Comprehensive error handling and recovery**
+  - **Error boundaries**: Catch streaming component failures
+  - **Fallback UI**: User-friendly error messages with recovery options
+  - **Network resilience**: Handle connection drops, retry logic
+  - **Partial content recovery**: Save partial content when streaming fails
+  - **Auto-fallback**: Switch to non-streaming when streaming consistently fails
+
+### Infrastructure Requirements
+
+- [ ] `maxDuration = 300` configuration for extended timeouts
+- [ ] TierA rate limiting shared between endpoints
+- [ ] Monitoring and analytics for streaming usage
+- [ ] Fallback mechanisms for streaming failures
+
+### User Experience Requirements
+
+- [ ] User preference toggle for streaming on/off
+- [ ] Smart defaults based on subscription tier
+- [ ] Clear indication when streaming vs non-streaming
+- [ ] Graceful error messages and recovery options
+
+## 🔄 **Migration Strategy**
+
+1. **Gradual Rollout:** Start with opt-in streaming for Pro/Enterprise users
+2. **A/B Testing:** Compare user engagement with streaming vs non-streaming
+3. **Monitoring:** Track performance metrics and user satisfaction
+4. **Full Deployment:** Make streaming default for all subscription tiers
+5. **Legacy Support:** Maintain `/api/chat` for backward compatibility
+
+## 🚨 **Critical Frontend Implementation Considerations**
+
+### **Data Flow & State Management**
+
+```typescript
+// Critical streaming data flow that must be implemented:
+
+interface StreamingState {
+  isStreaming: boolean;
+  partialContent: string;
+  streamId: string;
+  canCancel: boolean;
+  error: StreamingError | null;
+  retryCount: number;
+  fallbackToNonStreaming: boolean;
+}
+
+interface StreamingError {
+  type: "network" | "timeout" | "malformed" | "cancelled" | "server_error";
+  message: string;
+  recoverable: boolean;
+  retryAfter?: number;
+}
+```
+
+### **Content Rendering Pipeline**
+
+1. **Chunk Processing**: Validate and sanitize each chunk before rendering
+2. **Markdown Buffering**: Buffer incomplete markdown structures (code blocks, lists, headers)
+3. **Progressive Rendering**: Apply syntax highlighting only to complete code blocks
+4. **Link Processing**: Convert URLs to clickable links only when complete
+5. **Error Recovery**: Handle malformed chunks gracefully without breaking UI
+
+### **Performance Requirements**
+
+- **Render Debouncing**: Minimum 16ms between renders to prevent janky animations
+- **Memory Management**: Implement chunk garbage collection for long streams
+- **Auto-scroll Intelligence**: Don't auto-scroll if user manually scrolled up
+- **Component Optimization**: Use React.memo and useMemo for streaming components
+- **Cleanup**: Ensure all streaming state clears on component unmount
+
+### **Error Handling Strategy**
+
+```typescript
+// Required error handling patterns:
+
+// 1. Network Error Recovery
+if (networkError) {
+  showRetryButton();
+  preservePartialContent();
+  allowFallbackToNonStreaming();
+}
+
+// 2. Malformed Chunk Handling
+if (invalidChunk) {
+  skipChunk();
+  logError();
+  continueStreaming();
+}
+
+// 3. User Cancellation
+if (userCancelled) {
+  gracefulCleanup();
+  preservePartialContent();
+  updateDatabase();
+}
+```
+
+### **Accessibility Requirements**
+
+- **Screen Reader Support**: Announce streaming status changes
+- **Keyboard Navigation**: Support Escape key to cancel streaming
+- **Focus Management**: Maintain focus during streaming updates
+- **High Contrast**: Ensure streaming indicators work in high contrast mode
 
 ## Clarifying questions (RESOLVED)
 
