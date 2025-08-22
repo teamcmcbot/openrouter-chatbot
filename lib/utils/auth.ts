@@ -271,7 +271,7 @@ export function createFeatureFlags(
       canUseCustomTemperature: false,
       canSaveConversations: false,
       canSyncConversations: false,
-      maxRequestsPerHour: 20,
+      maxRequestsPerHour: 10, // TierA limit for anonymous users
       maxTokensPerRequest: 5000,
       hasRateLimitBypass: false,
       canUseProModels: false,
@@ -291,7 +291,7 @@ export function createFeatureFlags(
     canUseCustomTemperature: true,
     canSaveConversations: true,
     canSyncConversations: true,
-    maxRequestsPerHour: 100,
+    maxRequestsPerHour: 20, // TierA limit for free users
     maxTokensPerRequest: 10000,
     hasRateLimitBypass: false,
     canUseProModels: false,
@@ -307,7 +307,7 @@ export function createFeatureFlags(
       return {
         ...baseFeatures,
         canAccessAdvancedModels: true,
-        maxRequestsPerHour: 500,
+        maxRequestsPerHour: 200, // TierA limit for pro users
         maxTokensPerRequest: 20000,
         canUseProModels: true,
         hasAnalyticsDashboard: true,
@@ -317,9 +317,9 @@ export function createFeatureFlags(
       return {
         ...baseFeatures,
         canAccessAdvancedModels: true,
-        maxRequestsPerHour: 2000,
+        maxRequestsPerHour: 500, // TierA limit for enterprise users
         maxTokensPerRequest: 50000,
-        hasRateLimitBypass: true,
+        hasRateLimitBypass: profile?.account_type === 'admin', // Only enterprise admins bypass
         canUseProModels: true,
         canUseEnterpriseModels: true,
         hasAnalyticsDashboard: true,

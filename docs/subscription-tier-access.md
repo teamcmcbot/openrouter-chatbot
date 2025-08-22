@@ -23,7 +23,7 @@ This document summarizes feature availability, rate limits, and where each rule 
 
 Source of limits: `lib/utils/auth.ts` → `createFeatureFlags()`.
 
-Rate limiting headers and enforcement: `lib/middleware/rateLimitMiddleware.ts`. Applied on:
+Rate limiting headers and enforcement: `lib/middleware/redisRateLimitMiddleware.ts`. Applied on:
 
 - Chat: `src/app/api/chat/route.ts`
 - Image uploads: `src/app/api/uploads/images/route.ts`
@@ -73,7 +73,7 @@ Notes:
 - Chat API gates (web search, reasoning, token limits): `src/app/api/chat/route.ts`.
 - Image uploads gates and limits: `src/app/api/uploads/images/route.ts`.
 - Authentication/tier wrappers: `lib/middleware/auth.ts` (`withEnhancedAuth`, `withProtectedAuth`, `withTierAuth`).
-- Rate limiting: `lib/middleware/rateLimitMiddleware.ts`.
+- Rate limiting: `lib/middleware/redisRateLimitMiddleware.ts`.
 - Request validation helpers: `lib/utils/validation.ts`.
 
 ## Manual test steps
@@ -101,7 +101,7 @@ Image uploads
 - Chat API: `src/app/api/chat/route.ts`
 - Image upload API: `src/app/api/uploads/images/route.ts`
 - Auth middleware: `lib/middleware/auth.ts`
-- Rate limit middleware: `lib/middleware/rateLimitMiddleware.ts`
+- Rate limit middleware: `lib/middleware/redisRateLimitMiddleware.ts`
 - Feature flags and limits: `lib/utils/auth.ts`
 - Validation helpers: `lib/utils/validation.ts`
 - Frontend gating UI: `components/chat/MessageInput.tsx`

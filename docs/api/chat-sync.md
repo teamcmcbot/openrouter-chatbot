@@ -2,7 +2,7 @@
 
 - **Authentication Required:** Uses `withConversationOwnership` middleware, which requires valid user authentication via `withProtectedAuth`
 - **Feature Check:** Users must have `canSyncConversations` enabled in their feature flags
-- **Rate Limiting:** Tier-based rate limits applied via `withRateLimit` middleware:
+- **Rate Limiting:** Tier-based rate limits applied via `withRedisRateLimit` middleware:
   - **Anonymous:** 20 requests/hour _(N/A - authentication required)_
   - **Free:** 100 requests/hour
   - **Pro:** 500 requests/hour
@@ -21,7 +21,7 @@ Web Search: When assistant messages include web citations, the server persists t
 
 - **Authentication Required:** Wrapped by `withConversationOwnership`, which in turn uses `withProtectedAuth` to require a signedin user.
 - **Feature Check:** Users must have `canSyncConversations` enabled in their feature flags.
-- **Rate Limiting:** All requests pass through `withRateLimit` using the user's tier limits:
+- **Rate Limiting:** All requests pass through `withRedisRateLimit` using the user's tier limits:
   - **Anonymous:** 20 requests/hour, 5000 tokens/request
   - **Free:** 100 requests/hour, 10000 tokens/request
   - **Pro:** 500 requests/hour, 20000 tokens/request

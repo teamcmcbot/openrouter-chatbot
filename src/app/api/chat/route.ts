@@ -10,7 +10,7 @@ import { ChatResponse } from '../../../../lib/types';
 import { OpenRouterRequest, OpenRouterContentBlock, OpenRouterUrlCitation } from '../../../../lib/types/openrouter';
 import { AuthContext } from '../../../../lib/types/auth';
 import { withEnhancedAuth } from '../../../../lib/middleware/auth';
-import { withRateLimit } from '../../../../lib/middleware/rateLimitMiddleware';
+import { withRedisRateLimitEnhanced } from '../../../../lib/middleware/redisRateLimitMiddleware';
 import { estimateTokenCount, getModelTokenLimits } from '../../../../lib/utils/tokens';
 import { createClient } from '../../../../lib/supabase/server';
 
@@ -332,7 +332,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   }
 }
 
-// Apply enhanced authentication middleware with rate limiting
-export const POST = withEnhancedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(chatHandler)(req, authContext)
+// Apply enhanced authentication middleware with tiered rate limiting
+export const POST = withEnhancedAuth(
+  withRedisRateLimitEnhanced(chatHandler, { tier: "tierA" })
 );

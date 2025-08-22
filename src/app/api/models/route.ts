@@ -8,6 +8,7 @@ import { createClient } from "../../../../lib/supabase/server";
 import { ModelInfo, ModelsResponse } from "../../../../lib/types/openrouter";
 import { AuthContext } from "../../../../lib/types/auth";
 import { withEnhancedAuth } from "../../../../lib/middleware/auth";
+import { withRedisRateLimitEnhanced } from "../../../../lib/middleware/redisRateLimitMiddleware";
 
 async function modelsHandler(request: NextRequest, authContext: AuthContext) {
   const startTime = Date.now();
@@ -214,4 +215,6 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
 }
 
 // Export GET handler with enhanced authentication (injects AuthContext)
-export const GET = withEnhancedAuth(modelsHandler);
+export const GET = withEnhancedAuth(
+  withRedisRateLimitEnhanced(modelsHandler, { tier: "tierC" })
+);

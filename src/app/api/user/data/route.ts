@@ -8,7 +8,7 @@ import {
   UserDataError 
 } from '../../../../../lib/types/user-data';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
-import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { validateSystemPrompt } from '../../../../../lib/utils/validation/systemPrompt';
@@ -66,6 +66,7 @@ async function getUserDataHandler(request: NextRequest, authContext: AuthContext
         full_name: profileData.full_name || '',
         avatar_url: profileData.avatar_url || '',
         subscription_tier: profileData.subscription_tier || 'free',
+        account_type: profileData.account_type || 'user',
         credits: profileData.credits || 0
       },
       preferences: {
@@ -244,6 +245,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
         full_name: updatedProfileData.full_name || '',
         avatar_url: updatedProfileData.avatar_url || '',
         subscription_tier: updatedProfileData.subscription_tier || 'free',
+        account_type: updatedProfileData.account_type || 'user',
         credits: updatedProfileData.credits || 0
       },
       preferences: {
@@ -274,10 +276,10 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
   }
 }
 
-// Apply middleware to handlers
-export const GET = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(getUserDataHandler)(req, authContext)
+// Apply middleware to handlers with TierB rate limiting (medium-cost database operations)
+export const GET = withProtectedAuth(
+  withTieredRateLimit(getUserDataHandler, { tier: 'tierB' })
 );
-export const PUT = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(putUserDataHandler)(req, authContext)
+export const PUT = withProtectedAuth(
+  withTieredRateLimit(putUserDataHandler, { tier: 'tierB' })
 );

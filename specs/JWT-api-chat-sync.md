@@ -195,7 +195,7 @@ export function withAuth<T extends NextRequest>(
 ```typescript
 // src/app/api/chat/sync/route.ts
 import { withAuth } from "../../../../../lib/middleware/auth";
-import { withRateLimit } from "../../../../../lib/middleware/rateLimitMiddleware";
+import { withRedisRateLimit } from "../../../../../lib/middleware/redisRateLimitMiddleware";
 
 async function syncHandler(request: NextRequest, authContext: AuthContext) {
   // User is guaranteed to be authenticated
@@ -220,7 +220,9 @@ async function syncHandler(request: NextRequest, authContext: AuthContext) {
   // Proceed with sync logic...
 }
 
-export const POST = withRateLimit(withAuth(syncHandler, { required: true }));
+export const POST = withRedisRateLimit(
+  withAuth(syncHandler, { required: true })
+);
 ```
 
 ### Enhanced Endpoint Pattern (`/api/chat`)

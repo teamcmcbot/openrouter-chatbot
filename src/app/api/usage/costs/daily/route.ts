@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withProtectedAuth } from '../../../../../../lib/middleware/auth';
+import { withTieredRateLimit } from '../../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../../lib/types/auth';
 import { createClient } from '../../../../../../lib/supabase/server';
 import { parseQuery, round6 } from '../../../../../../lib/utils/usageCosts';
@@ -75,4 +76,6 @@ async function getDailyHandler(req: NextRequest, auth: AuthContext) {
   }
 }
 
-export const GET = withProtectedAuth(getDailyHandler);
+export const GET = withProtectedAuth(
+  withTieredRateLimit(getDailyHandler, { tier: 'tierC' })
+);

@@ -232,7 +232,7 @@ Example:
 
 ```typescript
 // Temporary fix: Remove rate limiting until Redis is implemented
-export const POST = withEnhancedAuth(chatHandler); // Remove withRateLimit wrapper
+export const POST = withEnhancedAuth(chatHandler); // Remove withRedisRateLimit wrapper
 
 // Add to all endpoint route handlers
 // Better to have no rate limiting than broken rate limiting

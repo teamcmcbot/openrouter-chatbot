@@ -5,7 +5,7 @@
 ## Authentication & Authorization
 
 - **Authentication Required**: Uses `withProtectedAuth` middleware - requires valid user authentication
-- **Rate Limiting**: Tier-based rate limits applied via `withRateLimit` middleware:
+- **Rate Limiting**: Tier-based rate limits applied via `withRedisRateLimit` middleware:
   - **Anonymous**: 20 requests/hour _(N/A - authentication required)_
   - **Free**: 100 requests/hour
   - **Pro**: 500 requests/hour

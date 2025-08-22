@@ -203,8 +203,9 @@ export default function Toaster() {
             fontWeight: 600,
           },
           iconTheme: {
-            primary: isDarkMode ? '#fda4af' : '#ef4444', // rose-300 / red-500
-            secondary: isDarkMode ? '#881337' : '#fee2e2',
+            // Brighter primary and slightly darker secondary for contrast
+            primary: isDarkMode ? '#fecdd3' : '#dc2626', // rose-200 / red-600
+            secondary: isDarkMode ? '#7f1d1d' : '#fee2e2', // dark bg for glyph halo on dark; light stays soft
           },
         },
       }}

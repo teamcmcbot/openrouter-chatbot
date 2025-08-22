@@ -1,7 +1,7 @@
 // src/app/api/uploads/images/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { withTierAuth } from '../../../../../lib/middleware/auth';
-import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
+import { withRedisRateLimitEnhanced } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
@@ -27,11 +27,6 @@ function getTierMaxBytes(tier: 'free' | 'pro' | 'enterprise'): number {
   // Free ≤ 5MB; Pro/Enterprise ≤ 10MB
   const MB = 1024 * 1024;
   return tier === 'free' ? 5 * MB : 10 * MB;
-}
-
-function computeUploadRateLimitPerHour(tier: 'free' | 'pro' | 'enterprise'): number {
-  // 30/min = 1800/hr (free); pro/enterprise ×2 => 3600/hr
-  return tier === 'free' ? 1800 : 3600;
 }
 
 async function uploadImageHandler(req: NextRequest, authContext: AuthContext): Promise<NextResponse> {
@@ -154,11 +149,6 @@ async function uploadImageHandler(req: NextRequest, authContext: AuthContext): P
 
 // Require Pro tier or higher for image uploads to align with UI gating
 export const POST = withTierAuth(
-  (req: NextRequest, authContext: AuthContext) =>
-    withRateLimit(uploadImageHandler, {
-      customLimit: computeUploadRateLimitPerHour(
-        (authContext.profile?.subscription_tier || 'pro') as 'free' | 'pro' | 'enterprise'
-      ),
-    })(req, authContext),
+  withRedisRateLimitEnhanced(uploadImageHandler, { tier: "tierB" }),
   'pro'
 );

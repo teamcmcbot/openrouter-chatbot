@@ -1,20 +1,13 @@
 // src/app/api/attachments/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
-import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
 import { logger } from '../../../../../lib/utils/logger';
 
 const BUCKET = 'attachments-images';
-
-function computeDeleteRateLimitPerHour(tier: 'free' | 'pro' | 'enterprise'): number {
-  // Base: 60/min => 3600/hr; Pro/Enterprise ×2
-  const basePerHour = 60 * 60;
-  const multiplier = tier === 'free' ? 1 : 2;
-  return basePerHour * multiplier;
-}
 
 async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
@@ -89,8 +82,6 @@ async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContex
   }
 }
 
-export const DELETE = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(deleteAttachmentHandler, {
-    customLimit: computeDeleteRateLimitPerHour((authContext.profile?.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise'),
-  })(req, authContext)
+export const DELETE = withProtectedAuth(
+  withTieredRateLimit(deleteAttachmentHandler, { tier: 'tierB' })
 );

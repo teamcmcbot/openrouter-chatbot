@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { parseQuery, round6, buildTopModels } from '../../../../../lib/utils/usageCosts';
@@ -90,4 +91,6 @@ async function getCostsHandler(req: NextRequest, auth: AuthContext) {
   }
 }
 
-export const GET = withProtectedAuth(getCostsHandler);
+export const GET = withProtectedAuth(
+  withTieredRateLimit(getCostsHandler, { tier: 'tierC' })
+);

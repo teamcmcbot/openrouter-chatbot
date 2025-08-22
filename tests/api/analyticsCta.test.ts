@@ -110,8 +110,9 @@ jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/auth', ()
 
 type RLHandler = (req: unknown, ctx: AuthContext) => Promise<unknown> | unknown;
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/rateLimitMiddleware', () => ({
-  withRateLimit: (handler: RLHandler) => (req: unknown, ctx: AuthContext) => handler(req, ctx),
+jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/redisRateLimitMiddleware', () => ({
+  withRedisRateLimit: (handler: RLHandler) => (req: unknown, ctx: AuthContext) => handler(req, ctx),
+  withRedisRateLimitEnhanced: (handler: RLHandler) => (req: unknown, ctx: AuthContext) => handler(req, ctx),
   addRateLimitHeaders: (res: unknown) => res,
 }));
 

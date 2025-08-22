@@ -43,7 +43,7 @@ Notes:
 
 ## Files involved (references)
 
-- API: `src/app/api/user/data/route.ts` (GET handler wrapped with `withProtectedAuth` and `withRateLimit`)
+- API: `src/app/api/user/data/route.ts` (GET handler wrapped with `withProtectedAuth` and `withRedisRateLimit`)
 - Client service: `lib/services/user-data.ts` (`fetchUserData`, `updateUserPreferences`)
 - Hook: `hooks/useUserData.ts` (per-instance cache, no cross-instance dedupe)
 - Callers on /chat:

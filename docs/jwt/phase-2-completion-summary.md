@@ -1,4 +1,9 @@
-# Phase 2 JWT Authentication Implementation - Completion Summary
+# Phase 2 JWT Authentica - Free: 100 requests/hour
+
+- Pro: 500 requests/hour
+- Enterprise: 2000 requests/hourree: 100 requests/hour
+- Pro: 500 requests/hour
+- Enterprise: 2000 requests/hourn Implementation - Completion Summary
 
 ## Overview
 
@@ -18,13 +23,13 @@ Phase 2 of the JWT authentication system has been successfully implemented and t
 
 ### 2. Rate Limiting Middleware
 
-- **Location**: [`lib/middleware/rateLimitMiddleware.ts`](lib/middleware/rateLimitMiddleware.ts)
+- **Location**: [`lib/middleware/redisRateLimitMiddleware.ts`](lib/middleware/redisRateLimitMiddleware.ts)
 - **Implementation**: In-memory rate limiter with tier-based limits
 - **Limits**:
-  - Anonymous: 10 requests/hour
-  - Free: 50 requests/hour
+  - Anonymous: 20 requests/hour
+  - Free: 100 requests/hour
   - Pro: 500 requests/hour
-  - Enterprise: 5000 requests/hour
+  - Enterprise: 2000 requests/hour
 - **Features**: Bypass capability, sliding window, automatic cleanup
 
 ### 3. Authentication Middleware Enhancement
