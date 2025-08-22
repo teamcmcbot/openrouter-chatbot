@@ -5,7 +5,7 @@ import { createSuccessResponse } from '../../../../../lib/utils/response';
 import { logger } from '../../../../../lib/utils/logger';
 import { GenerationResponse } from '../../../../../lib/types/generation';
 import { withEnhancedAuth } from '../../../../../lib/middleware/auth';
-import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 
 async function generationHandler(
@@ -73,5 +73,5 @@ async function generationHandler(
 }
 
 export const GET = withEnhancedAuth(
-  withRedisRateLimit(generationHandler)
+  withTieredRateLimit(generationHandler, { tier: 'tierC' })
 );

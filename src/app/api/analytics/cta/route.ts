@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withEnhancedAuth } from "../../../../../lib/middleware/auth";
-import { withRedisRateLimit } from "../../../../../lib/middleware/redisRateLimitMiddleware";
+import { withRedisRateLimitEnhanced } from "../../../../../lib/middleware/redisRateLimitMiddleware";
 import { logger } from "../../../../../lib/utils/logger";
 import { createClient as createServerSupabaseClient } from "../../../../../lib/supabase/server";
 import type { AuthContext } from "../../../../../lib/types/auth";
@@ -69,5 +69,5 @@ async function ctaHandler(req: NextRequest, authContext: AuthContext) {
 }
 
 export const POST = withEnhancedAuth(
-  withRedisRateLimit(ctaHandler)
+  withRedisRateLimitEnhanced(ctaHandler, { tier: "tierC" })
 );

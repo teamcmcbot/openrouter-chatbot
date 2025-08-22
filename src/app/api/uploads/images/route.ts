@@ -1,7 +1,7 @@
 // src/app/api/uploads/images/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { withTierAuth } from '../../../../../lib/middleware/auth';
-import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
+import { withRedisRateLimitEnhanced } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
@@ -149,8 +149,6 @@ async function uploadImageHandler(req: NextRequest, authContext: AuthContext): P
 
 // Require Pro tier or higher for image uploads to align with UI gating
 export const POST = withTierAuth(
-  withRedisRateLimit(uploadImageHandler, {
-    // Use default rate limit for uploads - will be determined by user tier inside middleware
-  }),
+  withRedisRateLimitEnhanced(uploadImageHandler, { tier: "tierB" }),
   'pro'
 );

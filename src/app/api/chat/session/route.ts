@@ -4,7 +4,7 @@ import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '../../../../../lib/utils/logger';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
-import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { handleError } from '../../../../../lib/utils/errors';
 
@@ -209,10 +209,10 @@ async function postSessionHandler(request: NextRequest, authContext: AuthContext
   }
 }
 
-// Apply middleware to handlers
+// Apply middleware to handlers with TierC rate limiting
 export const GET = withProtectedAuth(
-  withRedisRateLimit(getSessionHandler)
+  withTieredRateLimit(getSessionHandler, { tier: 'tierC' })
 );
 export const POST = withProtectedAuth(
-  withRedisRateLimit(postSessionHandler)
+  withTieredRateLimit(postSessionHandler, { tier: 'tierC' })
 );

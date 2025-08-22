@@ -1,7 +1,7 @@
 // src/app/api/attachments/[id]/signed-url/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { withProtectedAuth } from '../../../../../../lib/middleware/auth';
-import { withRedisRateLimit } from '../../../../../../lib/middleware/redisRateLimitMiddleware';
+import { withTieredRateLimit } from '../../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../../lib/types/auth';
 import { createClient } from '../../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../../lib/utils/errors';
@@ -65,5 +65,5 @@ async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): 
 }
 
 export const GET = withProtectedAuth(
-  withRedisRateLimit(getSignedUrlHandler)
+  withTieredRateLimit(getSignedUrlHandler, { tier: 'tierB' })
 );

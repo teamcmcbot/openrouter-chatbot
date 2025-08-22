@@ -8,7 +8,7 @@ import {
   UserDataError 
 } from '../../../../../lib/types/user-data';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
-import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { validateSystemPrompt } from '../../../../../lib/utils/validation/systemPrompt';
@@ -274,10 +274,10 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
   }
 }
 
-// Apply middleware to handlers
+// Apply middleware to handlers with TierB rate limiting (medium-cost database operations)
 export const GET = withProtectedAuth(
-  withRedisRateLimit(getUserDataHandler)
+  withTieredRateLimit(getUserDataHandler, { tier: 'tierB' })
 );
 export const PUT = withProtectedAuth(
-  withRedisRateLimit(putUserDataHandler)
+  withTieredRateLimit(putUserDataHandler, { tier: 'tierB' })
 );

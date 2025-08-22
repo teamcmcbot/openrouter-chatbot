@@ -21,6 +21,7 @@ import {
   isWithinInputBudget
 } from "../lib/utils/tokens";
 import toast from 'react-hot-toast';
+import { checkRateLimitHeaders } from "../lib/utils/rateLimitNotifications";
 
 const logger = createLogger("ChatStore");
 
@@ -389,6 +390,9 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               });
 
               if (!response.ok) {
+                // Check rate limit headers even on error responses (429 rate limit errors)
+                checkRateLimitHeaders(response);
+                
                 const errorData = await response.json().catch(() => ({}));
                 const chatError: ChatError = {
                   message: errorData.error ?? `HTTP error! status: ${response.status}`,
@@ -399,6 +403,9 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 };
                 throw chatError;
               }
+
+              // Check rate limit headers for proactive notifications
+              checkRateLimitHeaders(response);
 
               // Handle backend response with 'data' property
               const raw = await response.json();

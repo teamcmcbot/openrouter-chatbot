@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ChatMessage } from '../../../../../lib/types/chat';
 import type { OpenRouterUrlCitation } from '../../../../../lib/types/openrouter';
 import { withConversationOwnership } from '../../../../../lib/middleware/auth';
-import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { logger } from '../../../../../lib/utils/logger';
@@ -367,10 +367,10 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
   }
 }
 
-// Apply authentication middleware with conversation ownership validation and rate limiting
+// Apply authentication middleware with conversation ownership validation and tiered rate limiting
 export const POST = withConversationOwnership(
-  withRedisRateLimit(syncHandler)
+  withTieredRateLimit(syncHandler, { tier: 'tierC' })
 );
 export const GET = withConversationOwnership(
-  withRedisRateLimit(getConversationsHandler)
+  withTieredRateLimit(getConversationsHandler, { tier: 'tierC' })
 );

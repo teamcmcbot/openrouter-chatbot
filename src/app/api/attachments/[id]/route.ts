@@ -1,7 +1,7 @@
 // src/app/api/attachments/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
-import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
@@ -83,5 +83,5 @@ async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContex
 }
 
 export const DELETE = withProtectedAuth(
-  withRedisRateLimit(deleteAttachmentHandler)
+  withTieredRateLimit(deleteAttachmentHandler, { tier: 'tierB' })
 );

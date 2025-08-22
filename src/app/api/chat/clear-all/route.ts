@@ -3,7 +3,7 @@
 import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
-import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
@@ -75,7 +75,7 @@ async function clearAllHandler(request: NextRequest, authContext: AuthContext): 
   }
 }
 
-// Apply middleware to handler
+// Apply middleware to handler with TierC rate limiting
 export const DELETE = withProtectedAuth(
-  withRedisRateLimit(clearAllHandler)
+  withTieredRateLimit(clearAllHandler, { tier: 'tierC' })
 );

@@ -3,7 +3,7 @@ import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ChatMessage } from '../../../../../lib/types/chat';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
-import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
@@ -380,12 +380,12 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
   }
 }
 
-// Apply middleware to handlers
+// Apply middleware to handlers with TierC rate limiting
 export const GET = withProtectedAuth(
-  withRedisRateLimit(getMessagesHandler)
+  withTieredRateLimit(getMessagesHandler, { tier: 'tierC' })
 );
 export const POST = withProtectedAuth(
-  withRedisRateLimit(postMessagesHandler)
+  withTieredRateLimit(postMessagesHandler, { tier: 'tierC' })
 );
 
 // Helper functions
