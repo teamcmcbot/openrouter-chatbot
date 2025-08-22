@@ -66,6 +66,7 @@ async function getUserDataHandler(request: NextRequest, authContext: AuthContext
         full_name: profileData.full_name || '',
         avatar_url: profileData.avatar_url || '',
         subscription_tier: profileData.subscription_tier || 'free',
+        account_type: profileData.account_type || 'user',
         credits: profileData.credits || 0
       },
       preferences: {
@@ -244,6 +245,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
         full_name: updatedProfileData.full_name || '',
         avatar_url: updatedProfileData.avatar_url || '',
         subscription_tier: updatedProfileData.subscription_tier || 'free',
+        account_type: updatedProfileData.account_type || 'user',
         credits: updatedProfileData.credits || 0
       },
       preferences: {

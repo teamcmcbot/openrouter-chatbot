@@ -1,36 +1,58 @@
 # API Rate Limiting Documentation
 
-This document describes the rate limiting behavior for all API endpoints in the OpenRouter Chatbot application.
+This document describes the tiered rate limiting behavior for all API endpoints in the OpenRouter Chatbot application.
 
 ## Overview
 
-All API endpoints are protected by Redis-based rate limiting that scales with user subscription tiers. Rate limits are enforced using a sliding window algorithm for accurate and fair usage control.
+All API endpoints are protected by Redis-based tiered rate limiting that scales with user subscription tiers and endpoint cost classifications. Rate limits are enforced using a sliding window algorithm for accurate and fair usage control.
 
-## Rate Limit Tiers
+## Tiered Rate Limiting System
+
+The API uses a four-tier classification system where different endpoints have independent rate limit pools based on their operational cost:
+
+- **Tier A**: High-cost operations (LLM inference) - Most restrictive
+- **Tier B**: Medium-cost operations (Storage, Database) - Moderate limits
+- **Tier C**: Low-cost operations (CRUD, Metadata) - Most generous
+- **Tier D**: Admin operations - Limited access with testing support
+
+## Rate Limits by Subscription Tier
 
 ### Anonymous Users (No Authentication)
 
-- **Limit**: 20 requests per hour
+- **Tier A**: 10 requests/hour (Chat)
+- **Tier B**: 20 requests/hour (Storage operations)
+- **Tier C**: 50 requests/hour (CRUD operations)
+- **Tier D**: 0 requests/hour (No admin access)
 - **Identification**: IP address
-- **Headers**: Standard rate limit headers included
 
 ### Free Tier Users
 
-- **Limit**: 100 requests per hour
+- **Tier A**: 20 requests/hour (Chat)
+- **Tier B**: 50 requests/hour (Storage operations)
+- **Tier C**: 200 requests/hour (CRUD operations)
+- **Tier D**: 100 requests/hour (Admin testing access)
 - **Identification**: User ID
-- **Headers**: Standard rate limit headers included
 
 ### Pro Tier Users
 
-- **Limit**: 500 requests per hour
+- **Tier A**: 200 requests/hour (Chat)
+- **Tier B**: 500 requests/hour (Storage operations)
+- **Tier C**: 1,000 requests/hour (CRUD operations)
+- **Tier D**: 100 requests/hour (Admin testing access)
 - **Identification**: User ID
-- **Headers**: Standard rate limit headers included
 
 ### Enterprise Tier Users
 
-- **Limit**: 2,000 requests per hour
+- **Tier A**: 500 requests/hour (Chat)
+- **Tier B**: 1,000 requests/hour (Storage operations)
+- **Tier C**: 2,000 requests/hour (CRUD operations)
+- **Tier D**: 100 requests/hour (Admin testing access)
 - **Identification**: User ID
-- **Headers**: Standard rate limit headers included
+
+### Enterprise Admin Users
+
+- **All Tiers**: Unlimited (Complete bypass)
+- **Requirement**: `subscription_tier='enterprise'` AND `account_type='admin'`
 
 ## HTTP Headers
 

@@ -69,48 +69,45 @@ pipeline.expire(key, ttl); // Set cleanup TTL
 
 ## Rate Limiting Strategy
 
-### Tier-Based Limits
+### Tiered Rate Limits
 
-Rate limits are determined by user subscription tier:
+Rate limits are determined by user subscription tier and endpoint classification:
 
 ```typescript
-const RATE_LIMITS = {
-  anonymous: {
-    maxRequestsPerHour: 20,
-    keyPrefix: "rate_limit:ip:",
-  },
-  free: {
-    maxRequestsPerHour: 100,
-    keyPrefix: "rate_limit:user:",
-  },
-  pro: {
-    maxRequestsPerHour: 500,
-    keyPrefix: "rate_limit:user:",
-  },
-  enterprise: {
-    maxRequestsPerHour: 2000,
-    keyPrefix: "rate_limit:user:",
-  },
+const TIERED_RATE_LIMITS = {
+  anonymous: { tierA: 10, tierB: 20, tierC: 50, tierD: 0 },
+  free: { tierA: 20, tierB: 50, tierC: 200, tierD: 100 },
+  pro: { tierA: 200, tierB: 500, tierC: 1000, tierD: 100 },
+  enterprise: { tierA: 500, tierB: 1000, tierC: 2000, tierD: 100 },
+  // Enterprise admins get unlimited access via bypass
 };
+
+// Tier Classifications:
+// - Tier A (Chat): Most restrictive - LLM inference operations
+// - Tier B (Storage): Medium - File uploads, storage operations
+// - Tier C (CRUD): Most generous - Metadata, analytics, CRUD
+// - Tier D (Admin): Testing access across subscription levels
 ```
 
 ### Key Generation Strategy
 
 ```typescript
-function generateRateLimitKey(
+function generateTieredRateLimitKey(
   request: NextRequest,
-  authContext: AuthContext
+  authContext: AuthContext,
+  tier: "tierA" | "tierB" | "tierC" | "tierD"
 ): string {
-  if (authContext.user?.id) {
-    return `rate_limit:user:${authContext.user.id}`;
+  // Authenticated users get user-specific keys
+  if (authContext.isAuthenticated && authContext.user?.id) {
+    return `rate_limit:${tier}:user:${authContext.user.id}`;
   }
 
-  // Fallback to IP for anonymous users
+  // Anonymous users get IP-based keys
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||
     "unknown";
-  return `rate_limit:ip:${ip}`;
+  return `rate_limit:${tier}:ip:${ip}`;
 }
 ```
 

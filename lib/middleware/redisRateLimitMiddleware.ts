@@ -173,10 +173,10 @@ export function calculateTieredLimit(
   accountType?: UserProfile["account_type"]
 ): number {
   const limits = {
-    anonymous: { tierA: 10, tierB: 20, tierC: 50, tierD: 0 },      // A<B<C (chat most restrictive)
-    free: { tierA: 20, tierB: 50, tierC: 200, tierD: 0 },          // A<B<C (chat most restrictive)
-    pro: { tierA: 200, tierB: 100, tierC: 500, tierD: 0 },         // A<B<C (chat most restrictive) 
-    enterprise: { tierA: 500, tierB: 200, tierC: 1000, tierD: 0 }, // A<B<C (chat most restrictive)
+    anonymous: { tierA: 10, tierB: 20, tierC: 50, tierD: 0 },        // A<B<C (chat most restrictive)
+    free: { tierA: 20, tierB: 50, tierC: 200, tierD: 100 },          // A<B<C + admin access
+    pro: { tierA: 200, tierB: 500, tierC: 1000, tierD: 100 },        // A<B<C + admin access
+    enterprise: { tierA: 500, tierB: 1000, tierC: 2000, tierD: 100 }, // A<B<C + admin access
   };
 
   // Enterprise admin bypass

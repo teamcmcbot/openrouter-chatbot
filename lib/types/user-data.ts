@@ -48,6 +48,8 @@ export interface UserProfileData {
   avatar_url: string;
   /** User's subscription tier */
   subscription_tier: "free" | "pro" | "enterprise";
+  /** User's account type (admin vs regular user) */
+  account_type?: "user" | "admin";
   /** Available credits for paid models */
   credits: number;
 }

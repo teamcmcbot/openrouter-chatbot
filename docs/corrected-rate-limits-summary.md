@@ -1,6 +1,13 @@
 # ✅ CORRECTED Rate Limiting Implementation
 
-## 🚨 **Issues Fixed**
+````typescript
+const limits = {
+  anonymous: { tierA: 10, tierB: 20, tierC: 50, tierD: 0 },        // A<B<C
+  free: { tierA: 20, tierB: 50, tierC: 200, tierD: 100 },          // A<B<C + admin access
+  pro: { tierA: 200, tierB: 500, tierC: 1000, tierD: 100 },        // A<B<C + admin access
+  enterprise: { tierA: 500, tierB: 1000, tierC: 2000, tierD: 100 }, // A<B<C + admin access
+};
+```Issues Fixed**
 
 You were absolutely right to point out the inconsistencies! Here's what was wrong and what I fixed:
 
@@ -49,7 +56,7 @@ const limits = {
   pro: { tierA: 200, tierB: 100, tierC: 500, tierD: 0 }, // A<B<C
   enterprise: { tierA: 500, tierB: 200, tierC: 1000, tierD: 0 }, // A<B<C
 };
-```
+````
 
 ### **Redis Key Structure (Separate Pools)**
 

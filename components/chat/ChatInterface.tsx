@@ -158,6 +158,7 @@ export default function ChatInterface() {
   const accountTier = isAuthenticated
     ? (userData?.profile.subscription_tier || 'free')
     : 'anonymous';
+  const accountType = isAuthenticated ? (userData?.profile.account_type || 'user') : 'user';
   // Tier label now rendered by TierBadge
 
   return (
@@ -206,7 +207,7 @@ export default function ChatInterface() {
               {/* Right cluster: messages + account tier; wraps with right alignment */}
               <div className="flex flex-col items-end gap-1 text-xs text-gray-500 dark:text-gray-400 max-w-full">
                 <div className="whitespace-nowrap">{messages.length} messages</div>
-                <TierBadge tier={accountTier} side="bottom" align="end" />
+                <TierBadge tier={accountTier} side="bottom" align="end" accountType={accountType} />
               </div>
             </div>
           </div>
@@ -233,7 +234,7 @@ export default function ChatInterface() {
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 {messages.length} messages
               </div>
-              <TierBadge tier={accountTier} side="bottom" align="end" />
+              <TierBadge tier={accountTier} side="bottom" align="end" accountType={accountType} />
             </div>
           </div>
         </div>

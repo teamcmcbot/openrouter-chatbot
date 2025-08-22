@@ -21,9 +21,10 @@ Test Status: ✅ **ALL TESTS PASSED (15/15)**
 ### **Phase 2: Endpoint Implementation** ✅ **COMPLETE**
 
 - ✅ **Tier A (High-Cost)**: `/api/chat` → 10/20/200/500/UNLIMITED requests/hour
-- ✅ **Tier B (Medium-Cost)**: `/api/uploads/images` → ❌/❌/50/200/UNLIMITED requests/hour
-- ✅ **Tier C (Low-Cost)**: `/api/analytics/cta` → 100/200/1000/2000/UNLIMITED requests/hour
-- ✅ **Tier C (Low-Cost)**: `/api/models` → 100/200/1000/2000/UNLIMITED requests/hour
+- ✅ **Tier B (Medium-Cost)**: `/api/uploads/images` → 20/50/500/1000/UNLIMITED requests/hour
+- ✅ **Tier C (Low-Cost)**: `/api/analytics/cta` → 50/200/1000/2000/UNLIMITED requests/hour
+- ✅ **Tier C (Low-Cost)**: `/api/models` → 50/200/1000/2000/UNLIMITED requests/hour
+- ✅ **Tier D (Admin)**: Admin testing endpoints → 0/100/100/100/UNLIMITED requests/hour
 
 ### **Phase 3: Testing & Validation** ✅ **COMPLETE**
 
@@ -41,22 +42,24 @@ Test Status: ✅ **ALL TESTS PASSED (15/15)**
 ```
                    | Anonymous | Free    | Pro     | Enterprise | Enterprise+Admin |
 Tier A (Chat)      | 10/hour   | 20/hour | 200/hour| 500/hour   | UNLIMITED        |
-Tier B (Uploads)   | ❌        | ❌      | 50/hour | 200/hour   | UNLIMITED        |
-Tier C (CRUD/CTA)  | 100/hour  | 200/hour| 1000/hr | 2000/hour  | UNLIMITED        |
+Tier B (Storage)   | 20/hour   | 50/hour | 500/hour| 1000/hour  | UNLIMITED        |
+Tier C (CRUD)      | 50/hour   | 200/hour| 1000/hr | 2000/hour  | UNLIMITED        |
+Tier D (Admin)     | 0/hour    | 100/hour| 100/hour| 100/hour   | UNLIMITED        |
 ```
 
 ### **Redis Key Migration**
 
 - **Before**: `rate_limit:user:123` (single pool)
-- **After**: `rate_limit:tierA:user:123`, `rate_limit:tierB:user:123`, `rate_limit:tierC:user:123`
+- **After**: `rate_limit:tierA:user:123`, `rate_limit:tierB:user:123`, `rate_limit:tierC:user:123`, `rate_limit:tierD:user:123`
 - **Migration**: Hard cutover (old keys naturally expire in 1 hour)
 - **Memory Impact**: ~200-300% increase (3 keys vs 1 key per user)
 
 ### **Critical Fixes Applied**
 
-1. **Anonymous User Support**: Fixed CTA endpoint for landing page usage (100/hour instead of 5/hour)
+1. **Anonymous User Support**: Fixed CTA endpoint for landing page usage (50/hour for anonymous users)
 2. **Enterprise Admin Only**: Regular enterprise users now have finite limits (500/hour for chat)
-3. **Tiered Protection**: Different operations get appropriate limits based on cost impact
+3. **Tiered Protection**: Different operations get appropriate limits based on cost impact (A < B < C progression)
+4. **Admin Testing Support**: TierD provides 100/hour for testing across subscription levels
 
 ---
 

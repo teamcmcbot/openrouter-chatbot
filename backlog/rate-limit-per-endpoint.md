@@ -100,7 +100,7 @@ const FREE_LIMITS = {
   tierA: { requests: 20, window: 3600000 }, // 20/hour for chat (locked in) - MOST RESTRICTIVE
   tierB: { requests: 50, window: 3600000 }, // 50/hour for medium operations - More generous than chat
   tierC: { requests: 200, window: 3600000 }, // 200/hour for metadata - MOST GENEROUS
-  tierD: { requests: 0, window: 3600000 }, // No admin access
+  tierD: { requests: 100, window: 3600000 }, // Admin access for testing
 };
 ```
 
@@ -109,9 +109,9 @@ const FREE_LIMITS = {
 ```typescript
 const PRO_LIMITS = {
   tierA: { requests: 200, window: 3600000 }, // 200/hour for chat (locked in) - MOST RESTRICTIVE
-  tierB: { requests: 100, window: 3600000 }, // 100/hour for medium operations - More generous than chat
-  tierC: { requests: 500, window: 3600000 }, // 500/hour for metadata - MOST GENEROUS
-  tierD: { requests: 0, window: 3600000 }, // No admin access
+  tierB: { requests: 500, window: 3600000 }, // 500/hour for medium operations - More generous than chat
+  tierC: { requests: 1000, window: 3600000 }, // 1000/hour for metadata - MOST GENEROUS
+  tierD: { requests: 100, window: 3600000 }, // Admin access for testing
 };
 ```
 
@@ -120,9 +120,9 @@ const PRO_LIMITS = {
 ```typescript
 const ENTERPRISE_USER_LIMITS = {
   tierA: { requests: 500, window: 3600000 }, // 500/hour for chat (locked in) - MOST RESTRICTIVE
-  tierB: { requests: 200, window: 3600000 }, // 200/hour for medium operations - More generous than chat
-  tierC: { requests: 1000, window: 3600000 }, // 1000/hour for metadata - MOST GENEROUS
-  tierD: { requests: 0, window: 3600000 }, // No admin access for regular enterprise users
+  tierB: { requests: 1000, window: 3600000 }, // 1000/hour for medium operations - More generous than chat
+  tierC: { requests: 2000, window: 3600000 }, // 2000/hour for metadata - MOST GENEROUS
+  tierD: { requests: 100, window: 3600000 }, // Admin access for testing
 };
 
 const ENTERPRISE_ADMIN_LIMITS = {
@@ -260,10 +260,10 @@ export function calculateTieredLimit(
   accountType?: UserProfile["account_type"]
 ): number {
   const limits = {
-    anonymous: { tierA: 10, tierB: 5, tierC: 100, tierD: 0 }, // Chat locked to 10/hour, CTA tracking needs 100/hour
-    free: { tierA: 20, tierB: 10, tierC: 200, tierD: 0 }, // Chat locked to 20/hour, CTA tracking needs 200/hour
-    pro: { tierA: 200, tierB: 50, tierC: 1000, tierD: 0 }, // Chat locked to 200/hour, CTA tracking needs 1000/hour
-    enterprise: { tierA: 500, tierB: 200, tierC: 2000, tierD: 0 }, // Regular enterprise users - Chat locked to 500/hour
+    anonymous: { tierA: 10, tierB: 20, tierC: 50, tierD: 0 }, // A<B<C (chat most restrictive)
+    free: { tierA: 20, tierB: 50, tierC: 200, tierD: 100 }, // A<B<C + admin access for testing
+    pro: { tierA: 200, tierB: 500, tierC: 1000, tierD: 100 }, // A<B<C + admin access for testing
+    enterprise: { tierA: 500, tierB: 1000, tierC: 2000, tierD: 100 }, // A<B<C + admin access for testing
   };
 
   // Enterprise admin bypass
@@ -425,7 +425,40 @@ rate_limit:tierC:user:123
 | **TIER A - HIGH COST (LLM Inference)**     |        |       |             |             |              |                 |                  |           |
 | `/api/chat`                                | POST   | **A** | **10/hour** | **20/hour** | **200/hour** | **500/hour**    | **UNLIMITED**    | Enhanced  | ⚡ Primary cost driver - LLM calls |
 | **TIER B - MEDIUM COST**                   |        |       |             |             |              |                 |                  |           |
-| `/api/uploads/images`                      | POST   | B     | ❌          | ❌          | 50/hour      | 200/hour        | UNLIMITED        | Tier(Pro) | 📸 Already gated by subscription   |
+| `/api/uploads/images`                      | POST   | B     | ❌          | ❌          | 500/hour     | 1000/hour       | UNLIMITED        | Tier(Pro) | 📸 Already gated by subscription   |
+| `/api/attachments/[id]/signed-url`         | GET    | B     | ❌          | 50/hour     | 500/hour     | 1000/hour       | UNLIMITED        | Protected | 🔗 Storage bandwidth               |
+| `/api/user/data`                           | GET    | B     | ❌          | 50/hour     | 500/hour     | 1000/hour       | UNLIMITED        | Protected | 👤 Large database queries          |
+| `/api/user/data`                           | PUT    | B     | ❌          | 50/hour     | 500/hour     | 1000/hour       | UNLIMITED        | Protected | 👤 Profile updates                 |
+| `/api/attachments/[id]`                    | DELETE | B     | ❌          | 50/hour     | 500/hour     | 1000/hour       | UNLIMITED        | Protected | 🗑️ File deletion                   |
+| **TIER C - LOW COST (CRUD Operations)**    |        |       |             |             |              |                 |                  |           |
+| `/api/analytics/cta`                       | POST   | C     | 50/hour     | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Enhanced  | 📊 Landing page button clicks      |
+| `/api/models`                              | GET    | C     | 50/hour     | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Enhanced  | 📋 Cached model list               |
+| `/api/chat/sessions`                       | GET    | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 📋 List sessions                   |
+| `/api/chat/sessions`                       | POST   | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | ➕ Create session                  |
+| `/api/chat/sessions`                       | DELETE | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 🗑️ Delete session                  |
+| `/api/chat/session`                        | GET    | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 📖 Session details                 |
+| `/api/chat/session`                        | POST   | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | ✏️ Update title                    |
+| `/api/chat/messages`                       | GET    | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 💬 Message history                 |
+| `/api/chat/messages`                       | POST   | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 💾 Save message                    |
+| `/api/chat/sync`                           | GET    | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Ownership | 🔄 Sync status                     |
+| `/api/chat/sync`                           | POST   | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Ownership | 📤 Sync conversations              |
+| `/api/chat/clear-all`                      | DELETE | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 🧹 Clear all                       |
+| `/api/generation/[id]`                     | GET    | C     | 50/hour     | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Enhanced  | 🔍 Status check                    |
+| `/api/usage/costs`                         | GET    | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 💰 Usage stats                     |
+| `/api/usage/costs/daily`                   | GET    | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 📊 Daily costs                     |
+| `/api/usage/costs/models/daily`            | GET    | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 📈 Model costs                     |
+| **TIER D - ADMIN ONLY (No Rate Limiting)** |        |       |             |             |              |                 |                  |           |
+| `/api/admin/users`                         | GET    | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | 👤 Admin protected                 |
+| `/api/admin/users`                         | PATCH  | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | ✏️ Admin protected                 |
+| `/api/admin/model-access`                  | GET    | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | 🔧 Admin protected                 |
+| `/api/admin/model-access`                  | PATCH  | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | 🔧 Admin protected                 |
+| `/api/admin/sync-models`                   | GET    | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | 🔄 Admin protected                 |
+| `/api/admin/sync-models`                   | POST   | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | 🔄 Admin protected                 |
+| `/api/admin/attachments/stats`             | GET    | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | 📊 Admin protected                 |
+| `/api/admin/attachments/cleanup`           | GET    | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | 🧹 Admin protected                 |
+| `/api/admin/attachments/cleanup`           | POST   | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | 🧹 Admin protected                 |
+| `/api/admin/attachments/retention`         | GET    | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | 🗂️ Admin protected                 |
+| `/api/admin/attachments/retention`         | POST   | D     | ❌          | 100/hour    | 100/hour     | 100/hour        | ✅ UNLIMITED     | Admin     | 🗂️ Admin protected                 |
 | `/api/attachments/[id]/signed-url`         | GET    | B     | ❌          | 10/hour     | 50/hour      | 200/hour        | UNLIMITED        | Protected | 🔗 Storage bandwidth               |
 | `/api/user/data`                           | GET    | B     | ❌          | 10/hour     | 50/hour      | 200/hour        | UNLIMITED        | Protected | 👤 Large database queries          |
 | `/api/user/data`                           | PUT    | B     | ❌          | 10/hour     | 50/hour      | 200/hour        | UNLIMITED        | Protected | 👤 Profile updates                 |

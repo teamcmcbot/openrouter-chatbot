@@ -235,24 +235,50 @@ export const GET = withRedisRateLimit(myHandler);
 
 ### Rate Limiting Implementation
 
-**IMPORTANT**: Use `withRedisRateLimit` instead of the deprecated `withRateLimit`:
+**IMPORTANT**: Use tiered rate limiting with `withTieredRateLimit` for proper endpoint classification:
 
 ```typescript
-// ✅ CORRECT: Redis-based rate limiting (works on serverless)
-import { withRedisRateLimit } from "../../../../lib/middleware/redisRateLimitMiddleware";
-export const POST = withProtectedAuth(withRedisRateLimit(myHandler));
+// ✅ CORRECT: Tiered rate limiting (current system)
+import { withTieredRateLimit } from "../../../../lib/middleware/redisRateLimitMiddleware";
+export const POST = withProtectedAuth(
+  withTieredRateLimit(myHandler, { tier: "tierA" }) // Chat endpoints
+);
+export const GET = withProtectedAuth(
+  withTieredRateLimit(myHandler, { tier: "tierB" }) // Storage/DB endpoints
+);
+export const GET = withEnhancedAuth(
+  withTieredRateLimit(myHandler, { tier: "tierC" }) // CRUD endpoints
+);
 
-// ❌ DEPRECATED: In-memory rate limiting (broken on Vercel)
-import { withRateLimit } from "../../../../lib/middleware/rateLimitMiddleware"; // DON'T USE
+// ❌ DEPRECATED: Single-pool rate limiting
+import { withRedisRateLimit } from "../../../../lib/middleware/redisRateLimitMiddleware"; // OLD
 ```
 
-**Rate Limiting Features:**
+**Tiered Rate Limiting System:**
 
-- **Serverless Compatible**: Uses Redis for persistent state
-- **Tier-based Limits**: Automatically respects user subscription levels
-- **IP-based Protection**: Anonymous users get IP-based rate limiting
-- **Sliding Window**: Prevents burst attacks
-- **Graceful Fallback**: Continues working if Redis is temporarily unavailable
+- **Tier A (Chat)**: 10/20/200/500 requests/hour (most restrictive - LLM inference)
+- **Tier B (Storage)**: 20/50/500/1000 requests/hour (medium - storage/DB operations)
+- **Tier C (CRUD)**: 50/200/1000/2000 requests/hour (most generous - metadata/CRUD)
+- **Tier D (Admin)**: 0/100/100/100 requests/hour (admin testing access, enterprise admins unlimited)
+
+**Current Implementation:**
+
+```typescript
+const limits = {
+  anonymous: { tierA: 10, tierB: 20, tierC: 50, tierD: 0 },
+  free: { tierA: 20, tierB: 50, tierC: 200, tierD: 100 },
+  pro: { tierA: 200, tierB: 500, tierC: 1000, tierD: 100 },
+  enterprise: { tierA: 500, tierB: 1000, tierC: 2000, tierD: 100 },
+  // Enterprise admins get unlimited access via bypass
+};
+```
+
+**Key Features:**
+
+- **Independent Pools**: Each tier has separate Redis keys (rate_limit:tierA:user:123)
+- **Cost-Based Logic**: Higher cost operations = more restrictive limits
+- **Enterprise Admin Bypass**: Unlimited for subscription_tier='enterprise' + account_type='admin'
+- **Testing Support**: TierD provides admin access for testing across all subscription levels
 
 ### Reference Documentation
 
