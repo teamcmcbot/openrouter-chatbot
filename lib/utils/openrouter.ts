@@ -682,3 +682,210 @@ export function filterAllowedModels(
   
   return filtered;
 }
+
+/**
+ * Get streaming completion from OpenRouter API
+ * Returns a ReadableStream for use with Vercel AI SDK
+ * 
+ * @param messages - Array of chat messages
+ * @param model - Model ID for OpenRouter
+ * @param maxTokens - Maximum tokens to generate
+ * @param temperature - Temperature for generation
+ * @param systemPrompt - System prompt
+ * @param authContext - Authentication context
+ * @param options - Additional options (web search, reasoning, etc.)
+ * @returns ReadableStream for streaming response
+ */
+export async function getOpenRouterCompletionStream(
+  messages: OpenRouterMessage[],
+  model?: string,
+  maxTokens?: number,
+  temperature?: number,
+  systemPrompt?: string,
+  authContext?: AuthContext | null,
+  options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
+): Promise<ReadableStream> {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OPENROUTER_API_KEY is not set');
+  }
+
+  const selectedModel = model ?? OPENROUTER_API_MODEL;
+  const dynamicMaxTokens = maxTokens ?? OPENROUTER_MAX_TOKENS;
+
+  // Use the same logic as non-streaming for temperature and system prompt
+  let finalTemperature = 0.7;
+  let finalSystemPrompt: string | undefined = undefined;
+  if (authContext?.profile) {
+    if (typeof authContext.profile.temperature === 'number') {
+      finalTemperature = authContext.profile.temperature;
+    } else if (typeof temperature === 'number') {
+      finalTemperature = temperature;
+    }
+    if (authContext.profile.system_prompt) {
+      finalSystemPrompt = authContext.profile.system_prompt;
+    } else if (systemPrompt) {
+      finalSystemPrompt = systemPrompt;
+    }
+  } else {
+    if (typeof temperature === 'number') {
+      finalTemperature = temperature;
+    }
+    if (systemPrompt) {
+      finalSystemPrompt = systemPrompt;
+    }
+  }
+
+  // Always prepend root system prompt, and user's system prompt if provided
+  const finalMessages: OpenRouterMessage[] = appendSystemPrompt(messages, finalSystemPrompt);
+
+  type ReasoningOption = { effort?: 'low' | 'medium' | 'high' };
+  type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption };
+  const requestBody: OpenRouterRequestWithReasoning = {
+    model: selectedModel,
+    messages: finalMessages,
+    max_tokens: dynamicMaxTokens,
+    temperature: finalTemperature,
+    stream: true, // Enable streaming
+  };
+
+  // Attach user tracking if enabled and authenticated
+  try {
+    if (isUserTrackingEnabled() && authContext?.isAuthenticated && authContext.user?.id) {
+      requestBody.user = authContext.user.id;
+      logger.debug('[OpenRouter Stream Request] user tracking enabled', { user_present: true });
+    }
+  } catch (e) {
+    logger.warn('Failed to attach user tracking to OpenRouter stream request (continuing without user):', e);
+  }
+
+  // Enable OpenRouter web search plugin when requested
+  if (options?.webSearch) {
+    const maxResults = Number.isFinite(options.webMaxResults as number)
+      ? Math.max(1, Math.min(10, Math.trunc(options.webMaxResults as number)))
+      : 3;
+    requestBody.plugins = [{ id: 'web', max_results: maxResults }];
+    console.log(`[OpenRouter Stream Request] Web search enabled (max_results=${maxResults})`);
+  }
+  
+  // Forward reasoning option if provided
+  if (options?.reasoning) {
+    requestBody.reasoning = options.reasoning;
+    console.log(`[OpenRouter Stream Request] Reasoning enabled (effort=${options.reasoning.effort || 'low'})`);
+  }
+
+  logger.debug('OpenRouter stream request body:', { ...requestBody, stream: true });
+
+  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new ApiErrorResponse(
+      `OpenRouter streaming API error: ${response.status} ${response.statusText}`,
+      response.status >= 500 ? ErrorCode.BAD_GATEWAY : ErrorCode.BAD_REQUEST,
+      errorBody
+    );
+  }
+
+  if (!response.body) {
+    throw new ApiErrorResponse(
+      'No response body received from OpenRouter streaming API',
+      ErrorCode.BAD_GATEWAY
+    );
+  }
+
+  // Create a transformed stream that can capture metadata from the final chunks
+  const streamMetadata: {
+    usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+    id?: string;
+    reasoning?: string;
+    reasoning_details?: Record<string, unknown>;
+    annotations?: {
+      type: 'url_citation';
+      url: string;
+      title?: string;
+      content?: string;
+      start_index?: number;
+      end_index?: number;
+    }[];
+  } = {};
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            // Send a final metadata chunk that the streaming endpoint can capture
+            const metadataChunk = JSON.stringify({
+              type: 'metadata',
+              data: streamMetadata
+            });
+            controller.enqueue(new TextEncoder().encode(`\n\n__METADATA__${metadataChunk}__END__\n\n`));
+            controller.close();
+            break;
+          }
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6).trim();
+              
+              if (dataStr === '[DONE]') {
+                continue;
+              }
+              
+              try {
+                const data = JSON.parse(dataStr);
+                
+                // Extract metadata from stream chunks
+                if (data.usage) {
+                  streamMetadata.usage = data.usage;
+                }
+                
+                if (data.id) {
+                  streamMetadata.id = data.id;
+                }
+                
+                // Extract reasoning data if present
+                if (data.choices?.[0]?.message?.reasoning) {
+                  streamMetadata.reasoning = data.choices[0].message.reasoning;
+                }
+                
+                if (data.reasoning) {
+                  streamMetadata.reasoning_details = data.reasoning;
+                }
+                
+                // Extract annotations/citations
+                if (data.choices?.[0]?.message?.annotations) {
+                  streamMetadata.annotations = data.choices[0].message.annotations;
+                }
+                
+                // Forward content chunks to the stream
+                if (data.choices?.[0]?.delta?.content) {
+                  controller.enqueue(new TextEncoder().encode(data.choices[0].delta.content));
+                }
+              } catch {
+                // Ignore JSON parsing errors for non-JSON chunks
+              }
+            }
+          }
+        }
+      } catch (error) {
+        controller.error(error);
+      }
+    }
+  });
+}
