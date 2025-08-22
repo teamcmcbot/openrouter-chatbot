@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheckIcon } from "@heroicons/react/24/outline";
+import { ShieldCheckIcon, GlobeAltIcon, LightBulbIcon, PaperClipIcon } from "@heroicons/react/24/outline";
 import Tooltip from "./Tooltip";
 import React, { useEffect, useState } from "react";
 import { TIER_LABELS, TIER_LIMITS, TIER_FEATURES, Tier } from "../../lib/constants/tiers";
@@ -137,10 +137,10 @@ export default function TierBadge({
             <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Feature Access</div>
             {(() => {
               const f = TIER_FEATURES[tierLower] ?? TIER_FEATURES["free"];
-              const Row = ({ label, enabled }: { label: string; enabled: boolean }) => (
+              const Row = ({ label, enabled, icon: Icon }: { label: string; enabled: boolean; icon: React.ComponentType<{ className?: string }> }) => (
                 <div className="flex items-center justify-between gap-3">
                   <span className="inline-flex items-center gap-1.5">
-                    <ShieldCheckIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
+                    <Icon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
                     <span className="text-gray-700 dark:text-gray-300">{label}</span>
                   </span>
                   <span className={enabled ? "text-emerald-700 dark:text-emerald-400 font-medium" : "text-gray-500 dark:text-gray-500"}>
@@ -150,9 +150,9 @@ export default function TierBadge({
               );
               return (
                 <>
-                  <Row label="Web Search" enabled={f.webSearch} />
-                  <Row label="Reasoning" enabled={f.reasoning} />
-                  <Row label="Image attachments" enabled={f.imageAttachments} />
+                  <Row label="Web Search" enabled={f.webSearch} icon={GlobeAltIcon} />
+                  <Row label="Reasoning" enabled={f.reasoning} icon={LightBulbIcon} />
+                  <Row label="Image attachments" enabled={f.imageAttachments} icon={PaperClipIcon} />
                 </>
               );
             })()}
