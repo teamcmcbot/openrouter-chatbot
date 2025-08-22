@@ -4,7 +4,6 @@ import { useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import { 
-  useChat, 
   useChatStore, 
   useModelSelection, 
   useDetailsSidebar, 
@@ -19,9 +18,20 @@ import { Bars3Icon } from "@heroicons/react/24/outline";
 import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
 import TierBadge from "../ui/TierBadge";
+import { useChatStreaming } from "../../hooks/useChatStreaming";
+import { StreamingToggle } from "../ui/StreamingToggle";
 
 export default function ChatInterface() {
-  const { messages, isLoading, error, sendMessage, clearError, retryLastMessage } = useChat();
+  const { 
+    messages, 
+    isLoading, 
+    error, 
+    sendMessage, 
+    clearError, 
+    retryLastMessage,
+    isStreaming,
+    streamingContent 
+  } = useChatStreaming();
   const createConversation = useChatStore((state) => state.createConversation);
   const { 
     availableModels, 
@@ -229,6 +239,7 @@ export default function ChatInterface() {
                   />
                 </div>
               )}
+              <StreamingToggle className="ml-4" />
             </div>
             <div className="flex flex-col items-end gap-1">
               <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -248,6 +259,8 @@ export default function ChatInterface() {
             hoveredGenerationId={hoveredGenerationId}
             scrollToCompletionId={scrollToCompletionId}
             onPromptSelect={handlePromptSelect}
+            isStreaming={isStreaming}
+            streamingContent={streamingContent}
           />
         </div>
 

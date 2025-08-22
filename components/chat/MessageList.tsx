@@ -47,9 +47,21 @@ interface MessageListProps {
   hoveredGenerationId?: string;
   scrollToCompletionId?: string; // Add scroll trigger prop
   onPromptSelect?: (prompt: string) => void;
+  // Streaming support
+  isStreaming?: boolean;
+  streamingContent?: string;
 }
 
-export default function MessageList({ messages, isLoading, onModelClick, hoveredGenerationId, scrollToCompletionId, onPromptSelect }: Readonly<MessageListProps>) {
+export default function MessageList({ 
+  messages, 
+  isLoading, 
+  onModelClick, 
+  hoveredGenerationId, 
+  scrollToCompletionId, 
+  onPromptSelect,
+  isStreaming = false,
+  streamingContent = ''
+}: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -428,20 +440,27 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
           </div>
         ))}
 
-        {/* Loading indicator */}
-        {isLoading && (
+        {/* Loading indicator and streaming content */}
+        {(isLoading || isStreaming) && (
           <div className="flex justify-start">
-            <div className="flex w-full sm:max-w-[70%]">
+            <div className="flex w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%]">
               {/* Avatar - Hidden on mobile (< sm breakpoint) */}
               <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 items-center justify-center text-sm font-medium mr-3">
                 AI
               </div>
-              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 sm:flex-initial border border-slate-200/80 dark:border-white/10 shadow-sm">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                </div>
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 border border-slate-200/80 dark:border-white/10 shadow-sm">
+                {isStreaming && streamingContent ? (
+                  <div className="whitespace-pre-wrap">
+                    {streamingContent}
+                    <span className="inline-block ml-1 animate-pulse text-blue-500">▋</span>
+                  </div>
+                ) : (
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
