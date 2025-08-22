@@ -44,6 +44,8 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const reasoningModalRef = useRef<HTMLDivElement | null>(null);
   const { isAuthenticated } = useAuth();
   const { availableModels, selectedModel } = useModelSelection();
+  // Track previous model to detect actual changes (not reselecting the same)
+  const prevSelectedModelRef = useRef<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const { data: userData } = useUserData({ enabled: !!isAuthenticated });
   const userTier = (userData?.profile.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise';
@@ -258,6 +260,17 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
       document.removeEventListener('pointerdown', onPointer, { capture: true } as EventListenerOptions);
     };
   }, [reasoningModalOpen]);
+
+  // Reset Web Search and Reasoning toggles when user changes model selection
+  useEffect(() => {
+    const prev = prevSelectedModelRef.current;
+    // Only reset when there was a previous selection and it actually changed
+    if (prev !== null && selectedModel && selectedModel !== prev) {
+      setWebSearchOn(false);
+      setReasoningOn(false);
+    }
+    prevSelectedModelRef.current = selectedModel || null;
+  }, [selectedModel]);
 
   const handlePickFiles = () => {
     // Disabled via prop: do nothing
@@ -584,6 +597,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
               type="button"
               aria-label={webSearchOn ? 'Web Search: ON' : 'Web Search'}
               aria-pressed={webSearchOn}
+              title="Web Search"
               onClick={() => {
                 if (disabled) return;
                 // Free or anonymous → upgrade modal
@@ -618,6 +632,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
               type="button"
               aria-label={reasoningOn ? 'Reasoning: ON' : 'Reasoning'}
               aria-pressed={reasoningOn}
+              title="Reasoning"
               onClick={() => {
                 if (disabled) return;
                 // Unsupported model → explain
@@ -658,7 +673,8 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
               onClick={handlePickFiles}
               disabled={disabled}
               className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed"
-              aria-label="Attach image"
+              aria-label="Attach Image"
+              title="Attach Image"
             >
               <PaperClipIcon className="w-5 h-5" />
             </button>
