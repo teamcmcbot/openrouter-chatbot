@@ -4,7 +4,6 @@ import { createTextStreamResponse } from 'ai';
 import { validateChatRequestWithAuth, validateRequestLimits } from '../../../../../lib/utils/validation';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
 import { logger } from '../../../../../lib/utils/logger';
-import { detectMarkdownContent } from '../../../../../lib/utils/markdown';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { withEnhancedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
@@ -178,6 +177,25 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       }[];
     } = {};
     
+    // Determine triggering user message ID (same logic as non-streaming)
+    const explicitId: string | undefined = body.current_message_id;
+    let triggeringUserId: string | undefined = explicitId;
+
+    if (!triggeringUserId && Array.isArray(body.messages) && body.message) {
+      // Fallback: use LAST matching user message with same trimmed content
+      for (let i = body.messages.length - 1; i >= 0; i--) {
+        const m = body.messages[i];
+        if (
+          m && m.role === 'user' &&
+          typeof m.content === 'string' &&
+          m.content.trim() === body.message.trim()
+        ) {
+          triggeringUserId = m.id;
+          break;
+        }
+      }
+    }
+    
     const textStream = new TransformStream<Uint8Array, string>({
       transform(chunk, controller) {
         const text = new TextDecoder().decode(chunk);
@@ -202,26 +220,77 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
         fullCompletion += text;
         controller.enqueue(text);
       },
-      flush() {
-        // Log completion when stream finishes
+      async flush(controller) {
+        // Calculate elapsed time - always use markdown rendering
         const endTime = Date.now();
         const elapsedMs = endTime - startTime;
         
+        // Normalize annotations to flat structure (same as non-streaming)
+        const rawAnnotations = streamMetadata.annotations ?? [];
+        const annotations = Array.isArray(rawAnnotations)
+          ? (rawAnnotations
+              .map((ann: unknown) => {
+                if (!ann || typeof ann !== 'object') return null;
+                const a = ann as Record<string, unknown>;
+                // Already flat
+                if (a.type === 'url_citation' && typeof a.url === 'string') {
+                  return a as unknown as { type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number };
+                }
+                // Nested provider shape
+                const nested = a.url_citation as Record<string, unknown> | undefined;
+                if (a.type === 'url_citation' && nested && typeof nested.url === 'string') {
+                  const { url, title, content, start_index, end_index } = nested as {
+                    url: string; title?: string; content?: string; start_index?: number; end_index?: number;
+                  };
+                  return { type: 'url_citation', url, title, content, start_index, end_index };
+                }
+                // Fallback: objects with URL but missing type
+                if (typeof a.url === 'string' && !a.type) {
+                  const { url, title, content, start_index, end_index } = a as {
+                    url: string; title?: string; content?: string; start_index?: number; end_index?: number;
+                  };
+                  return { type: 'url_citation', url, title, content, start_index, end_index };
+                }
+                return null;
+              })
+              .filter((x): x is { type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number } => !!x))
+          : [];
+
+        // Create final metadata response (same structure as non-streaming ChatResponse)
+        const finalMetadata = {
+          __FINAL_METADATA__: {
+            response: fullCompletion,
+            usage: streamMetadata.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+            request_id: triggeringUserId || undefined,
+            timestamp: new Date().toISOString(),
+            elapsed_ms: elapsedMs,
+            contentType: "markdown", // Always use markdown rendering
+            id: streamMetadata.id || `stream_${Date.now()}`,
+            ...(streamMetadata.reasoning && { reasoning: streamMetadata.reasoning }),
+            ...(streamMetadata.reasoning_details && { reasoning_details: streamMetadata.reasoning_details }),
+            annotations,
+            has_websearch: !!body.webSearch,
+            websearch_result_count: Array.isArray(annotations) ? annotations.length : 0,
+          }
+        };
+
+        // Send the final metadata as a special JSON chunk
+        const finalMetadataJson = JSON.stringify(finalMetadata) + '\n';
+        controller.enqueue(finalMetadataJson);
+        
+        // Log completion when stream finishes
         logger.info('Chat stream completed', {
           userId: authContext.user?.id,
           model: enhancedData.model,
           elapsedMs,
           tier: authContext.profile?.subscription_tier,
           completionLength: fullCompletion.length,
-          hasMarkdown: detectMarkdownContent(fullCompletion),
+          contentType: 'markdown',
           usage: streamMetadata.usage,
           hasReasoning: !!streamMetadata.reasoning,
-          annotationCount: streamMetadata.annotations?.length || 0,
+          annotationCount: annotations.length,
+          triggeredBy: triggeringUserId
         });
-        
-        // Store metadata for potential database sync
-        // Note: In Phase 2, we'll need to make this metadata available to the frontend
-        // for database sync purposes, potentially via a separate endpoint or headers
       }
     });
 

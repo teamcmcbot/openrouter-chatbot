@@ -5,7 +5,6 @@ import { validateChatRequestWithAuth, validateRequestLimits } from '../../../../
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../lib/utils/errors';
 import { createSuccessResponse } from '../../../../lib/utils/response';
 import { logger } from '../../../../lib/utils/logger';
-import { detectMarkdownContent } from '../../../../lib/utils/markdown';
 import { ChatResponse } from '../../../../lib/types';
 import { OpenRouterRequest, OpenRouterContentBlock, OpenRouterUrlCitation } from '../../../../lib/types/openrouter';
 import { AuthContext } from '../../../../lib/types/auth';
@@ -258,10 +257,6 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
         .filter((x): x is OpenRouterUrlCitation => !!x))
     : [];
 
-    // Detect if the response contains markdown
-    const hasMarkdown = detectMarkdownContent(assistantResponse);
-    logger.debug('Markdown detection result:', hasMarkdown, 'for content:', assistantResponse.substring(0, 100));
-
   const endTime = Date.now();
   const elapsedMs = endTime - startTime; // integer milliseconds
   logger.debug('Measured assistant generation latency (ms):', elapsedMs);
@@ -307,7 +302,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       request_id: triggeringUserId || undefined, // Deterministic linkage to triggering user message
       timestamp: new Date().toISOString(),
       elapsed_ms: elapsedMs,
-      contentType: hasMarkdown ? "markdown" : "text", // Add content type detection
+      contentType: "markdown", // Always use markdown rendering for consistent experience
       id: openRouterResponse.id, // Pass OpenRouter response id to ChatResponse
     };
   if (typeof reasoningText === 'string' && reasoningText.length > 0) response.reasoning = reasoningText;

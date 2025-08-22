@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import type React from "react";
-import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon, PlayIcon } from "@heroicons/react/24/outline";
 import { useAuth } from "../../stores/useAuthStore";
 import { useModelSelection } from "../../stores";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import AttachmentTile, { type AttachmentData } from "./AttachmentTile";
 import toast from "react-hot-toast";
 import { useUserData } from "../../hooks/useUserData";
@@ -22,8 +23,10 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const [message, setMessage] = useState("");
   const [showCount, setShowCount] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [streamingOn, setStreamingOn] = useState(false); // UI-only toggle for streaming
   const [webSearchOn, setWebSearchOn] = useState(false); // UI-only toggle
   const [reasoningOn, setReasoningOn] = useState(false); // UI-only toggle
+  const [streamingModalOpen, setStreamingModalOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [reasoningModalOpen, setReasoningModalOpen] = useState(false);
   const [gatingOpen, setGatingOpen] = useState<
@@ -40,9 +43,11 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const hideCountTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const gatingRef = useRef<HTMLDivElement | null>(null);
+  const streamingModalRef = useRef<HTMLDivElement | null>(null);
   const searchModalRef = useRef<HTMLDivElement | null>(null);
   const reasoningModalRef = useRef<HTMLDivElement | null>(null);
   const { isAuthenticated } = useAuth();
+  const { getSetting, setSetting } = useSettingsStore();
   const { availableModels, selectedModel } = useModelSelection();
   // Track previous model to detect actual changes (not reselecting the same)
   const prevSelectedModelRef = useRef<string | null>(null);
@@ -90,6 +95,31 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+
+  // Load streaming setting from store
+  useEffect(() => {
+    const streamingEnabled = Boolean(getSetting('streamingEnabled', false));
+    setStreamingOn(streamingEnabled);
+  }, [getSetting]);
+
+  // Close streaming settings modal on outside click and Escape
+  useEffect(() => {
+    if (!streamingModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setStreamingModalOpen(false);
+    };
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      const el = streamingModalRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) setStreamingModalOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer, { capture: true } as EventListenerOptions);
+    };
+  }, [streamingModalOpen]);
 
   const genDraftId = () => {
     try {
@@ -595,6 +625,36 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           <div className="flex items-center gap-1">
             <button
               type="button"
+              aria-label={streamingOn ? 'Streaming: ON' : 'Streaming'}
+              aria-pressed={streamingOn}
+              title="Streaming"
+              onClick={() => {
+                if (disabled) return;
+                // Open streaming settings modal
+                setStreamingModalOpen(true);
+              }}
+              className={`relative inline-flex items-center justify-center w-10 h-10 rounded-lg border bg-transparent disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none 
+                border-gray-300 dark:border-gray-600 
+                ${streamingOn ? 'ring-0' : ''} 
+                ${!disabled ? 'hover:bg-gray-100/50 dark:hover:bg-gray-600/40' : ''}`}
+              disabled={disabled}
+            >
+              <PlayIcon
+                className={`w-5 h-5 transition-all duration-150 
+                  ${streamingOn
+                    ? 'text-purple-600 dark:text-purple-300 drop-shadow-[0_0_6px_rgba(147,51,234,0.55)]'
+                    : 'text-gray-700 dark:text-gray-200 opacity-80'}
+                `}
+              />
+              {streamingOn && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-1 w-5 h-px rounded-full bg-purple-500 shadow-[0_0_6px_rgba(147,51,234,0.6)]"
+                />
+              )}
+            </button>
+            <button
+              type="button"
               aria-label={webSearchOn ? 'Web Search: ON' : 'Web Search'}
               aria-pressed={webSearchOn}
               title="Web Search"
@@ -857,6 +917,42 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 </div>
               )}
             </>
+          )}
+
+          {/* Streaming settings popover anchored above buttons */}
+          {streamingModalOpen && (
+            <div
+              ref={streamingModalRef}
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 shadow-2xl"
+            >
+              <button
+                aria-label="Close"
+                onClick={() => setStreamingModalOpen(false)}
+                className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+              <div className="mb-2 pr-6 text-sm font-semibold text-slate-900 dark:text-gray-100">Enable streaming</div>
+              <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">Stream responses in real-time for faster interaction.</div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-800 dark:text-gray-200">Streaming</span>
+                <button
+                  type="button"
+                  data-testid="streaming-toggle"
+                  aria-pressed={streamingOn}
+                  onClick={() => {
+                    const newValue = !streamingOn;
+                    setStreamingOn(newValue);
+                    setSetting('streamingEnabled', newValue);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${streamingOn ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${streamingOn ? 'translate-x-5' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Web Search settings popover (pro/enterprise) anchored above buttons */}

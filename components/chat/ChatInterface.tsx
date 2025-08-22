@@ -19,7 +19,6 @@ import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
 import TierBadge from "../ui/TierBadge";
 import { useChatStreaming } from "../../hooks/useChatStreaming";
-import { StreamingToggle } from "../ui/StreamingToggle";
 
 export default function ChatInterface() {
   const { 
@@ -239,7 +238,6 @@ export default function ChatInterface() {
                   />
                 </div>
               )}
-              <StreamingToggle className="ml-4" />
             </div>
             <div className="flex flex-col items-end gap-1">
               <div className="text-xs text-gray-500 dark:text-gray-400">

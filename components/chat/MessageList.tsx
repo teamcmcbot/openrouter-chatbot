@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { ChatMessage } from "../../lib/types/chat";
 import { formatMessageTime } from "../../lib/utils/dateFormat";
+import { detectMarkdownContent } from "../../lib/utils/markdown";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { 
   CustomCodeBlock, 
@@ -228,16 +229,12 @@ export default function MessageList({
                   </span>
                 )}
                 
-                {/* Message Content - Conditional Markdown Rendering */}
-                {message.contentType === "markdown" ? (
-                  <div className="markdown-content">
-                    <MemoizedMarkdown>
-                      {message.content}
-                    </MemoizedMarkdown>
-                  </div>
-                ) : (
-                  <p className="whitespace-pre-wrap">{message.content}</p>
-                )}
+                {/* Message Content - Always use markdown rendering */}
+                <div className="markdown-content">
+                  <MemoizedMarkdown>
+                    {message.content}
+                  </MemoizedMarkdown>
+                </div>
 
                 {/* Reasoning (assistant) - collapsed by default */}
                 {message.role === "assistant" && (message.reasoning || message.reasoning_details) && (
@@ -450,9 +447,18 @@ export default function MessageList({
               </div>
               <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 border border-slate-200/80 dark:border-white/10 shadow-sm">
                 {isStreaming && streamingContent ? (
-                  <div className="whitespace-pre-wrap">
-                    {streamingContent}
-                    <span className="inline-block ml-1 animate-pulse text-blue-500">▋</span>
+                  <div className="markdown-content">
+                    {detectMarkdownContent(streamingContent) ? (
+                      <div className="streaming-markdown">
+                        <MemoizedMarkdown>{streamingContent}</MemoizedMarkdown>
+                        <span className="inline-block ml-1 animate-pulse text-blue-500">▋</span>
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap">
+                        {streamingContent}
+                        <span className="inline-block ml-1 animate-pulse text-blue-500">▋</span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex space-x-1">
