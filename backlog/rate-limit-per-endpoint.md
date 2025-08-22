@@ -86,9 +86,9 @@ export const GET = withAdminAuth(usersHandler); // Already protected by account_
 
 ```typescript
 const ANONYMOUS_LIMITS = {
-  tierA: { requests: 10, window: 3600000 }, // 10/hour for chat (locked in)
-  tierB: { requests: 5, window: 3600000 }, // 5/hour for medium operations
-  tierC: { requests: 50, window: 3600000 }, // 50/hour for metadata
+  tierA: { requests: 10, window: 3600000 }, // 10/hour for chat (locked in) - MOST RESTRICTIVE
+  tierB: { requests: 20, window: 3600000 }, // 20/hour for medium operations - More generous than chat
+  tierC: { requests: 50, window: 3600000 }, // 50/hour for metadata - MOST GENEROUS
   tierD: { requests: 0, window: 3600000 }, // No admin access
 };
 ```
@@ -97,9 +97,9 @@ const ANONYMOUS_LIMITS = {
 
 ```typescript
 const FREE_LIMITS = {
-  tierA: { requests: 20, window: 3600000 }, // 20/hour for chat (locked in)
-  tierB: { requests: 10, window: 3600000 }, // 10/hour for medium operations
-  tierC: { requests: 100, window: 3600000 }, // 100/hour for metadata
+  tierA: { requests: 20, window: 3600000 }, // 20/hour for chat (locked in) - MOST RESTRICTIVE
+  tierB: { requests: 50, window: 3600000 }, // 50/hour for medium operations - More generous than chat
+  tierC: { requests: 200, window: 3600000 }, // 200/hour for metadata - MOST GENEROUS
   tierD: { requests: 0, window: 3600000 }, // No admin access
 };
 ```
@@ -108,9 +108,9 @@ const FREE_LIMITS = {
 
 ```typescript
 const PRO_LIMITS = {
-  tierA: { requests: 200, window: 3600000 }, // 200/hour for chat (locked in)
-  tierB: { requests: 50, window: 3600000 }, // 50/hour for medium operations
-  tierC: { requests: 500, window: 3600000 }, // 500/hour for metadata
+  tierA: { requests: 200, window: 3600000 }, // 200/hour for chat (locked in) - MOST RESTRICTIVE
+  tierB: { requests: 100, window: 3600000 }, // 100/hour for medium operations - More generous than chat
+  tierC: { requests: 500, window: 3600000 }, // 500/hour for metadata - MOST GENEROUS
   tierD: { requests: 0, window: 3600000 }, // No admin access
 };
 ```
@@ -119,9 +119,9 @@ const PRO_LIMITS = {
 
 ```typescript
 const ENTERPRISE_USER_LIMITS = {
-  tierA: { requests: 500, window: 3600000 }, // 500/hour for chat (locked in)
-  tierB: { requests: 200, window: 3600000 }, // 200/hour for medium operations
-  tierC: { requests: 2000, window: 3600000 }, // 2000/hour for metadata
+  tierA: { requests: 500, window: 3600000 }, // 500/hour for chat (locked in) - MOST RESTRICTIVE
+  tierB: { requests: 200, window: 3600000 }, // 200/hour for medium operations - More generous than chat
+  tierC: { requests: 1000, window: 3600000 }, // 1000/hour for metadata - MOST GENEROUS
   tierD: { requests: 0, window: 3600000 }, // No admin access for regular enterprise users
 };
 
