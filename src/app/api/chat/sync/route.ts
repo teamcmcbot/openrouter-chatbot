@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ChatMessage } from '../../../../../lib/types/chat';
 import type { OpenRouterUrlCitation } from '../../../../../lib/types/openrouter';
 import { withConversationOwnership } from '../../../../../lib/middleware/auth';
-import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
+import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { logger } from '../../../../../lib/utils/logger';
@@ -368,9 +368,9 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
 }
 
 // Apply authentication middleware with conversation ownership validation and rate limiting
-export const POST = withConversationOwnership((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(syncHandler)(req, authContext)
+export const POST = withConversationOwnership(
+  withRedisRateLimit(syncHandler)
 );
-export const GET = withConversationOwnership((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(getConversationsHandler)(req, authContext)
+export const GET = withConversationOwnership(
+  withRedisRateLimit(getConversationsHandler)
 );

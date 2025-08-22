@@ -23,7 +23,7 @@ Phase 2 of the JWT authentication system has been successfully implemented and t
 
 ### 2. Rate Limiting Middleware
 
-- **Location**: [`lib/middleware/rateLimitMiddleware.ts`](lib/middleware/rateLimitMiddleware.ts)
+- **Location**: [`lib/middleware/redisRateLimitMiddleware.ts`](lib/middleware/redisRateLimitMiddleware.ts)
 - **Implementation**: In-memory rate limiter with tier-based limits
 - **Limits**:
   - Anonymous: 20 requests/hour

@@ -13,7 +13,7 @@ This document describes the implementation of Phase 2 of the JWT authentication 
 ##### `/api/chat` - Enhanced Endpoint (Optional Authentication)
 
 - **File**: [`src/app/api/chat/route.ts`](../../src/app/api/chat/route.ts)
-- **Middleware**: [`withEnhancedAuth()`](../../lib/middleware/auth.ts:122) + [`withRateLimit()`](../../lib/middleware/rateLimitMiddleware.ts:85)
+- **Middleware**: [`withEnhancedAuth()`](../../lib/middleware/auth.ts:122) + [`withRedisRateLimit()`](../../lib/middleware/redisRateLimitMiddleware.ts:85)
 - **Features**:
   - Optional authentication with graceful degradation
   - Feature flag-based request validation
@@ -25,7 +25,7 @@ This document describes the implementation of Phase 2 of the JWT authentication 
 ##### `/api/chat/sync` - Protected Endpoint (Required Authentication)
 
 - **File**: [`src/app/api/chat/sync/route.ts`](../../src/app/api/chat/sync/route.ts)
-- **Middleware**: [`withConversationOwnership()`](../../lib/middleware/auth.ts:173) + [`withRateLimit()`](../../lib/middleware/rateLimitMiddleware.ts:85)
+- **Middleware**: [`withConversationOwnership()`](../../lib/middleware/auth.ts:173) + [`withRedisRateLimit()`](../../lib/middleware/redisRateLimitMiddleware.ts:85)
 - **Features**:
   - Required authentication with profile validation
   - Conversation ownership validation
@@ -33,11 +33,10 @@ This document describes the implementation of Phase 2 of the JWT authentication 
   - Rate limiting for sync operations
   - Enhanced error handling and logging
 
-#### 2. **Rate Limiting Middleware** ([`lib/middleware/rateLimitMiddleware.ts`](../../lib/middleware/rateLimitMiddleware.ts))
+#### 2. **Rate Limiting Middleware** ([`lib/middleware/redisRateLimitMiddleware.ts`](../../lib/middleware/redisRateLimitMiddleware.ts))
 
-- **[`withRateLimit()`](../../lib/middleware/rateLimitMiddleware.ts:85)** - User-based rate limiting
-- **[`withGlobalRateLimit()`](../../lib/middleware/rateLimitMiddleware.ts:140)** - Global service protection
-- **[`InMemoryRateLimiter`](../../lib/middleware/rateLimitMiddleware.ts:11)** - In-memory rate limiting implementation
+- **[`withRedisRateLimit()`](../../lib/middleware/redisRateLimitMiddleware.ts:85)** - Redis-based rate limiting for serverless
+- **[`RedisRateLimiter`](../../lib/middleware/redisRateLimitMiddleware.ts:11)** - Redis sliding window implementation
 - **Features**:
   - Tier-based rate limits (Anonymous: 10/hr, Free: 100/hr, Pro: 500/hr, Enterprise: 2000/hr)
   - IP-based limiting for anonymous users

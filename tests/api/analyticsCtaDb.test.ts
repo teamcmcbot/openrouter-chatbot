@@ -13,8 +13,8 @@ jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/supabase/server', ()
 jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/auth', () => ({
   withEnhancedAuth: (handler: (req: unknown, ctx: unknown) => unknown) => (req: unknown) => handler(req, { isAuthenticated: false, user: null }),
 }));
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/rateLimitMiddleware', () => ({
-  withRateLimit: (handler: (req: unknown, ctx: unknown) => unknown) => (req: unknown, ctx: unknown) => handler(req, ctx),
+jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/redisRateLimitMiddleware', () => ({
+  withRedisRateLimit: (handler: (req: unknown, ctx: unknown) => unknown) => (req: unknown, ctx: unknown) => handler(req, ctx),
   addRateLimitHeaders: (res: unknown) => res,
 }));
 jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() } }));

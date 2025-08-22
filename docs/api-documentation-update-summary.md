@@ -110,7 +110,7 @@ All API documentation in `/docs/api/` has been comprehensively updated to reflec
 
 ```markdown
 - **Authentication Required**: Uses `withProtectedAuth` middleware
-- **Rate Limiting**: Tier-based limits applied via `withRateLimit` middleware
+- **Rate Limiting**: Tier-based limits applied via `withRedisRateLimit` middleware
 - Authentication handled automatically via cookies
 ```
 

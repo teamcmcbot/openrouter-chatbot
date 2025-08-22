@@ -1,7 +1,7 @@
-# Endpoi## Authentication & Authorization
+# Endpoi## Authenticatio- **Rate Limiting:** `withRedisRateLimit` applies per-tier limits: & Authorization
 
 - **Optional Authentication:** Uses `withEnhancedAuth` middleware - works for both authenticated and anonymous users
-- **Rate Limiting**: Tier-based rate limits applied via `withRateLimit` middleware:
+- **Rate Limiting**: Tier-based rate limits applied via `withRedisRateLimit` middleware:
   - **Anonymous:** 20 requests/hour, 5000 tokens/request
   - **Free:** 100 requests/hour, 10000 tokens/request
   - **Pro:** 500 requests/hour, 20000 tokens/request

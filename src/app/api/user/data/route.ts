@@ -8,7 +8,7 @@ import {
   UserDataError 
 } from '../../../../../lib/types/user-data';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
-import { withRateLimit } from '../../../../../lib/middleware/rateLimitMiddleware';
+import { withRedisRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { validateSystemPrompt } from '../../../../../lib/utils/validation/systemPrompt';
@@ -275,9 +275,9 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
 }
 
 // Apply middleware to handlers
-export const GET = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(getUserDataHandler)(req, authContext)
+export const GET = withProtectedAuth(
+  withRedisRateLimit(getUserDataHandler)
 );
-export const PUT = withProtectedAuth((req: NextRequest, authContext: AuthContext) =>
-  withRateLimit(putUserDataHandler)(req, authContext)
+export const PUT = withProtectedAuth(
+  withRedisRateLimit(putUserDataHandler)
 );
