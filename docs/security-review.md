@@ -25,8 +25,8 @@ export const POST = withProtectedAuth(withRedisRateLimit(chatHandler));
 
 - **Anonymous**: 20 requests/hour (IP-based)
 - **Free**: 100 requests/hour (user-based)
-- **Pro**: 1000 requests/hour (user-based)
-- **Enterprise**: 5000 requests/hour (user-based)
+- **Pro**: 500 requests/hour (user-based)
+- **Enterprise**: 2000 requests/hour (user-based)
 
 ### ✅ Security Features
 

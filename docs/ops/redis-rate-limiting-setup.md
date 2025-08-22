@@ -120,8 +120,8 @@ Look for rate limiting headers in the response.
 const RATE_LIMITS = {
   anonymous: 20, // requests per hour
   free: 100, // requests per hour
-  pro: 1000, // requests per hour
-  enterprise: 5000, // requests per hour
+  pro: 500, // requests per hour
+  enterprise: 2000, // requests per hour
 };
 ```
 

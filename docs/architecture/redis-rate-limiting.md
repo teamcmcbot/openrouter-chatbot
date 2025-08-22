@@ -84,11 +84,11 @@ const RATE_LIMITS = {
     keyPrefix: "rate_limit:user:",
   },
   pro: {
-    maxRequestsPerHour: 1000,
+    maxRequestsPerHour: 500,
     keyPrefix: "rate_limit:user:",
   },
   enterprise: {
-    maxRequestsPerHour: 5000,
+    maxRequestsPerHour: 2000,
     keyPrefix: "rate_limit:user:",
   },
 };

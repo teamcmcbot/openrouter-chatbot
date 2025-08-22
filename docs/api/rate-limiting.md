@@ -22,13 +22,13 @@ All API endpoints are protected by Redis-based rate limiting that scales with us
 
 ### Pro Tier Users
 
-- **Limit**: 1,000 requests per hour
+- **Limit**: 500 requests per hour
 - **Identification**: User ID
 - **Headers**: Standard rate limit headers included
 
 ### Enterprise Tier Users
 
-- **Limit**: 5,000 requests per hour
+- **Limit**: 2,000 requests per hour
 - **Identification**: User ID
 - **Headers**: Standard rate limit headers included
 
