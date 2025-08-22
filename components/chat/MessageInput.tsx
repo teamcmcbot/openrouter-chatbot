@@ -583,6 +583,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
             <button
               type="button"
               aria-label={webSearchOn ? 'Web Search: ON' : 'Web Search'}
+              aria-pressed={webSearchOn}
               onClick={() => {
                 if (disabled) return;
                 // Free or anonymous → upgrade modal
@@ -593,17 +594,30 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 // Eligible tiers → open settings modal
                 setSearchModalOpen(true);
               }}
-              className={`inline-flex items-center justify-center w-10 h-10 rounded-lg border text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed 
-                ${webSearchOn
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300'
-                  : 'bg-transparent border-gray-300 dark:border-gray-600'}`}
+              className={`relative inline-flex items-center justify-center w-10 h-10 rounded-lg border bg-transparent disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none 
+                border-gray-300 dark:border-gray-600 
+                ${webSearchOn ? 'ring-0' : ''} 
+                ${!disabled ? 'hover:bg-gray-100/50 dark:hover:bg-gray-600/40' : ''}`}
               disabled={disabled}
             >
-              <GlobeAltIcon className="w-5 h-5" />
+              <GlobeAltIcon
+                className={`w-5 h-5 transition-all duration-150 
+                  ${webSearchOn
+                    ? 'text-cyan-600 dark:text-cyan-300 drop-shadow-[0_0_6px_rgba(34,211,238,0.55)]'
+                    : 'text-gray-700 dark:text-gray-200 opacity-80'}
+                `}
+              />
+              {webSearchOn && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-1 w-5 h-px rounded-full bg-cyan-500 shadow-[0_0_6px_rgba(6,182,212,0.6)]"
+                />
+              )}
             </button>
             <button
               type="button"
               aria-label={reasoningOn ? 'Reasoning: ON' : 'Reasoning'}
+              aria-pressed={reasoningOn}
               onClick={() => {
                 if (disabled) return;
                 // Unsupported model → explain
@@ -619,13 +633,25 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 // Eligible enterprise → open settings popover
                 setReasoningModalOpen(true);
               }}
-              className={`inline-flex items-center justify-center w-10 h-10 rounded-lg border text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed 
-                ${reasoningOn
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300'
-                  : 'bg-transparent border-gray-300 dark:border-gray-600'}`}
+              className={`relative inline-flex items-center justify-center w-10 h-10 rounded-lg border bg-transparent disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none 
+                border-gray-300 dark:border-gray-600 
+                ${reasoningOn ? 'ring-0' : ''} 
+                ${!disabled ? 'hover:bg-gray-100/50 dark:hover:bg-gray-600/40' : ''}`}
               disabled={disabled}
             >
-              <LightBulbIcon className="w-5 h-5" />
+              <LightBulbIcon
+                className={`w-5 h-5 transition-all duration-150 
+                  ${reasoningOn
+                    ? 'text-amber-600 dark:text-amber-300 drop-shadow-[0_0_6px_rgba(245,158,11,0.55)]'
+                    : 'text-gray-700 dark:text-gray-200 opacity-80'}
+                `}
+              />
+              {reasoningOn && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-1 w-5 h-px rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]"
+                />
+              )}
             </button>
             <button
               type="button"
