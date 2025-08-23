@@ -329,7 +329,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
             contentType: "markdown", // Always use markdown rendering
             id: streamMetadata.id || `stream_${Date.now()}`,
             ...(streamMetadata.reasoning && { reasoning: streamMetadata.reasoning }),
-            ...(streamMetadata.reasoning_details && { reasoning_details: streamMetadata.reasoning_details }),
+            ...(streamMetadata.reasoning_details && Array.isArray(streamMetadata.reasoning_details) && streamMetadata.reasoning_details.length > 0 && { reasoning_details: streamMetadata.reasoning_details }),
             annotations,
             has_websearch: !!body.webSearch,
             websearch_result_count: Array.isArray(annotations) ? annotations.length : 0,

@@ -307,7 +307,10 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     };
   if (typeof reasoningText === 'string' && reasoningText.length > 0) response.reasoning = reasoningText;
   if (reasoningDetails && typeof reasoningDetails === 'object') {
-    response.reasoning_details = Array.isArray(reasoningDetails) ? reasoningDetails : [reasoningDetails];
+    const reasoningArray = Array.isArray(reasoningDetails) ? reasoningDetails : [reasoningDetails];
+    if (reasoningArray.length > 0) {
+      response.reasoning_details = reasoningArray;
+    }
   }
   // Attach annotations if present (for future UI rendering); ignored by client if unknown
   response.annotations = annotations;

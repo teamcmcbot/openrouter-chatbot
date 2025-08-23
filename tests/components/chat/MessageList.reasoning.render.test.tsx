@@ -71,4 +71,25 @@ describe('MessageList reasoning rendering', () => {
     expect(screen.getByText('Model thinking here')).toBeInTheDocument();
     expect(screen.queryByText('Details')).not.toBeInTheDocument();
   });
+
+  it('does not render reasoning section when both reasoning and reasoning_details are empty', () => {
+    const messages: ChatMessage[] = [
+      {
+        ...baseAssistant,
+        id: 'm3',
+        reasoning: undefined,
+        reasoning_details: [],
+      },
+    ];
+
+    render(
+      <MessageList
+        messages={messages}
+        isLoading={false}
+      />
+    );
+
+    // No reasoning section should appear
+    expect(screen.queryByRole('button', { name: /reasoning/i })).not.toBeInTheDocument();
+  });
 });

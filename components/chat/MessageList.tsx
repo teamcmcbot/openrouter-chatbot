@@ -230,7 +230,10 @@ export default function MessageList({
                 )}
                 
                 {/* Reasoning (assistant) - show before content for better UX */}
-                {message.role === "assistant" && (message.reasoning || message.reasoning_details) && (
+                {message.role === "assistant" && (
+                  (typeof message.reasoning === 'string' && message.reasoning.trim().length > 0) ||
+                  (Array.isArray(message.reasoning_details) && message.reasoning_details.length > 0)
+                ) && (
                   <div className="mb-3 border rounded-md bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300/80 dark:border-yellow-700/60">
                     <button
                       type="button"
