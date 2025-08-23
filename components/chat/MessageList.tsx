@@ -51,6 +51,9 @@ interface MessageListProps {
   // Streaming support
   isStreaming?: boolean;
   streamingContent?: string;
+  // NEW: Real-time reasoning support
+  streamingReasoning?: string;
+  streamingReasoningDetails?: Record<string, unknown>[];
 }
 
 export default function MessageList({ 
@@ -61,7 +64,9 @@ export default function MessageList({
   scrollToCompletionId, 
   onPromptSelect,
   isStreaming = false,
-  streamingContent = ''
+  streamingContent = '',
+  streamingReasoning = '', // NEW
+  streamingReasoningDetails = [] // NEW
 }: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -455,8 +460,55 @@ export default function MessageList({
                 AI
               </div>
               <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 border border-slate-200/80 dark:border-white/10 shadow-sm">
+                
+                {/* ENHANCED: Persistent Streaming Reasoning Section */}
+                {isStreaming && (
+                  <div className="mb-3 border rounded-md bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300/80 dark:border-yellow-700/60">
+                    <div className="w-full text-left px-2 py-1 rounded-t-md">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-900 dark:text-yellow-100">
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                            <path d="M10 2a6 6 0 00-3.832 10.59c.232.186.332.49.245.776l-.451 1.486a1 1 0 001.265 1.265l1.486-.451c.286-.087.59.013.776.245A6 6 0 1010 2z" />
+                          </svg>
+                          {streamingReasoning ? 'Thinking...' : 'Processing...'}
+                        </div>
+                      </span>
+                    </div>
+                    
+                    {/* ENHANCED: Always show reasoning content area, even if empty initially */}
+                    <div className="px-2 pb-2 pt-1 border-t border-yellow-300/60 dark:border-yellow-800/60 text-yellow-950 dark:text-yellow-50">
+                      {streamingReasoning ? (
+                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                          <MemoizedMarkdown>
+                            {streamingReasoning}
+                          </MemoizedMarkdown>
+                          <span className="inline-block ml-1 animate-pulse text-yellow-600">▋</span>
+                        </div>
+                      ) : (
+                        <div className="text-yellow-700 dark:text-yellow-300 text-sm italic">
+                          Initializing AI reasoning...
+                        </div>
+                      )}
+                      
+                      {/* ENHANCED: Only show details when there's actual content */}
+                      {streamingReasoningDetails.length > 0 && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs text-yellow-900/80 dark:text-yellow-200/90">
+                            Reasoning Details ({streamingReasoningDetails.length} chunks)
+                          </summary>
+                          <pre className="mt-1 text-[11px] whitespace-pre-wrap break-words p-2 rounded bg-yellow-100/70 dark:bg-yellow-900/40 border border-yellow-300/60 dark:border-yellow-800/60 overflow-x-auto">
+{JSON.stringify(streamingReasoningDetails, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* ENHANCED: Separate Content Section - Completely Isolated */}
                 {isStreaming && streamingContent ? (
-                  <div className="markdown-content">
+                  <div className="content-section markdown-content">
                     {detectMarkdownContent(streamingContent) ? (
                       <div className="streaming-markdown">
                         <MemoizedMarkdown>{streamingContent}</MemoizedMarkdown>
@@ -469,13 +521,14 @@ export default function MessageList({
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="flex space-x-1">
+                ) : isStreaming ? (
+                  /* ENHANCED: Show loading state only when streaming but no content yet */
+                  <div className="flex space-x-1 mt-2">
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>

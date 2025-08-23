@@ -29,7 +29,9 @@ export default function ChatInterface() {
     clearError, 
     retryLastMessage,
     isStreaming,
-    streamingContent 
+    streamingContent,
+    streamingReasoning,
+    streamingReasoningDetails
   } = useChatStreaming();
   const createConversation = useChatStore((state) => state.createConversation);
   const { 
@@ -259,6 +261,8 @@ export default function ChatInterface() {
             onPromptSelect={handlePromptSelect}
             isStreaming={isStreaming}
             streamingContent={streamingContent}
+            streamingReasoning={streamingReasoning}
+            streamingReasoningDetails={streamingReasoningDetails}
           />
         </div>
 

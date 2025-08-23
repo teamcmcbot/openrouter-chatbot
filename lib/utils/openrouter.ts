@@ -890,6 +890,14 @@ export async function getOpenRouterCompletionStream(
                   if (!streamMetadata.reasoning) streamMetadata.reasoning = '';
                   streamMetadata.reasoning += data.choices[0].delta.reasoning;
                   console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning chunk:', data.choices[0].delta.reasoning.substring(0, 100) + '...');
+                  
+                  // NEW: Forward reasoning chunk to frontend with special marker
+                  const reasoningChunk = `__REASONING_CHUNK__${JSON.stringify({
+                    type: 'reasoning',
+                    data: data.choices[0].delta.reasoning
+                  })}\n`;
+                  controller.enqueue(new TextEncoder().encode(reasoningChunk));
+                  console.log('🟢 [OpenRouter Stream] Forwarded reasoning chunk to frontend:', data.choices[0].delta.reasoning.substring(0, 50) + '...');
                 }
                 
                 if (data.choices?.[0]?.delta?.reasoning_details && Array.isArray(data.choices[0].delta.reasoning_details)) {
@@ -897,6 +905,14 @@ export async function getOpenRouterCompletionStream(
                   if (!streamMetadata.reasoning_details) streamMetadata.reasoning_details = [];
                   (streamMetadata.reasoning_details as Record<string, unknown>[]).push(...data.choices[0].delta.reasoning_details);
                   console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning_details:', data.choices[0].delta.reasoning_details);
+                  
+                  // NEW: Forward reasoning details to frontend
+                  const reasoningDetailsChunk = `__REASONING_DETAILS_CHUNK__${JSON.stringify({
+                    type: 'reasoning_details',
+                    data: data.choices[0].delta.reasoning_details
+                  })}\n`;
+                  controller.enqueue(new TextEncoder().encode(reasoningDetailsChunk));
+                  console.log('🟢 [OpenRouter Stream] Forwarded reasoning_details chunk to frontend:', data.choices[0].delta.reasoning_details.length, 'items');
                 }
                 
                 // Fallback for final message reasoning (less common)

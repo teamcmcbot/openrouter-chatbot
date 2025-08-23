@@ -36,6 +36,9 @@ interface UseChatStreamingReturn {
   // New streaming-specific methods
   isStreaming: boolean;
   streamingContent: string;
+  // NEW: Real-time reasoning fields
+  streamingReasoning: string;
+  streamingReasoningDetails: Record<string, unknown>[];
 }
 
 /**
@@ -77,6 +80,9 @@ export function useChatStreaming(): UseChatStreamingReturn {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [streamError, setStreamError] = useState<ChatError | null>(null);
+  // NEW: Real-time reasoning state
+  const [streamingReasoning, setStreamingReasoning] = useState('');
+  const [streamingReasoningDetails, setStreamingReasoningDetails] = useState<Record<string, unknown>[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Enhanced sendMessage that uses streaming when enabled
@@ -127,6 +133,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
       // Streaming path
       setIsStreaming(true);
       setStreamingContent('');
+      setStreamingReasoning(''); // NEW: Reset reasoning state
+      setStreamingReasoningDetails([]); // NEW: Reset reasoning details state
       setStreamError(null);
       
       // Add user message to store immediately
@@ -224,6 +232,46 @@ export function useChatStreaming(): UseChatStreamingReturn {
             
             for (const line of lines) {
               if (!line.trim()) continue;
+              
+              // Check for reasoning chunk markers FIRST
+              if (line.startsWith('__REASONING_CHUNK__')) {
+                try {
+                  const reasoningData = JSON.parse(line.replace('__REASONING_CHUNK__', ''));
+                  if (reasoningData.type === 'reasoning') {
+                    // ENHANCED: Only process reasoning chunks with actual content
+                    if (reasoningData.data && typeof reasoningData.data === 'string' && reasoningData.data.trim()) {
+                      setStreamingReasoning(prev => prev + reasoningData.data);
+                      logger.debug('🧠 Streaming reasoning chunk received:', reasoningData.data.substring(0, 100) + '...');
+                    } else {
+                      logger.debug('🧠 Skipping empty reasoning chunk');
+                    }
+                    continue; // Always continue - don't let empty chunks leak to content
+                  }
+                } catch (error) {
+                  logger.warn('Failed to parse reasoning chunk:', error);
+                  continue; // ENHANCED: Skip malformed chunks instead of processing as content
+                }
+              }
+              
+              // Check for reasoning details chunk markers
+              if (line.startsWith('__REASONING_DETAILS_CHUNK__')) {
+                try {
+                  const reasoningDetailsData = JSON.parse(line.replace('__REASONING_DETAILS_CHUNK__', ''));
+                  if (reasoningDetailsData.type === 'reasoning_details') {
+                    // ENHANCED: Only process reasoning details with actual content
+                    if (reasoningDetailsData.data && Array.isArray(reasoningDetailsData.data) && reasoningDetailsData.data.length > 0) {
+                      setStreamingReasoningDetails(prev => [...prev, ...reasoningDetailsData.data]);
+                      logger.debug(`🧠 Streaming reasoning details chunk received: ${reasoningDetailsData.data.length} items`);
+                    } else {
+                      logger.debug('🧠 Skipping empty reasoning details chunk');
+                    }
+                    continue; // Always continue - don't let empty chunks leak to content
+                  }
+                } catch (error) {
+                  logger.warn('Failed to parse reasoning details chunk:', error);
+                  continue; // ENHANCED: Skip malformed chunks instead of processing as content
+                }
+              }
               
               // Check if this line contains final metadata
               try {
@@ -423,6 +471,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
       } finally {
         setIsStreaming(false);
         setStreamingContent('');
+        setStreamingReasoning(''); // NEW: Reset reasoning state  
+        setStreamingReasoningDetails([]); // NEW: Reset reasoning details state
         abortControllerRef.current = null;
       }
     } else {
@@ -442,6 +492,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
   const clearMessages = useCallback(() => {
     clearCurrentMessages();
     setStreamingContent('');
+    setStreamingReasoning(''); // NEW: Reset reasoning state
+    setStreamingReasoningDetails([]); // NEW: Reset reasoning details state
     setStreamError(null);
     storeClearError();
   }, [clearCurrentMessages, storeClearError]);
@@ -491,6 +543,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
       isLoading: false,
       isStreaming: false,
       streamingContent: '',
+      streamingReasoning: '', // NEW
+      streamingReasoningDetails: [], // NEW
       error: null,
       sendMessage: async () => {},
       clearMessages: () => {},
@@ -509,6 +563,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
     isLoading,
     isStreaming,
     streamingContent,
+    streamingReasoning, // NEW
+    streamingReasoningDetails, // NEW
     error,
     sendMessage,
     clearMessages,
