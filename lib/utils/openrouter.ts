@@ -905,24 +905,24 @@ export async function getOpenRouterCompletionStream(
                   }
                 }
                 
-                if (data.choices?.[0]?.delta?.reasoning_details && Array.isArray(data.choices[0].delta.reasoning_details)) {
-                  // Accumulate reasoning_details (structured array that comes in chunks)
-                  if (!streamMetadata.reasoning_details) streamMetadata.reasoning_details = [];
-                  (streamMetadata.reasoning_details as Record<string, unknown>[]).push(...data.choices[0].delta.reasoning_details);
-                  console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning_details:', data.choices[0].delta.reasoning_details);
+                // if (data.choices?.[0]?.delta?.reasoning_details && Array.isArray(data.choices[0].delta.reasoning_details)) {
+                //   // Accumulate reasoning_details (structured array that comes in chunks)
+                //   if (!streamMetadata.reasoning_details) streamMetadata.reasoning_details = [];
+                //   (streamMetadata.reasoning_details as Record<string, unknown>[]).push(...data.choices[0].delta.reasoning_details);
+                //   console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning_details:', data.choices[0].delta.reasoning_details);
                   
-                  // NEW: Forward reasoning details to frontend ONLY if array has content
-                  // if (data.choices[0].delta.reasoning_details.length > 0) {
-                  //   const reasoningDetailsChunk = `__REASONING_DETAILS_CHUNK__${JSON.stringify({
-                  //     type: 'reasoning_details',
-                  //     data: data.choices[0].delta.reasoning_details
-                  //   })}\n`;
-                  //   controller.enqueue(new TextEncoder().encode(reasoningDetailsChunk));
-                  //   console.log('🟢 [OpenRouter Stream] Forwarded reasoning_details chunk to frontend:', data.choices[0].delta.reasoning_details.length, 'items');
-                  // } else {
-                  //   console.log('🟡 [OpenRouter Stream] Skipped empty reasoning_details chunk');
-                  // }
-                }
+                //   // NEW: Forward reasoning details to frontend ONLY if array has content
+                //   if (data.choices[0].delta.reasoning_details.length > 0) {
+                //     const reasoningDetailsChunk = `__REASONING_DETAILS_CHUNK__${JSON.stringify({
+                //       type: 'reasoning_details',
+                //       data: data.choices[0].delta.reasoning_details
+                //     })}\n`;
+                //     controller.enqueue(new TextEncoder().encode(reasoningDetailsChunk));
+                //     console.log('🟢 [OpenRouter Stream] Forwarded reasoning_details chunk to frontend:', data.choices[0].delta.reasoning_details.length, 'items');
+                //   } else {
+                //     console.log('🟡 [OpenRouter Stream] Skipped empty reasoning_details chunk');
+                //   }
+                // }
                 
                 // Fallback for final message reasoning (less common)
                 if (data.choices?.[0]?.message?.reasoning) {

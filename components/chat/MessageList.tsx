@@ -70,6 +70,7 @@ export default function MessageList({
 }: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const streamingReasoningRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
   const [lightbox, setLightbox] = useState<{ open: boolean; url?: string; alt?: string }>(() => ({ open: false }));
@@ -128,6 +129,13 @@ export default function MessageList({
 
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
+
+  // Auto-scroll streaming reasoning to bottom
+  useEffect(() => {
+    if (isStreaming && streamingReasoning && streamingReasoningRef.current) {
+      streamingReasoningRef.current.scrollTop = streamingReasoningRef.current.scrollHeight;
+    }
+  }, [isStreaming, streamingReasoning]);
 
   const handleOpenImage = async (attachmentId: string, alt?: string) => {
     try {
@@ -265,7 +273,7 @@ export default function MessageList({
                     {expandedReasoning.has(message.id) && (
                       <div className="px-2 pb-2 pt-1 border-t border-yellow-300/60 dark:border-yellow-800/60 text-yellow-950 dark:text-yellow-50">
                         {typeof message.reasoning === 'string' && message.reasoning.trim().length > 0 && (
-                          <div className="prose prose-sm max-w-none dark:prose-invert">
+                          <div className="prose prose-sm max-w-none dark:prose-invert max-h-32 overflow-y-auto scroll-smooth">
                             <MemoizedMarkdown>
                               {message.reasoning}
                             </MemoizedMarkdown>
@@ -479,7 +487,7 @@ export default function MessageList({
                     {/* ENHANCED: Always show reasoning content area, even if empty initially */}
                     <div className="px-2 pb-2 pt-1 border-t border-yellow-300/60 dark:border-yellow-800/60 text-yellow-950 dark:text-yellow-50">
                       {streamingReasoning ? (
-                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                        <div ref={streamingReasoningRef} className="prose prose-sm max-w-none dark:prose-invert max-h-32 overflow-y-auto scroll-smooth">
                           <MemoizedMarkdown>
                             {streamingReasoning}
                           </MemoizedMarkdown>

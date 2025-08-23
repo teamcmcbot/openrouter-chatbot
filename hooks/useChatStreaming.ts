@@ -254,26 +254,43 @@ export function useChatStreaming(): UseChatStreamingReturn {
               }
               
               // Check for reasoning details chunk markers
-              if (line.startsWith('__REASONING_DETAILS_CHUNK__')) {
+              // if (line.startsWith('__REASONING_DETAILS_CHUNK__')) {
+              //   try {
+              //     const reasoningDetailsData = JSON.parse(line.replace('__REASONING_DETAILS_CHUNK__', ''));
+              //     if (reasoningDetailsData.type === 'reasoning_details') {
+              //       // ENHANCED: Only process reasoning details with actual content
+              //       if (reasoningDetailsData.data && Array.isArray(reasoningDetailsData.data) && reasoningDetailsData.data.length > 0) {
+              //         setStreamingReasoningDetails(prev => [...prev, ...reasoningDetailsData.data]);
+              //         logger.debug(`🧠 Streaming reasoning details chunk received: ${reasoningDetailsData.data.length} items`);
+              //       } else {
+              //         logger.debug('🧠 Skipping empty reasoning details chunk');
+              //       }
+              //       continue; // Always continue - don't let empty chunks leak to content
+              //     }
+              //   } catch (error) {
+              //     logger.warn('Failed to parse reasoning details chunk:', error);
+              //     continue; // ENHANCED: Skip malformed chunks instead of processing as content
+              //   }
+              // }
+
+              // Check for metadata chunks with __METADATA__...__END__ format
+              if (line.includes('__METADATA__') && line.includes('__END__')) {
                 try {
-                  const reasoningDetailsData = JSON.parse(line.replace('__REASONING_DETAILS_CHUNK__', ''));
-                  if (reasoningDetailsData.type === 'reasoning_details') {
-                    // ENHANCED: Only process reasoning details with actual content
-                    if (reasoningDetailsData.data && Array.isArray(reasoningDetailsData.data) && reasoningDetailsData.data.length > 0) {
-                      setStreamingReasoningDetails(prev => [...prev, ...reasoningDetailsData.data]);
-                      logger.debug(`🧠 Streaming reasoning details chunk received: ${reasoningDetailsData.data.length} items`);
-                    } else {
-                      logger.debug('🧠 Skipping empty reasoning details chunk');
+                  const metadataMatch = line.match(/__METADATA__(.+?)__END__/);
+                  if (metadataMatch) {
+                    const metadataJson = JSON.parse(metadataMatch[1]);
+                    if (metadataJson.type === 'metadata') {
+                      finalMetadata = metadataJson.data;
+                      logger.debug('Received final metadata:', finalMetadata);
+                      continue; // Skip adding to content
                     }
-                    continue; // Always continue - don't let empty chunks leak to content
                   }
                 } catch (error) {
-                  logger.warn('Failed to parse reasoning details chunk:', error);
-                  continue; // ENHANCED: Skip malformed chunks instead of processing as content
+                  logger.warn('Failed to parse metadata chunk:', error);
                 }
               }
               
-              // Check if this line contains final metadata
+              // Check if this line contains final metadata (legacy format)
               try {
                 const potentialJson = JSON.parse(line.trim());
                 if (potentialJson.__FINAL_METADATA__) {
@@ -293,21 +310,37 @@ export function useChatStreaming(): UseChatStreamingReturn {
             
             // Handle any remaining content in buffer (without newline)
             if (buffer && !finalMetadata) {
-              // Only add to content if it's not metadata JSON
-              try {
-                const potentialJson = JSON.parse(buffer.trim());
-                if (potentialJson.__FINAL_METADATA__) {
-                  finalMetadata = potentialJson.__FINAL_METADATA__;
-                  logger.debug('Received final metadata from buffer:', finalMetadata);
-                } else {
-                  // Not metadata JSON, add as content
+              // Check for metadata in buffer
+              if (buffer.includes('__METADATA__') && buffer.includes('__END__')) {
+                try {
+                  const metadataMatch = buffer.match(/__METADATA__(.+?)__END__/);
+                  if (metadataMatch) {
+                    const metadataJson = JSON.parse(metadataMatch[1]);
+                    if (metadataJson.type === 'metadata') {
+                      finalMetadata = metadataJson.data;
+                      logger.debug('Received final metadata from buffer:', finalMetadata);
+                    }
+                  }
+                } catch (error) {
+                  logger.warn('Failed to parse metadata from buffer:', error);
+                }
+              } else {
+                // Only add to content if it's not metadata JSON
+                try {
+                  const potentialJson = JSON.parse(buffer.trim());
+                  if (potentialJson.__FINAL_METADATA__) {
+                    finalMetadata = potentialJson.__FINAL_METADATA__;
+                    logger.debug('Received final metadata from buffer:', finalMetadata);
+                  } else {
+                    // Not metadata JSON, add as content
+                    fullContent += buffer;
+                    setStreamingContent(fullContent);
+                  }
+                } catch {
+                  // Not JSON, add as regular content
                   fullContent += buffer;
                   setStreamingContent(fullContent);
                 }
-              } catch {
-                // Not JSON, add as regular content
-                fullContent += buffer;
-                setStreamingContent(fullContent);
               }
               buffer = '';
             }
@@ -333,8 +366,11 @@ export function useChatStreaming(): UseChatStreamingReturn {
           output_tokens: finalMetadata?.usage?.completion_tokens || 0,
           elapsed_ms: finalMetadata?.elapsed_ms || 0,
           completion_id: finalMetadata?.id,
-          ...(finalMetadata?.reasoning && { reasoning: finalMetadata.reasoning }),
-          ...(finalMetadata?.reasoning_details && { reasoning_details: finalMetadata.reasoning_details }),
+          // ENHANCED: Use streaming reasoning if available, fallback to metadata reasoning
+          ...(streamingReasoning && { reasoning: streamingReasoning }),
+          ...(finalMetadata?.reasoning && !streamingReasoning && { reasoning: finalMetadata.reasoning }),
+          ...(streamingReasoningDetails.length > 0 && { reasoning_details: streamingReasoningDetails }),
+          ...(finalMetadata?.reasoning_details && streamingReasoningDetails.length === 0 && { reasoning_details: finalMetadata.reasoning_details }),
           ...(finalMetadata?.annotations && Array.isArray(finalMetadata.annotations) && { annotations: finalMetadata.annotations }),
           ...(finalMetadata?.has_websearch !== undefined && { has_websearch: finalMetadata.has_websearch }),
           ...(finalMetadata?.websearch_result_count !== undefined && { websearch_result_count: finalMetadata.websearch_result_count }),
@@ -487,6 +523,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
     currentConversationId,
     createConversation,
     getContextMessages,
+    streamingReasoning,
+    streamingReasoningDetails,
   ]);
 
   const clearMessages = useCallback(() => {
