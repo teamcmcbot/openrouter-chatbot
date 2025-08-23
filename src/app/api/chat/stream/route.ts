@@ -271,9 +271,30 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           return;
         }
         
-        // Forward content to the client and accumulate
-        fullCompletion += text;
+        // CRITICAL FIX: Filter out reasoning chunks from content accumulation
+        let cleanedText = text;
+        
+        // Remove reasoning chunk lines from content accumulation (but still forward to client for real-time display)
+        const reasoningChunkRegex = /__REASONING_CHUNK__\{[^}]*\}/g;
+        const reasoningDetailsRegex = /__REASONING_DETAILS_CHUNK__\{[^}]*\}/g;
+        
+        // Check if this chunk contains reasoning markers
+        if (reasoningChunkRegex.test(text) || reasoningDetailsRegex.test(text)) {
+          // Split by lines and filter out reasoning chunks for content accumulation
+          const lines = text.split('\n');
+          const contentLines = lines.filter(line => 
+            !line.trim().startsWith('__REASONING_CHUNK__') && 
+            !line.trim().startsWith('__REASONING_DETAILS_CHUNK__')
+          );
+          cleanedText = contentLines.join('\n');
+          console.log('🟢 [STREAM DEBUG] Filtered reasoning markers from content accumulation');
+        }
+        
+        // Forward full content to the client (including reasoning for real-time display)
         controller.enqueue(text);
+        
+        // Accumulate only cleaned content (without reasoning markers) for final response
+        fullCompletion += cleanedText;
       },
       async flush(controller) {
         console.log('🟡 [STREAM DEBUG] Stream flush called');

@@ -891,13 +891,18 @@ export async function getOpenRouterCompletionStream(
                   streamMetadata.reasoning += data.choices[0].delta.reasoning;
                   console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning chunk:', data.choices[0].delta.reasoning.substring(0, 100) + '...');
                   
-                  // NEW: Forward reasoning chunk to frontend with special marker
-                  const reasoningChunk = `__REASONING_CHUNK__${JSON.stringify({
-                    type: 'reasoning',
-                    data: data.choices[0].delta.reasoning
-                  })}\n`;
-                  controller.enqueue(new TextEncoder().encode(reasoningChunk));
-                  console.log('🟢 [OpenRouter Stream] Forwarded reasoning chunk to frontend:', data.choices[0].delta.reasoning.substring(0, 50) + '...');
+                  // NEW: Forward reasoning chunk to frontend with special marker ONLY if it has content
+                  const reasoningText = data.choices[0].delta.reasoning.trim();
+                  if (reasoningText) {
+                    const reasoningChunk = `__REASONING_CHUNK__${JSON.stringify({
+                      type: 'reasoning',
+                      data: data.choices[0].delta.reasoning
+                    })}\n`;
+                    controller.enqueue(new TextEncoder().encode(reasoningChunk));
+                    console.log('🟢 [OpenRouter Stream] Forwarded reasoning chunk to frontend:', data.choices[0].delta.reasoning.substring(0, 50) + '...');
+                  } else {
+                    console.log('🟡 [OpenRouter Stream] Skipped empty reasoning chunk');
+                  }
                 }
                 
                 if (data.choices?.[0]?.delta?.reasoning_details && Array.isArray(data.choices[0].delta.reasoning_details)) {
@@ -906,13 +911,17 @@ export async function getOpenRouterCompletionStream(
                   (streamMetadata.reasoning_details as Record<string, unknown>[]).push(...data.choices[0].delta.reasoning_details);
                   console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning_details:', data.choices[0].delta.reasoning_details);
                   
-                  // NEW: Forward reasoning details to frontend
-                  const reasoningDetailsChunk = `__REASONING_DETAILS_CHUNK__${JSON.stringify({
-                    type: 'reasoning_details',
-                    data: data.choices[0].delta.reasoning_details
-                  })}\n`;
-                  controller.enqueue(new TextEncoder().encode(reasoningDetailsChunk));
-                  console.log('🟢 [OpenRouter Stream] Forwarded reasoning_details chunk to frontend:', data.choices[0].delta.reasoning_details.length, 'items');
+                  // NEW: Forward reasoning details to frontend ONLY if array has content
+                  // if (data.choices[0].delta.reasoning_details.length > 0) {
+                  //   const reasoningDetailsChunk = `__REASONING_DETAILS_CHUNK__${JSON.stringify({
+                  //     type: 'reasoning_details',
+                  //     data: data.choices[0].delta.reasoning_details
+                  //   })}\n`;
+                  //   controller.enqueue(new TextEncoder().encode(reasoningDetailsChunk));
+                  //   console.log('🟢 [OpenRouter Stream] Forwarded reasoning_details chunk to frontend:', data.choices[0].delta.reasoning_details.length, 'items');
+                  // } else {
+                  //   console.log('🟡 [OpenRouter Stream] Skipped empty reasoning_details chunk');
+                  // }
                 }
                 
                 // Fallback for final message reasoning (less common)
@@ -960,9 +969,56 @@ export async function getOpenRouterCompletionStream(
                   }
                 }
                 
-                // Forward content chunks to the stream
+                // ENHANCED: Forward content chunks with embedded reasoning marker filtering
                 if (data.choices?.[0]?.delta?.content) {
-                  controller.enqueue(new TextEncoder().encode(data.choices[0].delta.content));
+                  let contentChunk = data.choices[0].delta.content;
+                  
+                  // BACKEND FILTERING: Extract and remove embedded reasoning markers
+                  const reasoningDetailsRegex = /__REASONING_DETAILS_CHUNK__\{[^}]*\}/g;
+                  const reasoningChunkRegex = /__REASONING_CHUNK__\{[^}]*\}/g;
+                  
+                  // Extract embedded reasoning details before removing them
+                  let match;
+                  while ((match = reasoningDetailsRegex.exec(contentChunk)) !== null) {
+                    try {
+                      const embeddedData = JSON.parse(match[0].replace('__REASONING_DETAILS_CHUNK__', ''));
+                      // Only forward if it has actual content
+                      if (embeddedData.type === 'reasoning_details' && embeddedData.data && Array.isArray(embeddedData.data) && embeddedData.data.length > 0) {
+                        const reasoningDetailsChunk = `__REASONING_DETAILS_CHUNK__${JSON.stringify(embeddedData)}\n`;
+                        controller.enqueue(new TextEncoder().encode(reasoningDetailsChunk));
+                        console.log('🟢 [OpenRouter Stream] Extracted and forwarded embedded reasoning details:', embeddedData.data.length, 'items');
+                      }
+                    } catch (error) {
+                      console.warn('🟡 [OpenRouter Stream] Failed to parse embedded reasoning details:', error);
+                    }
+                  }
+                  
+                  // Extract embedded reasoning chunks before removing them
+                  reasoningChunkRegex.lastIndex = 0; // Reset regex
+                  while ((match = reasoningChunkRegex.exec(contentChunk)) !== null) {
+                    try {
+                      const embeddedData = JSON.parse(match[0].replace('__REASONING_CHUNK__', ''));
+                      // Only forward if it has actual content
+                      if (embeddedData.type === 'reasoning' && embeddedData.data && typeof embeddedData.data === 'string' && embeddedData.data.trim()) {
+                        const reasoningChunk = `__REASONING_CHUNK__${JSON.stringify(embeddedData)}\n`;
+                        controller.enqueue(new TextEncoder().encode(reasoningChunk));
+                        console.log('🟢 [OpenRouter Stream] Extracted and forwarded embedded reasoning chunk:', embeddedData.data.substring(0, 50) + '...');
+                      }
+                    } catch (error) {
+                      console.warn('🟡 [OpenRouter Stream] Failed to parse embedded reasoning chunk:', error);
+                    }
+                  }
+                  
+                  // CLEAN CONTENT: Remove all reasoning markers from content before forwarding
+                  contentChunk = contentChunk
+                    .replace(reasoningDetailsRegex, '')
+                    .replace(reasoningChunkRegex, '');
+                  
+                  // Only forward content if there's actual content left after cleaning
+                  if (contentChunk) {
+                    controller.enqueue(new TextEncoder().encode(contentChunk));
+                    console.log('🟢 [OpenRouter Stream] Forwarded cleaned content chunk:', contentChunk.length, 'chars');
+                  }
                 }
               } catch {
                 // Ignore JSON parsing errors for non-JSON chunks
