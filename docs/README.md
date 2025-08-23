@@ -7,7 +7,7 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 ### Architecture Documentation (`/architecture/`)
 
 - **[streaming-chat-architecture.md](./architecture/streaming-chat-architecture.md)** - Comprehensive streaming chat implementation architecture
-- **[redis-rate-limiting.md](./architecture/redis-rate-limiting.md)** - Redis-based rate limiting system architecture  
+- **[redis-rate-limiting.md](./architecture/redis-rate-limiting.md)** - Redis-based rate limiting system architecture
 - Technical design documents and system architecture guides
 
 ### API Documentation (`/api/`)

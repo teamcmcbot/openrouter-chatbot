@@ -5,6 +5,7 @@
 **Purpose**: Provides real-time streaming chat responses with identical functionality to the standard chat endpoint.
 
 ### Authentication
+
 - **Required**: User must be authenticated
 - **Method**: Supabase session cookies or Bearer token
 - **Rate Limiting**: Tier A (10/20/200/500 requests/hour based on subscription)
@@ -13,18 +14,19 @@
 
 ```typescript
 interface StreamChatRequest {
-  message: string;                    // User message content
-  conversationId?: string;           // Session ID for message grouping
-  model: string;                     // OpenRouter model ID
-  temperature?: number;              // Response randomness (0-1)
-  systemPrompt?: string;            // Custom system prompt
-  webSearch?: boolean;              // Enable web search
-  reasoning?: { effort: 'low' | 'medium' | 'high' }; // Enable reasoning
-  attachmentIds?: string[];         // Image attachment IDs
+  message: string; // User message content
+  conversationId?: string; // Session ID for message grouping
+  model: string; // OpenRouter model ID
+  temperature?: number; // Response randomness (0-1)
+  systemPrompt?: string; // Custom system prompt
+  webSearch?: boolean; // Enable web search
+  reasoning?: { effort: "low" | "medium" | "high" }; // Enable reasoning
+  attachmentIds?: string[]; // Image attachment IDs
 }
 ```
 
 **Example Request**:
+
 ```bash
 curl -X POST /api/chat/stream \
   -H "Content-Type: application/json" \
@@ -43,6 +45,7 @@ curl -X POST /api/chat/stream \
 The endpoint returns a streaming response with two phases:
 
 #### Phase 1: Content Streaming
+
 Progressive text chunks as they're generated:
 
 ```
@@ -52,6 +55,7 @@ Quantum computing is a revolutionary...
 ```
 
 #### Phase 2: Final Metadata
+
 Complete metadata delivered at the end with special marker:
 
 ```
@@ -104,11 +108,12 @@ Transfer-Encoding: chunked
 #### Using Custom Hook
 
 ```typescript
-import { useChatStreaming } from '../hooks/useChatStreaming';
+import { useChatStreaming } from "../hooks/useChatStreaming";
 
 const ChatComponent = () => {
-  const { sendMessage, streamingContent, isStreaming, error } = useChatStreaming();
-  
+  const { sendMessage, streamingContent, isStreaming, error } =
+    useChatStreaming();
+
   const handleSubmit = async () => {
     await sendMessage({
       message: "Hello, world!",
@@ -116,7 +121,7 @@ const ChatComponent = () => {
       conversationId: currentSessionId,
     });
   };
-  
+
   return (
     <div>
       <div className="streaming-content">
@@ -133,45 +138,45 @@ const ChatComponent = () => {
 
 ```typescript
 const streamResponse = async (requestBody: StreamChatRequest) => {
-  const response = await fetch('/api/chat/stream', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const response = await fetch("/api/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(requestBody),
   });
-  
+
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let content = '';
+  let content = "";
   let finalMetadata = null;
-  
+
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      
+
       const chunk = decoder.decode(value, { stream: true });
       content += chunk;
-      
+
       // Check for metadata marker
-      if (content.includes('__FINAL_METADATA__')) {
-        const [textContent, metadataJson] = content.split('__FINAL_METADATA__');
-        
+      if (content.includes("__FINAL_METADATA__")) {
+        const [textContent, metadataJson] = content.split("__FINAL_METADATA__");
+
         try {
           finalMetadata = JSON.parse(metadataJson)?.__FINAL_METADATA__;
           content = textContent; // Clean content without metadata
           break;
         } catch (e) {
-          console.error('Metadata parsing error:', e);
+          console.error("Metadata parsing error:", e);
         }
       }
-      
+
       // Update UI with progressive content
       updateStreamingContent(content);
     }
   } finally {
     reader.releaseLock();
   }
-  
+
   return { content, metadata: finalMetadata };
 };
 ```
@@ -188,7 +193,7 @@ const streamResponse = async (requestBody: StreamChatRequest) => {
   "retryAfter": 3600
 }
 
-// Authentication required  
+// Authentication required
 {
   "error": "Authentication required",
   "code": "AUTH_REQUIRED"
@@ -204,7 +209,7 @@ const streamResponse = async (requestBody: StreamChatRequest) => {
 // OpenRouter API error
 {
   "error": "Upstream service error",
-  "code": "UPSTREAM_ERROR", 
+  "code": "UPSTREAM_ERROR",
   "details": "OpenRouter API unavailable"
 }
 ```
@@ -213,31 +218,31 @@ const streamResponse = async (requestBody: StreamChatRequest) => {
 
 ```typescript
 const handleStreamError = (error: Error) => {
-  console.error('Stream error:', error);
-  
+  console.error("Stream error:", error);
+
   // Fallback to non-streaming
-  const fallbackResponse = await fetch('/api/chat', {
-    method: 'POST',
+  const fallbackResponse = await fetch("/api/chat", {
+    method: "POST",
     body: JSON.stringify(requestBody),
   });
-  
+
   return fallbackResponse.json();
 };
 ```
 
 ### Feature Compatibility
 
-| Feature | Supported | Notes |
-|---------|-----------|-------|
-| **Text Chat** | ✅ | Full streaming support |
-| **Image Attachments** | ✅ | Multimodal streaming |
-| **Web Search** | ✅ | Annotations in metadata |
-| **Reasoning** | ✅ | Progressive reasoning display |
-| **System Prompts** | ✅ | Custom instructions |
-| **Temperature Control** | ✅ | Response randomness |
-| **Model Selection** | ✅ | All supported models |
-| **Token Counting** | ✅ | Accurate usage tracking |
-| **Rate Limiting** | ✅ | Same limits as non-streaming |
+| Feature                 | Supported | Notes                         |
+| ----------------------- | --------- | ----------------------------- |
+| **Text Chat**           | ✅        | Full streaming support        |
+| **Image Attachments**   | ✅        | Multimodal streaming          |
+| **Web Search**          | ✅        | Annotations in metadata       |
+| **Reasoning**           | ✅        | Progressive reasoning display |
+| **System Prompts**      | ✅        | Custom instructions           |
+| **Temperature Control** | ✅        | Response randomness           |
+| **Model Selection**     | ✅        | All supported models          |
+| **Token Counting**      | ✅        | Accurate usage tracking       |
+| **Rate Limiting**       | ✅        | Same limits as non-streaming  |
 
 ### Performance Characteristics
 
@@ -254,7 +259,7 @@ Streaming responses are automatically persisted to the database after completion
 ```sql
 -- Messages table populated identically to non-streaming
 INSERT INTO chat_messages (
-  id, session_id, role, content, model, 
+  id, session_id, role, content, model,
   reasoning, reasoning_details, total_tokens,
   input_tokens, output_tokens, completion_id,
   has_websearch, websearch_result_count,
@@ -262,8 +267,8 @@ INSERT INTO chat_messages (
 ) VALUES (...);
 
 -- Attachments linked if present
-UPDATE chat_attachments 
-SET message_id = $1, session_id = $2 
+UPDATE chat_attachments
+SET message_id = $1, session_id = $2
 WHERE id = ANY($3);
 ```
 
@@ -272,7 +277,7 @@ WHERE id = ANY($3);
 #### Request Logging
 
 ```typescript
-logger.info('Chat stream request received', {
+logger.info("Chat stream request received", {
   userId: user.id,
   model,
   messageLength: message.length,
@@ -285,7 +290,7 @@ logger.info('Chat stream request received', {
 #### Completion Logging
 
 ```typescript
-logger.info('Chat stream completed', {
+logger.info("Chat stream completed", {
   userId: user.id,
   model,
   elapsedMs,
@@ -298,19 +303,19 @@ logger.info('Chat stream completed', {
 #### Error Logging
 
 ```typescript
-logger.error('Chat stream error', {
+logger.error("Chat stream error", {
   userId: user.id,
   model,
   error: error.message,
   elapsedMs,
-  stage: 'streaming|metadata|database',
+  stage: "streaming|metadata|database",
 });
 ```
 
 ### Security Considerations
 
 - **Input Validation**: All inputs sanitized and validated
-- **Rate Limiting**: Tier-based limits prevent abuse  
+- **Rate Limiting**: Tier-based limits prevent abuse
 - **Authentication**: Required for all requests
 - **Content Filtering**: Same safety measures as non-streaming
 - **Error Handling**: No sensitive information in error responses

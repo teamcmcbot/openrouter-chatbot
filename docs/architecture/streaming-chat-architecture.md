@@ -2,7 +2,7 @@
 
 **Date**: August 23, 2025  
 **Version**: 1.0  
-**Status**: Production Ready  
+**Status**: Production Ready
 
 ## Overview
 
@@ -16,21 +16,21 @@ graph TB
     B --> C{Streaming Enabled?}
     C -->|Yes| D[useChatStreaming Hook]
     C -->|No| E[useChat Hook]
-    
+
     D --> F[POST /api/chat/stream]
     E --> G[POST /api/chat]
-    
+
     F --> H[OpenRouter Streaming API]
     G --> I[OpenRouter Standard API]
-    
+
     H --> J[Stream Processing Pipeline]
     J --> K[ReadableStream Chunks]
     K --> L[Frontend Stream Reader]
     L --> M[Progressive UI Updates]
-    
+
     I --> N[Complete Response]
     N --> O[Single UI Update]
-    
+
     M --> P[Database Sync]
     O --> P
     P --> Q[Message Persistence]
@@ -94,24 +94,27 @@ The Vercel AI SDK provides critical infrastructure for handling streaming respon
 
 ```typescript
 // Backend: src/app/api/chat/stream/route.ts
-import { createTextStreamResponse } from 'ai';
+import { createTextStreamResponse } from "ai";
 
 export async function POST(request: NextRequest): Promise<Response> {
   // Authentication, rate limiting, etc.
-  
-  const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true,
-      // ... other parameters
-    }),
-  });
+
+  const openrouterResponse = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: true,
+        // ... other parameters
+      }),
+    }
+  );
 
   // Transform OpenRouter stream to our format
   return createTextStreamResponse({
@@ -136,7 +139,7 @@ The current AI SDK v5 React hooks have limitations for our use case:
 ```typescript
 // Stream processing pipeline
 const streamMetadata = {
-  reasoning: '',
+  reasoning: "",
   reasoning_details: [] as Record<string, unknown>[],
   usage: null,
   id: null,
@@ -146,24 +149,26 @@ const streamMetadata = {
 // Process each chunk
 for await (const chunk of stream) {
   try {
-    const data = JSON.parse(chunk.replace('data: ', ''));
-    
+    const data = JSON.parse(chunk.replace("data: ", ""));
+
     // Extract incremental content
     if (data.choices?.[0]?.delta?.content) {
       fullContent += data.choices[0].delta.content;
       // Send content chunk to frontend
       yield data.choices[0].delta.content;
     }
-    
+
     // Accumulate reasoning data (comes first)
     if (data.choices?.[0]?.delta?.reasoning) {
       streamMetadata.reasoning += data.choices[0].delta.reasoning;
     }
-    
+
     if (data.choices?.[0]?.delta?.reasoning_details) {
-      streamMetadata.reasoning_details.push(...data.choices[0].delta.reasoning_details);
+      streamMetadata.reasoning_details.push(
+        ...data.choices[0].delta.reasoning_details
+      );
     }
-    
+
     // Capture final metadata
     if (data.usage) {
       streamMetadata.usage = data.usage;
@@ -175,7 +180,7 @@ for await (const chunk of stream) {
 }
 
 // Send final metadata
-yield `\n\n__FINAL_METADATA__${JSON.stringify({
+yield`\n\n__FINAL_METADATA__${JSON.stringify({
   __FINAL_METADATA__: {
     response: fullContent,
     usage: streamMetadata.usage,
@@ -183,7 +188,7 @@ yield `\n\n__FINAL_METADATA__${JSON.stringify({
     reasoning: streamMetadata.reasoning,
     reasoning_details: streamMetadata.reasoning_details,
     // ... other metadata
-  }
+  },
 })}`;
 ```
 
@@ -193,32 +198,32 @@ yield `\n\n__FINAL_METADATA__${JSON.stringify({
 // Frontend stream consumption
 const reader = response.body.getReader();
 const decoder = new TextDecoder();
-let buffer = '';
+let buffer = "";
 let finalMetadata = null;
 
 try {
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    
+
     const chunk = decoder.decode(value, { stream: true });
     buffer += chunk;
-    
+
     // Check for metadata marker
-    if (buffer.includes('__FINAL_METADATA__')) {
-      const [content, metadataJson] = buffer.split('__FINAL_METADATA__');
-      
+    if (buffer.includes("__FINAL_METADATA__")) {
+      const [content, metadataJson] = buffer.split("__FINAL_METADATA__");
+
       // Update streaming content
       setStreamingContent(content);
-      
+
       // Parse final metadata
       try {
         finalMetadata = JSON.parse(metadataJson)?.__FINAL_METADATA__;
       } catch (error) {
-        console.error('Metadata parsing error:', error);
+        console.error("Metadata parsing error:", error);
       }
-      
-      buffer = '';
+
+      buffer = "";
     } else {
       // Regular content update
       setStreamingContent(buffer);
@@ -237,10 +242,10 @@ try {
 // MessageInput.tsx - Streaming Toggle
 const MessageInput = () => {
   const { streamingEnabled, setStreamingEnabled } = useSettingsStore();
-  
+
   return (
     <div className="flex items-center gap-2">
-      <StreamingToggle 
+      <StreamingToggle
         enabled={streamingEnabled}
         onToggle={setStreamingEnabled}
       />
@@ -251,25 +256,24 @@ const MessageInput = () => {
 
 // useChatStreaming.ts - Streaming Hook
 export const useChatStreaming = () => {
-  const [streamingContent, setStreamingContent] = useState('');
+  const [streamingContent, setStreamingContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  
+
   const sendMessage = async (message: string) => {
     setIsStreaming(true);
-    
+
     try {
-      const response = await fetch('/api/chat/stream', {
-        method: 'POST',
+      const response = await fetch("/api/chat/stream", {
+        method: "POST",
         body: JSON.stringify({ message }),
       });
-      
+
       // Process stream (shown above)
-      
     } finally {
       setIsStreaming(false);
     }
   };
-  
+
   return { sendMessage, streamingContent, isStreaming };
 };
 
@@ -277,7 +281,7 @@ export const useChatStreaming = () => {
 const MessageList = () => {
   return (
     <div>
-      {messages.map(message => (
+      {messages.map((message) => (
         <div key={message.id}>
           {message.isStreaming ? (
             <StreamingMessage content={streamingContent} />
@@ -342,8 +346,8 @@ const assistantMessage: ChatMessage = {
 };
 
 // Sync to database via existing endpoint
-await fetch('/api/chat/messages', {
-  method: 'POST',
+await fetch("/api/chat/messages", {
+  method: "POST",
   body: JSON.stringify({
     sessionId: conversationId,
     messages: [userMessage, assistantMessage],
@@ -372,19 +376,24 @@ if (data.choices?.[0]?.delta?.reasoning) {
 }
 
 if (data.choices?.[0]?.delta?.reasoning_details) {
-  streamMetadata.reasoning_details.push(...data.choices[0].delta.reasoning_details);
+  streamMetadata.reasoning_details.push(
+    ...data.choices[0].delta.reasoning_details
+  );
 }
 
 // UI displays reasoning before content
-{message.role === "assistant" && (
-  (typeof message.reasoning === 'string' && message.reasoning.trim().length > 0) ||
-  (Array.isArray(message.reasoning_details) && message.reasoning_details.length > 0)
-) && (
-  <ReasoningSection 
-    reasoning={message.reasoning}
-    details={message.reasoning_details}
-  />
-)}
+{
+  message.role === "assistant" &&
+    ((typeof message.reasoning === "string" &&
+      message.reasoning.trim().length > 0) ||
+      (Array.isArray(message.reasoning_details) &&
+        message.reasoning_details.length > 0)) && (
+      <ReasoningSection
+        reasoning={message.reasoning}
+        details={message.reasoning_details}
+      />
+    );
+}
 ```
 
 ### Image Attachment Support
@@ -404,9 +413,11 @@ Web search annotations flow through the stream:
 const annotations = extractAnnotations(streamMetadata);
 
 // Frontend displays alongside content
-{message.annotations && (
-  <AnnotationsDisplay annotations={message.annotations} />
-)}
+{
+  message.annotations && (
+    <AnnotationsDisplay annotations={message.annotations} />
+  );
+}
 ```
 
 ## Error Handling & Edge Cases
@@ -418,14 +429,14 @@ const annotations = extractAnnotations(streamMetadata);
 try {
   // Stream processing
 } catch (error) {
-  console.error('Stream error:', error);
-  
+  console.error("Stream error:", error);
+
   // Fallback to non-streaming
-  const fallbackResponse = await fetch('/api/chat', {
-    method: 'POST',
+  const fallbackResponse = await fetch("/api/chat", {
+    method: "POST",
     body: JSON.stringify(requestBody),
   });
-  
+
   // Continue with regular processing
 }
 ```
@@ -473,13 +484,13 @@ export const POST = withProtectedAuth(
 
 ```typescript
 // Test streaming hook
-describe('useChatStreaming', () => {
-  it('processes stream chunks correctly', async () => {
+describe("useChatStreaming", () => {
+  it("processes stream chunks correctly", async () => {
     // Mock streaming response
     // Verify progressive updates
   });
-  
-  it('handles metadata parsing', async () => {
+
+  it("handles metadata parsing", async () => {
     // Test __FINAL_METADATA__ extraction
   });
 });
@@ -489,12 +500,12 @@ describe('useChatStreaming', () => {
 
 ```typescript
 // Test full streaming pipeline
-describe('Streaming Pipeline', () => {
-  it('streams complete conversation', async () => {
+describe("Streaming Pipeline", () => {
+  it("streams complete conversation", async () => {
     // End-to-end streaming test
   });
-  
-  it('syncs to database correctly', async () => {
+
+  it("syncs to database correctly", async () => {
     // Verify message persistence
   });
 });
@@ -503,7 +514,7 @@ describe('Streaming Pipeline', () => {
 ### Performance Tests
 
 - **Load Testing**: Multiple concurrent streams
-- **Stress Testing**: Large responses, network interruptions  
+- **Stress Testing**: Large responses, network interruptions
 - **Latency Testing**: Time to first token measurements
 
 ## Security Considerations
@@ -534,7 +545,7 @@ All inputs validated identically to non-streaming endpoints.
 ### Logging
 
 ```typescript
-logger.info('Chat stream request received', {
+logger.info("Chat stream request received", {
   userId: user.id,
   model,
   streamEnabled: true,
@@ -558,7 +569,7 @@ Show reasoning chunks as they arrive (currently planned):
 ```typescript
 // Progressive reasoning updates
 if (data.choices?.[0]?.delta?.reasoning) {
-  setStreamingReasoning(prev => prev + data.choices[0].delta.reasoning);
+  setStreamingReasoning((prev) => prev + data.choices[0].delta.reasoning);
 }
 ```
 
@@ -588,8 +599,9 @@ const streamState = {
 The streaming implementation provides a robust, scalable solution for real-time chat responses while maintaining full feature parity with non-streaming mode. The architecture leverages proven technologies (Vercel AI SDK, OpenRouter API) with custom enhancements for reasoning data, image attachments, and web search integration.
 
 **Key Benefits:**
+
 - ⚡ **Immediate Feedback**: Users see responses as they're generated
-- 🔄 **Full Feature Parity**: All features work identically in streaming mode  
+- 🔄 **Full Feature Parity**: All features work identically in streaming mode
 - 🛡️ **Production Ready**: Comprehensive error handling and security
 - 📊 **Observable**: Full logging and metrics for monitoring
 - 🧪 **Testable**: Comprehensive test coverage for reliability
