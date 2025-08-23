@@ -16,7 +16,7 @@ import { OpenRouterContentBlock } from '../../../../../lib/types/openrouter';
 export const maxDuration = 300; // 5 minutes for reasoning mode and slow models
 
 async function chatStreamHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
-  console.log('🔴🔴🔴 STREAM API CALLED - This should always show if streaming endpoint is hit');
+  // console.log('🔴🔴🔴 STREAM API CALLED - This should always show if streaming endpoint is hit');
   
   logger.info('Chat stream request received', {
     isAuthenticated: authContext.isAuthenticated,
@@ -175,9 +175,9 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     const tokenStrategy = await getModelTokenLimits(enhancedData.model);
     const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
     
-    console.log(`[Chat Stream API] Model: ${enhancedData.model}`);
-    console.log(`[Chat Stream API] Token strategy - Input: ${tokenStrategy.maxInputTokens}, Output: ${tokenStrategy.maxOutputTokens}`);
-    console.log(`[Chat Stream API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`);
+    // console.log(`[Chat Stream API] Model: ${enhancedData.model}`);
+    // console.log(`[Chat Stream API] Token strategy - Input: ${tokenStrategy.maxInputTokens}, Output: ${tokenStrategy.maxOutputTokens}`);
+    // console.log(`[Chat Stream API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`);
     
     const totalInputTokens = enhancedData.messages.reduce((total, msg) => {
       return total + estimateTokenCount(String(msg.content || ''));
@@ -193,11 +193,11 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     }
 
     // Log streaming request format
-    console.log(`[Chat Stream API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
-    console.log(`[Chat Stream API] Message count: ${enhancedData.messages.length} messages`);
-    console.log(`[Chat Stream API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`);
-    console.log(`[Chat Stream API] Web search enabled: ${!!body.webSearch}`);
-    console.log(`[Chat Stream API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`);
+    // console.log(`[Chat Stream API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
+    // console.log(`[Chat Stream API] Message count: ${enhancedData.messages.length} messages`);
+    // console.log(`[Chat Stream API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`);
+    // console.log(`[Chat Stream API] Web search enabled: ${!!body.webSearch}`);
+    // console.log(`[Chat Stream API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`);
 
     const startTime = Date.now();
 
@@ -250,54 +250,33 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     
     const textStream = new TransformStream<Uint8Array, string>({
       transform(chunk, controller) {
-        console.log('🟡 [STREAM DEBUG] Processing chunk:', chunk.length, 'bytes');
+        // console.log('🟡 [STREAM DEBUG] Processing chunk:', chunk.length, 'bytes');
         const text = new TextDecoder().decode(chunk);
-        console.log('🟡 [STREAM DEBUG] Decoded text:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
+        // console.log('🟡 [STREAM DEBUG] Decoded text:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
         
         // Check for metadata chunks
         const metadataMatch = text.match(/__METADATA__([\s\S]*?)__END__/);
         if (metadataMatch) {
-          console.log('🟡 [STREAM DEBUG] Found metadata chunk:', metadataMatch[1]);
+          // console.log('🟡 [STREAM DEBUG] Found metadata chunk:', metadataMatch[1]);
           try {
             const metadataChunk = JSON.parse(metadataMatch[1]);
             if (metadataChunk.type === 'metadata' && metadataChunk.data) {
               streamMetadata = metadataChunk.data;
-              console.log('🟢 [STREAM DEBUG] Extracted metadata:', streamMetadata);
+              // console.log('🟢 [STREAM DEBUG] Extracted metadata:', streamMetadata);
             }
-          } catch (error) {
-            console.log('🔴 [STREAM DEBUG] Metadata parsing error:', error);
+          } catch {
+            // console.log('🔴 [STREAM DEBUG] Metadata parsing error:', error);
           }
           // Don't forward metadata chunks to the client
           return;
         }
         
-        // CRITICAL FIX: Filter out reasoning chunks from content accumulation
-        let cleanedText = text;
-        
-        // Remove reasoning chunk lines from content accumulation (but still forward to client for real-time display)
-        const reasoningChunkRegex = /__REASONING_CHUNK__\{[^}]*\}/g;
-        const reasoningDetailsRegex = /__REASONING_DETAILS_CHUNK__\{[^}]*\}/g;
-        
-        // Check if this chunk contains reasoning markers
-        if (reasoningChunkRegex.test(text) || reasoningDetailsRegex.test(text)) {
-          // Split by lines and filter out reasoning chunks for content accumulation
-          const lines = text.split('\n');
-          const contentLines = lines.filter(line => 
-            !line.trim().startsWith('__REASONING_CHUNK__') && 
-            !line.trim().startsWith('__REASONING_DETAILS_CHUNK__')
-          );
-          cleanedText = contentLines.join('\n');
-          console.log('🟢 [STREAM DEBUG] Filtered reasoning markers from content accumulation');
-        }
-        
-        // Forward full content to the client (including reasoning for real-time display)
+        // Forward content to the client and accumulate
+        fullCompletion += text;
         controller.enqueue(text);
-        
-        // Accumulate only cleaned content (without reasoning markers) for final response
-        fullCompletion += cleanedText;
       },
       async flush(controller) {
-        console.log('🟡 [STREAM DEBUG] Stream flush called');
+        // console.log('🟡 [STREAM DEBUG] Stream flush called');
         // Calculate elapsed time - always use markdown rendering
         const endTime = Date.now();
         const elapsedMs = endTime - startTime;
@@ -317,7 +296,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
                     const { url, title, content, start_index, end_index } = nested as {
                       url: string; title?: string; content?: string; start_index?: number; end_index?: number;
                     };
-                    console.log('🟢 [STREAM DEBUG] Normalizing OpenRouter citation:', { url, title: title?.substring(0, 50) + '...' });
+                    // console.log('🟢 [STREAM DEBUG] Normalizing OpenRouter citation:', { url, title: title?.substring(0, 50) + '...' });
                     return { type: 'url_citation', url, title, content, start_index, end_index };
                   }
                 }
@@ -357,14 +336,14 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           }
         };
 
-        console.log('🟢 [STREAM DEBUG] Final metadata created:', finalMetadata);
+        // console.log('🟢 [STREAM DEBUG] Final metadata created:', finalMetadata);
 
         // Send final metadata as a stream chunk with clear delimiter
         const metadataDelimiter = '\n\n__STREAM_METADATA_START__\n';
         const finalMetadataJson = JSON.stringify(finalMetadata);
         const metadataEnd = '\n__STREAM_METADATA_END__\n';
         
-        console.log('🟢 [STREAM DEBUG] Sending metadata chunk:', finalMetadataJson.substring(0, 200) + '...');
+        // console.log('🟢 [STREAM DEBUG] Sending metadata chunk:', finalMetadataJson.substring(0, 200) + '...');
         controller.enqueue(metadataDelimiter + finalMetadataJson + metadataEnd);
         
         // Log completion when stream finishes
@@ -387,7 +366,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     // Pipe the OpenRouter stream through the transformer to get a text stream
     const textReadableStream = stream.pipeThrough(textStream);
 
-    console.log('🟡 [STREAM DEBUG] Creating response with streaming headers');
+    // console.log('🟡 [STREAM DEBUG] Creating response with streaming headers');
     
     // Return the streaming text response using AI SDK v5
     const streamResponse = createTextStreamResponse({

@@ -64,13 +64,13 @@ export function useChatStreaming(): UseChatStreamingReturn {
   const settings = useSettingsStore();
   const streamingEnabled = Boolean(settings.getSetting('streamingEnabled', false));
   
-  console.log('🔴 STREAMING HOOK: streamingEnabled =', streamingEnabled);
+  // console.log('🔴 STREAMING HOOK: streamingEnabled =', streamingEnabled);
   
   // Force debug alert to check if streaming is working
   if (streamingEnabled) {
-    console.log('🟢 STREAMING IS ENABLED - checking further');
+    // console.log('🟢 STREAMING IS ENABLED - checking further');
   } else {
-    console.log('🔴 STREAMING IS DISABLED - will use non-streaming path');
+    // console.log('🔴 STREAMING IS DISABLED - will use non-streaming path');
   }
   
   // Get user authentication for request context (used for authenticated features)
@@ -107,12 +107,12 @@ export function useChatStreaming(): UseChatStreamingReturn {
       conversationId = createConversation();
     }
 
-    logger.debug('Sending message with streaming:', {
-      streaming: streamingEnabled,
-      content: content.substring(0, 50) + "...",
-      model,
-      options
-    });
+    // logger.debug('Sending message with streaming:', {
+    //   streaming: streamingEnabled,
+    //   content: content.substring(0, 50) + "...",
+    //   model,
+    //   options
+    // });
 
     // Create user message
     const userMessage: ChatMessage = {
@@ -126,9 +126,9 @@ export function useChatStreaming(): UseChatStreamingReturn {
     };
 
     if (streamingEnabled) {
-      console.log('🟢 STREAMING PATH: Taking streaming path - should see more logs');
+      // console.log('🟢 STREAMING PATH: Taking streaming path - should see more logs');
       // Alert to force visibility
-      console.log('🔴 ALERT: Streaming path activated!');
+      // console.log('🔴 ALERT: Streaming path activated!');
       
       // Streaming path
       setIsStreaming(true);
@@ -241,9 +241,9 @@ export function useChatStreaming(): UseChatStreamingReturn {
                     // ENHANCED: Only process reasoning chunks with actual content
                     if (reasoningData.data && typeof reasoningData.data === 'string' && reasoningData.data.trim()) {
                       setStreamingReasoning(prev => prev + reasoningData.data);
-                      logger.debug('🧠 Streaming reasoning chunk received:', reasoningData.data.substring(0, 100) + '...');
+                      // logger.debug('🧠 Streaming reasoning chunk received:', reasoningData.data.substring(0, 100) + '...');
                     } else {
-                      logger.debug('🧠 Skipping empty reasoning chunk');
+                      // logger.debug('🧠 Skipping empty reasoning chunk');
                     }
                     continue; // Always continue - don't let empty chunks leak to content
                   }
@@ -281,7 +281,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
                     const metadataJson = JSON.parse(metadataMatch[1]);
                     if (metadataJson.type === 'metadata') {
                       finalMetadata = metadataJson.data;
-                      logger.debug('Received final metadata:', finalMetadata);
+                      // logger.debug('Received final metadata:', finalMetadata);
                       continue; // Skip adding to content
                     }
                   }
@@ -295,7 +295,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
                 const potentialJson = JSON.parse(line.trim());
                 if (potentialJson.__FINAL_METADATA__) {
                   finalMetadata = potentialJson.__FINAL_METADATA__;
-                  logger.debug('Received final metadata:', finalMetadata);
+                  // logger.debug('Received final metadata:', finalMetadata);
                   // Don't break here - continue reading to ensure stream is complete
                   continue;
                 }
@@ -318,7 +318,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
                     const metadataJson = JSON.parse(metadataMatch[1]);
                     if (metadataJson.type === 'metadata') {
                       finalMetadata = metadataJson.data;
-                      logger.debug('Received final metadata from buffer:', finalMetadata);
+                      // logger.debug('Received final metadata from buffer:', finalMetadata);
                     }
                   }
                 } catch (error) {
@@ -330,7 +330,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
                   const potentialJson = JSON.parse(buffer.trim());
                   if (potentialJson.__FINAL_METADATA__) {
                     finalMetadata = potentialJson.__FINAL_METADATA__;
-                    logger.debug('Received final metadata from buffer:', finalMetadata);
+                    // logger.debug('Received final metadata from buffer:', finalMetadata);
                   } else {
                     // Not metadata JSON, add as content
                     fullContent += buffer;
@@ -404,7 +404,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
         if (currentConv && currentConv.title === "New Chat" && currentConv.messages.length === 2) {
           const autoTitle = content.length > 50 ? content.substring(0, 50) + "..." : content;
           useChatStore.getState().updateConversationTitle(conversationId, autoTitle, true); // Mark as auto-generated
-          console.log('🟢 STREAMING TITLE: Auto-generated title from user message:', autoTitle);
+          // console.log('🟢 STREAMING TITLE: Auto-generated title from user message:', autoTitle);
         }
 
         // Trigger database sync (same format as non-streaming implementation)
@@ -432,14 +432,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
           // Include title for newly titled conversations
           if (shouldIncludeTitle) {
             syncPayload.sessionTitle = updatedConv?.title;
-            console.log('🟢 STREAMING SYNC: Including session title:', updatedConv?.title);
+            // console.log('🟢 STREAMING SYNC: Including session title:', updatedConv?.title);
           } else {
-            console.log('🟡 STREAMING SYNC: No title needed:', {
-              hasConv: !!updatedConv,
-              title: updatedConv?.title,
-              messageCount: updatedConv?.messages.length,
-              shouldInclude: shouldIncludeTitle
-            });
+            // console.log('🟡 STREAMING SYNC: No title needed:', {
+            //   hasConv: !!updatedConv,
+            //   title: updatedConv?.title,
+            //   messageCount: updatedConv?.messages.length,
+            //   shouldInclude: shouldIncludeTitle
+            // });
           }
 
           const syncResponse = await fetch('/api/chat/messages', {
@@ -453,25 +453,25 @@ export function useChatStreaming(): UseChatStreamingReturn {
           if (!syncResponse.ok) {
             logger.warn('Failed to sync messages to database:', syncResponse.status);
           } else {
-            logger.debug('Messages synced to database successfully');
+            // logger.debug('Messages synced to database successfully');
           }
         } catch (syncError) {
           logger.warn('Database sync failed:', syncError);
           // Don't fail the entire request if database sync fails
         }
 
-        logger.debug('Streaming completed successfully with metadata:', {
-          contentLength: finalContent.length,
-          tokens: finalMetadata?.usage,
-          elapsed: finalMetadata?.elapsed_ms,
-          contentType: finalMetadata?.contentType,
-          hasReasoning: !!finalMetadata?.reasoning,
-          annotationCount: finalMetadata?.annotations?.length || 0
-        });
+        // logger.debug('Streaming completed successfully with metadata:', {
+        //   contentLength: finalContent.length,
+        //   tokens: finalMetadata?.usage,
+        //   elapsed: finalMetadata?.elapsed_ms,
+        //   contentType: finalMetadata?.contentType,
+        //   hasReasoning: !!finalMetadata?.reasoning,
+        //   annotationCount: finalMetadata?.annotations?.length || 0
+        // });
         
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          logger.debug('Streaming request was aborted');
+          // logger.debug('Streaming request was aborted');
           return;
         }
 

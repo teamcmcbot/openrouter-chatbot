@@ -142,9 +142,9 @@ export async function getOpenRouterCompletion(
   const dynamicMaxTokens = maxTokens ?? OPENROUTER_MAX_TOKENS;
 
   // Phase 2: Log request payload details for human verification
-  console.log(`[OpenRouter Request] Model: ${selectedModel}`);
-  console.log(`[OpenRouter Request] Messages: ${messages.length} messages`);
-  console.log(`[OpenRouter Request] Max Tokens: ${dynamicMaxTokens} (${maxTokens ? 'dynamic' : 'legacy default'})`);
+  // console.log(`[OpenRouter Request] Model: ${selectedModel}`);
+  // console.log(`[OpenRouter Request] Messages: ${messages.length} messages`);
+  // console.log(`[OpenRouter Request] Max Tokens: ${dynamicMaxTokens} (${maxTokens ? 'dynamic' : 'legacy default'})`);
 
 
   // Always prefer values from authContext.profile if present, else use provided, else default
@@ -205,13 +205,13 @@ export async function getOpenRouterCompletion(
       ? Math.max(1, Math.min(10, Math.trunc(options.webMaxResults as number)))
       : 3; // default per spec
     requestBody.plugins = [{ id: 'web', max_results: maxResults }];
-    console.log(`[OpenRouter Request] Web search enabled (max_results=${maxResults})`);
+    // console.log(`[OpenRouter Request] Web search enabled (max_results=${maxResults})`);
   }
   // Forward unified reasoning option if provided and user is enterprise (checked upstream)
   if (options?.reasoning) {
     // Attach to request; OpenRouter will normalize per provider
     requestBody.reasoning = options.reasoning;
-    console.log(`[OpenRouter Request] Reasoning enabled (effort=${options.reasoning.effort || 'low'})`);
+    // console.log(`[OpenRouter Request] Reasoning enabled (effort=${options.reasoning.effort || 'low'})`);
   }
   logger.debug('OpenRouter request body:', requestBody);
 
@@ -764,13 +764,13 @@ export async function getOpenRouterCompletionStream(
       ? Math.max(1, Math.min(10, Math.trunc(options.webMaxResults as number)))
       : 3;
     requestBody.plugins = [{ id: 'web', max_results: maxResults }];
-    console.log(`[OpenRouter Stream Request] Web search enabled (max_results=${maxResults})`);
+    // console.log(`[OpenRouter Stream Request] Web search enabled (max_results=${maxResults})`);
   }
   
   // Forward reasoning option if provided
   if (options?.reasoning) {
     requestBody.reasoning = options.reasoning;
-    console.log(`[OpenRouter Stream Request] Reasoning enabled (effort=${options.reasoning.effort || 'low'})`);
+    // console.log(`[OpenRouter Stream Request] Reasoning enabled (effort=${options.reasoning.effort || 'low'})`);
   }
 
   logger.debug('OpenRouter stream request body:', { ...requestBody, stream: true });
@@ -827,14 +827,14 @@ export async function getOpenRouterCompletionStream(
           
           if (done) {
             // Log final captured metadata before sending
-            console.log('🟢 [OpenRouter Stream] Final metadata captured:', {
-              hasUsage: !!streamMetadata.usage,
-              hasId: !!streamMetadata.id,
-              hasReasoning: !!streamMetadata.reasoning,
-              hasAnnotations: !!streamMetadata.annotations,
-              annotationsLength: streamMetadata.annotations?.length || 0,
-              annotations: streamMetadata.annotations
-            });
+            // console.log('🟢 [OpenRouter Stream] Final metadata captured:', {
+            //   hasUsage: !!streamMetadata.usage,
+            //   hasId: !!streamMetadata.id,
+            //   hasReasoning: !!streamMetadata.reasoning,
+            //   hasAnnotations: !!streamMetadata.annotations,
+            //   annotationsLength: streamMetadata.annotations?.length || 0,
+            //   annotations: streamMetadata.annotations
+            // });
             
             // Send a final metadata chunk that the streaming endpoint can capture
             const metadataChunk = JSON.stringify({
@@ -861,27 +861,27 @@ export async function getOpenRouterCompletionStream(
                 const data = JSON.parse(dataStr);
                 
                 // Log the COMPLETE data structure to find hidden web search fields
-                console.log('🟡 [OpenRouter Stream] COMPLETE data chunk:', JSON.stringify(data, null, 2));
+                // console.log('🟡 [OpenRouter Stream] COMPLETE data chunk:', JSON.stringify(data, null, 2));
                 
-                console.log('🟡 [OpenRouter Stream] Processing data chunk:', {
-                  hasUsage: !!data.usage,
-                  hasId: !!data.id,
-                  hasChoices: !!data.choices,
-                  hasAnnotations: !!(data.choices?.[0]?.message?.annotations),
-                  hasContent: !!(data.choices?.[0]?.delta?.content),
-                  choicesLength: data.choices?.length || 0,
-                  annotationsLength: data.choices?.[0]?.message?.annotations?.length || 0
-                });
+                // console.log('🟡 [OpenRouter Stream] Processing data chunk:', {
+                //   hasUsage: !!data.usage,
+                //   hasId: !!data.id,
+                //   hasChoices: !!data.choices,
+                //   hasAnnotations: !!(data.choices?.[0]?.message?.annotations),
+                //   hasContent: !!(data.choices?.[0]?.delta?.content),
+                //   choicesLength: data.choices?.length || 0,
+                //   annotationsLength: data.choices?.[0]?.message?.annotations?.length || 0
+                // });
                 
                 // Extract metadata from stream chunks
                 if (data.usage) {
                   streamMetadata.usage = data.usage;
-                  console.log('🟢 [OpenRouter Stream] Captured usage:', streamMetadata.usage);
+                  // console.log('🟢 [OpenRouter Stream] Captured usage:', streamMetadata.usage);
                 }
                 
                 if (data.id) {
                   streamMetadata.id = data.id;
-                  console.log('🟢 [OpenRouter Stream] Captured ID:', streamMetadata.id);
+                  // console.log('🟢 [OpenRouter Stream] Captured ID:', streamMetadata.id);
                 }
                 
                 // Extract reasoning data - OpenRouter sends this in delta, not message!
@@ -889,7 +889,7 @@ export async function getOpenRouterCompletionStream(
                   // Accumulate reasoning content (streamed incrementally)
                   if (!streamMetadata.reasoning) streamMetadata.reasoning = '';
                   streamMetadata.reasoning += data.choices[0].delta.reasoning;
-                  console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning chunk:', data.choices[0].delta.reasoning.substring(0, 100) + '...');
+                  // console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning chunk:', data.choices[0].delta.reasoning.substring(0, 100) + '...');
                   
                   // NEW: Forward reasoning chunk to frontend with special marker ONLY if it has content
                   const reasoningText = data.choices[0].delta.reasoning.trim();
@@ -899,9 +899,9 @@ export async function getOpenRouterCompletionStream(
                       data: data.choices[0].delta.reasoning
                     })}\n`;
                     controller.enqueue(new TextEncoder().encode(reasoningChunk));
-                    console.log('🟢 [OpenRouter Stream] Forwarded reasoning chunk to frontend:', data.choices[0].delta.reasoning.substring(0, 50) + '...');
+                    // console.log('🟢 [OpenRouter Stream] Forwarded reasoning chunk to frontend:', data.choices[0].delta.reasoning.substring(0, 50) + '...');
                   } else {
-                    console.log('🟡 [OpenRouter Stream] Skipped empty reasoning chunk');
+                    // console.log('🟡 [OpenRouter Stream] Skipped empty reasoning chunk');
                   }
                 }
                 
@@ -927,45 +927,45 @@ export async function getOpenRouterCompletionStream(
                 // Fallback for final message reasoning (less common)
                 if (data.choices?.[0]?.message?.reasoning) {
                   streamMetadata.reasoning = data.choices[0].message.reasoning;
-                  console.log('🟢 [OpenRouter Stream] Captured message reasoning:', streamMetadata.reasoning);
+                  // console.log('🟢 [OpenRouter Stream] Captured message reasoning:', streamMetadata.reasoning);
                 }
                 
                 if (data.reasoning) {
                   streamMetadata.reasoning_details = data.reasoning;
-                  console.log('🟢 [OpenRouter Stream] Captured root reasoning details:', streamMetadata.reasoning_details);
+                  // console.log('🟢 [OpenRouter Stream] Captured root reasoning details:', streamMetadata.reasoning_details);
                 }
                 
                 // Extract annotations/citations - try multiple locations
                 if (data.choices?.[0]?.message?.annotations) {
                   streamMetadata.annotations = data.choices[0].message.annotations;
-                  console.log('🟢 [OpenRouter Stream] Captured message annotations:', streamMetadata.annotations);
+                  // console.log('🟢 [OpenRouter Stream] Captured message annotations:', streamMetadata.annotations);
                 }
                 
                 // CRITICAL FIX: OpenRouter sends annotations in delta, not message!
                 if (data.choices?.[0]?.delta?.annotations) {
                   streamMetadata.annotations = data.choices[0].delta.annotations;
-                  console.log('🟢 [OpenRouter Stream] Captured DELTA annotations:', streamMetadata.annotations);
+                  // console.log('🟢 [OpenRouter Stream] Captured DELTA annotations:', streamMetadata.annotations);
                 }
                 
                 if (data.annotations) {
                   streamMetadata.annotations = data.annotations;
-                  console.log('🟢 [OpenRouter Stream] Captured root annotations:', streamMetadata.annotations);
+                  // console.log('🟢 [OpenRouter Stream] Captured root annotations:', streamMetadata.annotations);
                 }
                 
                 // Check for web search results in other common locations
                 if (data.choices?.[0]?.web_search_results) {
-                  console.log('🟡 [OpenRouter Stream] Found web_search_results:', data.choices[0].web_search_results);
+                  // console.log('🟡 [OpenRouter Stream] Found web_search_results:', data.choices[0].web_search_results);
                 }
                 
                 if (data.web_search_results) {
-                  console.log('🟡 [OpenRouter Stream] Found root web_search_results:', data.web_search_results);
+                  // console.log('🟡 [OpenRouter Stream] Found root web_search_results:', data.web_search_results);
                 }
                 
                 // Log any other interesting fields that might contain web search data
                 if (data.choices?.[0]?.message && Object.keys(data.choices[0].message).length > 0) {
                   const messageKeys = Object.keys(data.choices[0].message);
                   if (messageKeys.some(key => !['content', 'role'].includes(key))) {
-                    console.log('🟡 [OpenRouter Stream] Message contains extra fields:', messageKeys);
+                    // console.log('🟡 [OpenRouter Stream] Message contains extra fields:', messageKeys);
                   }
                 }
                 
@@ -986,7 +986,7 @@ export async function getOpenRouterCompletionStream(
                       if (embeddedData.type === 'reasoning_details' && embeddedData.data && Array.isArray(embeddedData.data) && embeddedData.data.length > 0) {
                         const reasoningDetailsChunk = `__REASONING_DETAILS_CHUNK__${JSON.stringify(embeddedData)}\n`;
                         controller.enqueue(new TextEncoder().encode(reasoningDetailsChunk));
-                        console.log('🟢 [OpenRouter Stream] Extracted and forwarded embedded reasoning details:', embeddedData.data.length, 'items');
+                        // console.log('🟢 [OpenRouter Stream] Extracted and forwarded embedded reasoning details:', embeddedData.data.length, 'items');
                       }
                     } catch (error) {
                       console.warn('🟡 [OpenRouter Stream] Failed to parse embedded reasoning details:', error);
@@ -1002,7 +1002,7 @@ export async function getOpenRouterCompletionStream(
                       if (embeddedData.type === 'reasoning' && embeddedData.data && typeof embeddedData.data === 'string' && embeddedData.data.trim()) {
                         const reasoningChunk = `__REASONING_CHUNK__${JSON.stringify(embeddedData)}\n`;
                         controller.enqueue(new TextEncoder().encode(reasoningChunk));
-                        console.log('🟢 [OpenRouter Stream] Extracted and forwarded embedded reasoning chunk:', embeddedData.data.substring(0, 50) + '...');
+                        // console.log('🟢 [OpenRouter Stream] Extracted and forwarded embedded reasoning chunk:', embeddedData.data.substring(0, 50) + '...');
                       }
                     } catch (error) {
                       console.warn('🟡 [OpenRouter Stream] Failed to parse embedded reasoning chunk:', error);
@@ -1017,7 +1017,7 @@ export async function getOpenRouterCompletionStream(
                   // Only forward content if there's actual content left after cleaning
                   if (contentChunk) {
                     controller.enqueue(new TextEncoder().encode(contentChunk));
-                    console.log('🟢 [OpenRouter Stream] Forwarded cleaned content chunk:', contentChunk.length, 'chars');
+                    // console.log('🟢 [OpenRouter Stream] Forwarded cleaned content chunk:', contentChunk.length, 'chars');
                   }
                 }
               } catch {
