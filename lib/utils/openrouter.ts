@@ -818,6 +818,7 @@ export async function getOpenRouterCompletionStream(
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
+  const encoder = new TextEncoder(); // For encoding annotation chunks
   
   return new ReadableStream({
     async start(controller) {
@@ -935,21 +936,42 @@ export async function getOpenRouterCompletionStream(
                   // console.log('🟢 [OpenRouter Stream] Captured root reasoning details:', streamMetadata.reasoning_details);
                 }
                 
-                // Extract annotations/citations - try multiple locations
+                // Extract annotations/citations - try multiple locations and forward immediately
                 if (data.choices?.[0]?.message?.annotations) {
                   streamMetadata.annotations = data.choices[0].message.annotations;
                   // console.log('🟢 [OpenRouter Stream] Captured message annotations:', streamMetadata.annotations);
+                  
+                  // ENHANCED: Forward annotations as a separate chunk for immediate display
+                  const annotationChunk = `__ANNOTATIONS_CHUNK__${JSON.stringify({
+                    type: 'annotations',
+                    data: streamMetadata.annotations
+                  })}\n`;
+                  controller.enqueue(encoder.encode(annotationChunk));
                 }
                 
                 // CRITICAL FIX: OpenRouter sends annotations in delta, not message!
                 if (data.choices?.[0]?.delta?.annotations) {
                   streamMetadata.annotations = data.choices[0].delta.annotations;
                   // console.log('🟢 [OpenRouter Stream] Captured DELTA annotations:', streamMetadata.annotations);
+                  
+                  // ENHANCED: Forward delta annotations as a separate chunk for immediate display
+                  const annotationChunk = `__ANNOTATIONS_CHUNK__${JSON.stringify({
+                    type: 'annotations',
+                    data: streamMetadata.annotations
+                  })}\n`;
+                  controller.enqueue(encoder.encode(annotationChunk));
                 }
                 
                 if (data.annotations) {
                   streamMetadata.annotations = data.annotations;
                   // console.log('🟢 [OpenRouter Stream] Captured root annotations:', streamMetadata.annotations);
+                  
+                  // ENHANCED: Forward root annotations as a separate chunk for immediate display
+                  const annotationChunk = `__ANNOTATIONS_CHUNK__${JSON.stringify({
+                    type: 'annotations',
+                    data: streamMetadata.annotations
+                  })}\n`;
+                  controller.enqueue(encoder.encode(annotationChunk));
                 }
                 
                 // Check for web search results in other common locations

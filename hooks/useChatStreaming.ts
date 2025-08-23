@@ -39,6 +39,8 @@ interface UseChatStreamingReturn {
   // NEW: Real-time reasoning fields
   streamingReasoning: string;
   streamingReasoningDetails: Record<string, unknown>[];
+  // NEW: Real-time annotations fields
+  streamingAnnotations: Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>;
 }
 
 /**
@@ -83,6 +85,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
   // NEW: Real-time reasoning state
   const [streamingReasoning, setStreamingReasoning] = useState('');
   const [streamingReasoningDetails, setStreamingReasoningDetails] = useState<Record<string, unknown>[]>([]);
+  // NEW: Real-time annotations state
+  const [streamingAnnotations, setStreamingAnnotations] = useState<Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Enhanced sendMessage that uses streaming when enabled
@@ -135,6 +139,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       setStreamingContent('');
       setStreamingReasoning(''); // NEW: Reset reasoning state
       setStreamingReasoningDetails([]); // NEW: Reset reasoning details state
+      setStreamingAnnotations([]); // NEW: Reset annotations state
       setStreamError(null);
       
       // Add user message to store immediately
@@ -233,7 +238,22 @@ export function useChatStreaming(): UseChatStreamingReturn {
             for (const line of lines) {
               if (!line.trim()) continue;
               
-              // Check for reasoning chunk markers FIRST
+              // Check for annotation chunks FIRST
+              if (line.startsWith('__ANNOTATIONS_CHUNK__')) {
+                try {
+                  const annotationData = JSON.parse(line.replace('__ANNOTATIONS_CHUNK__', ''));
+                  if (annotationData.type === 'annotations' && Array.isArray(annotationData.data)) {
+                    setStreamingAnnotations(annotationData.data);
+                    // logger.debug('🌐 Streaming annotation chunk received:', annotationData.data.length, 'annotations');
+                    continue;
+                  }
+                } catch (error) {
+                  logger.warn('Failed to parse annotation chunk:', error);
+                  continue;
+                }
+              }
+              
+              // Check for reasoning chunk markers
               if (line.startsWith('__REASONING_CHUNK__')) {
                 try {
                   const reasoningData = JSON.parse(line.replace('__REASONING_CHUNK__', ''));
@@ -366,12 +386,13 @@ export function useChatStreaming(): UseChatStreamingReturn {
           output_tokens: finalMetadata?.usage?.completion_tokens || 0,
           elapsed_ms: finalMetadata?.elapsed_ms || 0,
           completion_id: finalMetadata?.id,
-          // ENHANCED: Use streaming reasoning if available, fallback to metadata reasoning
+          // ENHANCED: Use streaming reasoning and annotations if available, fallback to metadata
           ...(streamingReasoning && { reasoning: streamingReasoning }),
           ...(finalMetadata?.reasoning && !streamingReasoning && { reasoning: finalMetadata.reasoning }),
           ...(streamingReasoningDetails.length > 0 && { reasoning_details: streamingReasoningDetails }),
           ...(finalMetadata?.reasoning_details && streamingReasoningDetails.length === 0 && { reasoning_details: finalMetadata.reasoning_details }),
-          ...(finalMetadata?.annotations && Array.isArray(finalMetadata.annotations) && { annotations: finalMetadata.annotations }),
+          ...(streamingAnnotations.length > 0 && { annotations: streamingAnnotations }),
+          ...(finalMetadata?.annotations && streamingAnnotations.length === 0 && Array.isArray(finalMetadata.annotations) && { annotations: finalMetadata.annotations }),
           ...(finalMetadata?.has_websearch !== undefined && { has_websearch: finalMetadata.has_websearch }),
           ...(finalMetadata?.websearch_result_count !== undefined && { websearch_result_count: finalMetadata.websearch_result_count }),
         };
@@ -509,6 +530,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
         setStreamingContent('');
         setStreamingReasoning(''); // NEW: Reset reasoning state  
         setStreamingReasoningDetails([]); // NEW: Reset reasoning details state
+        setStreamingAnnotations([]); // NEW: Reset annotations state
         abortControllerRef.current = null;
       }
     } else {
@@ -525,6 +547,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
     getContextMessages,
     streamingReasoning,
     streamingReasoningDetails,
+    streamingAnnotations,
   ]);
 
   const clearMessages = useCallback(() => {
@@ -532,6 +555,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
     setStreamingContent('');
     setStreamingReasoning(''); // NEW: Reset reasoning state
     setStreamingReasoningDetails([]); // NEW: Reset reasoning details state
+    setStreamingAnnotations([]); // NEW: Reset annotations state
     setStreamError(null);
     storeClearError();
   }, [clearCurrentMessages, storeClearError]);
@@ -583,6 +607,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       streamingContent: '',
       streamingReasoning: '', // NEW
       streamingReasoningDetails: [], // NEW
+      streamingAnnotations: [], // NEW
       error: null,
       sendMessage: async () => {},
       clearMessages: () => {},
@@ -603,6 +628,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
     streamingContent,
     streamingReasoning, // NEW
     streamingReasoningDetails, // NEW
+    streamingAnnotations, // NEW
     error,
     sendMessage,
     clearMessages,

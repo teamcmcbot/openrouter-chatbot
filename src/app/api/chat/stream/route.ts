@@ -271,11 +271,52 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           return;
         }
         
-        // Check for reasoning chunks - forward to client but DON'T add to fullCompletion
-        if (text.includes('__REASONING_CHUNK__')) {
-          // Forward reasoning chunks to the client for real-time display
+        // Check for annotation chunks - forward to client but DON'T add to fullCompletion
+        // ENHANCED: Filter pure annotation chunk lines to prevent them from appearing as content
+        if (text.trim().startsWith('__ANNOTATIONS_CHUNK__') && text.trim().endsWith('}')) {
+          // Forward pure annotation chunks to the client for real-time display
           controller.enqueue(text);
-          return; // Don't add reasoning chunks to fullCompletion
+          return; // Don't add pure annotation chunks to fullCompletion
+        }
+        
+        // Check for reasoning chunks - forward to client but DON'T add to fullCompletion
+        // ENHANCED: Only filter pure reasoning chunk lines, not mixed content
+        if (text.trim().startsWith('__REASONING_CHUNK__') && text.trim().endsWith('}')) {
+          // Forward pure reasoning chunks to the client for real-time display
+          controller.enqueue(text);
+          return; // Don't add pure reasoning chunks to fullCompletion
+        }
+        
+        // For mixed content, we need to filter reasoning chunks but keep other content
+        if (text.includes('__REASONING_CHUNK__')) {
+          // Extract reasoning chunks and remove them from content before adding to fullCompletion
+          const reasoningChunkRegex = /__REASONING_CHUNK__\{[^}]*"data":"[^"]*"\}/g;
+          const cleanedText = text.replace(reasoningChunkRegex, '');
+          
+          // Forward original text (with reasoning) to client for real-time display
+          controller.enqueue(text);
+          
+          // Add only cleaned content (without reasoning) to fullCompletion
+          if (cleanedText.trim()) {
+            fullCompletion += cleanedText;
+          }
+          return;
+        }
+        
+        // For mixed content with annotation chunks, filter them but keep other content
+        if (text.includes('__ANNOTATIONS_CHUNK__')) {
+          // Extract annotation chunks and remove them from content before adding to fullCompletion
+          const annotationChunkRegex = /__ANNOTATIONS_CHUNK__\{[^}]*\}/g;
+          const cleanedText = text.replace(annotationChunkRegex, '');
+          
+          // Forward original text (with annotations) to client for real-time display
+          controller.enqueue(text);
+          
+          // Add only cleaned content (without annotations) to fullCompletion
+          if (cleanedText.trim()) {
+            fullCompletion += cleanedText;
+          }
+          return;
         }
         
         // Forward regular content to the client and accumulate for final metadata

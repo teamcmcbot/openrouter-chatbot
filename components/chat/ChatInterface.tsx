@@ -31,7 +31,8 @@ export default function ChatInterface() {
     isStreaming,
     streamingContent,
     streamingReasoning,
-    streamingReasoningDetails
+    streamingReasoningDetails,
+    streamingAnnotations
   } = useChatStreaming();
   const createConversation = useChatStore((state) => state.createConversation);
   const { 
@@ -263,6 +264,7 @@ export default function ChatInterface() {
             streamingContent={streamingContent}
             streamingReasoning={streamingReasoning}
             streamingReasoningDetails={streamingReasoningDetails}
+            streamingAnnotations={streamingAnnotations}
           />
         </div>
 

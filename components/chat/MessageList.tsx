@@ -54,6 +54,8 @@ interface MessageListProps {
   // NEW: Real-time reasoning support
   streamingReasoning?: string;
   streamingReasoningDetails?: Record<string, unknown>[];
+  // NEW: Real-time annotations support
+  streamingAnnotations?: Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>;
 }
 
 export default function MessageList({ 
@@ -63,11 +65,13 @@ export default function MessageList({
   hoveredGenerationId, 
   scrollToCompletionId, 
   onPromptSelect,
+  // Streaming props
   isStreaming = false,
   streamingContent = '',
-  streamingReasoning = '', // NEW
-  streamingReasoningDetails = [] // NEW
-}: Readonly<MessageListProps>) {
+  streamingReasoning = '', // NEW: Real-time reasoning
+  streamingReasoningDetails = [], // NEW: Real-time reasoning details
+  streamingAnnotations = [], // NEW: Real-time annotations
+}: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const streamingReasoningRef = useRef<HTMLDivElement>(null);
@@ -344,14 +348,13 @@ export default function MessageList({
                             >
                               {/* Favicon (32x32, contrasting border) */}
                               {favicon ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
+                                <Image
                                   src={favicon}
                                   alt=""
                                   width={32}
                                   height={32}
                                   className="mt-0.5 h-8 w-8 rounded bg-white dark:bg-gray-900 border border-black/40 dark:border-white/60 shadow-sm flex-shrink-0"
-                                  loading="lazy"
+                                  unoptimized
                                 />
                               ) : (
                                 <span className="mt-0.5 h-8 w-8 rounded bg-gray-300 dark:bg-gray-600 border border-black/40 dark:border-white/60 inline-block flex-shrink-0" aria-hidden="true" />
@@ -526,6 +529,45 @@ export default function MessageList({
                       <div className="whitespace-pre-wrap">
                         {streamingContent}
                         <span className="inline-block ml-1 animate-pulse text-blue-500">▋</span>
+                      </div>
+                    )}
+                    
+                    {/* NEW: Streaming URL Citations (Sources) - show while streaming */}
+                    {Array.isArray(streamingAnnotations) && streamingAnnotations.length > 0 && (
+                      <div className="mt-3 border-t border-black/10 dark:border-white/10 pt-2 overflow-x-hidden max-w-full">
+                        <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Sources</div>
+                        <ul className="space-y-1.5 max-w-full overflow-x-hidden">
+                          {streamingAnnotations.map((ann, i) => {
+                            const host = getDomainFromUrl(ann.url) || ann.url;
+                            const favicon = getFaviconUrl(ann.url, 32);
+                            const title = ann.title?.trim() || host;
+                            return (
+                              <li key={`streaming-ann-${i}`} className="w-full max-w-full min-w-0">
+                                <a
+                                  href={ann.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer nofollow"
+                                  className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-xs group min-w-0 max-w-full"
+                                >
+                                  <Image
+                                    src={favicon || `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23e5e7eb'/></svg>`}
+                                    alt=""
+                                    width={16}
+                                    height={16}
+                                    className="w-4 h-4 rounded-sm bg-white dark:bg-gray-700 flex-shrink-0"
+                                    unoptimized
+                                  />
+                                  <span className="truncate min-w-0 flex-1 text-blue-700 dark:text-blue-300 group-hover:text-blue-800 dark:group-hover:text-blue-200">
+                                    {title}
+                                  </span>
+                                  <svg className="w-3 h-3 text-blue-500 dark:text-blue-400 opacity-70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                </a>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       </div>
                     )}
                   </div>
