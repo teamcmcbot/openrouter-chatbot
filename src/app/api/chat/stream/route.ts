@@ -9,7 +9,8 @@ import { withEnhancedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { estimateTokenCount, getModelTokenLimits } from '../../../../../lib/utils/tokens';
 import { createClient } from '../../../../../lib/supabase/server';
-import { getOpenRouterCompletionStream } from '../../../../../lib/utils/openrouter';
+import { getOpenRouterCompletionStream, fetchOpenRouterModels } from '../../../../../lib/utils/openrouter';
+import { OpenRouterContentBlock } from '../../../../../lib/types/openrouter';
 
 // Configure extended timeout for streaming requests
 export const maxDuration = 300; // 5 minutes for reasoning mode and slow models
@@ -69,12 +70,30 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       ? { effort: ['low','medium','high'].includes(body.reasoning.effort) ? body.reasoning.effort : 'low' }
       : undefined;
 
-    // Handle attachments validation (same logic as non-streaming)
+    // Handle attachments validation and processing (same logic as non-streaming)
+    const messages: { role: 'user' | 'assistant'; content: string | OpenRouterContentBlock[] }[] = enhancedData.messages.map(msg => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content
+    }));
+
     if (attachmentIds.length > 0) {
       if (!authContext.isAuthenticated || !authContext.user) {
         throw new ApiErrorResponse('Attachments require authentication', ErrorCode.AUTH_REQUIRED);
       }
       
+      // Re-validate that selected model supports image input modality
+      try {
+        const requestedModelId: string = enhancedData.model;
+        const models = await fetchOpenRouterModels();
+        const model = models.find(m => m.id === requestedModelId);
+        if (model && Array.isArray(model.architecture?.input_modalities) && !model.architecture.input_modalities.includes('image')) {
+          throw new ApiErrorResponse('Selected model does not support image input', ErrorCode.BAD_REQUEST);
+        }
+      } catch (e) {
+        if (e instanceof ApiErrorResponse) throw e;
+        logger.warn('Model modality re-validation skipped (fetch failed or model not found)');
+      }
+
       // Fetch and validate attachments
       const { data: atts, error } = await supabase
         .from('chat_attachments')
@@ -97,6 +116,43 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       if (invalid) {
         throw new ApiErrorResponse('Unsupported attachment type', ErrorCode.BAD_REQUEST);
       }
+
+      // Mint signed URLs
+      const signedUrls: string[] = [];
+      for (const a of atts) {
+        const { data: signed, error: signErr } = await supabase.storage
+          .from(a.storage_bucket)
+          .createSignedUrl(a.storage_path, 300);
+        if (signErr || !signed?.signedUrl) {
+          throw new ApiErrorResponse('Failed to create signed URL', ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+        signedUrls.push(signed.signedUrl);
+      }
+
+      // Attach image parts to the most recent user message in multimodal format
+      const lastUserIndex = [...enhancedData.messages].reverse().findIndex(m => m.role === 'user');
+      if (lastUserIndex !== -1) {
+        const idx = enhancedData.messages.length - 1 - lastUserIndex;
+        const userMsg = enhancedData.messages[idx];
+        const contentBlocks: OpenRouterContentBlock[] = [];
+        if (typeof userMsg.content === 'string' && userMsg.content.trim().length > 0) {
+          contentBlocks.push({ type: 'text', text: userMsg.content });
+        } else if (typeof userMsg.content !== 'string' && Array.isArray(userMsg.content)) {
+          // If upstream already provided blocks, start with them
+          contentBlocks.push(...(userMsg.content as OpenRouterContentBlock[]));
+        }
+        for (const url of signedUrls) {
+          contentBlocks.push({ type: 'image_url', image_url: { url } });
+        }
+        messages[idx] = { role: 'user', content: contentBlocks };
+      }
+      
+      logger.info('Chat stream send with attachments', {
+        userId: authContext.user.id,
+        model: enhancedData.model,
+        attachments_count: attachmentIds.length,
+        draft_id: body.draftId,
+      });
     }
 
     // Web Search tier gating (same as non-streaming)
@@ -144,12 +200,6 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     console.log(`[Chat Stream API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`);
 
     const startTime = Date.now();
-
-    // Convert messages to OpenRouter format
-    const messages = enhancedData.messages.map(msg => ({
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content
-    }));
 
     // Get streaming response from OpenRouter
     const stream = await getOpenRouterCompletionStream(

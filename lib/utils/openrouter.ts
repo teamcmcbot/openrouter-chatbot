@@ -884,15 +884,28 @@ export async function getOpenRouterCompletionStream(
                   console.log('🟢 [OpenRouter Stream] Captured ID:', streamMetadata.id);
                 }
                 
-                // Extract reasoning data if present
+                // Extract reasoning data - OpenRouter sends this in delta, not message!
+                if (data.choices?.[0]?.delta?.reasoning) {
+                  // Accumulate reasoning content (streamed incrementally)
+                  if (!streamMetadata.reasoning) streamMetadata.reasoning = '';
+                  streamMetadata.reasoning += data.choices[0].delta.reasoning;
+                  console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning chunk:', data.choices[0].delta.reasoning.substring(0, 100) + '...');
+                }
+                
+                if (data.choices?.[0]?.delta?.reasoning_details) {
+                  streamMetadata.reasoning_details = data.choices[0].delta.reasoning_details;
+                  console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning_details:', streamMetadata.reasoning_details);
+                }
+                
+                // Fallback for final message reasoning (less common)
                 if (data.choices?.[0]?.message?.reasoning) {
                   streamMetadata.reasoning = data.choices[0].message.reasoning;
-                  console.log('🟢 [OpenRouter Stream] Captured reasoning:', streamMetadata.reasoning);
+                  console.log('🟢 [OpenRouter Stream] Captured message reasoning:', streamMetadata.reasoning);
                 }
                 
                 if (data.reasoning) {
                   streamMetadata.reasoning_details = data.reasoning;
-                  console.log('🟢 [OpenRouter Stream] Captured reasoning details:', streamMetadata.reasoning_details);
+                  console.log('🟢 [OpenRouter Stream] Captured root reasoning details:', streamMetadata.reasoning_details);
                 }
                 
                 // Extract annotations/citations - try multiple locations

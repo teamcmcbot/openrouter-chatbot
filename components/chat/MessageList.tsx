@@ -229,11 +229,17 @@ export default function MessageList({
                   </span>
                 )}
                 
-                {/* Message Content - Always use markdown rendering */}
+                {/* Message Content - Conditional rendering based on contentType */}
                 <div className="markdown-content">
-                  <MemoizedMarkdown>
-                    {message.content}
-                  </MemoizedMarkdown>
+                  {message.contentType === "markdown" ? (
+                    <MemoizedMarkdown>
+                      {message.content}
+                    </MemoizedMarkdown>
+                  ) : (
+                    <p className="whitespace-pre-wrap">
+                      {message.content}
+                    </p>
+                  )}
                 </div>
 
                 {/* Reasoning (assistant) - collapsed by default */}
