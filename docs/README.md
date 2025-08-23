@@ -6,11 +6,13 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 
 ### Architecture Documentation (`/architecture/`)
 
-- **[redis-rate-limiting.md](./architecture/redis-rate-limiting.md)** - Redis-based rate limiting system architecture
+- **[streaming-chat-architecture.md](./architecture/streaming-chat-architecture.md)** - Comprehensive streaming chat implementation architecture
+- **[redis-rate-limiting.md](./architecture/redis-rate-limiting.md)** - Redis-based rate limiting system architecture  
 - Technical design documents and system architecture guides
 
 ### API Documentation (`/api/`)
 
+- **[streaming-chat-api.md](./api/streaming-chat-api.md)** - Streaming chat API endpoint documentation and integration guide
 - **[rate-limiting.md](./api/rate-limiting.md)** - API rate limiting behavior, headers, and client integration
 
 ### Operations Documentation (`/ops/`)
@@ -29,6 +31,10 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 
 ### Other Guides
 
+- **[feature-matrix.md](./feature-matrix.md)** - Comprehensive feature comparison and capabilities overview
+- **[streaming-implementation-summary.md](./streaming-implementation-summary.md)** - Streaming feature implementation status and testing guide
+- **[reasoning-fixes-summary.md](./reasoning-fixes-summary.md)** - Reasoning data flow fixes and validation
+- **[reasoning-empty-array-fix.md](./reasoning-empty-array-fix.md)** - Fix for reasoning display with empty arrays
 - **[security-review.md](./security-review.md)** - Security implementation review including rate limiting
 - **[user-settings-guide.md](./user-settings-guide.md)** - User settings and preferences
 - **[subscription-tier-access.md](./subscription-tier-access.md)** - Subscription tiers and access control
@@ -37,14 +43,16 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 
 ### For Developers
 
-1. **Set up Rate Limiting**: Follow [redis-rate-limiting-setup.md](./ops/redis-rate-limiting-setup.md)
-2. **Understand Security**: Review [security-review.md](./security-review.md)
-3. **Architecture Overview**: Read [redis-rate-limiting.md](./architecture/redis-rate-limiting.md)
+1. **Streaming Architecture**: Understand real-time chat in [streaming-chat-architecture.md](./architecture/streaming-chat-architecture.md)
+2. **Streaming API**: Integration guide in [streaming-chat-api.md](./api/streaming-chat-api.md)
+3. **Set up Rate Limiting**: Follow [redis-rate-limiting-setup.md](./ops/redis-rate-limiting-setup.md)
+4. **Understand Security**: Review [security-review.md](./security-review.md)
 
 ### For API Consumers
 
-1. **Rate Limiting**: Understand limits and headers in [rate-limiting.md](./api/rate-limiting.md)
-2. **Troubleshooting**: Common issues in [redis-rate-limiting-troubleshooting.md](./ops/redis-rate-limiting-troubleshooting.md)
+1. **Streaming Chat**: Real-time responses with [streaming-chat-api.md](./api/streaming-chat-api.md)
+2. **Rate Limiting**: Understand limits and headers in [rate-limiting.md](./api/rate-limiting.md)
+3. **Troubleshooting**: Common issues in [redis-rate-limiting-troubleshooting.md](./ops/redis-rate-limiting-troubleshooting.md)
 
 ### For Operations
 
