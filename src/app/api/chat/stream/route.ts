@@ -271,7 +271,14 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           return;
         }
         
-        // Forward content to the client and accumulate
+        // Check for reasoning chunks - forward to client but DON'T add to fullCompletion
+        if (text.includes('__REASONING_CHUNK__')) {
+          // Forward reasoning chunks to the client for real-time display
+          controller.enqueue(text);
+          return; // Don't add reasoning chunks to fullCompletion
+        }
+        
+        // Forward regular content to the client and accumulate for final metadata
         fullCompletion += text;
         controller.enqueue(text);
       },

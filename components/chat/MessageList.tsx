@@ -477,7 +477,7 @@ export default function MessageList({
                         <div className="flex items-center gap-1">
                           <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                            <path d="M10 2a6 0 00-3.832 10.59c.232.186.332.49.245.776l-.451 1.486a1 1 0 001.265 1.265l1.486-.451c.286-.087.59.013.776.245A6 6 0 1010 2z" />
+                            <path d="M10 2a6 6 0 0 0-3.832 10.59c.232.186.332.49.245.776l-.451 1.486a1 1 0 0 0 1.265 1.265l1.486-.451c.286-.087.59.013.776.245A6 6 0 1 1 10 2z" />
                           </svg>
                           {streamingReasoning ? 'Thinking...' : 'Processing...'}
                         </div>
