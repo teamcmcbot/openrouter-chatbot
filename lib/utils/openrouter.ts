@@ -805,7 +805,7 @@ export async function getOpenRouterCompletionStream(
     usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
     id?: string;
     reasoning?: string;
-    reasoning_details?: Record<string, unknown>;
+    reasoning_details?: Record<string, unknown>[];
     annotations?: {
       type: 'url_citation';
       url: string;
@@ -892,9 +892,11 @@ export async function getOpenRouterCompletionStream(
                   console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning chunk:', data.choices[0].delta.reasoning.substring(0, 100) + '...');
                 }
                 
-                if (data.choices?.[0]?.delta?.reasoning_details) {
-                  streamMetadata.reasoning_details = data.choices[0].delta.reasoning_details;
-                  console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning_details:', streamMetadata.reasoning_details);
+                if (data.choices?.[0]?.delta?.reasoning_details && Array.isArray(data.choices[0].delta.reasoning_details)) {
+                  // Accumulate reasoning_details (structured array that comes in chunks)
+                  if (!streamMetadata.reasoning_details) streamMetadata.reasoning_details = [];
+                  (streamMetadata.reasoning_details as Record<string, unknown>[]).push(...data.choices[0].delta.reasoning_details);
+                  console.log('🟢 [OpenRouter Stream] Captured DELTA reasoning_details:', data.choices[0].delta.reasoning_details);
                 }
                 
                 // Fallback for final message reasoning (less common)

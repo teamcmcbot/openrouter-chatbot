@@ -229,22 +229,9 @@ export default function MessageList({
                   </span>
                 )}
                 
-                {/* Message Content - Conditional rendering based on contentType */}
-                <div className="markdown-content">
-                  {message.contentType === "markdown" ? (
-                    <MemoizedMarkdown>
-                      {message.content}
-                    </MemoizedMarkdown>
-                  ) : (
-                    <p className="whitespace-pre-wrap">
-                      {message.content}
-                    </p>
-                  )}
-                </div>
-
-                {/* Reasoning (assistant) - collapsed by default */}
+                {/* Reasoning (assistant) - show before content for better UX */}
                 {message.role === "assistant" && (message.reasoning || message.reasoning_details) && (
-                  <div className="mt-2 border rounded-md bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300/80 dark:border-yellow-700/60">
+                  <div className="mb-3 border rounded-md bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300/80 dark:border-yellow-700/60">
                     <button
                       type="button"
                       aria-expanded={expandedReasoning.has(message.id)}
@@ -276,7 +263,7 @@ export default function MessageList({
                             </MemoizedMarkdown>
                           </div>
                         )}
-                        {message.reasoning_details && (
+                        {message.reasoning_details && Array.isArray(message.reasoning_details) && message.reasoning_details.length > 0 && (
                           <details className="mt-2">
                             <summary className="cursor-pointer text-xs text-yellow-900/80 dark:text-yellow-200/90">Details</summary>
                             <pre className="mt-1 text-[11px] whitespace-pre-wrap break-words p-2 rounded bg-yellow-100/70 dark:bg-yellow-900/40 border border-yellow-300/60 dark:border-yellow-800/60 overflow-x-auto">
@@ -288,6 +275,19 @@ export default function MessageList({
                     )}
                   </div>
                 )}
+                
+                {/* Message Content - Conditional rendering based on contentType */}
+                <div className="markdown-content">
+                  {message.contentType === "markdown" ? (
+                    <MemoizedMarkdown>
+                      {message.content}
+                    </MemoizedMarkdown>
+                  ) : (
+                    <p className="whitespace-pre-wrap">
+                      {message.content}
+                    </p>
+                  )}
+                </div>
 
                 {/* Linked image attachments (history and recent) */}
                 {message.has_attachments && Array.isArray(message.attachment_ids) && message.attachment_ids.length > 0 && (

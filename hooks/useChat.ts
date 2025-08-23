@@ -92,7 +92,7 @@ export function useChat(): UseChatReturn {
         total_tokens: data.usage?.total_tokens
       });
 
-      type ChatResponseWithReasoning = { reasoning?: string; reasoning_details?: Record<string, unknown> };
+      type ChatResponseWithReasoning = { reasoning?: string; reasoning_details?: Record<string, unknown>[] };
       const respWithReasoning = data as ChatResponseWithReasoning;
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -108,7 +108,7 @@ export function useChat(): UseChatReturn {
         contentType: data.contentType || "text",
         completion_id: data.id,
         reasoning: typeof respWithReasoning.reasoning === 'string' ? respWithReasoning.reasoning : undefined,
-        reasoning_details: respWithReasoning.reasoning_details && typeof respWithReasoning.reasoning_details === 'object' ? respWithReasoning.reasoning_details : undefined,
+        reasoning_details: respWithReasoning.reasoning_details && Array.isArray(respWithReasoning.reasoning_details) ? respWithReasoning.reasoning_details : undefined,
       };
 
       console.log('Created assistant message:', assistantMessage);

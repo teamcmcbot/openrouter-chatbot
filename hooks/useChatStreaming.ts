@@ -200,7 +200,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           contentType?: "text" | "markdown";
           id?: string;
           reasoning?: string;
-          reasoning_details?: Record<string, unknown>;
+          reasoning_details?: Record<string, unknown>[];
           annotations?: Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>;
           has_websearch?: boolean;
           websearch_result_count?: number;

@@ -306,7 +306,9 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       id: openRouterResponse.id, // Pass OpenRouter response id to ChatResponse
     };
   if (typeof reasoningText === 'string' && reasoningText.length > 0) response.reasoning = reasoningText;
-  if (reasoningDetails && typeof reasoningDetails === 'object') response.reasoning_details = reasoningDetails;
+  if (reasoningDetails && typeof reasoningDetails === 'object') {
+    response.reasoning_details = Array.isArray(reasoningDetails) ? reasoningDetails : [reasoningDetails];
+  }
   // Attach annotations if present (for future UI rendering); ignored by client if unknown
   response.annotations = annotations;
   // Echo web search activation for persistence layer
