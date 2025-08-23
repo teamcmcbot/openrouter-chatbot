@@ -459,8 +459,8 @@ export default function MessageList({
           </div>
         ))}
 
-        {/* Loading indicator and streaming content */}
-        {(isLoading || isStreaming) && (
+        {/* Streaming content with reasoning */}
+        {isStreaming && (
           <div className="flex justify-start">
             <div className="flex w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%]">
               {/* Avatar - Hidden on mobile (< sm breakpoint) */}
@@ -469,7 +469,7 @@ export default function MessageList({
               </div>
               <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 border border-slate-200/80 dark:border-white/10 shadow-sm">
                 
-                {/* ENHANCED: Persistent Streaming Reasoning Section */}
+                {/* ENHANCED: Streaming-only reasoning section */}
                 {isStreaming && (
                   <div className="mb-3 border rounded-md bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300/80 dark:border-yellow-700/60">
                     <div className="w-full text-left px-2 py-1 rounded-t-md">
@@ -477,7 +477,7 @@ export default function MessageList({
                         <div className="flex items-center gap-1">
                           <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                            <path d="M10 2a6 6 0 00-3.832 10.59c.232.186.332.49.245.776l-.451 1.486a1 1 0 001.265 1.265l1.486-.451c.286-.087.59.013.776.245A6 6 0 1010 2z" />
+                            <path d="M10 2a6 0 00-3.832 10.59c.232.186.332.49.245.776l-.451 1.486a1 1 0 001.265 1.265l1.486-.451c.286-.087.59.013.776.245A6 6 0 1010 2z" />
                           </svg>
                           {streamingReasoning ? 'Thinking...' : 'Processing...'}
                         </div>
@@ -514,7 +514,7 @@ export default function MessageList({
                   </div>
                 )}
                 
-                {/* ENHANCED: Separate Content Section - Completely Isolated */}
+                {/* ENHANCED: Streaming content section */}
                 {isStreaming && streamingContent ? (
                   <div className="content-section markdown-content">
                     {detectMarkdownContent(streamingContent) ? (
@@ -529,14 +529,32 @@ export default function MessageList({
                       </div>
                     )}
                   </div>
-                ) : isStreaming ? (
-                  /* ENHANCED: Show loading state only when streaming but no content yet */
+                ) : (
+                  /* Show loading state when streaming but no content yet */
                   <div className="flex space-x-1 mt-2">
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
                   </div>
-                ) : null}
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Compact loading indicator for non-streaming */}
+        {isLoading && !isStreaming && (
+          <div className="flex justify-start">
+            <div className="flex items-center">
+              {/* Avatar - Hidden on mobile (< sm breakpoint) */}
+              <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 items-center justify-center text-sm font-medium mr-3">
+                AI
+              </div>
+              {/* Compact 3-dot loading animation */}
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
               </div>
             </div>
           </div>
