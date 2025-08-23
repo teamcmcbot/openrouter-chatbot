@@ -198,19 +198,22 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     
     const textStream = new TransformStream<Uint8Array, string>({
       transform(chunk, controller) {
+        console.log('🟡 [STREAM DEBUG] Processing chunk:', chunk.length, 'bytes');
         const text = new TextDecoder().decode(chunk);
+        console.log('🟡 [STREAM DEBUG] Decoded text:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
         
         // Check for metadata chunks
         const metadataMatch = text.match(/__METADATA__([\s\S]*?)__END__/);
         if (metadataMatch) {
+          console.log('🟡 [STREAM DEBUG] Found metadata chunk:', metadataMatch[1]);
           try {
             const metadataChunk = JSON.parse(metadataMatch[1]);
             if (metadataChunk.type === 'metadata' && metadataChunk.data) {
               streamMetadata = metadataChunk.data;
-              logger.debug('Extracted stream metadata:', streamMetadata);
+              console.log('🟢 [STREAM DEBUG] Extracted metadata:', streamMetadata);
             }
-          } catch {
-            // Ignore metadata parsing errors
+          } catch (error) {
+            console.log('🔴 [STREAM DEBUG] Metadata parsing error:', error);
           }
           // Don't forward metadata chunks to the client
           return;
@@ -221,6 +224,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
         controller.enqueue(text);
       },
       async flush(controller) {
+        console.log('🟡 [STREAM DEBUG] Stream flush called');
         // Calculate elapsed time - always use markdown rendering
         const endTime = Date.now();
         const elapsedMs = endTime - startTime;
@@ -274,9 +278,15 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           }
         };
 
-        // Send the final metadata as a special JSON chunk
-        const finalMetadataJson = JSON.stringify(finalMetadata) + '\n';
-        controller.enqueue(finalMetadataJson);
+        console.log('🟢 [STREAM DEBUG] Final metadata created:', finalMetadata);
+
+        // Send final metadata as a stream chunk with clear delimiter
+        const metadataDelimiter = '\n\n__STREAM_METADATA_START__\n';
+        const finalMetadataJson = JSON.stringify(finalMetadata);
+        const metadataEnd = '\n__STREAM_METADATA_END__\n';
+        
+        console.log('🟢 [STREAM DEBUG] Sending metadata chunk:', finalMetadataJson.substring(0, 200) + '...');
+        controller.enqueue(metadataDelimiter + finalMetadataJson + metadataEnd);
         
         // Log completion when stream finishes
         logger.info('Chat stream completed', {
@@ -289,7 +299,8 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           usage: streamMetadata.usage,
           hasReasoning: !!streamMetadata.reasoning,
           annotationCount: annotations.length,
-          triggeredBy: triggeringUserId
+          triggeredBy: triggeringUserId,
+          metadataInFinalChunk: true
         });
       }
     });
@@ -297,6 +308,8 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     // Pipe the OpenRouter stream through the transformer to get a text stream
     const textReadableStream = stream.pipeThrough(textStream);
 
+    console.log('🟡 [STREAM DEBUG] Creating response with streaming headers');
+    
     // Return the streaming text response using AI SDK v5
     const streamResponse = createTextStreamResponse({
       textStream: textReadableStream,
