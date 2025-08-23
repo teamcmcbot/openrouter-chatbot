@@ -61,6 +61,15 @@ export function useChatStreaming(): UseChatStreamingReturn {
   const settings = useSettingsStore();
   const streamingEnabled = Boolean(settings.getSetting('streamingEnabled', false));
   
+  console.log('🔴 STREAMING HOOK: streamingEnabled =', streamingEnabled);
+  
+  // Force debug alert to check if streaming is working
+  if (streamingEnabled) {
+    console.log('🟢 STREAMING IS ENABLED - checking further');
+  } else {
+    console.log('🔴 STREAMING IS DISABLED - will use non-streaming path');
+  }
+  
   // Get user authentication for request context (used for authenticated features)
   useAuth();
 
@@ -111,6 +120,10 @@ export function useChatStreaming(): UseChatStreamingReturn {
     };
 
     if (streamingEnabled) {
+      console.log('🟢 STREAMING PATH: Taking streaming path - should see more logs');
+      // Alert to force visibility
+      console.log('🔴 ALERT: Streaming path activated!');
+      
       // Streaming path
       setIsStreaming(true);
       setStreamingContent('');
@@ -302,18 +315,55 @@ export function useChatStreaming(): UseChatStreamingReturn {
           ),
         }));
 
+        // Auto-generate title from first user message if it's still "New Chat" (same logic as non-streaming)
+        const currentConv = useChatStore.getState().conversations.find(c => c.id === conversationId);
+        if (currentConv && currentConv.title === "New Chat" && currentConv.messages.length === 2) {
+          const autoTitle = content.length > 50 ? content.substring(0, 50) + "..." : content;
+          useChatStore.getState().updateConversationTitle(conversationId, autoTitle, true); // Mark as auto-generated
+          console.log('🟢 STREAMING TITLE: Auto-generated title from user message:', autoTitle);
+        }
+
         // Trigger database sync (same format as non-streaming implementation)
         try {
+          // Get the updated conversation state to check if we need to include title
+          const currentState = useChatStore.getState();
+          const updatedConv = currentState.conversations.find(c => c.id === conversationId);
+          
+          // Check if this is a newly titled conversation (first successful exchange)
+          const shouldIncludeTitle = updatedConv && 
+            updatedConv.title !== "New Chat" && 
+            updatedConv.messages.length === 2;
+
+          const syncPayload: {
+            messages: [typeof updatedUserMessage, typeof assistantMessage];
+            sessionId: string;
+            sessionTitle?: string;
+            attachmentIds?: string[];
+          } = {
+            messages: [updatedUserMessage, assistantMessage],
+            sessionId: conversationId,
+            ...(options?.attachmentIds && { attachmentIds: options.attachmentIds }),
+          };
+
+          // Include title for newly titled conversations
+          if (shouldIncludeTitle) {
+            syncPayload.sessionTitle = updatedConv?.title;
+            console.log('🟢 STREAMING SYNC: Including session title:', updatedConv?.title);
+          } else {
+            console.log('🟡 STREAMING SYNC: No title needed:', {
+              hasConv: !!updatedConv,
+              title: updatedConv?.title,
+              messageCount: updatedConv?.messages.length,
+              shouldInclude: shouldIncludeTitle
+            });
+          }
+
           const syncResponse = await fetch('/api/chat/messages', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              messages: [updatedUserMessage, assistantMessage],
-              sessionId: conversationId,
-              ...(options?.attachmentIds && { attachmentIds: options.attachmentIds }),
-            }),
+            body: JSON.stringify(syncPayload),
           });
 
           if (!syncResponse.ok) {
@@ -350,18 +400,25 @@ export function useChatStreaming(): UseChatStreamingReturn {
         setStreamError(chatError);
         logger.error('Streaming error:', error);
         
-        // Mark user message as failed
+        // Mark user message as failed (consistent with non-streaming error handling)
         useChatStore.setState((state) => ({
           conversations: state.conversations.map((conv) =>
             conv.id === conversationId
               ? {
                   ...conv,
                   messages: conv.messages.map(msg =>
-                    msg.id === userMessage.id ? { ...msg, error: true } : msg
+                    msg.id === userMessage.id ? { 
+                      ...msg, 
+                      error: true,
+                      input_tokens: 0, // Ensure input_tokens is 0 for failed request
+                      error_message: chatError.message, // Map error_message to user message
+                    } : msg
                   ),
                 }
               : conv
           ),
+          isLoading: false,
+          error: chatError,
         }));
       } finally {
         setIsStreaming(false);

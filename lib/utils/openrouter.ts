@@ -826,6 +826,16 @@ export async function getOpenRouterCompletionStream(
           const { done, value } = await reader.read();
           
           if (done) {
+            // Log final captured metadata before sending
+            console.log('🟢 [OpenRouter Stream] Final metadata captured:', {
+              hasUsage: !!streamMetadata.usage,
+              hasId: !!streamMetadata.id,
+              hasReasoning: !!streamMetadata.reasoning,
+              hasAnnotations: !!streamMetadata.annotations,
+              annotationsLength: streamMetadata.annotations?.length || 0,
+              annotations: streamMetadata.annotations
+            });
+            
             // Send a final metadata chunk that the streaming endpoint can capture
             const metadataChunk = JSON.stringify({
               type: 'metadata',
@@ -850,27 +860,73 @@ export async function getOpenRouterCompletionStream(
               try {
                 const data = JSON.parse(dataStr);
                 
+                // Log the COMPLETE data structure to find hidden web search fields
+                console.log('🟡 [OpenRouter Stream] COMPLETE data chunk:', JSON.stringify(data, null, 2));
+                
+                console.log('🟡 [OpenRouter Stream] Processing data chunk:', {
+                  hasUsage: !!data.usage,
+                  hasId: !!data.id,
+                  hasChoices: !!data.choices,
+                  hasAnnotations: !!(data.choices?.[0]?.message?.annotations),
+                  hasContent: !!(data.choices?.[0]?.delta?.content),
+                  choicesLength: data.choices?.length || 0,
+                  annotationsLength: data.choices?.[0]?.message?.annotations?.length || 0
+                });
+                
                 // Extract metadata from stream chunks
                 if (data.usage) {
                   streamMetadata.usage = data.usage;
+                  console.log('🟢 [OpenRouter Stream] Captured usage:', streamMetadata.usage);
                 }
                 
                 if (data.id) {
                   streamMetadata.id = data.id;
+                  console.log('🟢 [OpenRouter Stream] Captured ID:', streamMetadata.id);
                 }
                 
                 // Extract reasoning data if present
                 if (data.choices?.[0]?.message?.reasoning) {
                   streamMetadata.reasoning = data.choices[0].message.reasoning;
+                  console.log('🟢 [OpenRouter Stream] Captured reasoning:', streamMetadata.reasoning);
                 }
                 
                 if (data.reasoning) {
                   streamMetadata.reasoning_details = data.reasoning;
+                  console.log('🟢 [OpenRouter Stream] Captured reasoning details:', streamMetadata.reasoning_details);
                 }
                 
-                // Extract annotations/citations
+                // Extract annotations/citations - try multiple locations
                 if (data.choices?.[0]?.message?.annotations) {
                   streamMetadata.annotations = data.choices[0].message.annotations;
+                  console.log('🟢 [OpenRouter Stream] Captured message annotations:', streamMetadata.annotations);
+                }
+                
+                // CRITICAL FIX: OpenRouter sends annotations in delta, not message!
+                if (data.choices?.[0]?.delta?.annotations) {
+                  streamMetadata.annotations = data.choices[0].delta.annotations;
+                  console.log('🟢 [OpenRouter Stream] Captured DELTA annotations:', streamMetadata.annotations);
+                }
+                
+                if (data.annotations) {
+                  streamMetadata.annotations = data.annotations;
+                  console.log('🟢 [OpenRouter Stream] Captured root annotations:', streamMetadata.annotations);
+                }
+                
+                // Check for web search results in other common locations
+                if (data.choices?.[0]?.web_search_results) {
+                  console.log('🟡 [OpenRouter Stream] Found web_search_results:', data.choices[0].web_search_results);
+                }
+                
+                if (data.web_search_results) {
+                  console.log('🟡 [OpenRouter Stream] Found root web_search_results:', data.web_search_results);
+                }
+                
+                // Log any other interesting fields that might contain web search data
+                if (data.choices?.[0]?.message && Object.keys(data.choices[0].message).length > 0) {
+                  const messageKeys = Object.keys(data.choices[0].message);
+                  if (messageKeys.some(key => !['content', 'role'].includes(key))) {
+                    console.log('🟡 [OpenRouter Stream] Message contains extra fields:', messageKeys);
+                  }
                 }
                 
                 // Forward content chunks to the stream

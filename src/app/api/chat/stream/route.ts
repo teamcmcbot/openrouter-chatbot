@@ -15,6 +15,8 @@ import { getOpenRouterCompletionStream } from '../../../../../lib/utils/openrout
 export const maxDuration = 300; // 5 minutes for reasoning mode and slow models
 
 async function chatStreamHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  console.log('🔴🔴🔴 STREAM API CALLED - This should always show if streaming endpoint is hit');
+  
   logger.info('Chat stream request received', {
     isAuthenticated: authContext.isAuthenticated,
     userId: authContext.user?.id,
@@ -236,18 +238,24 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
               .map((ann: unknown) => {
                 if (!ann || typeof ann !== 'object') return null;
                 const a = ann as Record<string, unknown>;
-                // Already flat
+                
+                // Handle OpenRouter's nested url_citation structure
+                if (a.type === 'url_citation' && a.url_citation && typeof a.url_citation === 'object') {
+                  const nested = a.url_citation as Record<string, unknown>;
+                  if (typeof nested.url === 'string') {
+                    const { url, title, content, start_index, end_index } = nested as {
+                      url: string; title?: string; content?: string; start_index?: number; end_index?: number;
+                    };
+                    console.log('🟢 [STREAM DEBUG] Normalizing OpenRouter citation:', { url, title: title?.substring(0, 50) + '...' });
+                    return { type: 'url_citation', url, title, content, start_index, end_index };
+                  }
+                }
+                
+                // Already flat format
                 if (a.type === 'url_citation' && typeof a.url === 'string') {
                   return a as unknown as { type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number };
                 }
-                // Nested provider shape
-                const nested = a.url_citation as Record<string, unknown> | undefined;
-                if (a.type === 'url_citation' && nested && typeof nested.url === 'string') {
-                  const { url, title, content, start_index, end_index } = nested as {
-                    url: string; title?: string; content?: string; start_index?: number; end_index?: number;
-                  };
-                  return { type: 'url_citation', url, title, content, start_index, end_index };
-                }
+                
                 // Fallback: objects with URL but missing type
                 if (typeof a.url === 'string' && !a.type) {
                   const { url, title, content, start_index, end_index } = a as {
