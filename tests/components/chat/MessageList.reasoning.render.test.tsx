@@ -43,7 +43,7 @@ describe('MessageList reasoning rendering', () => {
     // Content appears
     expect(screen.getByText('Model thinking here')).toBeInTheDocument();
     // Details summary exists (for non-empty array)
-    expect(screen.getByText('Details')).toBeInTheDocument();
+    expect(screen.getByText('Technical Details')).toBeInTheDocument();
   });
 
   it('renders reasoning without details section when reasoning_details is empty', () => {
@@ -69,7 +69,7 @@ describe('MessageList reasoning rendering', () => {
 
     // Content appears but no Details section
     expect(screen.getByText('Model thinking here')).toBeInTheDocument();
-    expect(screen.queryByText('Details')).not.toBeInTheDocument();
+    expect(screen.queryByText('Technical Details')).not.toBeInTheDocument();
   });
 
   it('does not render reasoning section when both reasoning and reasoning_details are empty', () => {

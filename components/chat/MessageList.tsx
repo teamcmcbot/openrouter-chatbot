@@ -251,7 +251,7 @@ export default function MessageList({
                   (typeof message.reasoning === 'string' && message.reasoning.trim().length > 0) ||
                   (Array.isArray(message.reasoning_details) && message.reasoning_details.length > 0)
                 ) && (
-                  <div className="mb-3 border rounded-md bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300/80 dark:border-yellow-700/60">
+                  <div className="mb-3 border rounded-md bg-slate-50/80 dark:bg-slate-800/20 border-slate-300/80 dark:border-slate-500/60 shadow-sm backdrop-blur-sm">
                     <button
                       type="button"
                       aria-expanded={expandedReasoning.has(message.id)}
@@ -262,31 +262,46 @@ export default function MessageList({
                           return next;
                         });
                       }}
-                      className="w-full text-left px-2 py-1 flex items-center justify-between hover:bg-yellow-100/70 dark:hover:bg-yellow-900/40 rounded-t-md"
+                      className="w-full text-left px-3 py-2 flex items-center justify-between hover:bg-slate-100/60 dark:hover:bg-slate-700/30 rounded-t-md transition-all duration-200"
                     >
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-900 dark:text-yellow-100">
+                      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                          <path d="M10 2a6 6 0 00-3.832 10.59c.232.186.332.49.245.776l-.451 1.486a1 1 0 001.265 1.265l1.486-.451c.286-.087.59.013.776.245A6 6 0 1010 2z" />
+                          <path d="M10 2a3 3 0 00-3 3v1.5a1.5 1.5 0 01-1.5 1.5v1a1.5 1.5 0 001.5 1.5V12a3 3 0 106 0v-1.5A1.5 1.5 0 0114.5 9V8A1.5 1.5 0 0113 6.5V5a3 3 0 00-3-3zM6.5 15.5a1 1 0 011-1h5a1 1 0 110 2h-5a1 1 0 01-1-1zM8 17a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
                         </svg>
-                        Reasoning
+                        AI Reasoning
                       </span>
-                      <span className="text-[11px] text-yellow-900/80 dark:text-yellow-200/80">
-                        {expandedReasoning.has(message.id) ? 'Hide' : 'Show'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          {expandedReasoning.has(message.id) ? 'Hide' : 'Show'} process
+                        </span>
+                        <svg 
+                          className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 ${expandedReasoning.has(message.id) ? 'rotate-180' : ''}`}
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
                     </button>
                     {expandedReasoning.has(message.id) && (
-                      <div className="px-2 pb-2 pt-1 border-t border-yellow-300/60 dark:border-yellow-800/60 text-yellow-950 dark:text-yellow-50">
+                      <div className="px-3 pb-3 pt-2 border-t border-slate-300/60 dark:border-slate-500/40 text-slate-800 dark:text-slate-200">
                         {typeof message.reasoning === 'string' && message.reasoning.trim().length > 0 && (
-                          <div className="prose prose-sm max-w-none dark:prose-invert max-h-32 overflow-y-auto scroll-smooth">
+                          <div className="prose prose-sm prose-slate dark:prose-invert max-w-none max-h-32 overflow-y-auto scroll-smooth">
                             <MemoizedMarkdown>
                               {message.reasoning}
                             </MemoizedMarkdown>
                           </div>
                         )}
                         {message.reasoning_details && Array.isArray(message.reasoning_details) && message.reasoning_details.length > 0 && (
-                          <details className="mt-2">
-                            <summary className="cursor-pointer text-xs text-yellow-900/80 dark:text-yellow-200/90">Details</summary>
-                            <pre className="mt-1 text-[11px] whitespace-pre-wrap break-words p-2 rounded bg-yellow-100/70 dark:bg-yellow-900/40 border border-yellow-300/60 dark:border-yellow-800/60 overflow-x-auto">
+                          <details className="mt-3">
+                            <summary className="cursor-pointer text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                              <span>Technical Details</span>
+                              <span className="text-xs bg-slate-200/60 dark:bg-slate-700/60 px-2 py-0.5 rounded">
+                                {message.reasoning_details.length} steps
+                              </span>
+                            </summary>
+                            <pre className="mt-2 text-xs whitespace-pre-wrap break-words p-3 rounded bg-slate-100/70 dark:bg-slate-800/50 border border-slate-300/70 dark:border-slate-500/50 overflow-x-auto">
 {JSON.stringify(message.reasoning_details, null, 2)}
                             </pre>
                           </details>
@@ -474,41 +489,44 @@ export default function MessageList({
                 
                 {/* ENHANCED: Streaming-only reasoning section */}
                 {isStreaming && (
-                  <div className="mb-3 border rounded-md bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300/80 dark:border-yellow-700/60">
-                    <div className="w-full text-left px-2 py-1 rounded-t-md">
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-900 dark:text-yellow-100">
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                  <div className="mb-3 border rounded-md bg-slate-50/80 dark:bg-slate-800/20 border-slate-300/80 dark:border-slate-500/60 shadow-sm backdrop-blur-sm">
+                    <div className="w-full text-left px-3 py-2 rounded-t-md">
+                      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-slate-500 rounded-full animate-pulse"></div>
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                            <path d="M10 2a6 6 0 0 0-3.832 10.59c.232.186.332.49.245.776l-.451 1.486a1 1 0 0 0 1.265 1.265l1.486-.451c.286-.087.59.013.776.245A6 6 0 1 1 10 2z" />
+                            <path d="M10 2a3 3 0 00-3 3v1.5a1.5 1.5 0 01-1.5 1.5v1a1.5 1.5 0 001.5 1.5V12a3 3 0 106 0v-1.5A1.5 1.5 0 0114.5 9V8A1.5 1.5 0 0113 6.5V5a3 3 0 00-3-3zM6.5 15.5a1 1 0 011-1h5a1 1 0 110 2h-5a1 1 0 01-1-1zM8 17a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
                           </svg>
-                          {streamingReasoning ? 'Thinking...' : 'Processing...'}
+                          {streamingReasoning ? 'AI Thinking...' : 'Processing...'}
                         </div>
                       </span>
                     </div>
                     
                     {/* ENHANCED: Always show reasoning content area, even if empty initially */}
-                    <div className="px-2 pb-2 pt-1 border-t border-yellow-300/60 dark:border-yellow-800/60 text-yellow-950 dark:text-yellow-50">
+                    <div className="px-3 pb-3 pt-2 border-t border-slate-300/60 dark:border-slate-500/40 text-slate-800 dark:text-slate-200">
                       {streamingReasoning ? (
-                        <div ref={streamingReasoningRef} className="prose prose-sm max-w-none dark:prose-invert max-h-32 overflow-y-auto scroll-smooth">
+                        <div ref={streamingReasoningRef} className="prose prose-sm prose-slate dark:prose-invert max-w-none max-h-32 overflow-y-auto scroll-smooth">
                           <MemoizedMarkdown>
                             {streamingReasoning}
                           </MemoizedMarkdown>
-                          <span className="inline-block ml-1 animate-pulse text-yellow-600">▋</span>
+                          <span className="inline-block ml-1 animate-pulse text-slate-600 dark:text-slate-400">▋</span>
                         </div>
                       ) : (
-                        <div className="text-yellow-700 dark:text-yellow-300 text-sm italic">
+                        <div className="text-slate-600 dark:text-slate-400 text-sm italic">
                           Initializing AI reasoning...
                         </div>
                       )}
                       
                       {/* ENHANCED: Only show details when there's actual content */}
                       {streamingReasoningDetails.length > 0 && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-xs text-yellow-900/80 dark:text-yellow-200/90">
-                            Reasoning Details ({streamingReasoningDetails.length} chunks)
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                            <span>Reasoning Details</span>
+                            <span className="text-xs bg-slate-200/60 dark:bg-slate-700/60 px-2 py-0.5 rounded">
+                              {streamingReasoningDetails.length} chunks
+                            </span>
                           </summary>
-                          <pre className="mt-1 text-[11px] whitespace-pre-wrap break-words p-2 rounded bg-yellow-100/70 dark:bg-yellow-900/40 border border-yellow-300/60 dark:border-yellow-800/60 overflow-x-auto">
+                          <pre className="mt-2 text-xs whitespace-pre-wrap break-words p-3 rounded bg-slate-100/70 dark:bg-slate-800/50 border border-slate-300/70 dark:border-slate-500/50 overflow-x-auto">
 {JSON.stringify(streamingReasoningDetails, null, 2)}
                           </pre>
                         </details>
