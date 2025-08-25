@@ -56,6 +56,8 @@ interface MessageListProps {
   streamingReasoningDetails?: Record<string, unknown>[];
   // NEW: Real-time annotations support
   streamingAnnotations?: Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>;
+  // NEW: Reasoning enablement state for conditional display
+  reasoningEnabled?: boolean;
 }
 
 export default function MessageList({ 
@@ -71,6 +73,7 @@ export default function MessageList({
   streamingReasoning = '', // NEW: Real-time reasoning
   streamingReasoningDetails = [], // NEW: Real-time reasoning details
   streamingAnnotations = [], // NEW: Real-time annotations
+  reasoningEnabled = false, // NEW: Reasoning enablement state for conditional display
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -478,7 +481,7 @@ export default function MessageList({
         ))}
 
         {/* Streaming content with reasoning */}
-        {isStreaming && (
+        {isStreaming && (streamingContent || (reasoningEnabled && streamingReasoning) || (!reasoningEnabled && streamingReasoning.length > 0)) && (
           <div className="flex justify-start">
             <div className="flex w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%]">
               {/* Avatar - Hidden on mobile (< sm breakpoint) */}
@@ -487,8 +490,8 @@ export default function MessageList({
               </div>
               <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 border border-slate-200/80 dark:border-white/10 shadow-sm">
                 
-                {/* ENHANCED: Streaming-only reasoning section */}
-                {isStreaming && (
+                {/* ENHANCED: Conditional streaming reasoning section */}
+                {isStreaming && reasoningEnabled && (
                   <div className="mb-3 border rounded-md bg-slate-50/80 dark:bg-slate-800/20 border-slate-300/80 dark:border-slate-500/60 shadow-sm backdrop-blur-sm">
                     <div className="w-full text-left px-3 py-2 rounded-t-md">
                       <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -534,9 +537,49 @@ export default function MessageList({
                     </div>
                   </div>
                 )}
+
+                {/* NEW: Handle models that send reasoning anyway (after first chunk) */}
+                {isStreaming && !reasoningEnabled && streamingReasoning.length > 0 && (
+                  <div className="mb-3 border rounded-md bg-slate-50/80 dark:bg-slate-800/20 border-slate-300/80 dark:border-slate-500/60 shadow-sm backdrop-blur-sm">
+                    <div className="w-full text-left px-3 py-2 rounded-t-md">
+                      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <div className="flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                            <path d="M10 2a3 3 0 00-3 3v1.5a1.5 1.5 0 01-1.5 1.5v1a1.5 1.5 0 001.5 1.5V12a3 3 0 106 0v-1.5A1.5 1.5 0 0114.5 9V8A1.5 1.5 0 0113 6.5V5a3 3 0 00-3-3zM6.5 15.5a1 1 0 011-1h5a1 1 0 110 2h-5a1 1 0 01-1-1zM8 17a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                          </svg>
+                          Technical Details
+                        </div>
+                      </span>
+                    </div>
+                    
+                    <div className="px-3 pb-3 pt-2 border-t border-slate-300/60 dark:border-slate-500/40 text-slate-800 dark:text-slate-200">
+                      <div ref={streamingReasoningRef} className="prose prose-sm prose-slate dark:prose-invert max-w-none max-h-32 overflow-y-auto scroll-smooth">
+                        <MemoizedMarkdown>
+                          {streamingReasoning}
+                        </MemoizedMarkdown>
+                        <span className="inline-block ml-1 animate-pulse text-slate-600 dark:text-slate-400">▋</span>
+                      </div>
+                      
+                      {/* Show details when there's actual content */}
+                      {streamingReasoningDetails.length > 0 && (
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                            <span>Reasoning Details</span>
+                            <span className="text-xs bg-slate-200/60 dark:bg-slate-700/60 px-2 py-0.5 rounded">
+                              {streamingReasoningDetails.length} chunks
+                            </span>
+                          </summary>
+                          <pre className="mt-2 text-xs whitespace-pre-wrap break-words p-3 rounded bg-slate-100/70 dark:bg-slate-800/50 border border-slate-300/70 dark:border-slate-500/50 overflow-x-auto">
+{JSON.stringify(streamingReasoningDetails, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 {/* ENHANCED: Streaming content section */}
-                {isStreaming && streamingContent ? (
+                {isStreaming && streamingContent && (
                   <div className="content-section markdown-content">
                     {detectMarkdownContent(streamingContent) ? (
                       <div className="streaming-markdown">
@@ -589,14 +632,25 @@ export default function MessageList({
                       </div>
                     )}
                   </div>
-                ) : (
-                  /* Show loading state when streaming but no content yet */
-                  <div className="flex space-x-1 mt-2">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                  </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Compact loading indicator for streaming (before content appears) */}
+        {isStreaming && !streamingContent && !(reasoningEnabled && streamingReasoning) && !(!reasoningEnabled && streamingReasoning.length > 0) && (
+          <div className="flex justify-start">
+            <div className="flex items-center">
+              {/* Avatar - Hidden on mobile (< sm breakpoint) */}
+              <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 items-center justify-center text-sm font-medium mr-3">
+                AI
+              </div>
+              {/* Compact 3-dot loading animation */}
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
               </div>
             </div>
           </div>

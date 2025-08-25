@@ -66,6 +66,8 @@ export default function ChatInterface() {
   // Control for the model dropdown from child actions (e.g., MessageInput banner)
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [modelDropdownPreset, setModelDropdownPreset] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning' | undefined>(undefined);
+  // NEW: Track reasoning enablement state for conditional display
+  const [lastReasoningEnabled, setLastReasoningEnabled] = useState<boolean>(false);
 
   // Retry function to resend the last user message
   const handleRetry = () => {
@@ -265,6 +267,7 @@ export default function ChatInterface() {
             streamingReasoning={streamingReasoning}
             streamingReasoningDetails={streamingReasoningDetails}
             streamingAnnotations={streamingAnnotations}
+            reasoningEnabled={lastReasoningEnabled}
           />
         </div>
 
@@ -288,6 +291,8 @@ export default function ChatInterface() {
   <div className="border-t border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
           <MessageInput 
             onSendMessage={(message, options) => {
+              // NEW: Track reasoning enablement for conditional display
+              setLastReasoningEnabled(!!options?.reasoning);
               // Pass through to store; store will include options downstream in API body
               sendMessage(message, selectedModel, options);
               setSelectedPrompt(""); // Clear the selected prompt after sending
