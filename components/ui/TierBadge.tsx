@@ -81,10 +81,10 @@ export default function TierBadge({
 
   const subscriptionBadgeClass =
     tierLower === "enterprise"
-      ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30"
+      ? "bg-emerald-50 text-emerald-600 ring-2 ring-inset ring-emerald-500 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30"
       : tierLower === "pro"
-      ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30"
-      : "bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-gray-500/15 dark:text-gray-300 dark:ring-gray-500/30";
+      ? "bg-emerald-50 text-emerald-600 ring-2 ring-inset ring-emerald-500 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30"
+      : "bg-slate-50 text-slate-700 ring-2 ring-inset ring-slate-500 dark:bg-gray-500/15 dark:text-gray-300 dark:ring-gray-500/30";
 
   const pill = (
     <span

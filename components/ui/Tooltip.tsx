@@ -166,8 +166,8 @@ export default function Tooltip({
         role="tooltip"
         aria-label={ariaLabel}
         className={`${open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'} absolute ${widthClassName} z-30 rounded-lg border 
-          ${tinted ? 'border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100' : 'border-slate-300 bg-slate-50/95'}
-          dark:border-white/10 dark:bg-gray-900/95 text-slate-900 dark:text-gray-100 p-3 text-sm shadow-2xl backdrop-blur-sm transition-opacity ${posClass}`}
+          ${tinted ? 'border-emerald-500 bg-emerald-50' : 'border-slate-400 bg-slate-50'}
+          dark:border-emerald-400 dark:bg-gray-900/95 text-slate-900 dark:text-gray-100 p-3 text-sm dark:shadow-2xl dark:backdrop-blur-sm transition-opacity ${posClass}`}
       >
         {/* Mobile close button */}
         {isTouch && showCloseOnMobile && (

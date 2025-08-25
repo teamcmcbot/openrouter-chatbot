@@ -260,7 +260,7 @@ export default function ModelDropdown({
         ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
-  className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-emerald-50 dark:bg-gray-800 hover:bg-slate-50 dark:hover:bg-gray-700 rounded-full transition-colors duration-200 border border-slate-300 dark:border-gray-600 shadow-sm dark:shadow-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 dark:focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+  className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-emerald-50 dark:bg-gray-800 hover:bg-emerald-100 dark:hover:bg-gray-700 rounded-full transition-colors duration-200 border-2 border-emerald-500 dark:border-gray-600 dark:shadow-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 dark:focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-label="Select AI model"
@@ -273,7 +273,7 @@ export default function ModelDropdown({
             </span>
           </div>
         ) : (
-          <span className="text-emerald-700 dark:text-emerald-400 font-normal text-xs leading-tight">
+          <span className="text-emerald-600 dark:text-emerald-400 font-normal text-xs leading-tight">
             {getSelectedModelDisplay()}
           </span>
         )}
@@ -311,7 +311,7 @@ export default function ModelDropdown({
           } ${
             // width constraints: on small use viewport-constrained width; on sm+ use fixed width
             isSmallScreen ? 'w-[min(36rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]' : 'sm:w-80 w-[min(20rem,calc(100vw-2rem))]'
-          } bg-white dark:bg-gray-800 border border-slate-300 dark:border-gray-600 rounded-lg shadow-xl sm:shadow-xl dark:shadow-lg ${isSmallScreen ? 'shadow-2xl' : ''} max-h-96 overflow-hidden origin-top sm:origin-top-left`}
+          } bg-gray-50 dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-lg dark:shadow-lg ${isSmallScreen ? 'dark:shadow-2xl' : ''} max-h-96 overflow-hidden origin-top sm:origin-top-left`}
           style={isSmallScreen ? { top: fixedTop } : undefined}
         >
           {/* Search and Filter Header */}

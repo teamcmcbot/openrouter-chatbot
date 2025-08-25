@@ -780,7 +780,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-emerald-500 bg-emerald-50 ring-1 ring-inset ring-emerald-100 dark:border-emerald-400 dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -803,7 +803,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-emerald-500 bg-emerald-50 ring-1 ring-inset ring-emerald-100 dark:border-emerald-400 dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -826,7 +826,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-emerald-500 bg-emerald-50 ring-1 ring-inset ring-emerald-100 dark:border-emerald-400 dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -849,7 +849,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -867,7 +867,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -885,7 +885,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -903,7 +903,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -923,7 +923,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           {streamingModalOpen && (
             <div
               ref={streamingModalRef}
-              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 shadow-2xl"
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
             >
               <button
                 aria-label="Close"
@@ -959,7 +959,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           {searchModalOpen && (
             <div
               ref={searchModalRef}
-              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 shadow-2xl"
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
             >
               <button
                 aria-label="Close"
@@ -991,7 +991,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           {reasoningModalOpen && (
             <div
               ref={reasoningModalRef}
-              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 shadow-2xl"
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
             >
               <button
                 aria-label="Close"
