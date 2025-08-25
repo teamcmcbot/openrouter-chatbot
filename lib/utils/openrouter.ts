@@ -822,6 +822,8 @@ export async function getOpenRouterCompletionStream(
   
   return new ReadableStream({
     async start(controller) {
+      let chunkNumber = 0;
+      
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -860,19 +862,27 @@ export async function getOpenRouterCompletionStream(
               
               try {
                 const data = JSON.parse(dataStr);
+                chunkNumber++;
                 
                 // Log the COMPLETE data structure to find hidden web search fields
                 //console.log('🟡 [OpenRouter Stream] COMPLETE data chunk:', JSON.stringify(data, null, 2));
                 
-                // console.log('🟡 [OpenRouter Stream] Processing data chunk:', {
-                //   hasUsage: !!data.usage,
-                //   hasId: !!data.id,
-                //   hasChoices: !!data.choices,
-                //   hasAnnotations: !!(data.choices?.[0]?.message?.annotations),
-                //   hasContent: !!(data.choices?.[0]?.delta?.content),
-                //   choicesLength: data.choices?.length || 0,
-                //   annotationsLength: data.choices?.[0]?.message?.annotations?.length || 0
-                // });
+                // Only log when annotations are present
+                const hasAnnotations = !!(data.choices?.[0]?.message?.annotations || data.choices?.[0]?.delta?.annotations || data.annotations);
+                
+                if (hasAnnotations) {
+                  console.log(`🟡 [OpenRouter Stream] Processing data chunk #${chunkNumber}:`, {
+                    hasUsage: !!data.usage,
+                    hasId: !!data.id,
+                    hasChoices: !!data.choices,
+                    hasAnnotations: hasAnnotations,
+                    hasContent: !!(data.choices?.[0]?.delta?.content),
+                    choicesLength: data.choices?.length || 0,
+                    annotationsLength: (data.choices?.[0]?.message?.annotations?.length || 0) + 
+                                     (data.choices?.[0]?.delta?.annotations?.length || 0) + 
+                                     (data.annotations?.length || 0)
+                  });
+                }
                 
                 // Extract metadata from stream chunks
                 if (data.usage) {
