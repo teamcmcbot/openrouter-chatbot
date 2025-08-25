@@ -773,7 +773,7 @@ export async function getOpenRouterCompletionStream(
     // console.log(`[OpenRouter Stream Request] Reasoning enabled (effort=${options.reasoning.effort || 'low'})`);
   }
 
-  logger.debug('OpenRouter stream request body:', { ...requestBody, stream: true });
+  //logger.debug('OpenRouter stream request body:', { ...requestBody, stream: true });
 
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
@@ -862,7 +862,7 @@ export async function getOpenRouterCompletionStream(
                 const data = JSON.parse(dataStr);
                 
                 // Log the COMPLETE data structure to find hidden web search fields
-                // console.log('🟡 [OpenRouter Stream] COMPLETE data chunk:', JSON.stringify(data, null, 2));
+                //console.log('🟡 [OpenRouter Stream] COMPLETE data chunk:', JSON.stringify(data, null, 2));
                 
                 // console.log('🟡 [OpenRouter Stream] Processing data chunk:', {
                 //   hasUsage: !!data.usage,

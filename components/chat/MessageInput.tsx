@@ -642,14 +642,14 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
               <PlayIcon
                 className={`w-5 h-5 transition-all duration-150 
                   ${streamingOn
-                    ? 'text-purple-600 dark:text-purple-300 drop-shadow-[0_0_6px_rgba(147,51,234,0.55)]'
+                    ? 'text-emerald-600 dark:text-emerald-300 drop-shadow-[0_0_6px_rgba(16,185,129,0.6)]'
                     : 'text-gray-700 dark:text-gray-200 opacity-80'}
                 `}
               />
               {streamingOn && (
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-1 w-5 h-px rounded-full bg-purple-500 shadow-[0_0_6px_rgba(147,51,234,0.6)]"
+                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-1 w-5 h-px rounded-full bg-emerald-600 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
                 />
               )}
             </button>

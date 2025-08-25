@@ -10,9 +10,9 @@ This test plan focuses on ChatInterface UI verification after streaming implemen
 | ----------------- | --------- | ---- | --- | ---------- |
 | Normal Messages   | ✅        | ✅   | ✅  | ✅         |
 | Streaming         | ✅        | ✅   | ✅  | ✅         |
+| Image Attachments | ❌        | ❌   | ✅  | ✅         |
 | Web Search        | ❌        | ❌   | ✅  | ✅         |
 | Reasoning         | ❌        | ❌   | ❌  | ✅         |
-| Image Attachments | ❌        | ❌   | ✅  | ✅         |
 
 ## Test Prompts
 
@@ -46,22 +46,22 @@ This test plan focuses on ChatInterface UI verification after streaming implemen
 
 ### Basic Features - Anonymous
 
-- [ ] **ANO-001**: Send "Hello, how are you?"
+- [x] **ANO-001**: Send "Hello, how are you?"
   - **UI Verify**: Message appears in chat, streaming text appears progressively, final message is properly formatted
-- [ ] **ANO-002**: Send "Explain quantum computing in simple terms."
+- [x] **ANO-002**: Send "Explain quantum computing in simple terms."
   - **UI Verify**: Long response streams smoothly, markdown formatting works, auto-scroll to bottom
 
 ### Blocked Features - Anonymous
 
-- [ ] **ANO-003**: Click Web Search button
+- [x] **ANO-003**: Click Web Search button
 
   - **UI Verify**: "Upgrade to use Web Search" modal appears, modal mentions Pro and Enterprise tiers, "Sign in to upgrade" CTA visible
 
-- [ ] **ANO-004**: Click Reasoning button
+- [x] **ANO-004**: Click Reasoning button
 
   - **UI Verify**: Button is disabled, tooltip shows "Upgrade to enable Reasoning. Reasoning is available for Enterprise accounts only."
 
-- [ ] **ANO-005**: Try to attach image (click image button)
+- [x] **ANO-005**: Try to attach image (click image button)
   - **UI Verify**: "Upgrade to attach images" modal appears, mentions "Available on Pro and Enterprise. Sign in to upgrade."
 
 ---
@@ -70,24 +70,24 @@ This test plan focuses on ChatInterface UI verification after streaming implemen
 
 ### Basic Features - Free
 
-- [ ] **FRE-001**: Send "Hello, how are you?"
+- [x] **FRE-001**: Send "Hello, how are you?"
 
   - **UI Verify**: Message appears in chat, streaming works, user avatar shows correctly
 
-- [ ] **FRE-002**: Send "Write a detailed analysis of the economic impact of artificial intelligence"
+- [x] **FRE-002**: Send "Write a detailed analysis of the economic impact of artificial intelligence"
   - **UI Verify**: Long streaming response works, progress indicators show, final formatting is clean
 
 ### Blocked Features - Free
 
-- [ ] **FRE-003**: Click Web Search button
+- [x] **FRE-003**: Click Web Search button
 
   - **UI Verify**: "Upgrade to use Web Search" modal appears, mentions "Your current plan doesn't include web search. Available on Pro and Enterprise."
 
-- [ ] **FRE-004**: Click Reasoning button
+- [x] **FRE-004**: Click Reasoning button
 
   - **UI Verify**: Button is disabled, tooltip shows "Upgrade to enable Reasoning. Reasoning is available for Enterprise accounts only."
 
-- [ ] **FRE-005**: Try to attach image
+- [x] **FRE-005**: Try to attach image
   - **UI Verify**: "Upgrade to attach images" modal appears, mentions "Available on Pro and Enterprise."
 
 ---
@@ -96,43 +96,44 @@ This test plan focuses on ChatInterface UI verification after streaming implemen
 
 ### Basic Features - Pro
 
-- [ ] **PRO-001**: Send "Hello, how are you?"
+- [x] **PRO-001**: Send "Hello, how are you?"
 
   - **UI Verify**: Message appears, streaming works correctly, user tier badge visible if applicable
 
-- [ ] **PRO-002**: Send "Explain quantum computing in simple terms."
+- [x] **PRO-002**: Send "Explain quantum computing in simple terms."
   - **UI Verify**: Streaming response renders properly, markdown formatting intact
 
 ### Web Search Features - Pro
 
-- [ ] **PRO-003**: Enable Web Search, send "What happened in tech news this week?"
+- [x] **PRO-003**: Enable Web Search, send "What happened in tech news this week?"
 
   - **UI Verify**: Web Search button can be toggled ON, "Web Search" chip shows on assistant message, Citations/Sources section appears below message with clickable links
 
-- [ ] **PRO-004**: Enable Web Search, send "What is the current population of Tokyo?"
+- [x] **PRO-004**: Enable Web Search, send "What is the current population of Tokyo?"
   - **UI Verify**: Streaming shows progressive updates, web search results appear, citations are properly formatted
+  - **FAILED** (Kimi K2) + Websearch + Streaming, sources not rendered.
 
 ### Image Features - Pro
 
-- [ ] **PRO-005**: Attach small image (<1MB), send "Describe this image"
+- [x] **PRO-005**: Attach small image (<1MB), send "Describe this image"
 
   - **UI Verify**: Image uploads successfully, thumbnail shows in attachment area, image is sent with message, response references the image
 
-- [ ] **PRO-006**: Attach large image (8MB), send "What do you see?"
+- [x] **PRO-006**: Attach large image (8MB), send "What do you see?"
 
   - **UI Verify**: Upload progress indicator, image processes correctly, streaming response works with image context
 
-- [ ] **PRO-007**: Attach 2-3 images, send "Compare these images"
+- [x] **PRO-007**: Attach 2-3 images, send "Compare these images"
   - **UI Verify**: Multiple thumbnails show, all images attach properly, can remove individual images, response handles multiple images
 
 ### Combined Features - Pro
 
-- [ ] **PRO-008**: Enable Web Search + attach image, send "Find similar images online and describe differences"
+- [x] **PRO-008**: Enable Web Search + attach image, send "Find similar images online and describe differences"
   - **UI Verify**: Both Web Search chip and image show in message, response includes both web results and image analysis, citations appear
 
 ### Blocked Features - Pro
 
-- [ ] **PRO-009**: Click Reasoning button
+- [x] **PRO-009**: Click Reasoning button
   - **UI Verify**: Button is disabled, tooltip shows "Upgrade to Enterprise to enable Reasoning"
 
 ---
@@ -273,6 +274,7 @@ UPDATE profiles SET subscription_tier = 'pro' WHERE email = 'test-pro@example.co
 UPDATE profiles SET subscription_tier = 'enterprise' WHERE email = 'test-enterprise@example.com';
 -- Enterprise + Admin:
 UPDATE profiles SET subscription_tier = 'enterprise', account_type = 'admin' WHERE email = 'test-admin@example.com';
+
 ```
 
 ### Test Data Needed
@@ -281,3 +283,8 @@ UPDATE profiles SET subscription_tier = 'enterprise', account_type = 'admin' WHE
 - Large image file (~8MB) - PNG
 - Multiple test images in different formats
 - Reliable internet connection for web search testing
+
+### Remarks
+
+- When streaming is enabled, but reasoning is not enabled, can you hide the `Initializing AI reasoning...` section?
+- Some models returns reasoning data even though reasoning is not enabled, in those cases can you render the reasoning section AFTER receiving the first chunk of reasoning data?
