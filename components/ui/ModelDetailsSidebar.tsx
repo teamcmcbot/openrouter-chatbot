@@ -72,6 +72,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
   const [loadingGeneration, setLoadingGeneration] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [isGenerationIdHovered, setIsGenerationIdHovered] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   
   // Check if we're on desktop to prevent mobile version from making API calls
   const [isDesktop, setIsDesktop] = useState(false);
@@ -95,6 +96,11 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  // Reset description expanded state when model changes
+  useEffect(() => {
+    setIsDescriptionExpanded(false);
+  }, [model?.id]);
 
   // Fetch generation data when generationId changes and we're on pricing tab
   useEffect(() => {
@@ -278,9 +284,29 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {model.description || 'No description available.'}
-                      </p>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        {(() => {
+                          const description = model.description || 'No description available.';
+                          const shouldTruncate = description.length > 400;
+                          const displayText = shouldTruncate && !isDescriptionExpanded 
+                            ? description.slice(0, 400) + '...'
+                            : description;
+                          
+                          return (
+                            <>
+                              <p>{displayText}</p>
+                              {shouldTruncate && (
+                                <button
+                                  onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                                  className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium focus:outline-none focus:underline transition-colors"
+                                >
+                                  {isDescriptionExpanded ? 'See less' : 'See more'}
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
                     
                     <div>
@@ -289,6 +315,33 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Model ID:</span>
                           <span className="font-mono text-sm text-gray-900 dark:text-white">{model.id}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 dark:text-gray-400">Input:</span>
+                          <span className="font-mono text-sm text-gray-900 dark:text-white">
+                            {(() => {
+                              const modalities = model.input_modalities || [];
+                              const allowedModalities = modalities.filter((m: string) => 
+                                m.toLowerCase() === 'text' || m.toLowerCase() === 'image'
+                              );
+                              
+                              if (allowedModalities.length === 0) return 'Text';
+                              
+                              // Capitalize and sort with Text first
+                              const capitalizedModalities = allowedModalities.map(m => 
+                                m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()
+                              );
+                              
+                              // Ensure Text appears first if present
+                              const sortedModalities = capitalizedModalities.sort((a, b) => {
+                                if (a === 'Text') return -1;
+                                if (b === 'Text') return 1;
+                                return 0;
+                              });
+                              
+                              return sortedModalities.join(', ');
+                            })()}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Context Length:</span>
