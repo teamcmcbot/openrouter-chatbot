@@ -56,10 +56,10 @@ Quantum computing is a revolutionary...
 
 #### Phase 2: Final Metadata
 
-Complete metadata delivered at the end with special marker:
+Complete metadata delivered at the end as a single JSON line:
 
 ```
-__FINAL_METADATA__{"__FINAL_METADATA__":{
+{"__FINAL_METADATA__":{
   "response": "Let me explain quantum computing...",
   "usage": {
     "prompt_tokens": 45,
@@ -157,16 +157,28 @@ const streamResponse = async (requestBody: StreamChatRequest) => {
       const chunk = decoder.decode(value, { stream: true });
       content += chunk;
 
-      // Check for metadata marker
-      if (content.includes("__FINAL_METADATA__")) {
-        const [textContent, metadataJson] = content.split("__FINAL_METADATA__");
-
+      // Attempt to parse complete JSON lines for final metadata
+      const lines = content.split("\n");
+      // Keep the last incomplete line in the buffer
+      content = lines.pop() ?? "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("{")) {
+          // forward normal content lines
+          updateStreamingContent((prev) => prev + line + "\n");
+          continue;
+        }
         try {
-          finalMetadata = JSON.parse(metadataJson)?.__FINAL_METADATA__;
-          content = textContent; // Clean content without metadata
-          break;
-        } catch (e) {
-          console.error("Metadata parsing error:", e);
+          const maybe = JSON.parse(trimmed);
+          if (maybe && maybe.__FINAL_METADATA__) {
+            finalMetadata = maybe.__FINAL_METADATA__;
+          } else {
+            // Not metadata, treat as content
+            updateStreamingContent((prev) => prev + line + "\n");
+          }
+        } catch {
+          // Not a JSON line, treat as content
+          updateStreamingContent((prev) => prev + line + "\n");
         }
       }
 
@@ -180,6 +192,17 @@ const streamResponse = async (requestBody: StreamChatRequest) => {
   return { content, metadata: finalMetadata };
 };
 ```
+
+### Streaming Markers
+
+- The server may interleave special lines for progressive UI features:
+  - `__ANNOTATIONS_CHUNK__{"type":"annotations","data":[...]}`: cumulative, deduped citations (by URL). These are lines on their own and should not be rendered as assistant text.
+  - `__REASONING_CHUNK__{"type":"reasoning","data":"..."}`: present only when reasoning is enabled and permitted by tier. Also delivered as standalone lines.
+- Clients should treat these marker lines specially and not include them in the assistant content. Final metadata contains the complete annotation set and optional reasoning payload.
+
+### Debugging
+
+Set `STREAM_DEBUG=1` in the server environment to log chunk boundaries, marker emissions, and high-level parsing events during development. This is disabled by default in production.
 
 ### Error Handling
 

@@ -251,6 +251,9 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     // Rolling line buffer and balanced marker parsing
     let carry = '';
     const streamDebug = process.env.STREAM_DEBUG === '1';
+    const STREAM_MARKERS_ENABLED = (process.env.STREAM_MARKERS_ENABLED || '1') === '1';
+    const STREAM_REASONING_ENABLED = (process.env.STREAM_REASONING_ENABLED || '1') === '1';
+    let firstAnnotationMs: number | undefined;
     const textStream = new TransformStream<Uint8Array, string>({
       transform(chunk, controller) {
         const text = new TextDecoder().decode(chunk);
@@ -280,8 +283,8 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           const trimmed = line.trim();
           if (!trimmed) continue;
 
-          // Forward pure annotation marker lines
-          if (trimmed.startsWith('__ANNOTATIONS_CHUNK__')) {
+          // Forward pure annotation marker lines (if enabled)
+          if (STREAM_MARKERS_ENABLED && trimmed.startsWith('__ANNOTATIONS_CHUNK__')) {
             const idx = trimmed.indexOf('{');
             if (idx !== -1) {
               const jsonStr = trimmed.slice(idx);
@@ -292,15 +295,19 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
                 else if (ch === '}') depth--;
               }
               if (depth === 0) {
+                if (firstAnnotationMs === undefined) {
+                  firstAnnotationMs = Date.now() - startTime;
+                  logger.info('TTF_annotation', { ms: firstAnnotationMs, model: enhancedData.model });
+                }
                 controller.enqueue(trimmed + '\n');
                 continue;
               }
             }
           }
 
-          // Forward pure reasoning marker lines only if allowed by server-side validation
-          const allowReasoning = !!reasoning; // already gated by tier earlier
-          if (trimmed.startsWith('__REASONING_CHUNK__')) {
+          // Forward pure reasoning marker lines only if allowed by server-side validation and enabled
+          const allowReasoning = !!reasoning && STREAM_REASONING_ENABLED; // tier + flag
+          if (STREAM_MARKERS_ENABLED && trimmed.startsWith('__REASONING_CHUNK__')) {
             const idx = trimmed.indexOf('{');
             if (idx !== -1) {
               const jsonStr = trimmed.slice(idx);
@@ -364,7 +371,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
               .filter((x): x is { type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number } => !!x))
           : [];
 
-        // Create final metadata response (same structure as non-streaming ChatResponse)
+  // Create final metadata response (same structure as non-streaming ChatResponse)
         const finalMetadata = {
           __FINAL_METADATA__: {
             response: fullCompletion,
@@ -393,6 +400,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           userId: authContext.user?.id,
           model: enhancedData.model,
           elapsedMs,
+          ttfAnnotationMs: firstAnnotationMs,
           tier: authContext.profile?.subscription_tier,
           completionLength: fullCompletion.length,
           contentType: 'markdown',

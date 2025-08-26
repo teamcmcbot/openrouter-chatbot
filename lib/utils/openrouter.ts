@@ -373,6 +373,11 @@ export async function getOpenRouterCompletionStream(
   authContext?: AuthContext | null,
   options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
 ): Promise<ReadableStream> {
+  // STREAM_DEBUG toggle
+  const STREAM_DEBUG = process.env.STREAM_DEBUG === '1';
+  // Rollout flags (Phase 6)
+  const STREAM_MARKERS_ENABLED = (process.env.STREAM_MARKERS_ENABLED || '1') === '1';
+  const STREAM_REASONING_ENABLED = (process.env.STREAM_REASONING_ENABLED || '1') === '1';
   if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is not set');
   const selectedModel = model ?? OPENROUTER_API_MODEL;
   const dynamicMaxTokens = maxTokens ?? OPENROUTER_MAX_TOKENS;
@@ -417,6 +422,15 @@ export async function getOpenRouterCompletionStream(
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENROUTER_API_KEY}` },
     body: JSON.stringify(requestBody),
   });
+  if (STREAM_DEBUG) {
+    logger.info('STREAM_DEBUG OpenRouter request', {
+      model: requestBody.model,
+      webSearch: !!options?.webSearch,
+      reasoning: !!options?.reasoning,
+      max_tokens: requestBody.max_tokens,
+      temperature: requestBody.temperature,
+    });
+  }
   if (!response.ok) {
     const errorBody = await response.text();
     throw new ApiErrorResponse(
@@ -438,7 +452,9 @@ export async function getOpenRouterCompletionStream(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
-  const allowReasoning = !!options?.reasoning; // gate reasoning visibility
+  // allowReasoning: requested + reasoning flag
+  const allowReasoning = !!options?.reasoning && STREAM_REASONING_ENABLED;
+  if (STREAM_DEBUG) logger.info('STREAM_DEBUG streaming start');
 
   type UrlCitation = { type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number };
   function isObject(x: unknown): x is Record<string, unknown> {
@@ -491,26 +507,30 @@ export async function getOpenRouterCompletionStream(
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
+            if (STREAM_DEBUG) logger.info('STREAM_DEBUG upstream done; flushing metadata');
             const metadataChunk = JSON.stringify({ type: 'metadata', data: streamMetadata });
             controller.enqueue(encoder.encode(`\n\n__METADATA__${metadataChunk}__END__\n\n`));
             controller.close();
             break;
           }
 
-          sseBuffer += decoder.decode(value, { stream: true });
+          const decoded = decoder.decode(value, { stream: true });
+          if (STREAM_DEBUG) logger.info('STREAM_DEBUG chunk', { bytes: value?.byteLength, preview: decoded.slice(0, 120) });
+          sseBuffer += decoded;
           const normalized = sseBuffer.replace(/\r\n/g, '\n');
           const events = normalized.split('\n\n');
           sseBuffer = events.pop() || '';
 
           for (const evt of events) {
-            const payload = evt
+            // Extract data lines per SSE
+            const dataLines = evt
               .split('\n')
               .map((l) => l.match(/^data:\s?(.*)$/))
               .filter((m): m is RegExpMatchArray => !!m)
-              .map((m) => m[1])
-              .join('\n')
-              .trim();
+              .map((m) => m[1]);
+            const payload = dataLines.join('\n').trim();
             if (!payload || payload === '[DONE]') continue;
+            if (STREAM_DEBUG) logger.info('STREAM_DEBUG event payload', { size: payload.length, head: payload.slice(0, 100) });
 
             try {
               const data: unknown = JSON.parse(payload);
@@ -533,8 +553,9 @@ export async function getOpenRouterCompletionStream(
                 if (!streamMetadata.reasoning) streamMetadata.reasoning = '';
                 streamMetadata.reasoning += d.choices[0].delta.reasoning;
                 const text = String(d.choices[0].delta.reasoning || '').trim();
-                if (text) {
+                if (text && STREAM_MARKERS_ENABLED) {
                   const out = `__REASONING_CHUNK__${JSON.stringify({ type: 'reasoning', data: d.choices[0].delta.reasoning })}\n`;
+                  if (STREAM_DEBUG) logger.info('STREAM_DEBUG emit reasoning chunk', { len: text.length });
                   controller.enqueue(encoder.encode(out));
                 }
               }
@@ -563,8 +584,11 @@ export async function getOpenRouterCompletionStream(
                 }
                 if (added > 0) {
                   streamMetadata.annotations = aggregatedAnnotations;
-                  const out = `__ANNOTATIONS_CHUNK__${JSON.stringify({ type: 'annotations', data: aggregatedAnnotations })}\n`;
-                  controller.enqueue(encoder.encode(out));
+                  if (STREAM_MARKERS_ENABLED) {
+                    const out = `__ANNOTATIONS_CHUNK__${JSON.stringify({ type: 'annotations', data: aggregatedAnnotations })}\n`;
+                    if (STREAM_DEBUG) logger.info('STREAM_DEBUG emit annotations', { total: aggregatedAnnotations.length, added });
+                    controller.enqueue(encoder.encode(out));
+                  }
                 }
               }
 
@@ -596,14 +620,19 @@ export async function getOpenRouterCompletionStream(
                 }
 
                 contentChunk = contentChunk.replace(reasoningDetailsRegex, '').replace(reasoningChunkRegex, '');
-                if (contentChunk) controller.enqueue(encoder.encode(contentChunk));
+                if (contentChunk) {
+                  if (STREAM_DEBUG) logger.info('STREAM_DEBUG emit content', { len: contentChunk.length, head: contentChunk.slice(0, 60) });
+                  controller.enqueue(encoder.encode(contentChunk));
+                }
               }
-            } catch {
+            } catch (e) {
+              if (STREAM_DEBUG) logger.warn('STREAM_DEBUG JSON parse error; skipping event', e);
               // ignore partial/invalid JSON events
             }
           }
         }
       } catch (err) {
+        if (STREAM_DEBUG) logger.error('STREAM_DEBUG stream error', err);
         controller.error(err);
       }
     },

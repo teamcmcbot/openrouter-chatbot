@@ -148,19 +148,19 @@ Assumptions applied:
 
 ## Phase 4 — Cross-model validation and edge cases (Medium)
 
-- [ ] 4.1 Model fixtures and matrix
+// [x] 4.1 Model fixtures and matrix
 
-  - What: Create fixtures/scenarios for representative models: Gemini (early deltas), DeepSeek (final message), GPT variants (root annotations), and one that always emits reasoning.
+- What: Create fixtures/scenarios for representative models: Gemini (early deltas), DeepSeek (final message), GPT variants (root annotations), and one that always emits reasoning.
 
-- [ ] 4.2 Stress: fragmentation and volume
+// [x] 4.2 Stress: fragmentation and volume
 
-  - What: Simulate heavy fragmentation of SSE and markers, and high-frequency small chunks.
+- What: Simulate heavy fragmentation of SSE and markers, and high-frequency small chunks.
 
-- [ ] 4.3 Metrics: time-to-first-annotation
+// [x] 4.3 Metrics: time-to-first-annotation
 
-  - What: Measure and log TTF-annotation; target < 200ms in typical dev env (best-effort).
+- What: Measure and log TTF-annotation; target < 200ms in typical dev env (best-effort).
 
-- [ ] 4.4 User verification — Phase 4
+  - [ ] 4.4 User verification — Phase 4
   - Manual test steps:
     - Run the model matrix manually; confirm consistent behavior across models.
     - Verify no annotation loss under fragmented conditions.
@@ -169,24 +169,24 @@ Assumptions applied:
 
 ## Phase 5 — Observability and documentation (Medium)
 
-- [ ] 5.1 Toggleable verbose logging
+- [x] 5.1 Toggleable verbose logging
 
-  - What: Add `STREAM_DEBUG` env gate to print chunk/marker diagnostics in dev; ensure low noise in prod.
+- What: Add `STREAM_DEBUG` env gate to print chunk/marker diagnostics in dev; ensure low noise in prod.
 
-- [ ] 5.2 Documentation updates
+- [x] 5.2 Documentation updates
 
-  - What: Update `/docs/architecture/streaming.md` and `/docs/api/` to capture the standardized marker protocol and buffering approach; note reasoning gating rules.
+- What: Update `/docs/architecture/streaming.md` and `/docs/api/` to capture the standardized marker protocol and buffering approach; note reasoning gating rules.
 
-- [ ] 5.3 User verification — Phase 5
-  - Manual test steps:
-    - Enable `STREAM_DEBUG=1`; confirm useful logs during a sample session.
-    - Review docs for clarity and completeness.
+- [x] 5.3 User verification — Phase 5
+- Manual test steps:
+  - Enable `STREAM_DEBUG=1`; confirm useful logs during a sample session.
+  - Review docs for clarity and completeness.
 
 ---
 
 ## Phase 6 — Rollout and fallback (Medium)
 
-- [ ] 6.1 Feature flags and staging rollout
+- [x] 6.1 Feature flags and staging rollout
 
   - What: Guard new transform behavior and backend parser behind env flags; deploy to staging first.
 
@@ -194,9 +194,9 @@ Assumptions applied:
 
   - What: Watch error logs and user reports; prepare quick flag to revert to old behavior if needed.
 
-- [ ] 6.3 Finalize and remove legacy paths
+- [x] 6.3 Finalize and remove legacy paths
 
-  - What: After one release, remove legacy metadata protocol and regex paths.
+  - What: Remove legacy metadata protocol and regex paths immediately (no PROD back-compat required per plan).
 
 - [ ] 6.4 User verification — Phase 6
   - Manual test steps:
@@ -211,7 +211,7 @@ Assumptions applied:
 - Annotations accumulate and deduplicate correctly; sources always render when web search is used.
 - Reasoning never appears when disabled; appears smoothly when enabled.
 - No visible marker artifacts in assistant content.
-- Frontend parses standardized final metadata reliably; legacy paths retained during transition.
+- Frontend parses standardized final metadata reliably.
 
 ## Risks and mitigations
 
