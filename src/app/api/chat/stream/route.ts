@@ -327,7 +327,9 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           }
 
           // Otherwise treat as normal content
-          fullCompletion += line;
+          // IMPORTANT: preserve newline characters in the accumulated completion so
+          // the final metadata.response renders markdown correctly after streaming.
+          fullCompletion += line + '\n';
           controller.enqueue(line + '\n');
         }
       },
