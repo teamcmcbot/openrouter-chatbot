@@ -16,25 +16,29 @@ This guide outlines safe rollout, canary, and rollback for the streaming protoco
 
 ## Recommended Rollout Sequence
 
-1) Stage validation
+1. Stage validation
+
 - STREAM_MARKERS_ENABLED=0
 - STREAM_REASONING_ENABLED=1
 - STREAM_DEBUG=1 (short window)
 - Goal: Verify content streaming and final metadata only; ensure no marker contamination.
 
-2) Canary progressive markers
+2. Canary progressive markers
+
 - STREAM_MARKERS_ENABLED=1 for a small percentage of instances or a single region.
 - STREAM_REASONING_ENABLED=1
 - STREAM_DEBUG=1 for 15–30 minutes, then 0.
 - Watch for incomplete marker JSON or UI contamination.
 
-3) Gradual expansion
+3. Gradual expansion
+
 - Increase scope of STREAM_MARKERS_ENABLED=1 as metrics remain healthy.
 - Keep STREAM_REASONING_ENABLED aligned with product policy and tiers.
 
 ## What to Watch
 
 - Logs with STREAM_DEBUG=1:
+
   - "STREAM[DEBUG] event parsed" counts rising without parse errors
   - "STREAM[DEBUG] emit reasoning/annotations" occurrences
   - "TTF_annotation" timing (first annotations forwarded)
