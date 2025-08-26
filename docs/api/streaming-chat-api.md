@@ -200,6 +200,19 @@ const streamResponse = async (requestBody: StreamChatRequest) => {
   - `__REASONING_CHUNK__{"type":"reasoning","data":"..."}`: present only when reasoning is enabled and permitted by tier. Also delivered as standalone lines.
 - Clients should treat these marker lines specially and not include them in the assistant content. Final metadata contains the complete annotation set and optional reasoning payload.
 
+### Environment Flags
+
+The streaming behavior can be controlled at runtime via environment flags:
+
+- `STREAM_MARKERS_ENABLED` (default: 1 in dev, may be 0 in some deploys):
+  - When 1, progressive marker lines may be forwarded for reasoning/annotations.
+  - When 0, markers are suppressed; final metadata still includes the complete annotation set and any reasoning that’s permitted.
+- `STREAM_REASONING_ENABLED` (default: 1 in dev):
+  - When 1, reasoning is forwarded only if requested and permitted by model/tier.
+  - When 0, reasoning content is suppressed in the streaming path, regardless of request.
+- `STREAM_DEBUG` (default: 0):
+  - When 1, enables verbose development logs (chunk boundaries, marker emissions, TTF_annotation).
+
 ### Debugging
 
 Set `STREAM_DEBUG=1` in the server environment to log chunk boundaries, marker emissions, and high-level parsing events during development. This is disabled by default in production.

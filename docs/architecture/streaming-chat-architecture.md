@@ -1,8 +1,26 @@
-# Advanced Streaming Chat Architecture with Real-Time Features
+# [Deprecated] Advanced Streaming Chat Architecture with Real-Time Features
+
+Note: This document describes an exploratory/legacy approach and is superseded by the canonical streaming specs. For the current, authoritative design and protocol, see:
+
+- docs/architecture/streaming.md (protocol, buffering, observability)
+- docs/api/streaming-chat-api.md (endpoint contract, client handling)
+
+Key deltas from this deprecated draft:
+
+- Final metadata is emitted as a single one-line JSON object: `{ "__FINAL_METADATA__": { ... } }` at end-of-stream.
+- Progressive markers may be present but are globally gated by env flags: `STREAM_MARKERS_ENABLED` and `STREAM_REASONING_ENABLED`.
+- Frontend should avoid regex-based JSON extraction; prefer reading full marker lines and `JSON.parse` after stripping the prefix, or only parse the final metadata line.
+- The “Vercel AI SDK v5 Integration” section below is optional background and not used in the current implementation.
+
+Environment flags (current behavior):
+
+- STREAM_MARKERS_ENABLED: 1 to forward progressive `__REASONING_CHUNK__`/`__ANNOTATIONS_CHUNK__` lines; 0 to suppress them (final metadata still contains annotations/reasoning when permitted).
+- STREAM_REASONING_ENABLED: 1 to allow reasoning to be forwarded (subject to model/tier and request); 0 to suppress reasoning entirely in the streaming path.
+- STREAM_DEBUG: 1 to enable verbose diagnostics and TTF_annotation logging during development.
 
 **Date**: August 24, 2025  
 **Version**: 2.0  
-**Status**: Production Ready with Advanced Streaming
+**Status**: Deprecated (see notes above)
 
 ## Overview
 
@@ -217,11 +235,11 @@ if (data.annotations) {
 }
 ```
 
-## Vercel AI SDK v5 Integration
+## Vercel AI SDK v5 Integration (Optional, Not Used Currently)
 
 ### Why Vercel AI SDK?
 
-The Vercel AI SDK provides critical infrastructure for handling streaming responses:
+The Vercel AI SDK can provide infrastructure for handling streaming responses, but it is not required for our current implementation. This section remains as an optional alternative.
 
 1. **Stream Parsing**: Handles SSE parsing and chunk extraction
 2. **Response Creation**: `createTextStreamResponse` creates proper streaming HTTP responses
@@ -232,6 +250,7 @@ The Vercel AI SDK provides critical infrastructure for handling streaming respon
 
 ```typescript
 // Backend: src/app/api/chat/stream/route.ts
+// Example only; our current implementation does not rely on this helper.
 import { createTextStreamResponse } from "ai";
 
 export async function POST(request: NextRequest): Promise<Response> {

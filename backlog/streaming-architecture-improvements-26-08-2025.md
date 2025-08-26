@@ -198,7 +198,7 @@ Assumptions applied:
 
   - What: Remove legacy metadata protocol and regex paths immediately (no PROD back-compat required per plan).
 
-- [ ] 6.4 User verification — Phase 6
+- [x] 6.4 User verification — Phase 6
   - Manual test steps:
     - Flip flags in staging; validate behavior and metrics.
     - Promote to production; monitor.
