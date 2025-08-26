@@ -78,6 +78,8 @@ export default function MessageList({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const streamingReasoningRef = useRef<HTMLDivElement>(null);
+  // NEW: track which pane should own auto-scroll during streaming
+  const [streamingScrollTarget, setStreamingScrollTarget] = useState<"reasoning" | "content" | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
   const [lightbox, setLightbox] = useState<{ open: boolean; url?: string; alt?: string }>(() => ({ open: false }));
@@ -137,12 +139,47 @@ export default function MessageList({
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
 
-  // Auto-scroll streaming reasoning to bottom
+  // Streaming scroll owner selection
   useEffect(() => {
-    if (isStreaming && streamingReasoning && streamingReasoningRef.current) {
+    if (!isStreaming) {
+      // Reset when stream completes
+      setStreamingScrollTarget(null);
+      return;
+    }
+    // If content has started, content takes over permanently for this stream
+    if (isStreaming && streamingContent && streamingContent.length > 0) {
+      setStreamingScrollTarget("content");
+      return;
+    }
+    // Otherwise, fall back to reasoning if we have any reasoning text
+    if (isStreaming && (!streamingScrollTarget || streamingScrollTarget === null) && streamingReasoning && streamingReasoning.length > 0) {
+      setStreamingScrollTarget("reasoning");
+    }
+  }, [isStreaming, streamingContent, streamingReasoning, streamingScrollTarget]);
+
+  // Auto-scroll streaming reasoning to bottom (only when reasoning is the active target)
+  useEffect(() => {
+    if (
+      isStreaming &&
+      streamingScrollTarget === "reasoning" &&
+      streamingReasoning &&
+      streamingReasoningRef.current
+    ) {
       streamingReasoningRef.current.scrollTop = streamingReasoningRef.current.scrollHeight;
     }
-  }, [isStreaming, streamingReasoning]);
+  }, [isStreaming, streamingReasoning, streamingScrollTarget]);
+
+  // Auto-scroll main container to bottom while content streams (takes over once any content arrives)
+  useEffect(() => {
+    if (isStreaming && streamingScrollTarget === "content" && streamingContent && messagesContainerRef.current) {
+      // Use a micro-delay to ensure DOM has painted the latest chunk
+      const id = window.setTimeout(() => {
+        const el = messagesContainerRef.current!;
+        el.scrollTop = el.scrollHeight - el.clientHeight;
+      }, 0);
+      return () => window.clearTimeout(id);
+    }
+  }, [isStreaming, streamingContent, streamingScrollTarget]);
 
   const handleOpenImage = async (attachmentId: string, alt?: string) => {
     try {
@@ -171,6 +208,7 @@ export default function MessageList({
   return (
     <div 
       ref={messagesContainerRef}
+  data-testid="messages-container"
   className="h-full overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 scroll-smooth"
     >
       <div className="space-y-4">
@@ -508,7 +546,7 @@ export default function MessageList({
                     {/* ENHANCED: Always show reasoning content area, even if empty initially */}
                     <div className="px-3 pb-3 pt-2 border-t border-slate-300/60 dark:border-slate-500/40 text-slate-800 dark:text-slate-200">
                       {streamingReasoning ? (
-                        <div ref={streamingReasoningRef} className="prose prose-sm prose-slate dark:prose-invert max-w-none max-h-32 overflow-y-auto scroll-smooth">
+                        <div ref={streamingReasoningRef} data-testid="streaming-reasoning" className="prose prose-sm prose-slate dark:prose-invert max-w-none max-h-32 overflow-y-auto scroll-smooth">
                           <MemoizedMarkdown>
                             {streamingReasoning}
                           </MemoizedMarkdown>
@@ -553,7 +591,7 @@ export default function MessageList({
                     </div>
                     
                     <div className="px-3 pb-3 pt-2 border-t border-slate-300/60 dark:border-slate-500/40 text-slate-800 dark:text-slate-200">
-                      <div ref={streamingReasoningRef} className="prose prose-sm prose-slate dark:prose-invert max-w-none max-h-32 overflow-y-auto scroll-smooth">
+                      <div ref={streamingReasoningRef} data-testid="streaming-reasoning" className="prose prose-sm prose-slate dark:prose-invert max-w-none max-h-32 overflow-y-auto scroll-smooth">
                         <MemoizedMarkdown>
                           {streamingReasoning}
                         </MemoizedMarkdown>
