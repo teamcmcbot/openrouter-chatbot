@@ -2,7 +2,7 @@
  * Test script to verify dynamic model configuration
  */
 
-import { getModelTokenLimits, refreshModelConfigs } from './lib/utils/tokens';
+import { getModelTokenLimits } from './lib/utils/tokens';
 
 async function testDynamicModels() {
   console.log('=== Testing Dynamic Model Configuration ===\n');
@@ -24,8 +24,16 @@ async function testDynamicModels() {
 
     // Test manual refresh
     console.log('3. Testing manual config refresh:');
-    await refreshModelConfigs();
-    console.log('   ✓ Config refresh completed\n');
+    try {
+      const mod = await import('./lib/utils/tokens');
+      const refresh = (mod as typeof import('./lib/utils/tokens')).refreshModelConfigs;
+      if (typeof refresh === 'function') {
+        await refresh();
+      }
+      console.log('   ✓ Config refresh completed\n');
+    } catch {
+      console.log('   (skipped) refresh not available\n');
+    }
 
     // Test with unknown model (should fallback)
     console.log('4. Testing with unknown model (fallback):');

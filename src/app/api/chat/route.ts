@@ -10,7 +10,9 @@ import { OpenRouterRequest, OpenRouterContentBlock, OpenRouterUrlCitation } from
 import { AuthContext } from '../../../../lib/types/auth';
 import { withEnhancedAuth } from '../../../../lib/middleware/auth';
 import { withRedisRateLimitEnhanced } from '../../../../lib/middleware/redisRateLimitMiddleware';
-import { estimateTokenCount, getModelTokenLimits } from '../../../../lib/utils/tokens';
+import { estimateTokenCount } from '../../../../lib/utils/tokens';
+import { getModelTokenLimits } from '../../../../lib/utils/tokens.server';
+type SubscriptionTier = 'anonymous' | 'free' | 'pro' | 'enterprise';
 import { createClient } from '../../../../lib/supabase/server';
 
 async function chatHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
@@ -183,7 +185,8 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     }
     
   // Phase 4: Calculate model-aware max tokens
-    const tokenStrategy = await getModelTokenLimits(enhancedData.model);
+  const tier = (authContext.profile?.subscription_tier || 'anonymous') as SubscriptionTier;
+  const tokenStrategy = await getModelTokenLimits(enhancedData.model, { tier });
     const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
     
     console.log(`[Chat API] Model: ${enhancedData.model}`);

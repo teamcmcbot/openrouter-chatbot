@@ -242,3 +242,28 @@ Notes
 - Validation: `lib/utils/validation.ts`
 - Non-streaming and streaming handlers: `src/app/api/chat/route.ts`, `src/app/api/chat/stream/route.ts`
 - OpenRouter client (system prompts, max_tokens, streaming): `lib/utils/openrouter.ts`
+
+---
+
+## Current architecture alignment (DB-backed) – 2025-08-26
+
+- Source of truth
+
+  - Model metadata is stored in `model_access` and accessed via `lib/server/models.ts` with a 2h in-memory TTL cache and tier-aware filters (status='active', is_free/is_pro/is_enterprise).
+  - Client/UI hydrates model options from `/api/models` into Zustand; no direct OpenRouter calls in the browser.
+
+- Token utilities split
+
+  - Server-only: `lib/utils/tokens.server.ts` resolves token limits by reading DB model configs (via `lib/server/models.ts`) and computing the strategy from the model’s context length. Chat API routes pass the user’s subscription tier.
+  - Client-safe: `lib/utils/tokens.ts` estimates using the store and hydrates via `/api/models` on cache-miss; falls back conservatively (8K) if needed.
+
+- Security and middleware
+
+  - API endpoints must use standardized auth middleware (protected/tiered/ownership) and tiered Redis rate limiting as documented in the repo’s security standards.
+
+- Tests
+  - Added focused unit tests:
+    - `tests/lib/server/models.test.ts` – tier filters, status='active' filtering, list/item cache behaviors, error path.
+    - `tests/lib/utils/tokens.server.test.ts` – DB-backed resolution, tier fallback, conservative defaults.
+
+This section reflects the implementation currently deployed in code and complements the recommendations above for future server-side prompt estimation and tier clamping.

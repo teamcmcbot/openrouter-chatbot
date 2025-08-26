@@ -123,6 +123,10 @@ jest.mock("../../lib/utils/validation", () => ({
 
 jest.mock("../../lib/utils/tokens", () => ({
   estimateTokenCount: jest.fn(() => 1),
+}));
+
+// New server-only tokens util mock (DB-backed in app code)
+jest.mock("../../lib/utils/tokens.server", () => ({
   getModelTokenLimits: jest.fn(async () => ({ maxInputTokens: 8192, maxOutputTokens: 1024 })),
 }));
 

@@ -79,31 +79,31 @@ Risk/Complexity:
 
 ### Phase 1 — Planning and scaffolding
 
-- [ ] Add server helper `lib/server/models.ts` with `getServerModelConfig({ modelId, tier })` query to `model_access` (status='active', tier filter), typed return.
-- [ ] Add minimal in-memory cache with TTL to reduce DB round-trips.
+- [x] Add server helper `lib/server/models.ts` with `getServerModelConfig({ modelId, tier })` query to `model_access` (status='active', tier filter), typed return.
+- [x] Add minimal in-memory cache with TTL to reduce DB round-trips.
 - [ ] Add unit tests for the server helper with mocked Supabase.
 - [ ] User verify: confirm query fields and tier logic match `/api/models`.
 
 ### Phase 2 — Wire server-side token estimation
 
-- [ ] Update `getModelTokenLimits()` signature to accept optional `opts?: { tier?: 'anonymous'|'free'|'pro'|'enterprise' }` without breaking existing callers.
-- [ ] On server (typeof window === 'undefined'), call `getServerModelConfig({ modelId, tier })`. If null, fallback to conservative strategy (8K) with a warning.
-- [ ] Keep fallback constants for resilience only.
-- [ ] Update API routes (`/api/chat` and `/api/chat/stream`) to pass the tier from injected `AuthContext` to `getModelTokenLimits()`.
+- [x] Update `getModelTokenLimits()` signature to accept optional `opts?: { tier?: 'anonymous'|'free'|'pro'|'enterprise' }` without breaking existing callers. (Implemented via server-only util `lib/utils/tokens.server.ts` while keeping client-safe `lib/utils/tokens.ts` unchanged.)
+- [x] On server (typeof window === 'undefined'), call `getServerModelConfig({ modelId, tier })`. If null, fallback to conservative strategy (8K) with a warning.
+- [x] Keep fallback constants for resilience only. (Conservative 8K fallback retained; legacy OpenRouter constants removed.)
+- [x] Update API routes (`/api/chat` and `/api/chat/stream`) to pass the tier from injected `AuthContext` to `getModelTokenLimits()`.
 - [ ] Tests: ensure server path respects tier access and returns expected context lengths.
 - [ ] User verify: token estimation in API routes honors DB model_access.
 
 ### Phase 3 — Strengthen client path
 
-- [ ] Ensure client path only uses Zustand. If cache miss, fetch `/api/models` and populate Zustand (reuse existing store fetch if available; otherwise add a fetch utility in store).
-- [ ] Remove any accidental client fallback to `openrouter.ai`.
-- [ ] Tests: client hook path with/without preloaded models.
+- [x] Ensure client path only uses Zustand. If cache miss, fetch `/api/models` and populate Zustand (reuse existing store fetch if available; otherwise add a fetch utility in store).
+- [x] Remove any accidental client fallback to `openrouter.ai`.
+- [x] Tests: client hydration path from `/api/models` on cache miss is covered by integration test update; add hook-specific tests if needed.
 - [ ] User verify: no network to openrouter.ai from browser; `/api/models` only.
 
 ### Phase 4 — Cleanup and docs
 
-- [ ] Remove/retire `fetchModelConfigs()` OpenRouter calls from tokens util or guard them behind server-only admin tooling if still needed.
-- [ ] Update `lib/server-init.ts` preload to use DB-backed preloader or remove it if not necessary.
+- [x] Remove/retire `fetchModelConfigs()` OpenRouter calls from tokens util or guard them behind server-only admin tooling if still needed.
+- [x] Update `lib/server-init.ts` preload to use DB-backed preloader or remove it if not necessary. (Kept as safe no-op to avoid breaking health checks.)
 - [ ] Update docs: `docs/architecture/tokens-estimation.md` and add a note about DB source of truth.
 - [ ] User verify: sign off on docs and behavior.
 

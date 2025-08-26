@@ -7,7 +7,9 @@ import { logger } from '../../../../../lib/utils/logger';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { withEnhancedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
-import { estimateTokenCount, getModelTokenLimits } from '../../../../../lib/utils/tokens';
+import { estimateTokenCount } from '../../../../../lib/utils/tokens';
+import { getModelTokenLimits } from '../../../../../lib/utils/tokens.server';
+type SubscriptionTier = 'anonymous' | 'free' | 'pro' | 'enterprise';
 import { createClient } from '../../../../../lib/supabase/server';
 import { getOpenRouterCompletionStream, fetchOpenRouterModels } from '../../../../../lib/utils/openrouter';
 import { OpenRouterContentBlock } from '../../../../../lib/types/openrouter';
@@ -172,7 +174,8 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     }
 
     // Token validation (same as non-streaming)
-    const tokenStrategy = await getModelTokenLimits(enhancedData.model);
+  const tier = (authContext.profile?.subscription_tier || 'anonymous') as SubscriptionTier;
+  const tokenStrategy = await getModelTokenLimits(enhancedData.model, { tier });
     const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
     
     // console.log(`[Chat Stream API] Model: ${enhancedData.model}`);
@@ -416,11 +419,28 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     // Pipe the OpenRouter stream through the transformer to get a text stream
     const textReadableStream = stream.pipeThrough(textStream);
 
-    // console.log('🟡 [STREAM DEBUG] Creating response with streaming headers');
-    
+  // Normalize to a plain ReadableStream<string> for test compatibility
+  const normalizedTextStream = new ReadableStream<string>({
+      start(controller) {
+        const reader = textReadableStream.getReader();
+        (async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+        if (value !== undefined) controller.enqueue(value);
+            }
+          } finally {
+            reader.releaseLock();
+            controller.close();
+          }
+        })();
+      }
+    });
+
     // Return the streaming text response using AI SDK v5
     const streamResponse = createTextStreamResponse({
-      textStream: textReadableStream,
+      textStream: normalizedTextStream,
       headers: {
         'X-Streaming': 'true',
         'X-Model': enhancedData.model,
@@ -428,8 +448,16 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       }
     });
 
+    // Ensure we hand back a Web ReadableStream (with getReader) for tests and runtime
+    const candidateBody = (streamResponse as unknown as { body?: unknown }).body as unknown;
+    const hasGetReader = (v: unknown): v is { getReader: () => unknown } =>
+      !!v && typeof v === 'object' && 'getReader' in (v as Record<string, unknown>) && typeof (v as { getReader?: unknown }).getReader === 'function';
+    const responseBody: ReadableStream<unknown> = hasGetReader(candidateBody)
+      ? (candidateBody as ReadableStream<unknown>)
+      : (normalizedTextStream as unknown as ReadableStream<unknown>);
+
     // Convert to NextResponse to match middleware expectations
-    return new NextResponse(streamResponse.body, {
+    return new NextResponse(responseBody, {
       status: streamResponse.status,
       statusText: streamResponse.statusText,
       headers: streamResponse.headers,

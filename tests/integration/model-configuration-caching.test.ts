@@ -181,13 +181,13 @@ describe('Model Configuration Caching Integration', () => {
       expect(tokenStrategy.maxOutputTokens).toBeGreaterThan(0);
     });
 
-    it('should fall back to API when cache is not available', async () => {
+    it('should fall back to /api/models when cache is not available', async () => {
       // Don't populate cache, directly test token limits
       const tokenStrategy = await getModelTokenLimits('gpt-4');
 
-      // Should make API call to OpenRouter when cache is empty
+      // Should make API call to our models endpoint when cache is empty
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('openrouter.ai/api/v1/models')
+        expect.stringContaining('/api/models')
       );
       
       // Should still return valid token strategy

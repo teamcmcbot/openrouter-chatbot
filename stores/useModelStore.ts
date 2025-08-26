@@ -597,3 +597,11 @@ export const hasModelConfigsInStore = (): boolean => {
   const configs = state.getAllModelConfigs();
   return Object.keys(configs).length > 0;
 };
+
+// Helper for external modules to hydrate models via /api/models and update store
+export const fetchModelsForStore = async (): Promise<void> => {
+  const state = useModelStore.getState();
+  if (typeof state.fetchModels === 'function') {
+    await state.fetchModels();
+  }
+};
