@@ -407,3 +407,137 @@ testMatrix.forEach((scenario) => {
 - **99.9% stream completion rate** under normal conditions
 
 This comprehensive analysis and improvement plan addresses the core architectural issues while ensuring robust, model-agnostic streaming that can handle the variability in how different AI models structure and time their streaming responses.
+
+## Independent findings (2025-08-26)
+
+This section documents an end-to-end trace of the current implementation and highlights concrete defects that can cause intermittent loss of `__ANNOTATIONS_CHUNK__` and other streaming inconsistencies. Findings reference actual code in the repo and expand on the prior plan with precise failure modes and targeted remediations.
+
+### Summary of most likely root causes for missing annotations
+
+1. Backend SSE parsing is line-based without event buffering, so JSON often arrives split across TCP/SSE boundaries; partial lines fail `JSON.parse` and get dropped silently. Result: occasional loss of chunks that include annotations.
+2. Annotation arrays are overwritten instead of accumulated in multiple places, so only the last-seen batch “wins”. Result: partial or empty sources when models emit multiple annotation deltas.
+3. The API transform operates on arbitrary byte chunks without an internal buffer for our special markers; partial marker JSON gets treated as regular content and never forwarded as a marker. Result: lost `__ANNOTATIONS_CHUNK__` when marker JSON is split.
+4. Metadata protocol mismatch: the API emits `__STREAM_METADATA_START__/__STREAM_METADATA_END__` while the frontend only parses `__METADATA__/__END__` and the legacy `__FINAL_METADATA__`. Result: final metadata is treated as content, and important fields (usage, annotations, etc.) aren’t captured reliably.
+
+### Backend producer issues — `lib/utils/openrouter.ts`
+
+- Fragile SSE parsing without event buffering
+
+  - Code: inside `getOpenRouterCompletionStream`, chunks are split by `'\n'` and each line starting with `'data: '` is parsed as a complete JSON object.
+  - Impact: SSE events can span multiple lines and multiple network chunks; `JSON.parse` fails on partial lines and is caught/ignored, silently dropping data (including annotations and reasoning).
+  - Evidence:
+    - Splitting by single newlines instead of buffering until a blank line (SSE event delimiter).
+    - Catch-all `catch { /* Ignore JSON parsing errors for non-JSON chunks */ }` swallows errors.
+
+- Annotations overwrite vs. accumulate
+
+  - Code: three locations set `streamMetadata.annotations = ...`:
+    - `data.choices?.[0]?.message?.annotations`
+    - `data.choices?.[0]?.delta?.annotations`
+    - `data.annotations`
+  - Impact: When annotations arrive incrementally, only the most recent set is retained; forwarding also uses the overwritten value.
+  - Fix direction: initialize `streamMetadata.annotations` as an array and push/merge/deduplicate across all sources.
+
+- Reasoning forwarded even when not requested
+
+  - Code: reasoning deltas are forwarded whenever present via `__REASONING_CHUNK__`, independent of `options?.reasoning` and user’s tier.
+  - Impact: Models like `gpt-5-nano` that emit reasoning unconditionally will surface reasoning in UI even when not enabled for the user/tier.
+  - Fix direction: only forward reasoning when the feature is enabled/supported for the current tier.
+
+- Regex-based cleaning of embedded markers in content
+  - Code: content chunks are scanned with regex for `__REASONING*_CHUNK__{...}` and stripped.
+  - Impact: unnecessary and brittle; our backend generates marker lines separately, so content shouldn’t contain embedded markers. Regex will also break on nested braces/quotes.
+  - Fix direction: stop trying to extract markers from content; guarantee markers are emitted as dedicated newline-delimited lines.
+
+### API transform issues — `src/app/api/chat/stream/route.ts`
+
+- No buffering for marker JSON across transport boundaries
+
+  - Code: `TransformStream`’s `transform(chunk)` decodes arbitrary byte chunks into a string and immediately tries to classify them. It matches “pure” marker lines by `text.trim().startsWith('__ANNOTATIONS_CHUNK__') && text.trim().endsWith('}')` and falls back to regex for mixed chunks.
+  - Impact: If a marker JSON is split across chunks (very common), the partial will not satisfy those conditions and will be treated as regular content. The marker is effectively lost.
+  - Fix direction: maintain a rolling string buffer; process complete lines and only parse a marker when we have a full line that starts with the marker prefix and contains balanced JSON.
+
+- Fragile regex for extraction/cleaning
+
+  - Code: `/__ANNOTATIONS_CHUNK__\\{[^}]*\\}/g` and `/__REASONING_CHUNK__\\{[^}]*\"data\":\"[^\"]*\"\\}/g`.
+  - Impact: breaks with nested objects, escaped quotes, or longer JSON; can leak marker text into content or corrupt it.
+  - Fix direction: avoid regex JSON parsing; use prefix scanning + balanced-brace parsing for the marker payload or require the backend to emit one JSON object per line and split by `\n` only.
+
+- Protocol mismatch: final metadata markers not parsed by frontend
+
+  - Code: transform parses and strips backend `__METADATA__...__END__`, then emits final metadata with `__STREAM_METADATA_START__/__STREAM_METADATA_END__` in `flush()`.
+  - Frontend only recognizes `__METADATA__/__END__` and JSON containing `__FINAL_METADATA__`.
+  - Impact: final metadata chunk is treated as regular content by the frontend, polluting the assistant’s message and losing usage/annotations.
+  - Fix direction: either emit a pure JSON `__FINAL_METADATA__` object (one line) or update the frontend to parse `__STREAM_METADATA_START__/__STREAM_METADATA_END__` consistently.
+
+- Reasoning not gated server-side
+  - Code: transform forwards all `__REASONING_CHUNK__` unconditionally.
+  - Impact: shows reasoning to users/tier combinations where it should be disabled.
+  - Fix direction: gate forwarding based on the validated `reasoning` option and the user’s tier in `authContext`.
+
+### Frontend consumer issues — `hooks/useChatStreaming.ts`
+
+- Annotations overwrite vs. accumulate
+
+  - Code: on `__ANNOTATIONS_CHUNK__`, `setStreamingAnnotations(annotationData.data)` replaces prior state.
+  - Impact: when multiple annotation batches arrive, only the last set is visible; combined with backend overwrites, sources can disappear.
+  - Fix direction: accumulate with dedup (e.g., by `url`) and only clear at stream end.
+
+- Missing support for emitted metadata markers
+
+  - Code: parses `__METADATA__...__END__` and legacy `__FINAL_METADATA__` JSON; no handling for `__STREAM_METADATA_START__/__STREAM_METADATA_END__`.
+  - Impact: final metadata from the API transform is ignored and may be appended as content.
+  - Fix direction: add parsing for `__STREAM_METADATA_START__/__STREAM_METADATA_END__` and prefer it to legacy paths.
+
+- Marker parsing assumes complete lines
+
+  - Code: buffer splits by `\n` and treats each full line; if a marker line arrives partially (due to chunking), it will stay in `buffer` until a newline arrives, which is OK. But if the API transform forwarded a partial marker (see above), it may be appended to content.
+  - Fix direction: after server-side buffering is fixed, line-based parsing here is acceptable; keep defensive parsing for partials.
+
+- Reasoning visibility not feature-gated
+  - Code: any `__REASONING_CHUNK__` is appended to `streamingReasoning`.
+  - Impact: reasoning can appear even when not enabled/requested.
+  - Fix direction: respect settings/tier flags and drop reasoning chunks when disabled.
+
+### Prioritized fixes (minimal changes for stability)
+
+1. Backend SSE event buffering (critical)
+
+   - Accumulate raw bytes and parse SSE events using blank-line delimiters; only `JSON.parse` after a complete `data:` payload is assembled. This single change removes the biggest source of intermittent drops.
+
+2. Accumulate and deduplicate annotations (critical)
+
+   - Initialize `streamMetadata.annotations = []` and merge across message/delta/root locations. Forward only the delta you received, but also keep a canonical accumulated list for final metadata.
+
+3. API transform line-buffer and safe marker parsing (high)
+
+   - Maintain a rolling string buffer; split by `\n`; only treat a line as a marker if it starts with `__ANNOTATIONS_CHUNK__` or `__REASONING_CHUNK__` and contains a complete JSON object (use balanced-brace counting). Never try to parse partial JSON.
+   - Remove regex-based extraction.
+
+4. Align metadata protocol (high)
+
+   - EITHER: Emit one-line JSON with `{ "__FINAL_METADATA__": { ... } }` (frontend already supports this)
+   - OR: Update the frontend to parse `__STREAM_METADATA_START__/__STREAM_METADATA_END__` and prefer it.
+
+5. Feature-gate reasoning emission (medium)
+
+   - In the backend and API transform, only emit/forward reasoning when the request was validated to allow reasoning for the user/tier; otherwise drop it.
+
+6. Frontend accumulation and robustness (medium)
+   - Accumulate `streamingAnnotations` with dedup (key by `url`), similar to reasoning concatenation.
+   - Add parsing for `__STREAM_METADATA_START__/__END__`.
+
+### Edge cases to validate after fixes
+
+- Incremental annotations across many small deltas (Gemini-like behavior).
+- Root-level `data.annotations` vs. `choices[0].delta.annotations` vs. `choices[0].message.annotations`.
+- Models that emit reasoning unconditionally; ensure gating hides it when disabled.
+- Marker JSON with nested objects/escaped quotes; ensure non-regex parsing doesn’t corrupt content.
+- Network chunking that splits markers or SSE data in awkward places.
+
+### Quick acceptance checks
+
+- With web search enabled, at least one `__ANNOTATIONS_CHUNK__` appears on the wire for models that produce citations.
+- The assistant message ends with combined, deduped annotations regardless of how many partial batches arrived.
+- Final metadata is parsed and not leaked into the visible content.
+- Reasoning text only appears when the feature is enabled for the current tier.
