@@ -248,80 +248,78 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       }
     }
     
+    // Rolling line buffer and balanced marker parsing
+    let carry = '';
+    const streamDebug = process.env.STREAM_DEBUG === '1';
     const textStream = new TransformStream<Uint8Array, string>({
       transform(chunk, controller) {
-        // console.log('🟡 [STREAM DEBUG] Processing chunk:', chunk.length, 'bytes');
         const text = new TextDecoder().decode(chunk);
-        // console.log('🟡 [STREAM DEBUG] Decoded text:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
-        
-        // Check for metadata chunks
-        const metadataMatch = text.match(/__METADATA__([\s\S]*?)__END__/);
-        if (metadataMatch) {
-          // console.log('🟡 [STREAM DEBUG] Found metadata chunk:', metadataMatch[1]);
+        // Extract and consume backend metadata sentinels first (not forwarded)
+        const metaRegex = /__METADATA__([\s\S]*?)__END__/g;
+        let metaMatch;
+        while ((metaMatch = metaRegex.exec(text)) !== null) {
           try {
-            const metadataChunk = JSON.parse(metadataMatch[1]);
-            if (metadataChunk.type === 'metadata' && metadataChunk.data) {
+            const metadataChunk = JSON.parse(metaMatch[1]);
+            if (metadataChunk?.type === 'metadata' && metadataChunk.data) {
               streamMetadata = metadataChunk.data;
-              // console.log('🟢 [STREAM DEBUG] Extracted metadata:', streamMetadata);
             }
-          } catch {
-            // console.log('🔴 [STREAM DEBUG] Metadata parsing error:', error);
+          } catch (e) {
+            if (streamDebug) logger.warn('STREAM_DEBUG metadata parse error', e);
           }
-          // Don't forward metadata chunks to the client
-          return;
         }
-        
-        // Check for annotation chunks - forward to client but DON'T add to fullCompletion
-        // ENHANCED: Filter pure annotation chunk lines to prevent them from appearing as content
-        if (text.trim().startsWith('__ANNOTATIONS_CHUNK__') && text.trim().endsWith('}')) {
-          // Forward pure annotation chunks to the client for real-time display
-          controller.enqueue(text);
-          return; // Don't add pure annotation chunks to fullCompletion
-        }
-        
-        // Check for reasoning chunks - forward to client but DON'T add to fullCompletion
-        // ENHANCED: Only filter pure reasoning chunk lines, not mixed content
-        if (text.trim().startsWith('__REASONING_CHUNK__') && text.trim().endsWith('}')) {
-          // Forward pure reasoning chunks to the client for real-time display
-          controller.enqueue(text);
-          return; // Don't add pure reasoning chunks to fullCompletion
-        }
-        
-        // For mixed content, we need to filter reasoning chunks but keep other content
-        if (text.includes('__REASONING_CHUNK__')) {
-          // Extract reasoning chunks and remove them from content before adding to fullCompletion
-          const reasoningChunkRegex = /__REASONING_CHUNK__\{[^}]*"data":"[^"]*"\}/g;
-          const cleanedText = text.replace(reasoningChunkRegex, '');
-          
-          // Forward original text (with reasoning) to client for real-time display
-          controller.enqueue(text);
-          
-          // Add only cleaned content (without reasoning) to fullCompletion
-          if (cleanedText.trim()) {
-            fullCompletion += cleanedText;
+
+        // Remove backend metadata from the visible stream content
+        const stripped = text.replace(metaRegex, '');
+        carry += stripped;
+
+        // Process complete lines only
+        const lines = carry.split('\n');
+        carry = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          // Forward pure annotation marker lines
+          if (trimmed.startsWith('__ANNOTATIONS_CHUNK__')) {
+            const idx = trimmed.indexOf('{');
+            if (idx !== -1) {
+              const jsonStr = trimmed.slice(idx);
+              // Basic balanced braces check
+              let depth = 0;
+              for (const ch of jsonStr) {
+                if (ch === '{') depth++;
+                else if (ch === '}') depth--;
+              }
+              if (depth === 0) {
+                controller.enqueue(trimmed + '\n');
+                continue;
+              }
+            }
           }
-          return;
-        }
-        
-        // For mixed content with annotation chunks, filter them but keep other content
-        if (text.includes('__ANNOTATIONS_CHUNK__')) {
-          // Extract annotation chunks and remove them from content before adding to fullCompletion
-          const annotationChunkRegex = /__ANNOTATIONS_CHUNK__\{[^}]*\}/g;
-          const cleanedText = text.replace(annotationChunkRegex, '');
-          
-          // Forward original text (with annotations) to client for real-time display
-          controller.enqueue(text);
-          
-          // Add only cleaned content (without annotations) to fullCompletion
-          if (cleanedText.trim()) {
-            fullCompletion += cleanedText;
+
+          // Forward pure reasoning marker lines only if allowed by server-side validation
+          const allowReasoning = !!reasoning; // already gated by tier earlier
+          if (trimmed.startsWith('__REASONING_CHUNK__')) {
+            const idx = trimmed.indexOf('{');
+            if (idx !== -1) {
+              const jsonStr = trimmed.slice(idx);
+              let depth = 0;
+              for (const ch of jsonStr) {
+                if (ch === '{') depth++;
+                else if (ch === '}') depth--;
+              }
+              if (depth === 0) {
+                if (allowReasoning) controller.enqueue(trimmed + '\n');
+                continue;
+              }
+            }
           }
-          return;
+
+          // Otherwise treat as normal content
+          fullCompletion += line;
+          controller.enqueue(line + '\n');
         }
-        
-        // Forward regular content to the client and accumulate for final metadata
-        fullCompletion += text;
-        controller.enqueue(text);
       },
       async flush(controller) {
         // console.log('🟡 [STREAM DEBUG] Stream flush called');
@@ -386,13 +384,9 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
 
         // console.log('🟢 [STREAM DEBUG] Final metadata created:', finalMetadata);
 
-        // Send final metadata as a stream chunk with clear delimiter
-        const metadataDelimiter = '\n\n__STREAM_METADATA_START__\n';
-        const finalMetadataJson = JSON.stringify(finalMetadata);
-        const metadataEnd = '\n__STREAM_METADATA_END__\n';
-        
-        // console.log('🟢 [STREAM DEBUG] Sending metadata chunk:', finalMetadataJson.substring(0, 200) + '...');
-        controller.enqueue(metadataDelimiter + finalMetadataJson + metadataEnd);
+  // Emit standardized one-line final metadata JSON
+  const finalLine = JSON.stringify(finalMetadata);
+  controller.enqueue(`\n${finalLine}\n`);
         
         // Log completion when stream finishes
         logger.info('Chat stream completed', {

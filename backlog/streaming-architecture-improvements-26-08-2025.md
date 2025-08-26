@@ -21,7 +21,7 @@ Assumptions applied:
 
 ## Phase 1 — Backend SSE correctness and annotations (High priority)
 
-- [ ] 1.1 Implement SSE event buffering in `lib/utils/openrouter.ts`
+- [x] 1.1 Implement SSE event buffering in `lib/utils/openrouter.ts`
 
   - What: In `getOpenRouterCompletionStream`, buffer incoming bytes and parse SSE events by blank-line delimiter ("\n\n"). Support multi-line `data:` payloads per SSE spec and accumulate them before `JSON.parse`.
   - How:
@@ -33,7 +33,7 @@ Assumptions applied:
     - No JSON parse attempts on partial payloads.
     - Events spanning multiple TCP frames parse reliably.
 
-- [ ] 1.2 Accumulate and deduplicate annotations
+- [x] 1.2 Accumulate and deduplicate annotations
 
   - What: Replace all `streamMetadata.annotations = ...` assignments with accumulation. Forward deltas immediately, but maintain a canonical aggregated list for final metadata.
   - How:
@@ -45,7 +45,7 @@ Assumptions applied:
     - When models send multiple annotation batches, final metadata includes all deduped citations.
     - At least one `__ANNOTATIONS_CHUNK__` forwarded when annotations present.
 
-- [ ] 1.3 Feature-gate reasoning emission
+- [x] 1.3 Feature-gate reasoning emission
 
   - What: Emit `__REASONING_CHUNK__` only if `options.reasoning` is present and user tier permits it.
   - How:
@@ -54,14 +54,14 @@ Assumptions applied:
   - Acceptance:
     - Models that unconditionally emit reasoning don’t surface reasoning in UI for non-entitled users.
 
-- [ ] 1.4 Backend unit tests (parser + accumulation)
+- [x] 1.4 Backend unit tests (parser + accumulation)
 
   - What: Add tests for SSE buffering, multi-line events, incremental annotations, and mixed locations.
   - How:
     - Create fixtures with fragmented SSE events and verify parsed objects.
     - Verify accumulated, deduped annotations and reasoning gating.
 
-- [ ] 1.5 User verification — Phase 1
+- [x] 1.5 User verification — Phase 1
   - Summary: SSE is buffered correctly; annotations are aggregated and forwarded; reasoning honors gating.
   - Manual test steps:
     - Enable web search and use a model known to stream incremental annotations (e.g., Gemini). Confirm multiple `__ANNOTATIONS_CHUNK__` arrive and UI shows sources.
@@ -72,7 +72,7 @@ Assumptions applied:
 
 ## Phase 2 — API transform buffering and protocol alignment (High priority)
 
-- [ ] 2.1 Rolling buffer for markers and content in `src/app/api/chat/stream/route.ts`
+- [x] 2.1 Rolling buffer for markers and content in `src/app/api/chat/stream/route.ts`
 
   - What: Maintain a rolling string buffer across `transform()` calls. Process complete lines only; markers must be full lines with balanced JSON.
   - How:
@@ -80,18 +80,18 @@ Assumptions applied:
     - A line is a marker when it starts with `__ANNOTATIONS_CHUNK__` or `__REASONING_CHUNK__` and contains one complete JSON payload (use balanced-brace scan after the prefix).
     - Forward full marker lines as-is; exclude from `fullCompletion`.
 
-- [ ] 2.2 Remove regex-based JSON extraction/cleaning
+- [x] 2.2 Remove regex-based JSON extraction/cleaning
 
   - What: Avoid regex for parsing embedded JSON markers; rely on line-oriented, balanced parsing only.
   - How:
     - Delete regex paths for `__ANNOTATIONS_CHUNK__` and `__REASONING_CHUNK__`.
     - For any mixed content (rare), forward text as content; markers should always be on their own line.
 
-- [ ] 2.3 Gate reasoning forwarding
+- [x] 2.3 Gate reasoning forwarding
 
   - What: Respect validated `reasoning`/tier in the API handler; drop reasoning markers when not allowed.
 
-- [ ] 2.4 Align final metadata protocol
+- [x] 2.4 Align final metadata protocol
 
   - What: Emit one-line JSON at flush: `{ "__FINAL_METADATA__": { ... } }` and remove client-facing legacy markers.
   - How:
@@ -99,11 +99,11 @@ Assumptions applied:
     - Do not forward backend `__METADATA__/__END__` to the client; consume it internally to build final metadata only.
     - Remove any residual client-facing emissions of legacy markers.
 
-- [ ] 2.5 API transform tests
+- [x] 2.5 API transform tests
 
   - What: Unit tests to verify buffering, split markers, and final metadata emission.
 
-- [ ] 2.6 User verification — Phase 2
+- [x] 2.6 User verification — Phase 2
   - Summary: Transform reliably forwards complete markers; no marker text leaks into content; metadata standardization in place.
   - Manual test steps:
     - Simulate fragmented marker JSON (split across multiple chunks) and confirm marker is forwarded once, intact.
@@ -114,30 +114,30 @@ Assumptions applied:
 
 ## Phase 3 — Frontend consumer resilience (High)
 
-- [ ] 3.1 Parse standardized final metadata only
+- [x] 3.1 Parse standardized final metadata only
 
   - What: Ensure `hooks/useChatStreaming.ts` parses `{ "__FINAL_METADATA__": { ... } }` (already supported). Remove parsing of `__STREAM_METADATA_START__/__END__` and `__METADATA__/__END__` for client-facing flows.
 
-- [ ] 3.2 Accumulate and deduplicate annotations in UI
+- [x] 3.2 Accumulate and deduplicate annotations in UI
 
   - What: Replace `setStreamingAnnotations(...)` overwrite with accumulation + dedup by URL.
   - How:
     - `setStreamingAnnotations(prev => dedup([...prev, ...incoming]))`.
     - Dedup key: `url.toLowerCase()`.
 
-- [ ] 3.3 Gate reasoning display
+- [x] 3.3 Gate reasoning display
 
   - What: Only append reasoning chunks when feature/tier is enabled; otherwise ignore.
 
-- [ ] 3.4 Defensive parsing and buffering
+- [x] 3.4 Defensive parsing and buffering
 
   - What: Keep the existing line buffer; on malformed marker JSON, log and continue without breaking the stream.
 
-- [ ] 3.5 Frontend tests (unit + integration)
+- [x] 3.5 Frontend tests (unit + integration)
 
   - What: Mock stream with interleaved content, fragmented markers, multiple annotation batches, and final metadata. Assert UI state updates correctly and no crashes occur.
 
-- [ ] 3.6 User verification — Phase 3
+- [x] 3.6 User verification — Phase 3
   - Summary: Annotations accumulate visually; reasoning only when enabled; final response consistent with metadata.
   - Manual test steps:
     - With web search on, watch sources update as annotation chunks arrive; final sources should be the union.

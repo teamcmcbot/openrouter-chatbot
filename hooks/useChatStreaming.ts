@@ -88,6 +88,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
   // NEW: Real-time annotations state
   const [streamingAnnotations, setStreamingAnnotations] = useState<Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Local accumulator for annotations to dedupe across chunks by URL (case-insensitive)
+  const annotationsMapRef = useRef<Map<string, { type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>>(new Map());
 
   // Enhanced sendMessage that uses streaming when enabled
   const sendMessage = useCallback(async (
@@ -140,6 +142,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       setStreamingReasoning(''); // NEW: Reset reasoning state
       setStreamingReasoningDetails([]); // NEW: Reset reasoning details state
       setStreamingAnnotations([]); // NEW: Reset annotations state
+  annotationsMapRef.current = new Map(); // reset accumulator
       setStreamError(null);
       
       // Add user message to store immediately
@@ -220,6 +223,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
         } | null = null;
 
         // Read the stream
+        // Local accumulators to avoid relying on async state updates
+        let reasoningAccum = '';
         try {
           let buffer = '';
           
@@ -243,7 +248,26 @@ export function useChatStreaming(): UseChatStreamingReturn {
                 try {
                   const annotationData = JSON.parse(line.replace('__ANNOTATIONS_CHUNK__', ''));
                   if (annotationData.type === 'annotations' && Array.isArray(annotationData.data)) {
-                    setStreamingAnnotations(annotationData.data);
+                    // Accumulate and dedupe by URL (case-insensitive)
+                    for (const ann of annotationData.data as Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>) {
+                      if (!ann || typeof ann.url !== 'string') continue;
+                      const key = ann.url.toLowerCase();
+                      const existing = annotationsMapRef.current.get(key);
+                      if (!existing) {
+                        annotationsMapRef.current.set(key, { ...ann, type: 'url_citation' });
+                      } else {
+                        // Merge fields, prefer newer non-empty values
+                        annotationsMapRef.current.set(key, {
+                          type: 'url_citation',
+                          url: existing.url || ann.url,
+                          title: ann.title || existing.title,
+                          content: ann.content || existing.content,
+                          start_index: typeof ann.start_index === 'number' ? ann.start_index : existing.start_index,
+                          end_index: typeof ann.end_index === 'number' ? ann.end_index : existing.end_index,
+                        });
+                      }
+                    }
+                    setStreamingAnnotations(Array.from(annotationsMapRef.current.values()));
                     // logger.debug('🌐 Streaming annotation chunk received:', annotationData.data.length, 'annotations');
                     continue;
                   }
@@ -254,13 +278,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
               }
               
               // Check for reasoning chunk markers
-              if (line.startsWith('__REASONING_CHUNK__')) {
+        if (line.startsWith('__REASONING_CHUNK__')) {
                 try {
                   const reasoningData = JSON.parse(line.replace('__REASONING_CHUNK__', ''));
                   if (reasoningData.type === 'reasoning') {
                     // ENHANCED: Only process reasoning chunks with actual content
                     if (reasoningData.data && typeof reasoningData.data === 'string' && reasoningData.data.trim()) {
-                      setStreamingReasoning(prev => prev + reasoningData.data);
+          reasoningAccum += reasoningData.data;
+          setStreamingReasoning(prev => prev + reasoningData.data);
                       // logger.debug('🧠 Streaming reasoning chunk received:', reasoningData.data.substring(0, 100) + '...');
                     } else {
                       // logger.debug('🧠 Skipping empty reasoning chunk');
@@ -293,22 +318,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
               //   }
               // }
 
-              // Check for metadata chunks with __METADATA__...__END__ format
-              if (line.includes('__METADATA__') && line.includes('__END__')) {
-                try {
-                  const metadataMatch = line.match(/__METADATA__(.+?)__END__/);
-                  if (metadataMatch) {
-                    const metadataJson = JSON.parse(metadataMatch[1]);
-                    if (metadataJson.type === 'metadata') {
-                      finalMetadata = metadataJson.data;
-                      // logger.debug('Received final metadata:', finalMetadata);
-                      continue; // Skip adding to content
-                    }
-                  }
-                } catch (error) {
-                  logger.warn('Failed to parse metadata chunk:', error);
-                }
-              }
+              // Note: backend internal __METADATA__...__END__ markers are consumed in API route only
               
               // Check if this line contains final metadata (legacy format)
               try {
@@ -330,37 +340,18 @@ export function useChatStreaming(): UseChatStreamingReturn {
             
             // Handle any remaining content in buffer (without newline)
             if (buffer && !finalMetadata) {
-              // Check for metadata in buffer
-              if (buffer.includes('__METADATA__') && buffer.includes('__END__')) {
-                try {
-                  const metadataMatch = buffer.match(/__METADATA__(.+?)__END__/);
-                  if (metadataMatch) {
-                    const metadataJson = JSON.parse(metadataMatch[1]);
-                    if (metadataJson.type === 'metadata') {
-                      finalMetadata = metadataJson.data;
-                      // logger.debug('Received final metadata from buffer:', finalMetadata);
-                    }
-                  }
-                } catch (error) {
-                  logger.warn('Failed to parse metadata from buffer:', error);
-                }
-              } else {
-                // Only add to content if it's not metadata JSON
-                try {
-                  const potentialJson = JSON.parse(buffer.trim());
-                  if (potentialJson.__FINAL_METADATA__) {
-                    finalMetadata = potentialJson.__FINAL_METADATA__;
-                    // logger.debug('Received final metadata from buffer:', finalMetadata);
-                  } else {
-                    // Not metadata JSON, add as content
-                    fullContent += buffer;
-                    setStreamingContent(fullContent);
-                  }
-                } catch {
-                  // Not JSON, add as regular content
+              // Only attempt to parse standardized final metadata JSON; otherwise treat as content
+              try {
+                const potentialJson = JSON.parse(buffer.trim());
+                if (potentialJson.__FINAL_METADATA__) {
+                  finalMetadata = potentialJson.__FINAL_METADATA__;
+                } else {
                   fullContent += buffer;
                   setStreamingContent(fullContent);
                 }
+              } catch {
+                fullContent += buffer;
+                setStreamingContent(fullContent);
               }
               buffer = '';
             }
@@ -369,8 +360,10 @@ export function useChatStreaming(): UseChatStreamingReturn {
           reader.releaseLock();
         }
 
-        // Use final content from metadata if available, otherwise use accumulated content
-        const finalContent = finalMetadata?.response || fullContent;
+  // Use final content from metadata if available, otherwise use accumulated content
+  const finalContent = finalMetadata?.response || fullContent;
+  // Finalize annotations from accumulator map
+  const mergedAnnotations = Array.from(annotationsMapRef.current.values());
         
         // Create assistant message with metadata
         const assistantMessage: ChatMessage = {
@@ -386,13 +379,15 @@ export function useChatStreaming(): UseChatStreamingReturn {
           output_tokens: finalMetadata?.usage?.completion_tokens || 0,
           elapsed_ms: finalMetadata?.elapsed_ms || 0,
           completion_id: finalMetadata?.id,
-          // ENHANCED: Use streaming reasoning and annotations if available, fallback to metadata
-          ...(streamingReasoning && { reasoning: streamingReasoning }),
-          ...(finalMetadata?.reasoning && !streamingReasoning && { reasoning: finalMetadata.reasoning }),
+          // ENHANCED: Use locally accumulated reasoning first, then state, then metadata
+          ...(reasoningAccum && { reasoning: reasoningAccum }),
+          ...(!reasoningAccum && streamingReasoning && { reasoning: streamingReasoning }),
+          ...(!reasoningAccum && !streamingReasoning && finalMetadata?.reasoning && { reasoning: finalMetadata.reasoning }),
           ...(streamingReasoningDetails.length > 0 && { reasoning_details: streamingReasoningDetails }),
           ...(finalMetadata?.reasoning_details && streamingReasoningDetails.length === 0 && { reasoning_details: finalMetadata.reasoning_details }),
-          ...(streamingAnnotations.length > 0 && { annotations: streamingAnnotations }),
-          ...(finalMetadata?.annotations && streamingAnnotations.length === 0 && Array.isArray(finalMetadata.annotations) && { annotations: finalMetadata.annotations }),
+          ...(mergedAnnotations.length > 0 && { annotations: mergedAnnotations }),
+          ...(mergedAnnotations.length === 0 && streamingAnnotations.length > 0 && { annotations: streamingAnnotations }),
+          ...(mergedAnnotations.length === 0 && streamingAnnotations.length === 0 && finalMetadata?.annotations && Array.isArray(finalMetadata.annotations) && { annotations: finalMetadata.annotations }),
           ...(finalMetadata?.has_websearch !== undefined && { has_websearch: finalMetadata.has_websearch }),
           ...(finalMetadata?.websearch_result_count !== undefined && { websearch_result_count: finalMetadata.websearch_result_count }),
         };
@@ -531,6 +526,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
         setStreamingReasoning(''); // NEW: Reset reasoning state  
         setStreamingReasoningDetails([]); // NEW: Reset reasoning details state
         setStreamingAnnotations([]); // NEW: Reset annotations state
+  annotationsMapRef.current.clear();
         abortControllerRef.current = null;
       }
     } else {
