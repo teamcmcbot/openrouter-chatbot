@@ -24,6 +24,12 @@ export interface ChatMessage {
   retry_after?: number; // Seconds to wait before retry
   suggestions?: string[]; // Alternative suggestions for failed requests
   originalModel?: string; // Store the model used when this message was originally sent (for retry purposes)
+  /**
+   * Whether the UI should offer a retry action for this failed user message.
+   * - true (or undefined): retry is available (current-session failure)
+   * - false: retry is NOT available (old/persisted failure loaded from server)
+   */
+  retry_available?: boolean;
   // Attachments metadata (linked on persistence)
   has_attachments?: boolean;
   attachment_ids?: string[];
@@ -55,6 +61,8 @@ export interface ChatResponse {
   elapsed_ms: number;
   contentType?: "text" | "markdown"; // New field
   id: string; // OpenRouter response id for metadata lookup
+  // The resolved model used by the provider for this response (may differ from requested model)
+  model?: string;
   annotations?: OpenRouterUrlCitation[]; // Optional URL citations from OpenRouter
   has_websearch?: boolean;
   websearch_result_count?: number;

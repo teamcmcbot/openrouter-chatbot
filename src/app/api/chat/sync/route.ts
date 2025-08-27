@@ -338,7 +338,8 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
           has_attachments: Array.isArray(attachmentsByMessage[message.id]) && attachmentsByMessage[message.id].length > 0,
           attachment_ids: attachmentsByMessage[message.id] || [],
           timestamp: new Date(message.message_timestamp),
-          error: !!message.error_message
+          error: !!message.error_message,
+          ...(message.role === 'user' && message.error_message ? { retry_available: false } : {})
         })),
       createdAt: session.created_at,
       updatedAt: session.updated_at,

@@ -62,7 +62,9 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
   elapsed_ms: message.elapsed_ms || 0, // New: elapsed time (ms)
       completion_id: message.completion_id || undefined, // New: completion ID
       timestamp: new Date(message.message_timestamp),
-      error: !!message.error_message
+  error: !!message.error_message,
+  // Old messages loaded from DB should not surface a retry action
+  ...(message.role === 'user' && message.error_message ? { retry_available: false } : {})
     }));
 
     return NextResponse.json({

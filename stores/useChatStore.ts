@@ -617,6 +617,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                                 error: true, 
                                 input_tokens: 0, // Ensure input_tokens is 0 for failed requests
                                 error_message: chatError.message, // Map error_message to user message
+                                retry_available: true,
                               }
                             : msg
                         ),
@@ -1245,6 +1246,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                                 error: true, 
                                 input_tokens: 0, // Ensure input_tokens is 0 for failed retry
                                 error_message: chatError.message, // Map error_message to user message
+                                retry_available: true,
                               }
                             : msg
                         ),

@@ -220,6 +220,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     let streamMetadata: {
       usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
       id?: string;
+      model?: string;
       reasoning?: string;
       reasoning_details?: Record<string, unknown>;
       annotations?: {
@@ -386,6 +387,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
             elapsed_ms: elapsedMs,
             contentType: "markdown", // Always use markdown rendering
             id: streamMetadata.id || `stream_${Date.now()}`,
+            model: streamMetadata.model || enhancedData.model,
             ...(streamMetadata.reasoning && { reasoning: streamMetadata.reasoning }),
             ...(streamMetadata.reasoning_details && Array.isArray(streamMetadata.reasoning_details) && streamMetadata.reasoning_details.length > 0 && { reasoning_details: streamMetadata.reasoning_details }),
             annotations,

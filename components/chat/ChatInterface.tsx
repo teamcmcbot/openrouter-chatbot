@@ -24,10 +24,10 @@ export default function ChatInterface() {
   const { 
     messages, 
     isLoading, 
-    error, 
     sendMessage, 
-    clearError, 
+  // error,  // Use per-conversation message error instead of global error
     retryLastMessage,
+  clearMessageError,
     isStreaming,
     streamingContent,
     streamingReasoning,
@@ -69,10 +69,14 @@ export default function ChatInterface() {
   // NEW: Track reasoning enablement state for conditional display
   const [lastReasoningEnabled, setLastReasoningEnabled] = useState<boolean>(false);
 
-  // Retry function to resend the last user message
+  // Locate the last failed user message in the current conversation
+  const lastFailedUserMessage = [...messages]
+    .reverse()
+    .find((m) => m.role === 'user' && !!m.error);
+
+  // Retry function to resend the last failed user message
   const handleRetry = () => {
-    // Clear the error first, then retry the last message
-    clearError();
+    // Do not clear global error; per-message retry methods will clear the message's error flag
     retryLastMessage();
   };
 
@@ -271,18 +275,15 @@ export default function ChatInterface() {
           />
         </div>
 
-        {/* Error Display */}
-        {error && (
+    {/* Error Display (per-conversation) */}
+  {lastFailedUserMessage && (lastFailedUserMessage.retry_available !== false) && (
           <div className="px-4 sm:px-6 py-2">
             <ErrorDisplay
-              message={error.message}
-              type={error.code === 'too_many_requests' ? 'warning' : 'error'}
-              title={error.code === 'too_many_requests' ? 'Rate Limited' : 'Error'}
+              message={lastFailedUserMessage.error_message || 'Message failed. Please try again.'}
+      type={'error'}
+      title={'Error'}
               onRetry={handleRetry}
-              onClose={clearError}
-              suggestions={error.suggestions}
-              retryAfter={error.retryAfter}
-              code={error.code}
+      onClose={() => clearMessageError(lastFailedUserMessage.id)}
             />
           </div>
         )}

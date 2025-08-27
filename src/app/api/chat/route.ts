@@ -228,7 +228,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   const maybe = openRouterResponse as unknown as MaybeReasoningMessage;
   const reasoningText = maybe?.choices?.[0]?.message?.reasoning;
   const reasoningDetails = maybe?.reasoning;
-    const usage = openRouterResponse.usage;
+  const usage = openRouterResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
   const rawAnnotations = openRouterResponse?.choices?.[0]?.message?.annotations ?? [];
   // Normalize annotations to a flat OpenRouterUrlCitation[] regardless of provider shape
   const annotations: OpenRouterUrlCitation[] = Array.isArray(rawAnnotations)
@@ -298,15 +298,16 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   const response: ChatResponse = {
       response: assistantResponse,
       usage: {
-        prompt_tokens: usage.prompt_tokens,
-        completion_tokens: usage.completion_tokens,
-        total_tokens: usage.total_tokens,
+        prompt_tokens: usage?.prompt_tokens ?? 0,
+        completion_tokens: usage?.completion_tokens ?? 0,
+        total_tokens: usage?.total_tokens ?? 0,
       },
       request_id: triggeringUserId || undefined, // Deterministic linkage to triggering user message
       timestamp: new Date().toISOString(),
       elapsed_ms: elapsedMs,
       contentType: "markdown", // Always use markdown rendering for consistent experience
       id: openRouterResponse.id, // Pass OpenRouter response id to ChatResponse
+  model: openRouterResponse.model || enhancedData.model,
     };
   if (typeof reasoningText === 'string' && reasoningText.length > 0) response.reasoning = reasoningText;
   if (reasoningDetails && typeof reasoningDetails === 'object') {

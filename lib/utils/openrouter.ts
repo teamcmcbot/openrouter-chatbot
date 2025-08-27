@@ -444,6 +444,7 @@ export async function getOpenRouterCompletionStream(
   const streamMetadata: {
     usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
     id?: string;
+    model?: string;
     reasoning?: string;
     reasoning_details?: Record<string, unknown>[];
     annotations?: { type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }[];
@@ -539,6 +540,7 @@ export async function getOpenRouterCompletionStream(
               type Choice = { delta?: Delta; message?: Msg };
               type SSEChunk = {
                 id?: string;
+                model?: string;
                 usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
                 choices?: Choice[];
                 annotations?: unknown[];
@@ -548,6 +550,7 @@ export async function getOpenRouterCompletionStream(
 
               if (d.usage) streamMetadata.usage = d.usage;
               if (d.id) streamMetadata.id = d.id;
+              if (d.model && typeof d.model === 'string') streamMetadata.model = d.model;
 
               if (allowReasoning && d.choices?.[0]?.delta?.reasoning) {
                 if (!streamMetadata.reasoning) streamMetadata.reasoning = '';

@@ -217,6 +217,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           elapsed_ms?: number;
           contentType?: "text" | "markdown";
           id?: string;
+          model?: string;
           reasoning?: string;
           reasoning_details?: Record<string, unknown>[];
           annotations?: Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>;
@@ -374,7 +375,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           role: "assistant",
           timestamp: new Date(),
           user_message_id: userMessage.id,
-          model,
+          model: finalMetadata?.model || model,
           contentType: finalMetadata?.contentType || "text",
           total_tokens: finalMetadata?.usage?.total_tokens || 0,
           input_tokens: finalMetadata?.usage?.prompt_tokens || 0,
@@ -514,6 +515,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
                       error: true,
                       input_tokens: 0, // Ensure input_tokens is 0 for failed request
                       error_message: chatError.message, // Map error_message to user message
+                      retry_available: true,
                     } : msg
                   ),
                 }
@@ -696,6 +698,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           elapsed_ms?: number;
           contentType?: "text" | "markdown";
           id?: string;
+          model?: string;
           reasoning?: string;
           reasoning_details?: Record<string, unknown>[];
           annotations?: Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>;
@@ -821,7 +824,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           role: "assistant",
           timestamp: new Date(),
           user_message_id: messageId,
-          model,
+          model: finalMetadata?.model || model,
           contentType: finalMetadata?.contentType || "text",
           total_tokens: finalMetadata?.usage?.total_tokens || 0,
           input_tokens: finalMetadata?.usage?.prompt_tokens || 0,
@@ -849,7 +852,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
               ? {
                   ...conv,
                   messages: conv.messages.map(msg =>
-                    msg.id === messageId ? updatedUserMessage : msg
+                    msg.id === messageId ? { ...updatedUserMessage, retry_available: undefined } : msg
                   ).concat(assistantMessage), // Update existing user message and add assistant
                   updatedAt: new Date().toISOString(),
                 }
@@ -984,8 +987,11 @@ export function useChatStreaming(): UseChatStreamingReturn {
         );
       } else {
         // Original message was sent without streaming - use non-streaming retry
-        const storeRetryMessage = useChatStore.getState().retryMessage;
-        await storeRetryMessage(
+        // Clear the specific message error first so the banner dismisses while retrying
+        const store = useChatStore.getState();
+        store.clearError?.();
+        store.clearMessageError(lastFailedMessage.id);
+        await store.retryMessage(
           lastFailedMessage.id,
           lastFailedMessage.content,
           lastFailedMessage.originalModel
