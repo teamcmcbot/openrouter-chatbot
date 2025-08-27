@@ -40,8 +40,21 @@ jest.mock('../../stores', () => {
       clearError: jest.fn(),
       retryLastMessage: jest.fn(),
     }),
-    useChatStore: (selector: (s: { createConversation: () => void }) => unknown) =>
-      selector({ createConversation: jest.fn() }),
+    // Support both selector and no-selector usage
+    useChatStore: (selector?: (s: { createConversation: () => void; conversationErrorBanners: Record<string, unknown>; currentConversationId: string | null; clearConversationErrorBanner: (id: string) => void; }) => unknown) => {
+      const state: { 
+        createConversation: () => void; 
+        conversationErrorBanners: Record<string, unknown>; 
+        currentConversationId: string | null; 
+        clearConversationErrorBanner: (id: string) => void; 
+      } = {
+        createConversation: jest.fn(),
+        conversationErrorBanners: {},
+        currentConversationId: 'conv_test',
+        clearConversationErrorBanner: jest.fn(),
+      };
+      return selector ? selector(state) : state;
+    },
     useModelSelection: () => ({
       availableModels: [],
       selectedModel: '',
@@ -65,6 +78,21 @@ jest.mock('../../stores', () => {
     }),
   };
 });
+
+// Mock streaming hook used by ChatInterface
+jest.mock('../../hooks/useChatStreaming', () => ({
+  useChatStreaming: () => ({
+    messages: [],
+    isLoading: false,
+    sendMessage: jest.fn(),
+    retryLastMessage: jest.fn(),
+    isStreaming: false,
+    streamingContent: null,
+    streamingReasoning: null,
+    streamingReasoningDetails: null,
+    streamingAnnotations: null,
+  }),
+}));
 
 // Mock matchMedia for viewport checks
 Object.defineProperty(window, 'matchMedia', {

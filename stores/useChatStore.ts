@@ -91,6 +91,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           isLoading: false,
           error: null,
           isHydrated: false,
+          // Ephemeral banners (session-only, not persisted)
+          conversationErrorBanners: {},
 
           // Sync state
           isSyncing: false,
@@ -617,6 +619,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                                 error: true, 
                                 input_tokens: 0, // Ensure input_tokens is 0 for failed requests
                                 error_message: chatError.message, // Map error_message to user message
+                                error_code: chatError.code,
+                                retry_after: chatError.retryAfter,
                                 retry_available: true,
                               }
                             : msg
@@ -627,6 +631,18 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 isLoading: false,
                 error: chatError,
               }));
+
+              // Set ephemeral banner for current conversation (session-only)
+              const convId = get().currentConversationId;
+              if (convId) {
+                get().setConversationErrorBanner(convId, {
+                  messageId: userMessage.id,
+                  message: chatError.message,
+                  code: chatError.code,
+                  retryAfter: chatError.retryAfter,
+                  createdAt: new Date().toISOString(),
+                });
+              }
 
               // For development: Add a mock response when backend is not available
               if (chatError.code === "network_error") {
@@ -870,6 +886,26 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }));
           },
 
+          // Ephemeral banner controls (client-session only)
+          setConversationErrorBanner: (conversationId, banner) => {
+            set((state) => ({
+              conversationErrorBanners: {
+                ...state.conversationErrorBanners,
+                [conversationId]: banner,
+              },
+            }));
+          },
+          clearConversationErrorBanner: (conversationId) => {
+            set((state) => {
+              const next = { ...state.conversationErrorBanners } as Record<string, typeof state.conversationErrorBanners[string]>;
+              delete next[conversationId];
+              return { conversationErrorBanners: next };
+            });
+          },
+          clearAllConversationErrorBanners: () => {
+            set({ conversationErrorBanners: {} });
+          },
+
           retryLastMessage: async () => {
             const currentConversation = get().conversations.find(
               (c) => c.id === get().currentConversationId
@@ -899,9 +935,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               modelToUse
             });
             
-            // Clear error state first
+            // Clear global error; keep message.error for history. Dismiss conversation banner on retry.
             get().clearError();
-            get().clearMessageError(lastFailedMessage.id);
+            const convId = get().currentConversationId;
+            if (convId) {
+              get().clearConversationErrorBanner(convId);
+            }
             
             // Retry the message with the original model
             // This will reuse the existing message instead of creating a new one
@@ -924,7 +963,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             const retryStartedAt = new Date();
 
             // Set loading state
-            set({ isLoading: true, error: null });
+            // Clear ephemeral banners when loading server conversations on sign-in
+            set({ isLoading: true, error: null, conversationErrorBanners: {} });
 
             // Update the existing user message timestamp to reflect this new retry attempt
             set((state) => ({
@@ -1246,6 +1286,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                                 error: true, 
                                 input_tokens: 0, // Ensure input_tokens is 0 for failed retry
                                 error_message: chatError.message, // Map error_message to user message
+                                error_code: chatError.code,
+                                retry_after: chatError.retryAfter,
                                 retry_available: true,
                               }
                             : msg
@@ -1256,6 +1298,18 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 isLoading: false,
                 error: chatError,
               }));
+
+              // Set ephemeral banner on retry failure as well
+              const convId2 = get().currentConversationId;
+              if (convId2) {
+                get().setConversationErrorBanner(convId2, {
+                  messageId,
+                  message: chatError.message,
+                  code: chatError.code,
+                  retryAfter: chatError.retryAfter,
+                  createdAt: new Date().toISOString(),
+                });
+              }
             }
           },
 
@@ -1496,6 +1550,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           partialize: (state) => ({
             conversations: state.conversations,
             currentConversationId: state.currentConversationId,
+            // Note: conversationErrorBanners intentionally NOT persisted (session-only)
           }),
           onRehydrateStorage: () => (state) => {
             if (state?.conversations) {

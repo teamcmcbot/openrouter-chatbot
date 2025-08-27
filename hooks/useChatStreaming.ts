@@ -163,7 +163,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       // Create abort controller for this request
       abortControllerRef.current = new AbortController();
 
-      try {
+  try {
         // Get conversation context
         const tokenStrategy = await getModelTokenLimits(model);
         const contextMessages = getContextMessages(tokenStrategy.maxInputTokens);
@@ -488,7 +488,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
         //   annotationCount: finalMetadata?.annotations?.length || 0
         // });
         
-      } catch (error) {
+  } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           // logger.debug('Streaming request was aborted');
           return;
@@ -524,6 +524,16 @@ export function useChatStreaming(): UseChatStreamingReturn {
           isLoading: false,
           error: chatError,
         }));
+
+        // Set ephemeral banner for this conversation (session-only)
+        if (conversationId) {
+          useChatStore.getState().setConversationErrorBanner(conversationId, {
+            messageId: userMessage.id,
+            message: chatError.message,
+            code: chatError.code,
+            createdAt: new Date().toISOString(),
+          });
+        }
       } finally {
         setIsStreaming(false);
         setStreamingContent('');
@@ -590,7 +600,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       conversationId = createConversation();
     }
 
-    // Clear error state first
+    // Clear error state and dismiss conversation banner first
     useChatStore.setState((state) => ({
       conversations: state.conversations.map((conv) =>
         conv.id === conversationId
@@ -604,6 +614,9 @@ export function useChatStreaming(): UseChatStreamingReturn {
       ),
       error: null,
     }));
+    if (conversationId) {
+      useChatStore.getState().clearConversationErrorBanner(conversationId);
+    }
 
     // Update message timestamp to reflect retry attempt
     const retryStartedAt = new Date();
@@ -906,7 +919,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           logger.warn('Database sync failed:', syncError);
         }
 
-      } catch (error) {
+  } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           return;
         }
@@ -939,6 +952,16 @@ export function useChatStreaming(): UseChatStreamingReturn {
           isLoading: false,
           error: chatError,
         }));
+
+        // Set ephemeral banner for this conversation (session-only)
+        if (conversationId) {
+          useChatStore.getState().setConversationErrorBanner(conversationId, {
+            messageId,
+            message: chatError.message,
+            code: chatError.code,
+            createdAt: new Date().toISOString(),
+          });
+        }
       } finally {
         setIsStreaming(false);
         setStreamingContent('');

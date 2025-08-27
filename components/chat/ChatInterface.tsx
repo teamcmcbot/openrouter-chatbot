@@ -26,8 +26,7 @@ export default function ChatInterface() {
     isLoading, 
     sendMessage, 
   // error,  // Use per-conversation message error instead of global error
-    retryLastMessage,
-  clearMessageError,
+  retryLastMessage,
     isStreaming,
     streamingContent,
     streamingReasoning,
@@ -69,14 +68,18 @@ export default function ChatInterface() {
   // NEW: Track reasoning enablement state for conditional display
   const [lastReasoningEnabled, setLastReasoningEnabled] = useState<boolean>(false);
 
-  // Locate the last failed user message in the current conversation
-  const lastFailedUserMessage = [...messages]
-    .reverse()
-    .find((m) => m.role === 'user' && !!m.error);
+  // Ephemeral per-conversation banner (session-only)
+  const { conversationErrorBanners, currentConversationId, clearConversationErrorBanner } = useChatStore();
+  const activeBanner = currentConversationId ? conversationErrorBanners[currentConversationId] : undefined;
+  const lastFailedUserMessage = activeBanner
+    ? [...messages].slice().reverse().find((m) => m.id === activeBanner.messageId && m.role === 'user')
+    : undefined;
 
   // Retry function to resend the last failed user message
   const handleRetry = () => {
     // Do not clear global error; per-message retry methods will clear the message's error flag
+    // Dismiss the banner for this conversation before retrying
+    if (currentConversationId) clearConversationErrorBanner(currentConversationId);
     retryLastMessage();
   };
 
@@ -179,6 +182,39 @@ export default function ChatInterface() {
   const accountType = isAuthenticated ? (userData?.profile.account_type || 'user') : 'user';
   // Tier label now rendered by TierBadge
 
+  // Determine if the last failed message should show a retry action
+  const shouldShowRetry = (() => {
+    if (!lastFailedUserMessage) return false;
+    if (lastFailedUserMessage.retry_available === false) return false;
+    // Non-retryable error codes
+    const nonRetryableCodes = new Set([
+      'bad_request',
+      'forbidden',
+      'unauthorized',
+      'method_not_allowed',
+      'not_found',
+      'unprocessable_entity',
+      'payload_too_large',
+      'token_limit_exceeded',
+      'feature_not_available',
+      'tier_upgrade_required',
+    ]);
+    const code = (lastFailedUserMessage.error_code || '').toLowerCase();
+    if (code && nonRetryableCodes.has(code)) return false;
+    // Heuristic for streaming errors where code may be missing
+    const msg = (lastFailedUserMessage.error_message || '').toLowerCase();
+    const nonRetryableByText = [
+      'character limit',
+      'web search is available for pro and enterprise',
+      'reasoning is available for enterprise',
+      'attachment limit exceeded',
+      'unsupported attachment type',
+      'does not support image input',
+    ];
+    if (nonRetryableByText.some((s) => msg.includes(s))) return false;
+    return true;
+  })();
+
   return (
     <div className="flex h-full overflow-visible mobile-safe-area">
   {/* Left Sidebar - Chat History (15%) */}
@@ -258,7 +294,7 @@ export default function ChatInterface() {
         </div>
 
         {/* Messages Container */}
-        <div className="flex-1 min-h-0">
+  <div className="flex-1 min-h-0">
           <MessageList 
             messages={messages} 
             isLoading={isLoading}
@@ -276,14 +312,16 @@ export default function ChatInterface() {
         </div>
 
     {/* Error Display (per-conversation) */}
-  {lastFailedUserMessage && (lastFailedUserMessage.retry_available !== false) && (
+  {activeBanner && lastFailedUserMessage && (
           <div className="px-4 sm:px-6 py-2">
             <ErrorDisplay
-              message={lastFailedUserMessage.error_message || 'Message failed. Please try again.'}
+              message={activeBanner.message || lastFailedUserMessage.error_message || 'Message failed. Please try again.'}
       type={'error'}
       title={'Error'}
-              onRetry={handleRetry}
-      onClose={() => clearMessageError(lastFailedUserMessage.id)}
+        onRetry={shouldShowRetry ? handleRetry : undefined}
+      code={lastFailedUserMessage.error_code || activeBanner.code}
+      retryAfter={lastFailedUserMessage.retry_after || activeBanner.retryAfter}
+      onClose={() => currentConversationId && clearConversationErrorBanner(currentConversationId)}
             />
           </div>
         )}
@@ -294,6 +332,8 @@ export default function ChatInterface() {
             onSendMessage={(message, options) => {
               // NEW: Track reasoning enablement for conditional display
               setLastReasoningEnabled(!!options?.reasoning);
+              // Dismiss current conversation's visible error banner when a new message is sent
+              if (currentConversationId) clearConversationErrorBanner(currentConversationId);
               // Pass through to store; store will include options downstream in API body
               sendMessage(message, selectedModel, options);
               setSelectedPrompt(""); // Clear the selected prompt after sending

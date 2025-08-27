@@ -10,6 +10,7 @@ import AttachmentTile, { type AttachmentData } from "./AttachmentTile";
 import toast from "react-hot-toast";
 import { useUserData } from "../../hooks/useUserData";
 import type { ModelInfo } from "../../lib/types/openrouter";
+import { MAX_MESSAGE_CHARS } from "../../lib/config/limits";
 
 interface MessageInputProps {
   onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => void
@@ -22,6 +23,8 @@ interface MessageInputProps {
 export default function MessageInput({ onSendMessage, disabled = false, initialMessage, onOpenModelSelector }: Readonly<MessageInputProps>) {
   const [message, setMessage] = useState("");
   const [showCount, setShowCount] = useState(false);
+  const [liveMsg, setLiveMsg] = useState<string>(""); // for aria-live threshold announcements
+  const wasOverRef = useRef<boolean>(false);
   const [isMobile, setIsMobile] = useState(false);
   const [streamingOn, setStreamingOn] = useState(false); // UI-only toggle for streaming
   const [webSearchOn, setWebSearchOn] = useState(false); // UI-only toggle
@@ -102,6 +105,15 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     setStreamingOn(streamingEnabled);
   }, [getSetting]);
 
+  // Announce when crossing the character limit threshold
+  useEffect(() => {
+    const isOver = message.length > MAX_MESSAGE_CHARS;
+    if (isOver !== wasOverRef.current) {
+      wasOverRef.current = isOver;
+      setLiveMsg(isOver ? 'Character limit exceeded. Sending is disabled.' : 'Back under character limit. You can send now.');
+    }
+  }, [message.length]);
+
   // Close streaming settings modal on outside click and Escape
   useEffect(() => {
     if (!streamingModalOpen) return;
@@ -165,6 +177,12 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   };
 
   const handleSend = () => {
+    const charCount = message.length;
+    const isOver = charCount > MAX_MESSAGE_CHARS;
+    if (isOver) {
+      // Block send when over limit
+      return;
+    }
     if (message.trim() && !disabled) {
       if (attachments.length > 0) {
         const ready = attachments.filter(a => a.status === 'ready' && a.id);
@@ -218,6 +236,11 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
       // If IME composition is active, don't treat Enter as submit
       // (covers languages like Chinese/Japanese/Korean).
   if (e.nativeEvent.isComposing || composingRef.current) {
+        return;
+      }
+      // Block Enter-to-send when over the character limit
+      if (message.length > MAX_MESSAGE_CHARS) {
+        e.preventDefault();
         return;
       }
       if (isMobile) {
@@ -560,6 +583,16 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           />
         </div>
 
+        {/* Inline over-limit hint */}
+        {message.length > MAX_MESSAGE_CHARS && (
+          <div
+            data-testid="char-limit-hint"
+            className="mt-1 text-xs text-red-600 dark:text-red-400"
+          >
+            Reduce by {message.length - MAX_MESSAGE_CHARS} to send
+          </div>
+        )}
+
         {/* Row 2: Attachment previews (inside pill) */}
         {attachments.length > 0 && (
           <div className="flex gap-2 overflow-x-auto sm:overflow-x-visible snap-x snap-mandatory -mx-1 px-1">
@@ -750,9 +783,10 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
 
           <button
             onClick={handleSend}
-            disabled={!message.trim() || disabled}
+            disabled={!message.trim() || disabled || message.length > MAX_MESSAGE_CHARS}
             className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
             aria-label="Send message"
+            data-testid="send-button"
           >
             {disabled ? (
               <ArrowPathIcon className="w-5 h-5 animate-spin" />
@@ -766,11 +800,16 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
             aria-live="polite"
             className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-0 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border 
               ${showCount ? 'opacity-100' : 'opacity-0'} 
-              bg-gray-100/80 text-gray-700 border-gray-300 
-              dark:bg-gray-800/70 dark:text-gray-200 dark:border-gray-600`}
+              ${message.length > MAX_MESSAGE_CHARS
+                ? 'bg-red-100/90 text-red-700 border-red-300 dark:bg-red-900/50 dark:text-red-200 dark:border-red-700'
+                : 'bg-gray-100/80 text-gray-700 border-gray-300 dark:bg-gray-800/70 dark:text-gray-200 dark:border-gray-600'}`}
+            data-testid="char-counter"
           >
             {`${message.length} characters`}
           </div>
+
+          {/* Screen-reader only live region for threshold crossings */}
+          <div className="sr-only" aria-live="polite">{liveMsg}</div>
 
           {/* Gating popovers anchored above the left buttons. */}
           {gatingOpen && (

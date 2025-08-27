@@ -25,6 +25,14 @@ export interface ChatError {
   timestamp?: string;
 }
 
+export interface ConversationErrorBanner {
+  messageId: string; // The user message that failed
+  message: string; // Error message to display
+  code?: string; // Optional error code for retry semantics
+  retryAfter?: number; // Optional retry-after seconds (e.g., 429)
+  createdAt: string; // ISO string when the banner was created (session-only)
+}
+
 export interface ChatState {
   // Core state
   conversations: Conversation[];
@@ -32,6 +40,9 @@ export interface ChatState {
   isLoading: boolean;
   error: ChatError | null;
   isHydrated: boolean;
+
+  // Ephemeral, session-only UI banners scoped per conversation (not persisted)
+  conversationErrorBanners: Record<string, ConversationErrorBanner | undefined>;
 
   // Sync state
   isSyncing: boolean;
@@ -49,6 +60,10 @@ export interface ChatState {
   clearCurrentMessages: () => void;
   clearError: () => void;
   clearMessageError: (messageId: string) => void;
+  // Ephemeral banner controls
+  setConversationErrorBanner: (conversationId: string, banner: ConversationErrorBanner) => void;
+  clearConversationErrorBanner: (conversationId: string) => void;
+  clearAllConversationErrorBanners: () => void;
   retryLastMessage: () => Promise<void>;
   retryMessage: (messageId: string, content: string, model?: string) => Promise<void>; // New function to retry specific message
   getContextMessages: (maxTokens: number) => ChatMessage[]; // Phase 3: Context selection

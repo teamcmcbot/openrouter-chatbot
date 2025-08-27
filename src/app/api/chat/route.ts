@@ -12,6 +12,7 @@ import { withEnhancedAuth } from '../../../../lib/middleware/auth';
 import { withRedisRateLimitEnhanced } from '../../../../lib/middleware/redisRateLimitMiddleware';
 import { estimateTokenCount } from '../../../../lib/utils/tokens';
 import { getModelTokenLimits } from '../../../../lib/utils/tokens.server';
+import { MAX_MESSAGE_CHARS } from '../../../../lib/config/limits';
 type SubscriptionTier = 'anonymous' | 'free' | 'pro' | 'enterprise';
 import { createClient } from '../../../../lib/supabase/server';
 
@@ -146,7 +147,35 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       });
     }
     
-  // Phase 2: Log request format for human verification
+    // Enforce character limit on the triggering user message (text only)
+    {
+      const lastUser = [...enhancedData.messages].reverse().find((m) => m.role === 'user');
+      let textLen = 0;
+      if (lastUser) {
+        if (typeof lastUser.content === 'string') {
+          textLen = lastUser.content.length;
+        } else if (Array.isArray(lastUser.content)) {
+          textLen = (lastUser.content as OpenRouterContentBlock[])
+            .reduce((acc, b) => {
+              const anyB = b as unknown as { type?: string; text?: string };
+              if (anyB && anyB.type === 'text' && typeof anyB.text === 'string') {
+                return acc + anyB.text.length;
+              }
+              return acc;
+            }, 0);
+        }
+      }
+      if (textLen > MAX_MESSAGE_CHARS) {
+        const overBy = textLen - MAX_MESSAGE_CHARS;
+        const limitStr = MAX_MESSAGE_CHARS.toLocaleString();
+        throw new ApiErrorResponse(
+          `Message exceeds ${limitStr} character limit. Reduce by ${overBy} characters and try again.`,
+          ErrorCode.PAYLOAD_TOO_LARGE
+        );
+      }
+    }
+
+    // Phase 2: Log request format for human verification
     console.log(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
     console.log(`[Chat API] Message count: ${messages.length} messages`);
     console.log(`[Chat API] Current message: "${body.message}"`);
