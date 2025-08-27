@@ -35,40 +35,450 @@ Streaming mode should match non-streaming behavior:
 3. Not create a new duplicate message
 4. Maintain UI consistency across both modes
 
-## Technical Context
+## Technical Analysis
 
-This appears to be a difference in how the retry logic is implemented:
+### Root Cause Identified
 
-- **Non-streaming**: Likely updates the existing message in place
-- **Streaming**: Creates a new message instead of reusing the errored one
+The inconsistency stems from different retry implementations between streaming and non-streaming modes:
 
-## Impact
+#### Non-Streaming Mode (`useChatStore.ts`) ✅ **Correct Behavior**
 
-- **User Experience**: Confusing inconsistency between modes
-- **Message History**: Cluttered with duplicate retry attempts in streaming mode
-- **UI Polish**: Inconsistent behavior reduces app quality perception
+- **`retryLastMessage()`**: Searches for the last **failed** user message (`msg.error === true`)
+- **`retryMessage()`**: Reuses the existing message ID and updates the message in-place
+- **Result**: Same user message bubble is reused, no duplicates
 
-## Priority
+#### Streaming Mode (`useChatStreaming.ts`) ❌ **Incorrect Behavior**
 
-**Medium** - UI/UX consistency issue that affects user experience but doesn't break core functionality.
+- **`retryLastMessage()`**: Searches for the last user message (ignores error state)
+- **Calls `sendMessage()`**: Creates a new message with new ID and adds it to the store
+- **Result**: New duplicate user message bubble created
 
-## Proposed Solution Areas
+### Code Flow Comparison
 
-1. **Frontend Retry Logic** (`hooks/useChatStreaming.ts`)
+#### Non-Streaming Retry Flow:
 
-   - Modify `retryLastMessage` to reuse existing message instead of creating new one
-   - Align streaming retry behavior with non-streaming implementation
+```typescript
+// 1. Find specifically failed messages
+const lastFailedMessage = messages
+  .reverse()
+  .find((msg) => msg.role === "user" && msg.error);
 
-2. **Message State Management**
+// 2. Reuse existing message ID
+await retryMessage(lastFailedMessage.id, lastFailedMessage.content, modelToUse);
 
-   - Ensure streaming mode updates existing message state during retry
-   - Maintain consistent message ID handling across retry attempts
+// 3. Update existing message in-place
+messages: conv.messages.map((msg) => {
+  if (msg.id === messageId && msg.role === "user") {
+    return { ...msg, error: false, input_tokens: newTokens };
+  }
+  return msg;
+});
+```
 
-3. **UI Components**
-   - Verify retry button triggers consistent behavior regardless of streaming mode
-   - Test retry functionality across both modes for parity
+#### Streaming Retry Flow:
 
-## Testing Checklist
+```typescript
+// 1. Find last user message (ignores error state)
+const lastUserMessage = messages.reverse().find((msg) => msg.role === "user");
+
+// 2. Create NEW message with NEW ID
+const userMessage: ChatMessage = {
+  id: `msg_${Date.now()}_${Math.random()}`, // NEW ID!
+  content: content.trim(),
+  role: "user",
+  timestamp: new Date(),
+};
+
+// 3. Add NEW message to store (creates duplicate)
+useChatStore.setState((state) => ({
+  conversations: state.conversations.map((conv) =>
+    conv.id === conversationId
+      ? {
+          ...conv,
+          messages: [...conv.messages, userMessage], // Adds duplicate!
+        }
+      : conv
+  ),
+}));
+```
+
+### Proposed Solution
+
+#### Option 1: Align Streaming with Non-Streaming (Recommended)
+
+Modify `useChatStreaming.ts` to implement the same retry logic as non-streaming:
+
+1. **Update `retryLastMessage()`** to find failed messages specifically
+2. **Create `retryMessageStreaming()`** method that reuses existing message ID
+3. **Update message in-place** instead of creating new message
+4. **Maintain streaming functionality** while fixing the UI inconsistency
+
+#### Option 2: Align Non-Streaming with Streaming (Not Recommended)
+
+This would break the expected behavior and create duplicates in non-streaming mode.
+
+### Implementation Plan
+
+1. **Modify `retryLastMessage()` in `useChatStreaming.ts`**:
+
+   ```typescript
+   const retryLastMessage = useCallback(async () => {
+     const messages = getCurrentMessages();
+     const lastFailedMessage = messages
+       .slice()
+       .reverse()
+       .find((msg) => msg.role === "user" && msg.error); // Add error check
+
+     if (lastFailedMessage) {
+       // Call new retry method instead of sendMessage
+       await retryMessageStreaming(
+         lastFailedMessage.id,
+         lastFailedMessage.content,
+         lastFailedMessage.originalModel
+       );
+     }
+   }, [getCurrentMessages]);
+   ```
+
+2. **Create `retryMessageStreaming()` method** that mirrors the non-streaming `retryMessage()` logic but maintains streaming functionality.
+
+3. **Update message handling** to reuse existing message ID and update in-place rather than creating duplicates.
+
+## Implementation Plan
+
+### Phase 1: Analysis & Planning
+
+- [ ] **Analyze current streaming retry flow** - Document how `retryLastMessage()` currently works in `useChatStreaming.ts`
+- [ ] **Compare with non-streaming implementation** - Verify `useChatStore.ts` retry logic as reference
+- [ ] **Identify message state management differences** - Understand how messages are stored and updated in both modes
+- [ ] **Document streaming-specific requirements** - Note any streaming features that must be preserved (real-time reasoning, annotations, etc.)
+
+### Phase 2: Core Implementation
+
+- [ ] **Update `retryLastMessage()` in `useChatStreaming.ts`** - Modify to find failed messages specifically (`msg.error === true`)
+- [ ] **Create `retryMessageStreaming()` method** - New method that reuses existing message ID instead of creating new message
+- [ ] **Implement message state updates** - Update existing user message in-place (clear error, update timestamp, set tokens)
+- [ ] **Preserve streaming functionality** - Ensure real-time reasoning, annotations, and content streaming still work
+- [ ] **Handle error cases properly** - Mark existing message as failed again if retry fails
+
+### Phase 3: Integration & Testing
+
+- [ ] **Update method dependencies** - Add new method to useCallback dependencies array
+- [ ] **Test retry button behavior** - Verify "Try again" button triggers new retry logic
+- [ ] **Test message deduplication** - Ensure no duplicate user messages are created
+- [ ] **Test streaming features** - Verify reasoning display, annotations, and real-time content still work
+- [ ] **Test error handling** - Verify failed retries mark existing message as error again
+
+### Phase 4: Edge Cases & Validation
+
+- [ ] **Test multiple failed messages** - Ensure only the last failed message is retried
+- [ ] **Test mixed streaming/non-streaming** - Verify behavior consistency across mode switches
+- [ ] **Test with attachments** - Ensure attachment handling works with retry
+- [ ] **Test with web search** - Verify web search functionality preserved
+- [ ] **Test reasoning features** - Ensure reasoning display works with retry
+- [ ] **Performance testing** - Verify no performance regression in retry operations
+
+### Phase 5: Documentation & Cleanup
+
+- [ ] **Update code comments** - Document the retry logic changes and reasoning
+- [ ] **Update related documentation** - Update any docs mentioning retry behavior
+- [ ] **Remove obsolete code** - Clean up any unused retry-related code
+- [ ] **Add comprehensive tests** - Create unit tests for the new retry functionality
+
+### Specific Code Changes Required
+
+#### 1. Update `retryLastMessage()` in `useChatStreaming.ts`
+
+**Current Code:**
+
+```typescript
+const retryLastMessage = useCallback(async () => {
+  const messages = getCurrentMessages();
+  const lastUserMessage = messages
+    .slice()
+    .reverse()
+    .find((msg) => msg.role === "user");
+
+  if (lastUserMessage) {
+    await sendMessage(lastUserMessage.content, lastUserMessage.originalModel, {
+      attachmentIds: lastUserMessage.attachment_ids,
+      webSearch: lastUserMessage.has_websearch,
+      // TODO: Extract reasoning from original message
+    });
+  }
+}, [getCurrentMessages, sendMessage]);
+```
+
+**Updated Code:**
+
+```typescript
+const retryLastMessage = useCallback(async () => {
+  const messages = getCurrentMessages();
+  const lastFailedMessage = messages
+    .slice()
+    .reverse()
+    .find((msg) => msg.role === "user" && msg.error); // Only retry failed messages
+
+  if (lastFailedMessage) {
+    await retryMessageStreaming(
+      lastFailedMessage.id,
+      lastFailedMessage.content,
+      lastFailedMessage.originalModel,
+      {
+        attachmentIds: lastFailedMessage.attachment_ids,
+        webSearch: lastFailedMessage.has_websearch,
+        // TODO: Extract reasoning from original message
+      }
+    );
+  }
+}, [getCurrentMessages]);
+```
+
+#### 2. Create `retryMessageStreaming()` method
+
+Add this new method to `useChatStreaming.ts`:
+
+```typescript
+const retryMessageStreaming = useCallback(
+  async (
+    messageId: string,
+    content: string,
+    model?: string,
+    options?: {
+      attachmentIds?: string[];
+      webSearch?: boolean;
+      reasoning?: { effort?: "low" | "medium" | "high" };
+    }
+  ) => {
+    if (!content.trim() || storeIsLoading || isStreaming) {
+      logger.warn("Cannot retry message: empty content or already loading");
+      return;
+    }
+
+    // Ensure we have a conversation context
+    let conversationId = currentConversationId;
+    if (!conversationId) {
+      conversationId = createConversation();
+    }
+
+    // Clear error state first
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              messages: conv.messages.map((msg) =>
+                msg.id === messageId ? { ...msg, error: false } : msg
+              ),
+            }
+          : conv
+      ),
+      error: null,
+    }));
+
+    // Update message timestamp to reflect retry attempt
+    const retryStartedAt = new Date();
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              messages: conv.messages.map((msg) =>
+                msg.id === messageId && msg.role === "user"
+                  ? { ...msg, timestamp: retryStartedAt }
+                  : msg
+              ),
+            }
+          : conv
+      ),
+    }));
+
+    // Set streaming state
+    setIsStreaming(true);
+    setStreamingContent("");
+    setStreamingReasoning("");
+    setStreamingReasoningDetails([]);
+    setStreamingAnnotations([]);
+    setStreamError(null);
+
+    try {
+      // Get conversation context
+      const tokenStrategy = await getModelTokenLimits(model);
+      const contextMessages = getContextMessages(
+        tokenStrategy.maxInputTokens
+      ).filter((msg) => msg.id !== messageId); // Exclude the message being retried
+
+      // Create retry message with existing ID
+      const retryMessage: ChatMessage = {
+        id: messageId, // Reuse existing ID
+        content: content.trim(),
+        role: "user",
+        timestamp: retryStartedAt,
+        originalModel: model,
+        has_attachments:
+          Array.isArray(options?.attachmentIds) &&
+          options!.attachmentIds!.length > 0
+            ? true
+            : undefined,
+        attachment_ids:
+          Array.isArray(options?.attachmentIds) &&
+          options!.attachmentIds!.length > 0
+            ? options!.attachmentIds
+            : undefined,
+      };
+
+      // Build request body similar to existing implementation
+      const requestBody = {
+        messages: [...contextMessages, retryMessage].map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+          id: msg.id,
+        })),
+        model,
+        current_message_id: messageId,
+        attachmentIds: options?.attachmentIds,
+        draftId: options?.draftId,
+        webSearch: options?.webSearch,
+        reasoning: options?.reasoning,
+      };
+
+      const response = await fetch("/api/chat/stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        signal: abortControllerRef.current.signal,
+      });
+
+      if (!response.ok) {
+        // Handle rate limiting
+        if (response.status === 429) {
+          checkRateLimitHeaders(response);
+        }
+
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`
+        );
+      }
+
+      if (!response.body) {
+        throw new Error("No response body received");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = "";
+      let finalMetadata: {
+        response?: string;
+        usage?: {
+          prompt_tokens: number;
+          completion_tokens: number;
+          total_tokens: number;
+        };
+        request_id?: string;
+        timestamp?: string;
+        elapsed_ms?: number;
+        contentType?: "text" | "markdown";
+        id?: string;
+        reasoning?: string;
+        reasoning_details?: Record<string, unknown>[];
+        annotations?: Array<{
+          type: "url_citation";
+          url: string;
+          title?: string;
+          content?: string;
+          start_index?: number;
+          end_index?: number;
+        }>;
+        has_websearch?: boolean;
+        websearch_result_count?: number;
+      } | null = null;
+
+      // Read the stream (same logic as sendMessage)
+      // ... [streaming logic remains the same]
+
+      // Update user message with input tokens from metadata
+      const updatedUserMessage = {
+        ...retryMessage,
+        input_tokens: finalMetadata?.usage?.prompt_tokens || 0,
+      };
+
+      // Update existing user message and add assistant message
+      useChatStore.setState((state) => ({
+        conversations: state.conversations.map((conv) =>
+          conv.id === conversationId
+            ? {
+                ...conv,
+                messages: [
+                  ...conv.messages.slice(0, -1), // Remove the temporary user message if exists
+                  updatedUserMessage, // Update existing user message with tokens
+                  assistantMessage, // Add assistant message
+                ],
+                updatedAt: new Date().toISOString(),
+              }
+            : conv
+        ),
+      }));
+
+      // ... [rest of the streaming logic remains the same]
+    } catch (error) {
+      // Handle error - mark existing message as failed again
+      useChatStore.setState((state) => ({
+        conversations: state.conversations.map((conv) =>
+          conv.id === conversationId
+            ? {
+                ...conv,
+                messages: conv.messages.map((msg) =>
+                  msg.id === messageId
+                    ? {
+                        ...msg,
+                        error: true,
+                        input_tokens: 0,
+                        error_message:
+                          error instanceof Error
+                            ? error.message
+                            : "Streaming failed",
+                      }
+                    : msg
+                ),
+              }
+            : conv
+        ),
+        error: error instanceof Error ? error.message : "Streaming failed",
+      }));
+    } finally {
+      setIsStreaming(false);
+      setStreamingContent("");
+      setStreamingReasoning("");
+      setStreamingReasoningDetails([]);
+      setStreamingAnnotations([]);
+      setStreamError(null);
+      abortControllerRef.current = null;
+    }
+  },
+  [
+    streamingEnabled,
+    storeIsLoading,
+    isStreaming,
+    currentConversationId,
+    createConversation,
+    getContextMessages,
+    streamingReasoning,
+    streamingReasoningDetails,
+    streamingAnnotations,
+  ]
+);
+```
+
+### Files Requiring Changes
+
+- `hooks/useChatStreaming.ts` - Main retry logic fix
+- `components/chat/MessageList.tsx` - May need updates if message handling changes
+- `stores/useChatStore.ts` - Reference implementation (no changes needed)
+
+### Testing Checklist
 
 - [ ] Test retry in non-streaming mode (baseline behavior)
 - [ ] Test retry in streaming mode (current inconsistent behavior)
@@ -76,6 +486,8 @@ This appears to be a difference in how the retry logic is implemented:
 - [ ] Verify both modes now behave identically
 - [ ] Test multiple retry attempts don't create excessive duplicates
 - [ ] Verify error states are handled consistently in both modes
+- [ ] Test streaming functionality still works after retry
+- [ ] Test edge cases (multiple failed messages, mixed streaming/non-streaming)
 
 ## Related Files
 
