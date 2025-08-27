@@ -5,6 +5,7 @@ import { ModelInfo } from "../../lib/types/openrouter";
 import { GenerationData } from "../../lib/types/generation";
 import { getGenerationFromCache, setGenerationInCache } from "../../lib/utils/generationCache";
 import Button from "./Button";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 
 interface ModelDetailsSidebarProps {
   model: ModelInfo | null;
@@ -195,9 +196,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
             // Placeholder when no model is selected
             <div className="flex flex-col items-center justify-center h-full p-6 text-center">
               <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <InformationCircleIcon className="w-8 h-8 text-gray-400" aria-hidden="true" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                 Model Details
