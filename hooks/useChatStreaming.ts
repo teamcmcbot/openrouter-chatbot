@@ -129,6 +129,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
       originalModel: model,
       has_attachments: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? true : undefined,
       attachment_ids: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? options!.attachmentIds : undefined,
+      // Store that this was sent in streaming mode
+      was_streaming: true,
     };
 
     if (streamingEnabled) {
@@ -565,25 +567,432 @@ export function useChatStreaming(): UseChatStreamingReturn {
     storeClearMessageError(messageId);
   }, [storeClearMessageError]);
 
+  const retryMessageStreaming = useCallback(async (
+    messageId: string,
+    content: string,
+    model?: string,
+    options?: {
+      attachmentIds?: string[];
+      webSearch?: boolean;
+      reasoning?: { effort?: 'low' | 'medium' | 'high' };
+    }
+  ) => {
+    if (!content.trim() || storeIsLoading || isStreaming) {
+      logger.warn("Cannot retry message: empty content or already loading");
+      return;
+    }
+
+    // Ensure we have a conversation context
+    let conversationId = currentConversationId;
+    if (!conversationId) {
+      conversationId = createConversation();
+    }
+
+    // Clear error state first
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              messages: conv.messages.map((msg) =>
+                msg.id === messageId ? { ...msg, error: false } : msg
+              ),
+            }
+          : conv
+      ),
+      error: null,
+    }));
+
+    // Update message timestamp to reflect retry attempt
+    const retryStartedAt = new Date();
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              messages: conv.messages.map((msg) =>
+                msg.id === messageId && msg.role === 'user'
+                  ? { ...msg, timestamp: retryStartedAt }
+                  : msg
+              ),
+            }
+          : conv
+      ),
+    }));
+
+    if (streamingEnabled) {
+      // Streaming path - reuse existing streaming logic
+      setIsStreaming(true);
+      setStreamingContent('');
+      setStreamingReasoning('');
+      setStreamingReasoningDetails([]);
+      setStreamingAnnotations([]);
+      setStreamError(null);
+
+      try {
+        // Get conversation context
+        const tokenStrategy = await getModelTokenLimits(model);
+        const contextMessages = getContextMessages(tokenStrategy.maxInputTokens)
+          .filter(msg => msg.id !== messageId); // Exclude the message being retried
+
+        // Create retry message with existing ID
+        const retryMessage: ChatMessage = {
+          id: messageId, // Reuse existing ID
+          content: content.trim(),
+          role: "user",
+          timestamp: retryStartedAt,
+          originalModel: model,
+          has_attachments: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? true : undefined,
+          attachment_ids: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? options!.attachmentIds : undefined,
+          // Store that this retry is using streaming mode
+          was_streaming: true,
+        };
+
+        // Build request body similar to existing implementation
+        const requestBody = {
+          messages: [...contextMessages, retryMessage].map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            id: msg.id,
+          })),
+          model,
+          current_message_id: messageId,
+          attachmentIds: options?.attachmentIds,
+          webSearch: options?.webSearch,
+          reasoning: options?.reasoning,
+        };
+
+        const response = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+          signal: abortControllerRef.current?.signal,
+        });
+
+        if (!response.ok) {
+          // Handle rate limiting
+          if (response.status === 429) {
+            checkRateLimitHeaders(response);
+          }
+
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+
+        if (!response.body) {
+          throw new Error('No response body received');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        let finalMetadata: {
+          response?: string;
+          usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+          request_id?: string;
+          timestamp?: string;
+          elapsed_ms?: number;
+          contentType?: "text" | "markdown";
+          id?: string;
+          reasoning?: string;
+          reasoning_details?: Record<string, unknown>[];
+          annotations?: Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>;
+          has_websearch?: boolean;
+          websearch_result_count?: number;
+        } | null = null;
+
+        // Read the stream
+        let buffer = '';
+        let reasoningAccum = '';
+        const annotationsMapRef = new Map();
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            buffer += chunk;
+
+            // Look for complete JSON lines (ending with newline)
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+
+              // Check for annotation chunks FIRST
+              if (line.startsWith('__ANNOTATIONS_CHUNK__')) {
+                try {
+                  const annotationData = JSON.parse(line.replace('__ANNOTATIONS_CHUNK__', ''));
+                  if (annotationData.type === 'annotations' && Array.isArray(annotationData.data)) {
+                    // Accumulate and dedupe by URL (case-insensitive)
+                    for (const ann of annotationData.data as Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>) {
+                      if (!ann || typeof ann.url !== 'string') continue;
+                      const key = ann.url.toLowerCase();
+                      const existing = annotationsMapRef.get(key);
+                      if (!existing) {
+                        annotationsMapRef.set(key, { ...ann, type: 'url_citation' });
+                      } else {
+                        // Merge fields, prefer newer non-empty values
+                        annotationsMapRef.set(key, {
+                          type: 'url_citation',
+                          url: existing.url || ann.url,
+                          title: ann.title || existing.title,
+                          content: ann.content || existing.content,
+                          start_index: typeof ann.start_index === 'number' ? ann.start_index : existing.start_index,
+                          end_index: typeof ann.end_index === 'number' ? ann.end_index : existing.end_index,
+                        });
+                      }
+                    }
+                    setStreamingAnnotations(Array.from(annotationsMapRef.values()));
+                  }
+                } catch (error) {
+                  logger.warn('Failed to parse annotation chunk:', error);
+                  continue;
+                }
+              }
+
+              // Check for reasoning chunk markers
+              if (line.startsWith('__REASONING_CHUNK__')) {
+                try {
+                  const reasoningData = JSON.parse(line.replace('__REASONING_CHUNK__', ''));
+                  if (reasoningData.type === 'reasoning') {
+                    // Only process reasoning chunks with actual content
+                    if (reasoningData.data && typeof reasoningData.data === 'string' && reasoningData.data.trim()) {
+                      reasoningAccum += reasoningData.data;
+                      setStreamingReasoning(prev => prev + reasoningData.data);
+                    }
+                  }
+                } catch (error) {
+                  logger.warn('Failed to parse reasoning chunk:', error);
+                  continue;
+                }
+              }
+
+              // Check if this line contains final metadata
+              try {
+                const potentialJson = JSON.parse(line.trim());
+                if (potentialJson.__FINAL_METADATA__) {
+                  finalMetadata = potentialJson.__FINAL_METADATA__;
+                  continue;
+                }
+              } catch {
+                // Not JSON, treat as regular content
+              }
+
+              // Regular content - add to display
+              fullContent += line + '\n';
+              setStreamingContent(fullContent);
+            }
+
+            // Handle any remaining content in buffer
+            if (buffer && !finalMetadata) {
+              try {
+                const potentialJson = JSON.parse(buffer.trim());
+                if (potentialJson.__FINAL_METADATA__) {
+                  finalMetadata = potentialJson.__FINAL_METADATA__;
+                } else {
+                  fullContent += buffer;
+                  setStreamingContent(fullContent);
+                }
+              } catch {
+                fullContent += buffer;
+                setStreamingContent(fullContent);
+              }
+              buffer = '';
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
+
+        // Use final content from metadata if available, otherwise use accumulated content
+        const finalContent = finalMetadata?.response || fullContent;
+        const mergedAnnotations = Array.from(annotationsMapRef.values());
+
+        // Create assistant message with metadata
+        const assistantMessage: ChatMessage = {
+          id: `msg_${Date.now() + 1}`,
+          content: finalContent,
+          role: "assistant",
+          timestamp: new Date(),
+          user_message_id: messageId,
+          model,
+          contentType: finalMetadata?.contentType || "text",
+          total_tokens: finalMetadata?.usage?.total_tokens || 0,
+          input_tokens: finalMetadata?.usage?.prompt_tokens || 0,
+          output_tokens: finalMetadata?.usage?.completion_tokens || 0,
+          elapsed_ms: finalMetadata?.elapsed_ms || 0,
+          completion_id: finalMetadata?.id,
+          ...(reasoningAccum && { reasoning: reasoningAccum }),
+          ...(!reasoningAccum && finalMetadata?.reasoning && { reasoning: finalMetadata.reasoning }),
+          ...(mergedAnnotations.length > 0 && { annotations: mergedAnnotations }),
+          ...(mergedAnnotations.length === 0 && finalMetadata?.annotations && Array.isArray(finalMetadata.annotations) && { annotations: finalMetadata.annotations }),
+          ...(finalMetadata?.has_websearch !== undefined && { has_websearch: finalMetadata.has_websearch }),
+          ...(finalMetadata?.websearch_result_count !== undefined && { websearch_result_count: finalMetadata.websearch_result_count }),
+        };
+
+        // Update user message with input tokens from metadata
+        const updatedUserMessage = {
+          ...retryMessage,
+          input_tokens: finalMetadata?.usage?.prompt_tokens || 0,
+        };
+
+        // Update existing user message and add assistant message
+        useChatStore.setState((state) => ({
+          conversations: state.conversations.map((conv) =>
+            conv.id === conversationId
+              ? {
+                  ...conv,
+                  messages: conv.messages.map(msg =>
+                    msg.id === messageId ? updatedUserMessage : msg
+                  ).concat(assistantMessage), // Update existing user message and add assistant
+                  updatedAt: new Date().toISOString(),
+                }
+              : conv
+          ),
+        }));
+
+        // Auto-generate title from first user message if it's still "New Chat"
+        const currentConv = useChatStore.getState().conversations.find(c => c.id === conversationId);
+        if (currentConv && currentConv.title === "New Chat" && currentConv.messages.length === 2) {
+          const autoTitle = content.length > 50 ? content.substring(0, 50) + "..." : content;
+          useChatStore.getState().updateConversationTitle(conversationId, autoTitle, true);
+        }
+
+        // Trigger database sync
+        try {
+          const currentState = useChatStore.getState();
+          const updatedConv = currentState.conversations.find(c => c.id === conversationId);
+
+          const shouldIncludeTitle = updatedConv &&
+            updatedConv.title !== "New Chat" &&
+            updatedConv.messages.length === 2;
+
+          const syncPayload: {
+            messages: [typeof updatedUserMessage, typeof assistantMessage];
+            sessionId: string;
+            sessionTitle?: string;
+            attachmentIds?: string[];
+          } = {
+            messages: [updatedUserMessage, assistantMessage],
+            sessionId: conversationId,
+            ...(options?.attachmentIds && { attachmentIds: options.attachmentIds }),
+          };
+
+          if (shouldIncludeTitle) {
+            syncPayload.sessionTitle = updatedConv?.title;
+          }
+
+          const syncResponse = await fetch('/api/chat/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(syncPayload),
+          });
+
+          if (!syncResponse.ok) {
+            logger.warn('Failed to sync messages to database:', syncResponse.status);
+          }
+        } catch (syncError) {
+          logger.warn('Database sync failed:', syncError);
+        }
+
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return;
+        }
+
+        const chatError: ChatError = {
+          message: error instanceof Error ? error.message : 'Streaming failed',
+          code: 'stream_error',
+          timestamp: new Date().toISOString(),
+        };
+        setStreamError(chatError);
+        logger.error('Streaming error:', error);
+
+        // Mark existing message as failed again
+        useChatStore.setState((state) => ({
+          conversations: state.conversations.map((conv) =>
+            conv.id === conversationId
+              ? {
+                  ...conv,
+                  messages: conv.messages.map(msg =>
+                    msg.id === messageId ? {
+                      ...msg,
+                      error: true,
+                      input_tokens: 0,
+                      error_message: chatError.message,
+                    } : msg
+                  ),
+                }
+              : conv
+          ),
+          isLoading: false,
+          error: chatError,
+        }));
+      } finally {
+        setIsStreaming(false);
+        setStreamingContent('');
+        setStreamingReasoning('');
+        setStreamingReasoningDetails([]);
+        setStreamingAnnotations([]);
+        setStreamError(null);
+        abortControllerRef.current = null;
+      }
+    } else {
+      // Non-streaming path - delegate to existing store implementation
+      const storeRetryMessage = useChatStore.getState().retryMessage;
+      await storeRetryMessage(messageId, content, model);
+    }
+  }, [
+    streamingEnabled,
+    storeIsLoading,
+    isStreaming,
+    currentConversationId,
+    createConversation,
+    getContextMessages,
+  ]);
+
   const retryLastMessage = useCallback(async () => {
     const messages = getCurrentMessages();
-    const lastUserMessage = messages
+    const lastFailedMessage = messages
       .slice()
       .reverse()
-      .find(msg => msg.role === 'user');
+      .find(msg => msg.role === 'user' && msg.error); // Only retry failed messages
       
-    if (lastUserMessage) {
-      await sendMessage(
-        lastUserMessage.content,
-        lastUserMessage.originalModel,
-        {
-          attachmentIds: lastUserMessage.attachment_ids,
-          webSearch: lastUserMessage.has_websearch,
-          // TODO: Extract reasoning from original message
-        }
-      );
+    if (lastFailedMessage) {
+      // Check if the original message was sent with streaming enabled
+      const shouldUseStreaming = lastFailedMessage.was_streaming === true;
+      
+      if (shouldUseStreaming) {
+        // Original message was sent with streaming - use streaming retry
+        await retryMessageStreaming(
+          lastFailedMessage.id,
+          lastFailedMessage.content,
+          lastFailedMessage.originalModel,
+          {
+            attachmentIds: lastFailedMessage.attachment_ids,
+            webSearch: lastFailedMessage.has_websearch,
+            // TODO: Extract reasoning from original message
+          }
+        );
+      } else {
+        // Original message was sent without streaming - use non-streaming retry
+        const storeRetryMessage = useChatStore.getState().retryMessage;
+        await storeRetryMessage(
+          lastFailedMessage.id,
+          lastFailedMessage.content,
+          lastFailedMessage.originalModel
+        );
+      }
     }
-  }, [getCurrentMessages, sendMessage]);
+  }, [getCurrentMessages, retryMessageStreaming]);
 
   // Cleanup on unmount
   useEffect(() => {

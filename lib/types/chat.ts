@@ -31,6 +31,8 @@ export interface ChatMessage {
   has_websearch?: boolean;
   websearch_result_count?: number;
   annotations?: OpenRouterUrlCitation[];
+  // NEW: Store original streaming mode for retry purposes
+  was_streaming?: boolean;
 }
 
 export interface ChatRequest {

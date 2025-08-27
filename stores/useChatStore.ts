@@ -260,6 +260,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               originalModel: model, // Store the model used for this message (for retry purposes)
               has_attachments: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? true : undefined,
               attachment_ids: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? options!.attachmentIds : undefined,
+              // Store that this was sent in non-streaming mode
+              was_streaming: false,
             };
 
             logger.debug("Sending message", { conversationId: currentConversationId, content: content.substring(0, 50) + "..." });
@@ -972,6 +974,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   role: "user",
                   timestamp: retryStartedAt,
                   originalModel: model,
+                  // Store that this retry is using non-streaming mode
+                  was_streaming: false,
                 };
                 
                 // Build complete message array (context + retry message)
