@@ -28,6 +28,7 @@ This endpoint provides CRUD operations for individual chat messages within a ses
 - **Message Array Support**: Process multiple messages atomically (user/assistant pairs)
 - **Error Message Handling**: Support for error messages with metadata (error_code, retry_after, suggestions)
 - **Session Title Preservation**: Existing sessions retain their original titles unless explicitly updated
+- **Retry Availability Flag**: Server sets `retry_available: false` on failed user messages returned from storage so clients won't offer a retry banner for prior-session failures. Frontend sets `retry_available: true` on fresh local failures and clears it on successful retry.
 
 ### Calls Made
 
@@ -50,6 +51,7 @@ This endpoint provides CRUD operations for individual chat messages within a ses
   - Example: `/api/chat/messages?session_id=abc123`
 
 - **POST Request Payload**:
+
   - **Single Message Format** (backward compatibility):
     ```json
     {
@@ -113,6 +115,8 @@ This endpoint provides CRUD operations for individual chat messages within a ses
     }
     ```
   - All fields in the `ChatMessage` interface are supported.
+
+  - Retry availability (new): When fetching via GET, failed user messages may include `"retry_available": false` to signal non-retriable prior-session failures.
 
 ### Responses
 

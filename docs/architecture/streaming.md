@@ -49,6 +49,7 @@ This document describes the streaming protocol, buffering strategy, and observab
 
 - Partial/invalid JSON events are ignored with optional debug logs.
 - Balanced-brace scanning prevents forwarding incomplete marker JSON.
+- Session-scoped retry: frontend marks current-session failures with `retry_available=true`; server-loaded failures get `retry_available=false` via API mappers so the UI doesn't offer retry for old messages.
 
 ## Security & Rate Limiting
 
