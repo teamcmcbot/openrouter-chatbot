@@ -326,8 +326,8 @@ export default function ChatInterface() {
           </div>
         )}
 
-        {/* Input Area */}
-  <div className="border-t border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
+  {/* Input Area */}
+  <div className="border-t border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 sm:pb-2">
           <MessageInput 
             onSendMessage={(message, options) => {
               // NEW: Track reasoning enablement for conditional display

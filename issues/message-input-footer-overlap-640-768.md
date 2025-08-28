@@ -59,6 +59,54 @@ When viewport width is between 640px and 768px, the footer becomes visible (`hid
 - At ≥ 769px, behavior remains unchanged (no regressions).
 - MessageInput feature buttons and send button remain fully visible and clickable at all widths.
 
+## Implementation Summary (Done)
+
+- Chosen option: Option B — Reserve footer space starting at `sm:` while keeping the footer visible.
+- What changed:
+
+  - `components/layout/MainContainer.tsx`: For chat routes, enforce responsive heights using Tailwind arbitrary values so the rule applies at `sm:`:
+    - base: `h-[var(--mobile-content-height)]` (100dvh - header)
+    - `sm:`: `h-[var(--desktop-content-height)]` (100dvh - header - footer)
+  - `src/app/chat/page.tsx`: Replaced page-level `h-mobile-full` wrappers with `h-full` so the chat page inherits `MainContainer`’s height logic instead of forcing a mobile-only height.
+  - `components/chat/ChatInterface.tsx`: Removed `sm:` footer padding from the root container to avoid double-spacing; kept a small `sm:pb-2` in input wrapper only.
+  - `src/app/layout.tsx`: Set the footer to an explicit height matching `--footer-height` and switched to `hidden sm:flex h-[var(--footer-height)] items-center` so layout math aligns exactly at `sm+` and no visual guessing/padding is needed.
+
+- Build status: Production builds pass (Next.js 15.3.5). Linting and type checks are clean.
+
+- Visual verification: At 640–768px, the MessageInput no longer overlaps the footer. No extra bottom gap appears ≥ 768/769px. Message list remains scrollable. < 640px behavior unchanged (footer hidden).
+
+## Notes on Safe Areas
+
+- The app continues to use dynamic viewport units and safe area variables. The `MainContainer` height approach is compatible across iOS Safari and desktop browsers.
+
+## Follow-up: Character Count Tooltip Overlap (Mobile)
+
+On narrow mobile widths, the MessageInput character-count tooltip can overlap the inline feature buttons. Two low-risk approaches:
+
+1. Reposition on mobile only (recommended)
+
+   - On sub-`sm` viewports, shift the tooltip higher above the feature buttons (e.g., via a smaller offset or anchoring it to the top edge of the input). This preserves visibility and avoids occlusion.
+
+2. Increase tooltip contrast
+   - Keep current position but make the tooltip background less transparent (higher opacity) so it remains legible when overlapping controls.
+
+Proposed acceptance criteria
+
+- On mobile (< 640px), the tooltip does not obscure essential button targets or text, either by repositioning or by sufficient contrast.
+- At ≥ 640px, current desktop/tablet tooltip behavior remains unchanged.
+- Tooltip text remains readable in both light and dark modes.
+
+Proposed test steps
+
+1. Set viewport to 360–479px and 480–639px in dev tools.
+2. Type until the counter appears near the lower-right; observe position/contrast.
+3. Verify feature buttons are still tappable (no accidental taps blocked by tooltip layer).
+4. Repeat in dark mode.
+
+Implementation note
+
+- If we choose repositioning, we’ll gate the positional class with `sm:` (e.g., `sm:translate-y-...`), or apply a mobile-only top placement. If we choose contrast, we’ll adjust the tooltip background color/opacity tokens for mobile via responsive classes.
+
 ## Implementation Plan (Phased)
 
 ### Phase 1 — Planning & Verification
