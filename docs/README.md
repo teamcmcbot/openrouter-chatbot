@@ -19,6 +19,7 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 
 - **[redis-rate-limiting-setup.md](./ops/redis-rate-limiting-setup.md)** - Redis setup guide for development and production
 - **[redis-rate-limiting-troubleshooting.md](./ops/redis-rate-limiting-troubleshooting.md)** - Troubleshooting guide for Redis rate limiting
+- **[supabase-setup.md](./ops/supabase-setup.md)** - Supabase setup: apply schema, create bucket, expose `storage` schema
 - Deployment guides and operational procedures
 
 ### Component Documentation (`/components/`)
@@ -59,6 +60,7 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 1. **Deployment**: Setup instructions in [redis-rate-limiting-setup.md](./ops/redis-rate-limiting-setup.md)
 2. **Monitoring**: Troubleshooting guide in [redis-rate-limiting-troubleshooting.md](./ops/redis-rate-limiting-troubleshooting.md)
 3. **Security**: Review [security-review.md](./security-review.md)
+4. **Supabase**: Follow [supabase-setup.md](./ops/supabase-setup.md) and ensure `storage` is in Exposed schemas (Data API)
 
 ## 🛡️ Rate Limiting System
 

@@ -96,3 +96,78 @@ COMMIT;
 SELECT COUNT(*)
 FROM storage.objects
 WHERE bucket_id = 'attachments-images';
+
+
+
+-- DB view (what the Admin stats use)
+SELECT status, COUNT(*) AS n, COALESCE(SUM(size_bytes),0) AS bytes
+FROM public.chat_attachments
+GROUP BY status
+ORDER BY status;
+
+-- Actual bucket usage
+SELECT COUNT(*) AS objects,
+       COALESCE(SUM((metadata->>'size')::bigint),0) AS total_bytes
+FROM storage.objects
+WHERE bucket_id = 'attachments-images';
+
+-- Which "deleted" rows still have a Storage object present
+SELECT a.id, a.storage_path, a.deleted_at
+FROM public.chat_attachments a
+JOIN storage.objects o
+  ON o.bucket_id = 'attachments-images'
+ AND o.name = a.storage_path
+WHERE a.status = 'deleted'
+ORDER BY a.deleted_at NULLS LAST
+LIMIT 200;
+
+-- In both storage.objects AND chat_attachements
+SELECT
+  o.id              AS object_id,
+  o.name            AS object_name,                 -- path/key in bucket
+  (o.metadata->>'size')::bigint AS bytes,
+  o.created_at      AS object_created_at,
+  a.id              AS attachment_id,
+  a.status          AS attachment_status,
+  a.created_at      AS attachment_created_at
+FROM storage.objects o
+JOIN public.chat_attachments a
+  ON a.storage_path = o.name
+WHERE o.bucket_id = 'attachments-images'
+  AND a.deleted_at IS NULL
+ORDER BY o.created_at DESC
+LIMIT 200;
+
+-- ...existing code...
+
+-- ==========================================================
+-- STORAGE-ONLY ORPHANS (objects in bucket without DB record)
+-- ==========================================================
+-- Summary (counts only live, non-tombstoned objects)
+SELECT
+  COUNT(*) AS orphan_objects,
+  COALESCE(SUM((o.metadata->>'size')::bigint), 0) AS total_bytes
+FROM storage.objects o
+LEFT JOIN public.chat_attachments a
+  ON a.storage_path = o.name
+WHERE o.bucket_id = 'attachments-images'
+  AND a.deleted_at IS NULL
+  AND a.id IS NULL;
+
+-- Dry-run: list a sample set for manual review (older than 24h)
+WITH cfg AS (
+  SELECT now() - interval '24 hours' AS cutoff
+)
+SELECT
+  o.name        AS storage_path,
+  (o.metadata->>'size')::bigint AS bytes,
+  o.created_at
+FROM storage.objects o
+LEFT JOIN public.chat_attachments a
+  ON a.storage_path = o.name
+WHERE o.bucket_id = 'attachments-images'
+  AND a.deleted_at IS NULL
+  AND a.id IS NULL
+  AND o.created_at < (SELECT cutoff FROM cfg)
+ORDER BY o.created_at ASC
+LIMIT 200;
