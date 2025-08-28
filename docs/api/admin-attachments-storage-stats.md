@@ -22,6 +22,7 @@ Admin-only endpoint to fetch storage-level metrics (live objects, total bytes, o
 ```
 
 Field notes:
+
 - `storageLiveObjects`: Exact count across candidate buckets (currently scans bucket ids referenced by `chat_attachments`, defaults to `attachments-images`).
 - `storageTotalBytes`: Sum from object metadata (`size` or `Content-Length`). Some deployments do not expose a physical `objects.size` column.
 - `storageOrphans`: Objects present in storage without a matching `chat_attachments.storage_path` among the scanned page.

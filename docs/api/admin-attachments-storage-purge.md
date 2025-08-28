@@ -18,6 +18,7 @@ Admin-only endpoint to list/purge storage-only orphans (files in storage without
 ## Responses
 
 200 OK (dry-run example):
+
 ```json
 {
   "success": true,
@@ -30,6 +31,7 @@ Admin-only endpoint to list/purge storage-only orphans (files in storage without
 ```
 
 200 OK (performing deletion):
+
 ```json
 {
   "success": true,
@@ -42,6 +44,7 @@ Admin-only endpoint to list/purge storage-only orphans (files in storage without
 ```
 
 Errors:
+
 - 401/403: Not admin
 - 429: Rate limit exceeded (Tier B)
 - 500: `{ success: false, error }`
