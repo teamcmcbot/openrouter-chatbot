@@ -39,11 +39,11 @@ Goal: Add a soft UI cap and a server-side guard to prevent sending user messages
 
 ### Phase 1 — Align requirements and finalize constants
 
-- [ ] Confirm open questions above (scope, thresholds, copy, count basis, i18n)
-- [ ] Decide where to place the shared resolver (proposal: `lib/config/limits.ts` exporting `resolveMaxMessageChars` and `MAX_MESSAGE_CHARS`)
-- [ ] Add `.env.example` entries for `NEXT_PUBLIC_MAX_MESSAGE_CHARS` and `MAX_MESSAGE_CHARS` (default 20000)
+- [x] Confirm open questions above (scope, thresholds, copy, count basis, i18n)
+- [x] Decide where to place the shared resolver (proposal: `lib/config/limits.ts` exporting `resolveMaxMessageChars` and `MAX_MESSAGE_CHARS`)
+- [x] Add `.env.example` entries for `NEXT_PUBLIC_MAX_MESSAGE_CHARS` and `MAX_MESSAGE_CHARS` (default 20000)
 - [ ] Document rationale in this backlog entry (ties to tier token ceilings; UX prevents avoidable 413/token rejections)
-- [ ] User verification: Confirm final constants/copy and proceed
+- [x] User verification: Confirm final constants/copy and proceed
 
 User test steps:
 
@@ -60,22 +60,22 @@ Files to change:
 
 Tasks:
 
-- [ ] Import `MAX_MESSAGE_CHARS` from `lib/config/limits`
-- [ ] Compute `charCount = message.length` and derived state: `isOver = charCount > 20000`, `overBy = Math.max(0, charCount - 20000)`
-- [ ] Update existing floating counter to show `X characters` (no denominator) with color states (normal/red)
-- [ ] When `isOver`, disable Send button and block Enter-to-send path; keep Shift+Enter newline; still allow editing
-- [ ] Add inline hint when `isOver`: "Reduce by {overBy} to send"
-- [ ] Add `aria-live="polite"` announcement when crossing thresholds (enter/leave over-limit)
-- [ ] Add `data-testid` hooks for counter state and send-disabled for tests
-- [ ] Minimal refactor to keep changes local (no layout shift, no maxLength attr)
+- [x] Import `MAX_MESSAGE_CHARS` from `lib/config/limits`
+- [x] Compute `charCount = message.length` and derived state: `isOver = charCount > 20000`, `overBy = Math.max(0, charCount - 20000)`
+- [x] Update existing floating counter to show `X characters` (no denominator) with color states (normal/red)
+- [x] When `isOver`, disable Send button and block Enter-to-send path; keep Shift+Enter newline; still allow editing
+- [x] Add inline hint when `isOver`: "Reduce by {overBy} to send"
+- [x] Add `aria-live="polite"` announcement when crossing thresholds (enter/leave over-limit)
+- [x] Add `data-testid` hooks for counter state and send-disabled for tests
+- [x] Minimal refactor to keep changes local (no layout shift, no maxLength attr)
 - [ ] Update `docs/components/chat/MessageInput.md` to describe the limit and UX
 
 User verification:
 
-- [ ] Type up to 20,000 chars → Send enabled; counter shows "X characters" in grey
-- [ ] Type to 20,001+ → Send disabled; counter red; inline hint shows required reduction; Enter-to-send blocked
-- [ ] Delete back to 20,000 or fewer → Send re-enables; hint disappears; announce change once
-- [ ] Paste large text (e.g., 25k) → same behavior as above; still editable
+- [x] Type up to 20,000 chars → Send enabled; counter shows "X characters" in grey
+- [x] Type to 20,001+ → Send disabled; counter red; inline hint shows required reduction; Enter-to-send blocked
+- [x] Delete back to 20,000 or fewer → Send re-enables; hint disappears; announce change once
+- [x] Paste large text (e.g., 25k) → same behavior as above; still editable
 - [ ] Mobile and desktop; IME composition unaffected; attachments banner unaffected
 
 ---
@@ -91,13 +91,13 @@ Files to change:
 
 Tasks:
 
-- [ ] Import `MAX_MESSAGE_CHARS` from `lib/config/limits` in both endpoints
-- [ ] Identify the triggering user message content:
+- [x] Import `MAX_MESSAGE_CHARS` from `lib/config/limits` in both endpoints
+- [x] Identify the triggering user message content:
   - If using new format: last message with `role === 'user'` (post-enhancements)
   - If legacy `body.message` path: the single user content
   - For multimodal content blocks, count text parts only (ignore image blocks)
-- [ ] If content length > `MAX_MESSAGE_CHARS`, throw `ApiErrorResponse` with `ErrorCode.PAYLOAD_TOO_LARGE (413)` and message: "Message exceeds 20,000 character limit. Reduce by {overBy} characters and try again."
-- [ ] Keep token-based validation (`validateRequestLimits`) as-is
+- [x] If content length > `MAX_MESSAGE_CHARS`, throw `ApiErrorResponse` with `ErrorCode.PAYLOAD_TOO_LARGE (413)` and message: "Message exceeds 20,000 character limit. Reduce by {overBy} characters and try again."
+- [x] Keep token-based validation (`validateRequestLimits`) as-is
 - [ ] Log a concise warning with user/tier/model (avoid logging full content)
 
 User verification:
