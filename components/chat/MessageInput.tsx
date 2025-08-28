@@ -798,11 +798,11 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           {/* Floating character counter centered in controls row (no layout shift) */}
           <div
             aria-live="polite"
-            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-0 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border 
+            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-0 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border shadow-md backdrop-blur-sm shadow-black/10 dark:shadow-black/30
               ${showCount ? 'opacity-100' : 'opacity-0'} 
               ${message.length > MAX_MESSAGE_CHARS
-                ? 'bg-red-100/90 text-red-700 border-red-300 dark:bg-red-900/50 dark:text-red-200 dark:border-red-700'
-                : 'bg-gray-100/80 text-gray-700 border-gray-300 dark:bg-gray-800/70 dark:text-gray-200 dark:border-gray-600'}`}
+                ? 'bg-red-700 text-white border-red-600 dark:bg-red-700 dark:text-white dark:border-red-600 sm:bg-red-100/90 sm:text-red-700 sm:border-red-300 sm:dark:bg-red-900/50 sm:dark:text-red-200 sm:dark:border-red-700'
+                : 'bg-gray-900/80 text-white border-gray-800 dark:bg-gray-900/80 dark:text-white dark:border-gray-700 sm:bg-gray-100/80 sm:text-gray-700 sm:border-gray-300 sm:dark:bg-gray-800/70 sm:dark:text-gray-200 sm:dark:border-gray-600'}`}
             data-testid="char-counter"
           >
             {`${message.length} characters`}

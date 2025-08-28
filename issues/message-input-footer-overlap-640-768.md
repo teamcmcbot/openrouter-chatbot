@@ -107,6 +107,41 @@ Implementation note
 
 - If we choose repositioning, we’ll gate the positional class with `sm:` (e.g., `sm:translate-y-...`), or apply a mobile-only top placement. If we choose contrast, we’ll adjust the tooltip background color/opacity tokens for mobile via responsive classes.
 
+## Follow-up Implementation (Option 2 — Contrast)
+
+Status: Implemented (awaiting final visual sign-off)
+
+What changed
+
+- Selected Option 2 (increase contrast without moving the tooltip).
+- Kept the original tooltip position; applied higher-contrast styles only on mobile (< `sm`). At `sm+`, styles revert to the previous subtle look.
+- Added subtle shadow and backdrop blur to improve legibility when the tooltip overlaps controls.
+
+Touched component
+
+- `components/chat/MessageInput.tsx`
+  - Tooltip container retains: `pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-0 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border shadow-md backdrop-blur-sm`.
+  - Normal state (mobile): high-contrast e.g., `bg-gray-900/80 text-white border-gray-800`, with `sm:` reverting to the previous subtle style `sm:bg-gray-100/80 sm:text-gray-700 sm:border-gray-300`.
+  - Over-limit state (mobile): high-contrast e.g., `bg-red-700 text-white border-red-600`, with `sm:` reverting to subtle `sm:bg-red-100/90 sm:text-red-700 sm:border-red-300`.
+  - Pointer events remain disabled so taps on underlying buttons are not blocked.
+
+Build and test status
+
+- Build: PASS (Next.js 15.3.5). Chat route size unchanged (≈121–122 kB), first-load JS unchanged (≈300–301 kB).
+- Tests: PASS — 57 test suites, 277 tests.
+
+User verification checklist
+
+- [ ] 360–479px: Tooltip is readable in light and dark themes; does not visually overpower or obscure action affordances; taps on buttons are not blocked.
+- [ ] 480–639px: Same as above.
+- [ ] ≥ 640px: Tooltip visual style and position remain unchanged from before; verify at 640px and ~768px.
+- [ ] Over-limit vs. normal styles are visually distinct and accessible.
+- [ ] Optional: Screen reader focus/readout unaffected by tooltip visibility.
+
+Notes
+
+- No positional changes were made; the update is strictly a visual contrast improvement scoped to mobile via responsive classes. This minimizes the risk of regressions at tablet/desktop breakpoints while improving readability when overlapping controls.
+
 ## Implementation Plan (Phased)
 
 ### Phase 1 — Planning & Verification
