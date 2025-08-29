@@ -916,6 +916,31 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             set({ conversationErrorBanners: {} });
           },
 
+          // When a user manually dismisses the error banner, disable retry for that failed message
+          closeErrorBannerAndDisableRetry: (conversationId: string) => {
+            const { conversationErrorBanners } = get();
+            const banner = conversationErrorBanners[conversationId];
+            // Clear the banner first
+            get().clearConversationErrorBanner(conversationId);
+            if (!banner) return;
+
+            // Flip retry_available to false on the referenced user message
+            set((state) => ({
+              conversations: state.conversations.map((conv) =>
+                conv.id === conversationId
+                  ? {
+                      ...conv,
+                      messages: conv.messages.map((m) =>
+                        m.id === banner.messageId && m.role === 'user'
+                          ? { ...m, retry_available: false }
+                          : m
+                      ),
+                    }
+                  : conv
+              ),
+            }));
+          },
+
           retryLastMessage: async () => {
             const currentConversation = get().conversations.find(
               (c) => c.id === get().currentConversationId
@@ -931,6 +956,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
             if (!lastFailedMessage) {
               logger.warn("No failed user message found to retry");
+              return;
+            }
+
+            // If user manually dismissed the banner earlier, do not allow retry
+            if (lastFailedMessage.retry_available === false) {
+              logger.debug('Retry disabled for this message due to manual dismissal');
               return;
             }
 

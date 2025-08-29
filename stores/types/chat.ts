@@ -67,6 +67,7 @@ export interface ChatState {
   setConversationErrorBanner: (conversationId: string, banner: ConversationErrorBanner) => void;
   clearConversationErrorBanner: (conversationId: string) => void;
   clearAllConversationErrorBanners: () => void;
+  closeErrorBannerAndDisableRetry: (conversationId: string) => void;
   retryLastMessage: () => Promise<void>;
   retryMessage: (
     messageId: string,

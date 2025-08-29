@@ -69,7 +69,7 @@ export default function ChatInterface() {
   const [lastReasoningEnabled, setLastReasoningEnabled] = useState<boolean>(false);
 
   // Ephemeral per-conversation banner (session-only)
-  const { conversationErrorBanners, currentConversationId, clearConversationErrorBanner } = useChatStore();
+  const { conversationErrorBanners, currentConversationId, clearConversationErrorBanner, closeErrorBannerAndDisableRetry } = useChatStore();
   const activeBanner = currentConversationId ? conversationErrorBanners[currentConversationId] : undefined;
   const lastFailedUserMessage = activeBanner
     ? [...messages].slice().reverse().find((m) => m.id === activeBanner.messageId && m.role === 'user')
@@ -314,14 +314,14 @@ export default function ChatInterface() {
     {/* Error Display (per-conversation) */}
   {activeBanner && lastFailedUserMessage && (
           <div className="px-4 sm:px-6 py-2">
-            <ErrorDisplay
+        <ErrorDisplay
               message={activeBanner.message || lastFailedUserMessage.error_message || 'Message failed. Please try again.'}
       type={'error'}
       title={'Error'}
         onRetry={shouldShowRetry ? handleRetry : undefined}
       code={lastFailedUserMessage.error_code || activeBanner.code}
       retryAfter={lastFailedUserMessage.retry_after || activeBanner.retryAfter}
-      onClose={() => currentConversationId && clearConversationErrorBanner(currentConversationId)}
+        onClose={() => currentConversationId && closeErrorBannerAndDisableRetry(currentConversationId)}
             />
           </div>
         )}
