@@ -68,7 +68,12 @@ export interface ChatState {
   clearConversationErrorBanner: (conversationId: string) => void;
   clearAllConversationErrorBanners: () => void;
   retryLastMessage: () => Promise<void>;
-  retryMessage: (messageId: string, content: string, model?: string) => Promise<void>; // New function to retry specific message
+  retryMessage: (
+    messageId: string,
+    content: string,
+    model?: string,
+    options?: { attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
+  ) => Promise<void>; // Retry specific message with original options
   getContextMessages: (maxTokens: number) => ChatMessage[]; // Phase 3: Context selection
 
   // Sync actions

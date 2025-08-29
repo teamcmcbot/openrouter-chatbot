@@ -264,6 +264,10 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               attachment_ids: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? options!.attachmentIds : undefined,
               // Store that this was sent in non-streaming mode
               was_streaming: false,
+              // Capture request-side options for accurate retry later
+              requested_web_search: options?.webSearch,
+              requested_web_max_results: options?.webMaxResults,
+              requested_reasoning_effort: options?.reasoning?.effort,
             };
 
             logger.debug("Sending message", { conversationId: currentConversationId, content: content.substring(0, 50) + "..." });
@@ -954,7 +958,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           },
 
           // New function to retry a specific message without creating duplicates
-          retryMessage: async (messageId: string, content: string, model?: string) => {
+          retryMessage: async (
+            messageId: string,
+            content: string,
+            model?: string,
+            options?: { attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
+          ) => {
             if (!content.trim() || get().isLoading) {
               logger.warn("Cannot retry message: empty content or already loading");
               return;
@@ -968,9 +977,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             // Capture retry start time BEFORE building context so ordering uses the new timestamp
             const retryStartedAt = new Date();
 
-            // Set loading state
-            // Clear ephemeral banners when loading server conversations on sign-in
-            set({ isLoading: true, error: null, conversationErrorBanners: {} });
+            // Set loading state (do not clear banners globally)
+            set({ isLoading: true, error: null });
 
             // Update the existing user message timestamp to reflect this new retry attempt
             set((state) => ({
@@ -995,7 +1003,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Retry Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -1061,16 +1069,20 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     message: content,
                     messages: [...finalContextMessages, retryMessage],
                     current_message_id: messageId,
-                    webSearch: undefined,
-                    webMaxResults: undefined,
+                    attachmentIds: options?.attachmentIds,
+                    webSearch: options?.webSearch,
+                    webMaxResults: options?.webMaxResults,
+                    reasoning: options?.reasoning,
                   };
                 } else {
                   requestBody = {
                     message: content,
                     messages: allMessages,
                     current_message_id: messageId,
-                    webSearch: undefined,
-                    webMaxResults: undefined,
+                    attachmentIds: options?.attachmentIds,
+                    webSearch: options?.webSearch,
+                    webMaxResults: options?.webMaxResults,
+                    reasoning: options?.reasoning,
                   };
                 }
                 

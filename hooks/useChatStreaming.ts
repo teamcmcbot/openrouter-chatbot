@@ -132,7 +132,11 @@ export function useChatStreaming(): UseChatStreamingReturn {
       has_attachments: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? true : undefined,
       attachment_ids: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? options!.attachmentIds : undefined,
       // Store that this was sent in streaming mode
-      was_streaming: true,
+  was_streaming: true,
+  // Capture request-side options for accurate retry later
+  requested_web_search: options?.webSearch,
+  requested_web_max_results: options?.webMaxResults,
+  requested_reasoning_effort: options?.reasoning?.effort,
     };
 
     if (streamingEnabled) {
@@ -665,7 +669,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
       ),
     }));
 
-    if (streamingEnabled) {
+  // Force streaming regardless of current toggle when this path is chosen
+  if (true) {
       // Streaming path - reuse existing streaming logic
       setIsStreaming(true);
       setStreamingContent('');
@@ -1025,13 +1030,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
         setStreamError(null);
         abortControllerRef.current = null;
       }
-    } else {
-      // Non-streaming path - delegate to existing store implementation
-      const storeRetryMessage = useChatStore.getState().retryMessage;
-      await storeRetryMessage(messageId, content, model);
-    }
+  } 
   }, [
-    streamingEnabled,
     storeIsLoading,
     isStreaming,
     currentConversationId,
@@ -1049,6 +1049,20 @@ export function useChatStreaming(): UseChatStreamingReturn {
     if (lastFailedMessage) {
       // Check if the original message was sent with streaming enabled
       const shouldUseStreaming = lastFailedMessage.was_streaming === true;
+      // Reconstruct original options from the failed user message
+      const originalOptions: {
+        attachmentIds?: string[];
+        webSearch?: boolean;
+        webMaxResults?: number;
+        reasoning?: { effort?: 'low' | 'medium' | 'high' };
+      } = {
+        attachmentIds: lastFailedMessage.attachment_ids,
+        webSearch: lastFailedMessage.requested_web_search,
+        webMaxResults: lastFailedMessage.requested_web_max_results,
+        reasoning: lastFailedMessage.requested_reasoning_effort
+          ? { effort: lastFailedMessage.requested_reasoning_effort }
+          : undefined,
+      };
       
       if (shouldUseStreaming) {
         // Original message was sent with streaming - use streaming retry
@@ -1056,11 +1070,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           lastFailedMessage.id,
           lastFailedMessage.content,
           lastFailedMessage.originalModel,
-          {
-            attachmentIds: lastFailedMessage.attachment_ids,
-            webSearch: lastFailedMessage.has_websearch,
-            // TODO: Extract reasoning from original message
-          }
+          originalOptions
         );
       } else {
         // Original message was sent without streaming - use non-streaming retry
@@ -1071,7 +1081,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
         await store.retryMessage(
           lastFailedMessage.id,
           lastFailedMessage.content,
-          lastFailedMessage.originalModel
+          lastFailedMessage.originalModel,
+          originalOptions
         );
       }
     }

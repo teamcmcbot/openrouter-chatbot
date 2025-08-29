@@ -42,6 +42,12 @@ export interface ChatMessage {
   annotations?: OpenRouterUrlCitation[];
   // NEW: Store original streaming mode for retry purposes
   was_streaming?: boolean;
+
+  // Request-side metadata (user messages only) to enable exact-option retries
+  // These capture the options the user selected at send time and are not required server-side
+  requested_web_search?: boolean;
+  requested_web_max_results?: number;
+  requested_reasoning_effort?: "low" | "medium" | "high";
 }
 
 export interface ChatRequest {
