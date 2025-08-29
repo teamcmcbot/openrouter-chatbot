@@ -1,11 +1,13 @@
 # Web Search (OpenRouter plugin)
 
-Last Updated: 2025-08-20
+Last Updated: 2025-08-29
 Status: Implemented (v1)
 
 ## UX
 
-- Per-message toggle in `MessageInput` (tier-gated). When ON, requests include the `web` plugin with `max_results=3`.
+- Per-message toggle in `MessageInput` (tier-gated). When ON:
+  - Enterprise: settings modal includes a "Max results" slider (1–5). Server clamps to 1–10.
+  - Pro: settings modal shows the slider disabled with an info tooltip; backend forces `max_results=3`.
 - Assistant messages that used Web Search show a small "Web" chip.
 - When citations are present, a compact "Sources" list renders under the message.
   - Links are title-only, keyboard-focusable, and wrap on mobile (no horizontal scroll).
@@ -21,6 +23,7 @@ Status: Implemented (v1)
 
 - Enabling Web Search may share parts of your query with third-party search providers through OpenRouter’s plugin.
 - Cost: $4 per 1000 results (0.004/result). With `max_results=3`, max ~$0.012 per request. We cap billable results at 50.
+  - Enterprise changing max results increases/decreases cost linearly per result (still capped at 50 billable results).
 
 ## Edge cases
 
@@ -29,4 +32,6 @@ Status: Implemented (v1)
 
 ## Testing hooks
 
-- Unit tests should assert that when toggle is ON, the request carries `plugins: [{ id: 'web', max_results: 3 }]` and that returned citations render as title-only links.
+- Unit tests should assert:
+  - Pro: when toggle is ON, server uses `max_results=3` regardless of client-provided `webMaxResults`.
+  - Enterprise: when toggle is ON and `webMaxResults=N` (1–5 UI), server forwards that value (clamped to ≤10) and citations render as title-only links.

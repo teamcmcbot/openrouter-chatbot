@@ -241,6 +241,16 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     }
     
   const startTime = Date.now();
+  // Enforce enterprise-only configurability for webMaxResults (Pro defaults to 3)
+  const reqTier = (authContext.profile?.subscription_tier || 'anonymous') as SubscriptionTier;
+  const requestedMax = Number.isFinite(body?.webMaxResults) ? Math.max(1, Math.min(10, Math.trunc(body.webMaxResults))) : undefined;
+  const effectiveWebMax = (() => {
+    if (!body.webSearch) return undefined; // not used when web search is off
+    if (reqTier === 'enterprise') return requestedMax ?? 3; // enterprise can configure
+    if (reqTier === 'pro') return 3; // force default for Pro
+    return undefined; // anonymous/free: webSearch would have been rejected above
+  })();
+
   const openRouterResponse = await getOpenRouterCompletion(
       messages,
       enhancedData.model,
@@ -248,7 +258,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       enhancedData.temperature,
       enhancedData.systemPrompt,
       authContext,
-      { webSearch: !!body.webSearch, webMaxResults: 3, reasoning }
+      { webSearch: !!body.webSearch, webMaxResults: effectiveWebMax, reasoning }
     );
     logger.debug('OpenRouter response received:', openRouterResponse);
   const assistantResponse = openRouterResponse.choices[0].message.content;

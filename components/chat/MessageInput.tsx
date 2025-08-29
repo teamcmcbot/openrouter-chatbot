@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import type React from "react";
-import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon, PlayIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon, PlayIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
+import Tooltip from "../ui/Tooltip";
 import { useAuth } from "../../stores/useAuthStore";
 import { useModelSelection } from "../../stores";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -13,7 +14,7 @@ import type { ModelInfo } from "../../lib/types/openrouter";
 import { MAX_MESSAGE_CHARS } from "../../lib/config/limits";
 
 interface MessageInputProps {
-  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => void
+  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => void
   disabled?: boolean;
   initialMessage?: string;
   // Optional: allow parent to open the model selector with a preset filter (e.g., 'multimodal')
@@ -28,6 +29,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const [isMobile, setIsMobile] = useState(false);
   const [streamingOn, setStreamingOn] = useState(false); // UI-only toggle for streaming
   const [webSearchOn, setWebSearchOn] = useState(false); // UI-only toggle
+  const [webMaxResults, setWebMaxResults] = useState<number>(3); // UI setting for web search results (1-5)
   const [reasoningOn, setReasoningOn] = useState(false); // UI-only toggle
   const [streamingModalOpen, setStreamingModalOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -57,6 +59,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const [draftId, setDraftId] = useState<string | null>(null);
   const { data: userData } = useUserData({ enabled: !!isAuthenticated });
   const userTier = (userData?.profile.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise';
+  const isEnterprise = userTier === 'enterprise';
   type LocalAttachment = {
     tempId: string; // local id for UI
     id?: string; // set when ready
@@ -103,6 +106,8 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   useEffect(() => {
     const streamingEnabled = Boolean(getSetting('streamingEnabled', false));
     setStreamingOn(streamingEnabled);
+  const savedWebMax = Number(getSetting('webMaxResults', 3));
+  if (Number.isFinite(savedWebMax)) setWebMaxResults(Math.max(1, Math.min(5, Math.trunc(savedWebMax))));
   }, [getSetting]);
 
   // Announce when crossing the character limit threshold
@@ -186,9 +191,9 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     if (message.trim() && !disabled) {
       if (attachments.length > 0) {
         const ready = attachments.filter(a => a.status === 'ready' && a.id);
-        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined, webSearch: webSearchOn, reasoning: reasoningOn ? { effort: 'low' } : undefined });
+        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined, webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined, reasoning: reasoningOn ? { effort: 'low' } : undefined });
       } else {
-        onSendMessage(message.trim(), { webSearch: webSearchOn, reasoning: reasoningOn ? { effort: 'low' } : undefined });
+        onSendMessage(message.trim(), { webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined, reasoning: reasoningOn ? { effort: 'low' } : undefined });
       }
       setMessage("");
       // Reset draft and clear pending attachments
@@ -219,7 +224,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     for (const id of toDelete) {
       try { fetch(`/api/attachments/${id}`, { method: 'DELETE' }); } catch {}
     }
-    onSendMessage(message.trim(), { webSearch: webSearchOn });
+  onSendMessage(message.trim(), { webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined });
     // Clear local state
     setMessage("");
     setAttachments((prev) => {
@@ -1022,6 +1027,51 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                     className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${webSearchOn ? 'translate-x-5' : 'translate-x-1'}`}
                   />
                 </button>
+              </div>
+              {/* Max results slider (disabled when Web Search is off or when not Enterprise) */}
+              <div className="mt-4">
+                <label
+                  className={`flex items-center justify-between gap-2 text-sm mb-2 ${webSearchOn && isEnterprise ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}`}
+                  aria-disabled={!webSearchOn || !isEnterprise}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>Max results</span>
+                    {/* Info tooltip explaining Enterprise-only configuration */}
+                    <Tooltip
+                      widthClassName="w-80"
+                      content={(
+                        <div className="text-sm">
+                          <div className="font-medium mb-1">Max results</div>
+                          <div className="text-gray-800 dark:text-gray-200">
+                            Controls how many web pages are fetched and cited per request.
+                            <br />
+                            <span className="font-medium">Enterprise</span> accounts can set 1–5. <span className="font-medium">Pro</span> uses the default of 3.
+                          </div>
+                        </div>
+                      )}
+                      ariaLabel="What is Max results?"
+                    >
+                      <InformationCircleIcon className="w-4 h-4 opacity-70" />
+                    </Tooltip>
+                  </span>
+                  <span className="font-medium">{isEnterprise ? webMaxResults : 3}</span>
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={isEnterprise ? webMaxResults : 3}
+                  onChange={(e) => {
+                    const v = Math.max(1, Math.min(5, Math.trunc(Number(e.target.value) || 3)));
+                    setWebMaxResults(v);
+                    setSetting('webMaxResults', v);
+                  }}
+                  disabled={!webSearchOn || !isEnterprise}
+                  className={`w-full accent-emerald-600 ${(!webSearchOn || !isEnterprise) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Web search max results"
+                  data-testid="websearch-max-results"
+                />
               </div>
             </div>
           )}

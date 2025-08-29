@@ -229,4 +229,64 @@ describe("API chat stream route - transform", () => {
     const finalLine = text.split("\n").find((l) => l.includes("__FINAL_METADATA__"));
     expect(finalLine).toBeTruthy();
   });
+
+  it("forces Pro tier webMaxResults to 3 regardless of payload", async () => {
+    // Ensure tier is Pro
+    fakeAuthContext.profile = { subscription_tier: "pro" };
+
+    const { getOpenRouterCompletionStream } = await import("../../lib/utils/openrouter");
+    const streamMock = getOpenRouterCompletionStream as unknown as jest.Mock;
+
+    // Minimal stream with final metadata so the route completes
+    const backendMeta = { type: "metadata", data: { id: "m2", usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } } };
+    streamMock.mockResolvedValueOnce(rsFromStrings(["Answer\n", "__METADATA__" + JSON.stringify(backendMeta) + "__END__"]));
+
+    const { POST } = await import("../../src/app/api/chat/stream/route");
+    const req: { json: () => Promise<{ messages: Array<{ role: string; content: string }>; model: string; webSearch: boolean; webMaxResults: number }> } = {
+      json: async () => ({
+        messages: [{ role: "user", content: "hi" }],
+        model: "deepseek/deepseek-r1-0528:free",
+        webSearch: true,
+        webMaxResults: 5, // attempt to override
+      }),
+    };
+    const res = (await POST(req as unknown as import("next/server").NextRequest)) as NextResponse;
+    expect(res.status).toBe(200);
+
+    // Inspect call args to OpenRouter helper
+    expect(streamMock).toHaveBeenCalledTimes(1);
+    const call = streamMock.mock.calls[0];
+    // options arg is position 6
+    const opts = call[6] as { webSearch?: boolean; webMaxResults?: number };
+    expect(opts.webSearch).toBe(true);
+    expect(opts.webMaxResults).toBe(3);
+  });
+
+  it("honors Enterprise webMaxResults within 1–5 range (example: 5)", async () => {
+    fakeAuthContext.profile = { subscription_tier: "enterprise" };
+
+    const { getOpenRouterCompletionStream } = await import("../../lib/utils/openrouter");
+    const streamMock = getOpenRouterCompletionStream as unknown as jest.Mock;
+
+    const backendMeta = { type: "metadata", data: { id: "m3", usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } } };
+    streamMock.mockResolvedValueOnce(rsFromStrings(["Answer\n", "__METADATA__" + JSON.stringify(backendMeta) + "__END__"]));
+
+    const { POST } = await import("../../src/app/api/chat/stream/route");
+    const req: { json: () => Promise<{ messages: Array<{ role: string; content: string }>; model: string; webSearch: boolean; webMaxResults: number }> } = {
+      json: async () => ({
+        messages: [{ role: "user", content: "hi" }],
+        model: "deepseek/deepseek-r1-0528:free",
+        webSearch: true,
+        webMaxResults: 5,
+      }),
+    };
+    const res = (await POST(req as unknown as import("next/server").NextRequest)) as NextResponse;
+    expect(res.status).toBe(200);
+
+    expect(streamMock).toHaveBeenCalledTimes(1);
+    const call = streamMock.mock.calls[0];
+    const opts = call[6] as { webSearch?: boolean; webMaxResults?: number };
+    expect(opts.webSearch).toBe(true);
+    expect(opts.webMaxResults).toBe(5);
+  });
 });

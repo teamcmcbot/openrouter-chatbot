@@ -233,6 +233,16 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     const startTime = Date.now();
 
     // Get streaming response from OpenRouter
+    // Enforce enterprise-only configurability for webMaxResults (Pro defaults to 3)
+    const reqTier = (authContext.profile?.subscription_tier || 'anonymous') as SubscriptionTier;
+    const requestedMax = Number.isFinite(body?.webMaxResults) ? Math.max(1, Math.min(10, Math.trunc(body.webMaxResults))) : undefined;
+    const effectiveWebMax = (() => {
+      if (!body.webSearch) return undefined;
+      if (reqTier === 'enterprise') return requestedMax ?? 3;
+      if (reqTier === 'pro') return 3;
+      return undefined;
+    })();
+
     const stream = await getOpenRouterCompletionStream(
       messages,
       enhancedData.model,
@@ -240,7 +250,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       enhancedData.temperature,
       enhancedData.systemPrompt,
       authContext,
-      { webSearch: !!body.webSearch, webMaxResults: 3, reasoning }
+      { webSearch: !!body.webSearch, webMaxResults: effectiveWebMax, reasoning }
     );
 
     // Transform the OpenRouter stream to extract metadata and content

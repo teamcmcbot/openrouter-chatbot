@@ -26,7 +26,8 @@ interface UseChatStreamingReturn {
   sendMessage: (content: string, model?: string, options?: { 
     attachmentIds?: string[]; 
     draftId?: string; 
-    webSearch?: boolean; 
+  webSearch?: boolean; 
+  webMaxResults?: number;
     reasoning?: { effort?: 'low' | 'medium' | 'high' } 
   }) => Promise<void>;
   clearMessages: () => void;
@@ -99,6 +100,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       attachmentIds?: string[]; 
       draftId?: string; 
       webSearch?: boolean; 
+      webMaxResults?: number;
       reasoning?: { effort?: 'low' | 'medium' | 'high' } 
     }
   ) => {
@@ -180,6 +182,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           attachmentIds: options?.attachmentIds,
           draftId: options?.draftId,
           webSearch: options?.webSearch,
+          webMaxResults: options?.webMaxResults,
           reasoning: options?.reasoning,
         };
 
@@ -545,8 +548,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
       }
     } else {
       // Non-streaming path - delegate to existing store implementation
-      const storeSendMessage = useChatStore.getState().sendMessage;
-      await storeSendMessage(content, model, options);
+  const storeSendMessage = useChatStore.getState().sendMessage;
+  await storeSendMessage(content, model, options);
     }
   }, [
     streamingEnabled,
@@ -586,6 +589,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
     options?: {
       attachmentIds?: string[];
       webSearch?: boolean;
+      webMaxResults?: number;
       reasoning?: { effort?: 'low' | 'medium' | 'high' };
     }
   ) => {
@@ -674,6 +678,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           current_message_id: messageId,
           attachmentIds: options?.attachmentIds,
           webSearch: options?.webSearch,
+          webMaxResults: options?.webMaxResults,
           reasoning: options?.reasoning,
         };
 

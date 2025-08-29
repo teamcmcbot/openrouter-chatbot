@@ -36,11 +36,11 @@ Per-request token validation: `lib/utils/validation.ts` → `validateRequestLimi
 
   - Anonymous: Not allowed
   - Free: Not allowed
-  - Pro: Allowed
-  - Enterprise: Allowed
+  - Pro: Allowed (max results fixed to 3)
+  - Enterprise: Allowed (can configure max results)
   - Enforcement
-    - Frontend: `components/chat/MessageInput.tsx`
-    - Backend: `src/app/api/chat/route.ts` (Pro/Enterprise only). Error code: `FORBIDDEN` (403) for both anonymous and Free users.
+    - Frontend: `components/chat/MessageInput.tsx` (slider disabled unless Enterprise; info tooltip explains Enterprise-only configuration)
+    - Backend: `src/app/api/chat/route.ts`, `src/app/api/chat/stream/route.ts` (Pro/Enterprise only; `webMaxResults` configurable for Enterprise, forced to 3 for Pro). Error code: `FORBIDDEN` (403) for anonymous and Free users.
   - Note: `/api/chat` allows anonymous access for basic chat via enhanced auth, but the Web Search feature itself is tier-gated. Requests with `webSearch: true` from anonymous or Free users return 403.
 
 - Reasoning mode
@@ -70,7 +70,7 @@ Notes:
 ## Where to change policies
 
 - Tier limits (requests/hour, tokens/request, capability flags): `lib/utils/auth.ts` in `createFeatureFlags()`.
-- Chat API gates (web search, reasoning, token limits): `src/app/api/chat/route.ts`.
+- Chat API gates (web search, reasoning, token limits): `src/app/api/chat/route.ts` (non-stream) and `src/app/api/chat/stream/route.ts` (stream).
 - Image uploads gates and limits: `src/app/api/uploads/images/route.ts`.
 - Authentication/tier wrappers: `lib/middleware/auth.ts` (`withEnhancedAuth`, `withProtectedAuth`, `withTierAuth`).
 - Rate limiting: `lib/middleware/redisRateLimitMiddleware.ts`.
@@ -83,6 +83,21 @@ Web Search
 - POST `/api/chat` with `{ webSearch: true }` while signed out → expect 403 (`FORBIDDEN`).
 - POST `/api/chat` as Free with `{ webSearch: true }` → expect 403 (`FORBIDDEN`).
 - POST `/api/chat` as Pro/Enterprise with `{ webSearch: true }` → expect 200 and citations when present.
+- PRO only: Slider disabled in UI; backend forces `max_results = 3` even if request sends `{"webSearch": true, "webMaxResults": 5}`.
+- Enterprise only: Slider enabled (1–5). Backend clamps to 1–10 and forwards `max_results = N`.
+
+Web Search – Configurability
+
+- In `MessageInput` settings:
+  - Pro: "Max results" slider is disabled and displays 3 with an info tooltip: “Controls how many web pages are fetched. Enterprise accounts can set 1–5. Pro uses the default of 3.”
+  - Enterprise: slider enabled (1–5). Value is persisted in settings and applied per message.
+
+API behavior:
+
+- Request body may include `webMaxResults` (number). Server behavior:
+  - Enterprise: honors `webMaxResults` (default 3 if omitted); clamps to [1,10].
+  - Pro: ignores provided value and forces 3.
+  - Free/Anonymous: requests with `webSearch: true` are rejected (403).
 
 Reasoning
 

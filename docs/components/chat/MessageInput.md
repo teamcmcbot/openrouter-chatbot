@@ -21,7 +21,8 @@ Modern, fused 3-row chat composer with attachments, tier gating, and per-message
 - Image attach: supports click-to-add, paste, and drag; caps at 3 images; shows uploading/failed with Retry and Remove.
 - Web Search:
   - Anonymous/free → clicking opens a centered "Upgrade to use Web Search" modal.
-  - Pro/enterprise → clicking opens a centered settings modal with an ON/OFF toggle that sets per-message state.
+  - Pro → clicking opens a centered settings modal with an ON/OFF toggle. "Max results" slider is disabled at 3 with an info tooltip explaining Enterprise-only configurability.
+  - Enterprise → clicking opens a centered settings modal with ON/OFF toggle and a "Max results" slider (1–5). Value is persisted per user and applied per message; server clamps to [1,10].
   - Tooltip was removed; aria-label reflects ON/OFF state.
 - Gating (images & search): outside click and Escape close any gating/settings modals; no analytics are emitted for these modals.
 

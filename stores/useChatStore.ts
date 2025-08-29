@@ -289,7 +289,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Send Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -348,6 +348,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     attachmentIds: options?.attachmentIds,
                     draftId: options?.draftId,
                     webSearch: options?.webSearch,
+                    webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
                   };
                 } else {
@@ -359,6 +360,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     attachmentIds: options?.attachmentIds,
                     draftId: options?.draftId,
                     webSearch: options?.webSearch,
+                    webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
                   };
                 }
@@ -370,7 +372,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch, reasoning: options?.reasoning };
+                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch, webMaxResults: options?.webMaxResults, reasoning: options?.reasoning };
                 if (model) {
                   requestBody.model = model;
                 }
@@ -989,7 +991,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Retry Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -1054,13 +1056,17 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   requestBody = {
                     message: content,
                     messages: [...finalContextMessages, retryMessage],
-                    current_message_id: messageId
+                    current_message_id: messageId,
+                    webSearch: undefined,
+                    webMaxResults: undefined,
                   };
                 } else {
                   requestBody = {
                     message: content,
                     messages: allMessages,
-                    current_message_id: messageId
+                    current_message_id: messageId,
+                    webSearch: undefined,
+                    webMaxResults: undefined,
                   };
                 }
                 

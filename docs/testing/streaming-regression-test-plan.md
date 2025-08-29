@@ -107,7 +107,7 @@ This test plan focuses on ChatInterface UI verification after streaming implemen
 
 - [x] **PRO-003**: Enable Web Search, send "What happened in tech news this week?"
 
-  - **UI Verify**: Web Search button can be toggled ON, "Web Search" chip shows on assistant message, Citations/Sources section appears below message with clickable links
+  - **UI Verify**: Web Search button can be toggled ON, "Web Search" chip shows on assistant message, Citations/Sources section appears below message with clickable links. "Max results" slider is disabled at 3 with info tooltip.
 
 - [x] **PRO-004**: Enable Web Search, send "What is the current population of Tokyo?"
   - **UI Verify**: Streaming shows progressive updates, web search results appear, citations are properly formatted
@@ -152,7 +152,7 @@ This test plan focuses on ChatInterface UI verification after streaming implemen
 ### Web Search Features - Enterprise
 
 - [ ] **ENT-003**: Enable Web Search, send "Compare the GDP of USA vs China in 2024"
-  - **UI Verify**: Web search toggle works, "Web Search" chip appears, citations section shows with proper links
+  - **UI Verify**: Web search toggle works, "Web Search" chip appears, citations section shows with proper links. "Max results" slider enabled (1–5) and value is honored server-side.
 
 ### Reasoning Features - Enterprise
 

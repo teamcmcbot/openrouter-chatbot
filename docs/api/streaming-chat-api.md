@@ -19,7 +19,8 @@ interface StreamChatRequest {
   model: string; // OpenRouter model ID
   temperature?: number; // Response randomness (0-1)
   systemPrompt?: string; // Custom system prompt
-  webSearch?: boolean; // Enable web search
+  webSearch?: boolean; // Enable web search (Pro/Enterprise)
+  webMaxResults?: number; // Enterprise-only: preferred max results (UI 1–5; server clamps 1–10). Pro is forced to 3.
   reasoning?: { effort: "low" | "medium" | "high" }; // Enable reasoning
   attachmentIds?: string[]; // Image attachment IDs
 }
@@ -35,7 +36,8 @@ curl -X POST /api/chat/stream \
     "message": "Explain quantum computing",
     "model": "anthropic/claude-3-haiku",
     "temperature": 0.7,
-    "webSearch": true,
+  "webSearch": true,
+  "webMaxResults": 5,
     "reasoning": { "effort": "low" }
   }'
 ```
