@@ -5,7 +5,7 @@ Quick links and usage notes for admin attachments operations.
 ## Endpoints
 
 - DB Stats: [`GET /api/admin/attachments/stats`](./admin-attachments-stats.md)
-- Storage Stats: [`GET /api/admin/attachments/storage/stats`](./admin-attachments-storage-stats.md)
+  // Storage metrics are included in [`GET /api/admin/attachments/stats`](./admin-attachments-stats.md)
 - Storage Purge Orphans: [`GET|POST /api/admin/attachments/storage/purge`](./admin-attachments-storage-purge.md)
 
 ## Auth & Rate Limits
