@@ -21,6 +21,9 @@ export interface ChatMessage {
   error?: boolean; // Flag to indicate if this message failed to send
   error_message?: string; // Error message text
   error_code?: string; // Error code for categorization
+  // Upstream error fields (from OpenRouter) when available
+  upstream_error_code?: number | string;
+  upstream_error_message?: string;
   retry_after?: number; // Seconds to wait before retry
   suggestions?: string[]; // Alternative suggestions for failed requests
   originalModel?: string; // Store the model used when this message was originally sent (for retry purposes)

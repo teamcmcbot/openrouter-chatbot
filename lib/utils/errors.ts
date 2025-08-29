@@ -102,6 +102,19 @@ export function handleError(error: unknown): NextResponse<ApiError> {
   let status: number;
 
   if (error instanceof ApiErrorResponse) {
+    // Attempt to parse upstream error JSON envelope
+    let upstreamCode: number | string | undefined;
+    let upstreamMessage: string | undefined;
+    try {
+      if (error.details && typeof error.details === 'string' && error.details.trim().startsWith('{')) {
+        const parsed = JSON.parse(error.details) as { error?: { code?: number; message?: string } };
+        if (parsed && parsed.error) {
+          upstreamCode = parsed.error.code;
+          upstreamMessage = parsed.error.message;
+        }
+      }
+    } catch {}
+
     errorResponse = {
       error: error.message,
       code: error.code,
@@ -109,6 +122,8 @@ export function handleError(error: unknown): NextResponse<ApiError> {
       timestamp: new Date().toISOString(),
       retryAfter: error.retryAfter,
       suggestions: error.suggestions,
+      ...(upstreamCode !== undefined ? { upstreamErrorCode: upstreamCode } : {}),
+      ...(upstreamMessage ? { upstreamErrorMessage: upstreamMessage } : {}),
     };
     status = errorStatusMap[error.code];
   } else {

@@ -403,6 +403,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 const chatError: ChatError = {
                   message: errorData.error ?? `HTTP error! status: ${response.status}`,
                   code: errorData.code,
+                  upstreamErrorCode: errorData.upstreamErrorCode,
+                  upstreamErrorMessage: errorData.upstreamErrorMessage,
                   suggestions: errorData.suggestions,
                   retryAfter: errorData.retryAfter,
                   timestamp: errorData.timestamp ?? new Date().toISOString(),
@@ -622,6 +624,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                                 input_tokens: 0, // Ensure input_tokens is 0 for failed requests
                                 error_message: chatError.message, // Map error_message to user message
                                 error_code: chatError.code,
+                                upstream_error_code: chatError.upstreamErrorCode,
+                                upstream_error_message: chatError.upstreamErrorMessage,
                                 retry_after: chatError.retryAfter,
                                 retry_available: true,
                               }
@@ -1099,11 +1103,13 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 body: JSON.stringify(requestBody),
               });
 
-              if (!response.ok) {
+        if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 const chatError: ChatError = {
                   message: errorData.error ?? `HTTP error! status: ${response.status}`,
                   code: errorData.code,
+          upstreamErrorCode: errorData.upstreamErrorCode,
+          upstreamErrorMessage: errorData.upstreamErrorMessage,
                   suggestions: errorData.suggestions,
                   retryAfter: errorData.retryAfter,
                   timestamp: errorData.timestamp ?? new Date().toISOString(),
@@ -1293,6 +1299,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                                 input_tokens: 0, // Ensure input_tokens is 0 for failed retry
                                 error_message: chatError.message, // Map error_message to user message
                                 error_code: chatError.code,
+                                upstream_error_code: chatError.upstreamErrorCode,
+                                upstream_error_message: chatError.upstreamErrorMessage,
                                 retry_after: chatError.retryAfter,
                                 retry_available: true,
                               }

@@ -20,6 +20,9 @@ export interface Conversation {
 export interface ChatError {
   message: string;
   code?: string;
+  // Upstream OpenRouter error fields surfaced by API
+  upstreamErrorCode?: number | string;
+  upstreamErrorMessage?: string;
   suggestions?: string[];
   retryAfter?: number;
   timestamp?: string;

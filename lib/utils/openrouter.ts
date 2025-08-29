@@ -83,6 +83,66 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// Centralized logging for upstream OpenRouter HTTP errors
+async function logOpenRouterHttpError(
+  kind: 'stream' | 'non-stream',
+  response: Response,
+  bodyText: string,
+  extra?: Record<string, unknown>
+) {
+  const headers: Record<string, string> = {};
+  // Capture a safe snapshot of headers for debugging (no auth headers are returned by server)
+  response.headers.forEach((value, key) => {
+    headers[key.toLowerCase()] = value;
+  });
+
+  const requestId = headers['x-request-id'] || headers['x-openrouter-request-id'] || headers['request-id'];
+  const rate = {
+    limit: headers['x-ratelimit-limit'] || headers['ratelimit-limit'],
+    remaining: headers['x-ratelimit-remaining'] || headers['ratelimit-remaining'],
+    reset: headers['x-ratelimit-reset'] || headers['ratelimit-reset'],
+    retry_after: headers['retry-after'],
+  };
+
+  // Try to parse OpenRouter error envelope if present
+  let parsed: unknown = undefined;
+  let provider: string | undefined;
+  let providerRaw: unknown | undefined;
+  let errorCode: number | undefined;
+  let errorMessage: string | undefined;
+  try {
+    parsed = JSON.parse(bodyText);
+    const envelope = parsed as { error?: { code?: number; message?: string; metadata?: Record<string, unknown> } };
+    if (envelope && envelope.error) {
+      errorCode = typeof envelope.error.code === 'number' ? envelope.error.code : undefined;
+      errorMessage = typeof envelope.error.message === 'string' ? envelope.error.message : undefined;
+      const meta = envelope.error.metadata || {};
+      if (meta && typeof meta === 'object') {
+        provider = (meta['provider_name'] as string) || (meta['provider'] as string) || undefined;
+        providerRaw = (meta['raw'] as unknown) ?? undefined;
+      }
+    }
+  } catch {
+    // Non-JSON body; leave parsed undefined
+  }
+
+  logger.error('OpenRouter HTTP error', {
+    kind,
+    status: response.status,
+    statusText: response.statusText,
+    requestId,
+    rate,
+    headers,
+    errorCode,
+    errorMessage,
+    provider,
+    providerRaw,
+    // Only include a truncated body preview to avoid log bloat / PII
+    bodyPreview: typeof bodyText === 'string' ? bodyText.slice(0, 2000) : undefined,
+    ...extra,
+  });
+}
+
 // ----- Helpers -----
 function isNoContentGenerated(response: OpenRouterResponse): boolean {
   const content = response.choices?.[0]?.message?.content;
@@ -151,6 +211,7 @@ export async function getOpenRouterCompletion(
   if (options?.reasoning) requestBody.reasoning = options.reasoning;
 
   let lastError: Error | null = null;
+  let lastErrorDetails: string | undefined;
   for (let attempt = 0; attempt <= COMPLETION_RETRY_CONFIG.maxRetries; attempt++) {
     try {
       const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
@@ -160,11 +221,20 @@ export async function getOpenRouterCompletion(
       });
       if (!response.ok) {
         const errorBody = await response.text();
-        throw new ApiErrorResponse(
+        // Log enriched details to help debug upstream issues without exposing them to clients
+        try {
+          await logOpenRouterHttpError('non-stream', response, errorBody, {
+            model: selectedModel,
+            attempt: attempt + 1,
+          });
+        } catch {}
+        const apiErr = new ApiErrorResponse(
           `OpenRouter API error: ${response.status} ${response.statusText}`,
           response.status >= 500 ? ErrorCode.BAD_GATEWAY : ErrorCode.BAD_REQUEST,
           errorBody
         );
+        lastErrorDetails = errorBody;
+        throw apiErr;
       }
       const json: unknown = await response.json();
       const j = json as { error?: { message?: string; code?: number } };
@@ -181,6 +251,9 @@ export async function getOpenRouterCompletion(
       return json as OpenRouterResponse;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+      if (error instanceof ApiErrorResponse && typeof error.details === 'string') {
+        lastErrorDetails = error.details;
+      }
       if (error instanceof ApiErrorResponse) {
         if ([ErrorCode.UNAUTHORIZED, ErrorCode.FORBIDDEN, ErrorCode.TOO_MANY_REQUESTS].includes(error.code)) throw error;
       }
@@ -208,7 +281,7 @@ export async function getOpenRouterCompletion(
   throw new ApiErrorResponse(
     `Failed to get completion after ${COMPLETION_RETRY_CONFIG.maxRetries + 1} attempts: ${lastError?.message}`,
     ErrorCode.BAD_GATEWAY,
-    lastError?.message
+  lastErrorDetails ?? lastError?.message
   );
 }
 
@@ -433,6 +506,11 @@ export async function getOpenRouterCompletionStream(
   }
   if (!response.ok) {
     const errorBody = await response.text();
+    try {
+      await logOpenRouterHttpError('stream', response, errorBody, {
+        model: selectedModel,
+      });
+    } catch {}
     throw new ApiErrorResponse(
       `OpenRouter streaming API error: ${response.status} ${response.statusText}`,
       response.status >= 500 ? ErrorCode.BAD_GATEWAY : ErrorCode.BAD_REQUEST,

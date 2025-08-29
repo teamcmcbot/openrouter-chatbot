@@ -180,6 +180,17 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       reasoning_details: mwr.reasoning_details || null,
       has_websearch: message.has_websearch ?? false,
       websearch_result_count: message.websearch_result_count ?? 0,
+            metadata: {
+              // Prefer upstream-specific fields if provided by client
+              ...(message.upstream_error_code !== undefined && message.upstream_error_code !== null
+                ? { upstream_error_code: message.upstream_error_code }
+                : (message.error_code ? { upstream_error_code: message.error_code } : {})),
+              ...(message.upstream_error_message
+                ? { upstream_error_message: message.upstream_error_message }
+                : (message.error_message ? { upstream_error_message: message.error_message } : {})),
+              ...(message.retry_after ? { upstream_retry_after: message.retry_after } : {}),
+              ...(Array.isArray(message.suggestions) ? { upstream_suggestions: message.suggestions } : {}),
+            },
             message_timestamp: typeof message.timestamp === 'string' 
               ? message.timestamp 
               : message.timestamp.toISOString(),
@@ -219,6 +230,16 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       reasoning_details: mwr.reasoning_details || null,
       has_websearch: message.has_websearch ?? false,
       websearch_result_count: message.websearch_result_count ?? 0,
+          metadata: {
+            ...(message.upstream_error_code !== undefined && message.upstream_error_code !== null
+              ? { upstream_error_code: message.upstream_error_code }
+              : (message.error_code ? { upstream_error_code: message.error_code } : {})),
+            ...(message.upstream_error_message
+              ? { upstream_error_message: message.upstream_error_message }
+              : (message.error_message ? { upstream_error_message: message.error_message } : {})),
+            ...(message.retry_after ? { upstream_retry_after: message.retry_after } : {}),
+            ...(Array.isArray(message.suggestions) ? { upstream_suggestions: message.suggestions } : {}),
+          },
           message_timestamp: typeof message.timestamp === 'string' 
             ? message.timestamp 
             : message.timestamp.toISOString(),
