@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChatMessage } from '../lib/types/chat';
 import { useChatStore } from '../stores/useChatStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
-import { useAuth } from '../stores/useAuthStore';
+import { useAuth, useAuthStore } from '../stores/useAuthStore';
 import { createLogger } from '../stores/storeUtils';
 import { checkRateLimitHeaders } from '../lib/utils/rateLimitNotifications';
 import { getModelTokenLimits } from '../lib/utils/tokens';
@@ -537,6 +537,32 @@ export function useChatStreaming(): UseChatStreamingReturn {
             createdAt: new Date().toISOString(),
           });
         }
+
+        // NEW: Persist failed user message to DB for authenticated users
+        try {
+          const { user } = useAuthStore.getState();
+          if (user?.id && conversationId) {
+            // Retrieve the updated failed user message from state (includes error flags)
+            const state = useChatStore.getState();
+            const conv = state.conversations.find(c => c.id === conversationId);
+            const failedUser = conv?.messages.find(m => m.id === userMessage.id);
+            if (failedUser) {
+              // Save ONLY the user message with error details (no assistant message)
+              // Include attachmentIds if provided to allow linkage even on failure
+              await fetch('/api/chat/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  message: failedUser,
+                  sessionId: conversationId,
+                  ...(options?.attachmentIds && { attachmentIds: options.attachmentIds }),
+                }),
+              });
+            }
+          }
+        } catch (persistErr) {
+          logger.warn('Failed to persist failed streaming user message', persistErr);
+        }
       } finally {
         setIsStreaming(false);
         setStreamingContent('');
@@ -966,6 +992,29 @@ export function useChatStreaming(): UseChatStreamingReturn {
             code: chatError.code,
             createdAt: new Date().toISOString(),
           });
+        }
+
+        // NEW: Persist failed retried user message to DB for authenticated users
+        try {
+          const { user } = useAuthStore.getState();
+          if (user?.id && conversationId) {
+            const state = useChatStore.getState();
+            const conv = state.conversations.find(c => c.id === conversationId);
+            const failedUser = conv?.messages.find(m => m.id === messageId);
+            if (failedUser) {
+              await fetch('/api/chat/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  message: failedUser,
+                  sessionId: conversationId,
+                  ...(options?.attachmentIds && { attachmentIds: options.attachmentIds }),
+                }),
+              });
+            }
+          }
+        } catch (persistErr) {
+          logger.warn('Failed to persist failed streaming retry user message', persistErr);
         }
       } finally {
         setIsStreaming(false);
