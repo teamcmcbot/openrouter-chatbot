@@ -29,6 +29,12 @@ const logger = createLogger("ChatStore");
 const generateConversationId = () => `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateMessageId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+// Ordering helpers
+const tsToMillis = (iso?: string) => (iso ? new Date(iso).getTime() : 0);
+const sortByLastTimestampDesc = (a: Conversation, b: Conversation) =>
+  tsToMillis(b.lastMessageTimestamp || b.updatedAt || b.createdAt) -
+  tsToMillis(a.lastMessageTimestamp || a.updatedAt || a.createdAt);
+
 // Function to convert string dates back to Date objects after rehydration
 const deserializeDates = (conversations: Conversation[]): Conversation[] => {
   return conversations.map(conversation => ({
@@ -1469,13 +1475,14 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               
               // Merge with existing conversations, prioritizing server data
               set((state) => {
-                const existingIds = new Set(state.conversations.map(c => c.id));
-                const newConversations = serverConversations.filter((conv: Conversation) => !existingIds.has(conv.id));
-                
-                // Sort merged conversations by updatedAt (most recent first)
-                const allConversations = [...newConversations, ...state.conversations]
-                  .sort((a, b) => new Date(b.last_message_timestamp).getTime() - new Date(a.last_message_timestamp).getTime());
-                
+                // Merge: server wins on ID conflicts to refresh metadata from DB
+                const byId = new Map<string, Conversation>();
+                for (const conv of state.conversations) byId.set(conv.id, conv);
+                for (const conv of serverConversations as Conversation[]) byId.set(conv.id, conv);
+
+                // Sort by lastMessageTimestamp (fallback to updatedAt/createdAt)
+                const allConversations = Array.from(byId.values()).sort(sortByLastTimestampDesc);
+
                 return {
                   conversations: allConversations,
                   isLoading: false,
@@ -1545,7 +1552,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             const isCurrentConversationVisible = filteredConversations.some(c => c.id === currentConversationId);
             
             set({
-              conversations: filteredConversations,
+              conversations: [...filteredConversations].sort(sortByLastTimestampDesc),
               currentConversationId: isCurrentConversationVisible ? currentConversationId : null
             });
             
@@ -1583,7 +1590,9 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           },
 
           getRecentConversations: (limit = 10) => {
-            return get().conversations
+            // Always present most-recent first by lastMessageTimestamp (with sensible fallbacks)
+            return [...get().conversations]
+              .sort(sortByLastTimestampDesc)
               .slice(0, limit);
           },
         }),
