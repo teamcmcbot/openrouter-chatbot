@@ -1,3 +1,32 @@
+## Store: useChatStore
+
+Zustand store that manages conversations, messages, and pagination state for the chat UI.
+
+### Key state
+
+- `conversations`: array of session summaries and, once loaded, messages.
+- `meta`: { hasMore, nextCursor, pageSize, totalCount? } from GET `/api/chat/sync`.
+- `activeConversationId`: currently selected conversation id.
+- `isLoading`: request-in-flight flag; `error`: last error string.
+
+### Core actions
+
+- `loadInitialConversations()`
+  - Calls GET `/api/chat/sync?summary_only=true` with default limit=20; sets `conversations` and `meta`.
+
+- `loadMoreConversations()`
+  - Uses `meta.nextCursor` to call GET `/api/chat/sync?summary_only=true&cursor_ts=...&cursor_id=...` and appends deduped results; updates `meta`.
+
+- `switchConversation(id)`
+  - Selects the conversation and, if messages are missing, triggers `loadConversationMessages(id)`.
+
+- `loadConversationMessages(id)`
+  - Calls GET `/api/chat/messages?session_id=...` and merges messages into the matching conversation; updates messageCount, lastMessagePreview, lastMessageTimestamp, updatedAt.
+
+### Notes
+
+- Conversations are sorted by `last_message_timestamp DESC, id DESC` per server; the store maintains that order on merges.
+- Summary-only keeps sidebar payloads small; messages are loaded on demand and cached in-state.
 # useChatStore
 
 ## Purpose / Overview

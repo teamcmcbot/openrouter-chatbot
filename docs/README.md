@@ -8,12 +8,15 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 
 - **[streaming-chat-architecture.md](./architecture/streaming-chat-architecture.md)** - Comprehensive streaming chat implementation architecture
 - **[redis-rate-limiting.md](./architecture/redis-rate-limiting.md)** - Redis-based rate limiting system architecture
+- **[chat-history-pagination-and-lazy-loading.md](./architecture/chat-history-pagination-and-lazy-loading.md)** - Conversation pagination and lazy message loading design
 - Technical design documents and system architecture guides
 
 ### API Documentation (`/api/`)
 
 - **[streaming-chat-api.md](./api/streaming-chat-api.md)** - Streaming chat API endpoint documentation and integration guide
 - **[rate-limiting.md](./api/rate-limiting.md)** - API rate limiting behavior, headers, and client integration
+- **[chat-sync.md](./api/chat-sync.md)** - Conversation sync and paginated listing API
+- **[chat-messages.md](./api/chat-messages.md)** - Messages fetch/persist API for a conversation
 
 ### Operations Documentation (`/ops/`)
 
@@ -25,6 +28,7 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 ### Component Documentation (`/components/`)
 
 - React component usage guides and examples
+- **[ChatSidebar.md](./components/ChatSidebar.md)** - Sidebar pagination and click-to-load behavior
 
 ### Database Documentation (`/database/`)
 
@@ -34,6 +38,7 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 
 - **[feature-matrix.md](./feature-matrix.md)** - Comprehensive feature comparison and capabilities overview
 - **[streaming-implementation-summary.md](./streaming-implementation-summary.md)** - Streaming feature implementation status and testing guide
+- **[tiered-rate-limiting-completion-summary.md](./tiered-rate-limiting-completion-summary.md)** - Tiered rate limiting rollout summary
 - **[reasoning-fixes-summary.md](./reasoning-fixes-summary.md)** - Reasoning data flow fixes and validation
 - **[reasoning-empty-array-fix.md](./reasoning-empty-array-fix.md)** - Fix for reasoning display with empty arrays
 - **[security-review.md](./security-review.md)** - Security implementation review including rate limiting
@@ -97,6 +102,11 @@ The application implements comprehensive Redis-based rate limiting:
 - **[phase3-completion-summary.md](./phase3-completion-summary.md)** - Phase 3 implementation summary
 - **[serverless-caching-completion-summary.md](./serverless-caching-completion-summary.md)** - Caching implementation
 - **[session-title-optimization.md](./session-title-optimization.md)** - Session title optimization
+- **[frontend-rate-limiting-fixes-completion-summary.md](./frontend-rate-limiting-fixes-completion-summary.md)** - Frontend rate limiting fixes
+
+### Store Documentation (`/stores/`)
+
+- **[useChatStore.md](./stores/useChatStore.md)** - Chat store state, pagination, and lazy-loading actions
 
 ## 🔍 Finding Documentation
 

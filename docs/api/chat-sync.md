@@ -1,3 +1,86 @@
+## API: /api/chat/sync
+
+This endpoint handles conversation synchronization (POST) and paginated listing (GET).
+
+Auth and limits:
+- GET/POST are protected with `withConversationOwnership`.
+- Tiered rate limit: tierC.
+
+### POST /api/chat/sync
+
+Synchronize client conversations to the server.
+
+Request body (partial):
+- `conversations: Array<{ id, title, messages[], messageCount?, totalTokens?, lastModel?, lastMessagePreview?, lastMessageTimestamp?, createdAt?, updatedAt? }>`
+
+Behavior:
+- Upserts `chat_sessions` with original client IDs.
+- Upserts `chat_messages` for each conversation (sanitizes contentType; sets websearch and attachment flags; preserves is_streaming; stores reasoning fields and tokens).
+- Replaces and inserts `chat_message_annotations` for assistant messages.
+
+Response:
+```json
+{
+  "success": true,
+  "results": {
+    "synced": 1,
+    "errors": 0,
+    "details": [
+      { "conversationId": "conv_...", "status": "synced", "messageCount": 3 }
+    ]
+  },
+  "syncTime": "2025-08-31T...Z"
+}
+```
+
+### GET /api/chat/sync
+
+Returns a paginated list of conversations.
+
+Query params:
+- `limit`: number (default 20, max 20)
+- `cursor_ts`: ISO timestamp of the last row from previous page
+- `cursor_id`: id of the last row (tiebreaker)
+- `direction`: only `before` is supported
+- `summary_only`: default `true`. If `true`, returns summaries (no messages). If `false`, returns messages with full joins.
+- `with_total`: default `false`. If `true`, includes `meta.totalCount`.
+
+Summary response:
+```json
+{
+  "conversations": [
+    {
+      "id": "conv_...",
+      "title": "...",
+      "userId": "...",
+      "messages": [],
+      "createdAt": "...",
+      "updatedAt": "...",
+      "messageCount": 2,
+      "totalTokens": 247,
+      "lastModel": "...",
+      "lastMessagePreview": "...",
+      "lastMessageTimestamp": "...",
+      "isActive": false
+    }
+  ],
+  "meta": {
+    "pageSize": 20,
+    "hasMore": true,
+    "nextCursor": { "ts": "...", "id": "..." }
+  },
+  "syncTime": "..."
+}
+```
+
+Full response (summary_only=false):
+- `conversations[].messages` are ordered ascending by message_timestamp and shaped with:
+  - role, content, model/originalModel, tokens, elapsed_ms, completion_id
+  - user_message_id, contentType, was_streaming
+  - has_websearch, websearch_result_count
+  - reasoning, reasoning_details (array)
+  - annotations (URL citations)
+  - has_attachments, attachment_ids
 # Endpoi## Authentication & Authorization
 
 - **Authentication Required:** Uses `withConversationOwnership` middleware, which requires valid user authentication via `withProtectedAuth`

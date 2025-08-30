@@ -97,6 +97,13 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           isLoading: false,
           error: null,
           isHydrated: false,
+          sidebarPaging: {
+            pageSize: 20,
+            loading: false,
+            hasMore: false,
+            nextCursor: null,
+            initialized: false,
+          },
           // Ephemeral banners (session-only, not persisted)
           conversationErrorBanners: {},
 
@@ -136,6 +143,18 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               currentConversationId: id,
               error: null,
             }));
+
+            // If authenticated and the selected conversation has no messages yet (summary-only listing), load them lazily
+            const { user } = useAuthStore.getState();
+            if (user) {
+              const conv = get().conversations.find(c => c.id === id);
+              if (conv && (!Array.isArray(conv.messages) || conv.messages.length === 0)) {
+                // Fire and forget; UI can render spinner if needed based on isLoading
+                get().loadConversationMessages?.(id).catch((err) => {
+                  logger.warn("Failed to load conversation messages", { id, err });
+                });
+              }
+            }
           },
 
           // Phase 3: Context selection method with pair-based and token-based limits
@@ -1453,7 +1472,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             try {
               logger.debug("Loading user conversations from server", { userId });
               
-              const response = await fetch('/api/chat/sync');
+              // Request summary mode for lean sidebar payload with pagination meta
+              const response = await fetch('/api/chat/sync?limit=20&summary_only=true');
               
               if (!response.ok) {
                 throw new Error(`Failed to load conversations: ${response.statusText}`);
@@ -1461,6 +1481,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
               const result = await response.json();
               const serverConversations = result.conversations || [];
+              const meta = result.meta as { hasMore?: boolean; nextCursor?: { ts: string; id: string } | null; pageSize?: number } | undefined;
               
               // Log sample message metadata for verification
               const sampleMessage = serverConversations[0]?.messages?.find((m: ChatMessage) => m.role === 'assistant');
@@ -1486,7 +1507,14 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 return {
                   conversations: allConversations,
                   isLoading: false,
-                  lastSyncTime: result.syncTime
+                  lastSyncTime: result.syncTime,
+                  sidebarPaging: {
+                    pageSize: meta?.pageSize ?? 20,
+                    loading: false,
+                    hasMore: !!meta?.hasMore,
+                    nextCursor: meta?.nextCursor ?? null,
+                    initialized: true,
+                  }
                 };
               });
               
@@ -1500,6 +1528,125 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 isLoading: false, 
                 error: { message: errorMessage, timestamp: new Date().toISOString() }
               });
+            }
+          },
+
+          // New: load more for sidebar pagination
+          loadInitialConversations: async () => {
+            const paging = get().sidebarPaging;
+            if (paging?.loading) return;
+            set({ sidebarPaging: { ...(paging || { pageSize: 20 }), loading: true, initialized: paging?.initialized ?? false, hasMore: paging?.hasMore ?? false, nextCursor: paging?.nextCursor ?? null } });
+            try {
+              const response = await fetch(`/api/chat/sync?limit=${(paging?.pageSize ?? 20)}&summary_only=true`);
+              if (!response.ok) throw new Error(`Failed to load conversations: ${response.statusText}`);
+              const result = await response.json();
+              const serverConversations = result.conversations || [];
+              const meta = result.meta as { hasMore?: boolean; nextCursor?: { ts: string; id: string } | null; pageSize?: number } | undefined;
+              set((state) => {
+                const byId = new Map<string, Conversation>();
+                for (const conv of state.conversations) byId.set(conv.id, conv);
+                for (const conv of serverConversations as Conversation[]) byId.set(conv.id, conv);
+                const allConversations = Array.from(byId.values()).sort(sortByLastTimestampDesc);
+                return {
+                  conversations: allConversations,
+                  sidebarPaging: {
+                    pageSize: meta?.pageSize ?? (paging?.pageSize ?? 20),
+                    loading: false,
+                    hasMore: !!meta?.hasMore,
+                    nextCursor: meta?.nextCursor ?? null,
+                    initialized: true,
+                  },
+                  lastSyncTime: result.syncTime,
+                };
+              });
+            } catch (e) {
+              const fallback = paging || { pageSize: 20, hasMore: false, nextCursor: null, initialized: false, loading: false };
+              set({ sidebarPaging: { ...fallback, loading: false } });
+              throw e;
+            }
+          },
+
+          loadMoreConversations: async () => {
+            const paging = get().sidebarPaging;
+            if (!paging?.hasMore || paging.loading) return;
+            set({ sidebarPaging: { ...paging, loading: true } });
+            try {
+              const params = new URLSearchParams();
+              params.set('limit', String(paging.pageSize));
+              params.set('summary_only', 'true');
+              if (paging.nextCursor) {
+                params.set('cursor_ts', paging.nextCursor.ts);
+                params.set('cursor_id', paging.nextCursor.id);
+              }
+              const response = await fetch(`/api/chat/sync?${params.toString()}`);
+              if (!response.ok) throw new Error(`Failed to load more conversations: ${response.statusText}`);
+              const result = await response.json();
+              const serverConversations = result.conversations || [];
+              const meta = result.meta as { hasMore?: boolean; nextCursor?: { ts: string; id: string } | null } | undefined;
+              set((state) => {
+                const byId = new Map<string, Conversation>();
+                for (const conv of state.conversations) byId.set(conv.id, conv);
+                for (const conv of serverConversations as Conversation[]) byId.set(conv.id, conv);
+                const allConversations = Array.from(byId.values()).sort(sortByLastTimestampDesc);
+                return {
+                  conversations: allConversations,
+                  sidebarPaging: {
+                    ...state.sidebarPaging!,
+                    loading: false,
+                    hasMore: !!meta?.hasMore,
+                    nextCursor: meta?.nextCursor ?? null,
+                  }
+                };
+              });
+            } catch (e) {
+              set({ sidebarPaging: { ...(paging || { pageSize: 20, hasMore: false, nextCursor: null, initialized: false, loading: false }), loading: false } });
+              throw e;
+            }
+          },
+
+          // Lazy loader: fetch full messages for a session and merge into store
+          loadConversationMessages: async (id: string) => {
+            // Avoid duplicate loads if messages already present
+            const existing = get().conversations.find(c => c.id === id);
+            if (!existing) return;
+            if (Array.isArray(existing.messages) && existing.messages.length > 0) return;
+
+            set({ isLoading: true });
+            try {
+              const res = await fetch(`/api/chat/messages?session_id=${encodeURIComponent(id)}`);
+              if (!res.ok) throw new Error(`Failed to load messages: ${res.statusText}`);
+              const data = await res.json();
+              const msgs = Array.isArray(data.messages) ? data.messages : [];
+              set((state) => ({
+                conversations: state.conversations.map(conv =>
+                  conv.id === id
+                    ? {
+                        ...conv,
+                        messages: msgs,
+                        messageCount: msgs.length,
+                        lastMessagePreview:
+                          msgs.length > 0
+                            ? (msgs[msgs.length - 1].content.length > 100
+                                ? msgs[msgs.length - 1].content.substring(0, 100) + "..."
+                                : msgs[msgs.length - 1].content)
+                            : conv.lastMessagePreview,
+                        lastMessageTimestamp:
+                          msgs.length > 0
+                            ? (typeof msgs[msgs.length - 1].timestamp === 'string'
+                                ? msgs[msgs.length - 1].timestamp
+                                : (msgs[msgs.length - 1].timestamp as Date).toISOString())
+                            : conv.lastMessageTimestamp,
+                        updatedAt: new Date().toISOString(),
+                      }
+                    : conv
+                ),
+                isLoading: false,
+              }));
+            } catch (e) {
+              const message = e instanceof Error ? e.message : 'Failed to load messages';
+              logger.error('loadConversationMessages failed', message);
+              set({ isLoading: false, error: { message, timestamp: new Date().toISOString() } });
+              throw e;
             }
           },
 

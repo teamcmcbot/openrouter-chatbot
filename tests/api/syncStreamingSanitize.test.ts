@@ -362,7 +362,7 @@ describe('Sync API - Streaming + Sanitization', () => {
     expect(msgA1.content_type).toBe('text'); // sanitized
 
     // GET sync
-    const getReq = makeReq({ url: 'http://localhost/api/chat/sync', method: 'GET' });
+  const getReq = makeReq({ url: 'http://localhost/api/chat/sync?summary_only=false', method: 'GET' });
     const getRes = await getSync(getReq) as unknown as MockResponse<{ conversations: any[] }>;
     expect(getRes.status).toBe(200);
     const getBody = await getRes.json();

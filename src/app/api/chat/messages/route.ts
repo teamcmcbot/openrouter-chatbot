@@ -8,6 +8,30 @@ import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
 
+// Shape of chat_messages rows we read from DB
+interface DbMessage {
+  id: string;
+  session_id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  model?: string | null;
+  total_tokens?: number | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  user_message_id?: string | null;
+  content_type?: string | null;
+  elapsed_ms?: number | null;
+  completion_id?: string | null;
+  has_websearch?: boolean | null;
+  websearch_result_count?: number | null;
+  reasoning?: string | null;
+  reasoning_details?: Record<string, unknown> | Record<string, unknown>[] | null;
+  message_timestamp: string;
+  error_message?: string | null;
+  metadata?: Record<string, unknown> | null;
+  is_streaming?: boolean | null;
+}
+
 async function getMessagesHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   try {
     const supabase = await createClient();
@@ -51,21 +75,115 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
       throw messagesError;
     }
 
-    // Transform to frontend format
-    const formattedMessages = (messages || []).map(message => ({
-      id: message.id,
-      role: message.role as 'user' | 'assistant' | 'system',
-      content: message.content,
-      model: message.model,
-      total_tokens: message.total_tokens,
-      contentType: message.content_type || 'text', // New: content type
-  elapsed_ms: message.elapsed_ms || 0, // New: elapsed time (ms)
-      completion_id: message.completion_id || undefined, // New: completion ID
-      timestamp: new Date(message.message_timestamp),
-  error: !!message.error_message,
-  // Old messages loaded from DB should not surface a retry action
-  ...(message.role === 'user' && message.error_message ? { retry_available: false } : {})
-    }));
+    // Preload attachments and annotations for all message IDs
+    const allMessageIds: string[] = (messages || []).map((m: { id: string }) => m.id);
+    const attachmentsByMessage: Record<string, string[]> = {};
+    const annotationsByMessage: Record<string, Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>> = {};
+
+    if (allMessageIds.length > 0) {
+      // Attachments (only ready ones)
+      const { data: atts, error: attErr } = await supabase
+        .from('chat_attachments')
+        .select('id, message_id, status')
+        .in('message_id', allMessageIds)
+        .eq('status', 'ready');
+      if (attErr) throw attErr;
+      if (Array.isArray(atts)) {
+        for (const row of atts as { id: string; message_id: string }[]) {
+          const list = attachmentsByMessage[row.message_id] || (attachmentsByMessage[row.message_id] = []);
+          list.push(row.id);
+        }
+      }
+
+      // Annotations (URL citations)
+      const { data: anns, error: annErr } = await supabase
+        .from('chat_message_annotations')
+        .select('message_id, annotation_type, url, title, content, start_index, end_index')
+        .in('message_id', allMessageIds);
+      if (annErr) throw annErr;
+      if (Array.isArray(anns)) {
+        for (const row of anns as { message_id: string; annotation_type: string; url: string; title?: string | null; content?: string | null; start_index?: number | null; end_index?: number | null }[]) {
+          if (row.annotation_type !== 'url_citation' || typeof row.url !== 'string') continue;
+          const list = annotationsByMessage[row.message_id] || (annotationsByMessage[row.message_id] = []);
+          list.push({
+            type: 'url_citation',
+            url: row.url,
+            title: row.title ?? undefined,
+            content: row.content ?? undefined,
+            start_index: typeof row.start_index === 'number' ? row.start_index : undefined,
+            end_index: typeof row.end_index === 'number' ? row.end_index : undefined,
+          });
+        }
+      }
+    }
+
+    // Transform to frontend format (filter out system messages)
+    const formattedMessages = (messages || [])
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((message: DbMessage) => {
+        // Sanitize content type
+        const contentType = message.content_type === 'markdown' ? 'markdown' : 'text';
+        // Coerce reasoning_details into array when object
+        const reasoningDetails = Array.isArray(message.reasoning_details)
+          ? message.reasoning_details
+          : (message.reasoning_details && typeof message.reasoning_details === 'object'
+              ? [message.reasoning_details]
+              : undefined);
+
+        // Extract requested_* options from metadata JSONB (if present)
+        const md = (message.metadata && typeof message.metadata === 'object') ? message.metadata as Record<string, unknown> : {};
+        const requested_web_search = typeof md.requested_web_search === 'boolean' ? md.requested_web_search : undefined;
+        const requested_web_max_results = typeof md.requested_web_max_results === 'number' ? md.requested_web_max_results : undefined;
+        const requested_reasoning_effort = typeof md.requested_reasoning_effort === 'string' ? md.requested_reasoning_effort : undefined;
+
+        // Attachments & annotations
+        const attachment_ids = attachmentsByMessage[message.id] || [];
+        const has_attachments = attachment_ids.length > 0;
+        const annotations = annotationsByMessage[message.id] || [];
+
+        // For user messages, prefer originalModel field to mirror samples
+        const model = message.role === 'assistant' ? message.model : undefined;
+        const originalModel = message.role === 'user' ? (message.model ?? undefined) : undefined;
+
+        return {
+          id: message.id,
+          role: message.role as 'user' | 'assistant',
+          content: message.content,
+          // Model fields
+          ...(model ? { model } : {}),
+          ...(originalModel ? { originalModel } : {}),
+          // Token usage
+          total_tokens: message.total_tokens,
+          input_tokens: message.input_tokens || 0,
+          output_tokens: message.output_tokens || 0,
+          user_message_id: message.user_message_id || undefined,
+          // Rendering and tracing
+          contentType,
+          elapsed_ms: message.elapsed_ms || 0,
+          completion_id: message.completion_id || undefined,
+          // Web search
+          has_websearch: !!message.has_websearch,
+          websearch_result_count: typeof message.websearch_result_count === 'number' ? message.websearch_result_count : 0,
+          // Reasoning
+          reasoning: typeof message.reasoning === 'string' ? message.reasoning : undefined,
+          reasoning_details: reasoningDetails,
+          // Annotations & Attachments
+          annotations,
+          has_attachments,
+          attachment_ids,
+          // Timestamp & error
+          timestamp: new Date(message.message_timestamp),
+          error: !!message.error_message,
+          // Streaming mode used
+          was_streaming: message.is_streaming === true,
+          // Request-side options
+          ...(requested_web_search !== undefined ? { requested_web_search } : {}),
+          ...(requested_web_max_results !== undefined ? { requested_web_max_results } : {}),
+          ...(requested_reasoning_effort !== undefined ? { requested_reasoning_effort } : {}),
+          // Old failures loaded from DB should not surface retry action
+          ...(message.role === 'user' && message.error_message ? { retry_available: false } : {})
+        };
+      });
 
     return NextResponse.json({
       messages: formattedMessages,

@@ -44,6 +44,16 @@ export interface ChatState {
   error: ChatError | null;
   isHydrated: boolean;
 
+  // Sidebar pagination state for server-backed listings
+  sidebarPaging?: {
+    pageSize: number;
+    loading: boolean;
+    hasMore: boolean;
+    nextCursor: { ts: string; id: string } | null;
+    totalCount?: number;
+    initialized: boolean;
+  };
+
   // Ephemeral, session-only UI banners scoped per conversation (not persisted)
   conversationErrorBanners: Record<string, ConversationErrorBanner | undefined>;
 
@@ -82,6 +92,12 @@ export interface ChatState {
   loadUserConversations: (userId: string) => Promise<void>;
   migrateAnonymousConversations: (userId: string) => Promise<void>;
   filterConversationsByUser: (userId: string | null) => void;
+
+  // Sidebar listing actions
+  loadInitialConversations?: () => Promise<void>;
+  loadMoreConversations?: () => Promise<void>;
+  // Lazy load full messages for a session when selected
+  loadConversationMessages?: (id: string) => Promise<void>;
 
   // Internal hydration handler
   _hasHydrated: () => void;
