@@ -156,16 +156,8 @@ export function useChat(): UseChatReturn {
         msg.id === userMessage.id ? { ...msg, error: true } : msg
       ));
       
-      // For development: Add a mock response when backend is not available
-      if (chatError.code === "network_error") {
-        const mockResponse: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          content: "I'm currently not available. The backend API is being developed by Gemini CLI. Please check back later!",
-          role: "assistant",
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, mockResponse]);
-      }
+  // Note: We no longer add a mock assistant message on errors.
+  // The ErrorDisplay banner handles user-facing error feedback.
     } finally {
       setIsLoading(false);
     }

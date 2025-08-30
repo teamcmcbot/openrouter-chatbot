@@ -654,26 +654,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 });
               }
 
-              // For development: Add a mock response when backend is not available
-              if (chatError.code === "network_error") {
-                const mockResponse: ChatMessage = {
-                  id: generateMessageId(),
-                  content: "I'm currently not available. The backend API is being developed by Gemini CLI. Please check back later!",
-                  role: "assistant",
-                  timestamp: new Date(),
-                };
-
-                set((state) => ({
-                  conversations: state.conversations.map((conv) =>
-                    conv.id === state.currentConversationId
-                      ? updateConversationFromMessages({
-                          ...conv,
-                          messages: [...conv.messages, mockResponse],
-                        })
-                      : conv
-                  ),
-                }));
-              }
+              // Note: We no longer add a mock assistant message on errors.
+              // The ErrorDisplay banner handles user-facing error feedback.
 
               // Phase 3: Save error message to database for authenticated users
               const { user } = useAuthStore.getState();
