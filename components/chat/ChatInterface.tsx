@@ -4,7 +4,6 @@ import { useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import { 
-  useChat, 
   useChatStore, 
   useModelSelection, 
   useDetailsSidebar, 
@@ -19,9 +18,21 @@ import { Bars3Icon } from "@heroicons/react/24/outline";
 import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
 import TierBadge from "../ui/TierBadge";
+import { useChatStreaming } from "../../hooks/useChatStreaming";
 
 export default function ChatInterface() {
-  const { messages, isLoading, error, sendMessage, clearError, retryLastMessage } = useChat();
+  const { 
+    messages, 
+    isLoading, 
+    sendMessage, 
+  // error,  // Use per-conversation message error instead of global error
+  retryLastMessage,
+    isStreaming,
+    streamingContent,
+    streamingReasoning,
+    streamingReasoningDetails,
+    streamingAnnotations
+  } = useChatStreaming();
   const createConversation = useChatStore((state) => state.createConversation);
   const { 
     availableModels, 
@@ -54,11 +65,21 @@ export default function ChatInterface() {
   // Control for the model dropdown from child actions (e.g., MessageInput banner)
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [modelDropdownPreset, setModelDropdownPreset] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning' | undefined>(undefined);
+  // NEW: Track reasoning enablement state for conditional display
+  const [lastReasoningEnabled, setLastReasoningEnabled] = useState<boolean>(false);
 
-  // Retry function to resend the last user message
+  // Ephemeral per-conversation banner (session-only)
+  const { conversationErrorBanners, currentConversationId, clearConversationErrorBanner, closeErrorBannerAndDisableRetry } = useChatStore();
+  const activeBanner = currentConversationId ? conversationErrorBanners[currentConversationId] : undefined;
+  const lastFailedUserMessage = activeBanner
+    ? [...messages].slice().reverse().find((m) => m.id === activeBanner.messageId && m.role === 'user')
+    : undefined;
+
+  // Retry function to resend the last failed user message
   const handleRetry = () => {
-    // Clear the error first, then retry the last message
-    clearError();
+    // Do not clear global error; per-message retry methods will clear the message's error flag
+    // Dismiss the banner for this conversation before retrying
+    if (currentConversationId) clearConversationErrorBanner(currentConversationId);
     retryLastMessage();
   };
 
@@ -161,6 +182,39 @@ export default function ChatInterface() {
   const accountType = isAuthenticated ? (userData?.profile.account_type || 'user') : 'user';
   // Tier label now rendered by TierBadge
 
+  // Determine if the last failed message should show a retry action
+  const shouldShowRetry = (() => {
+    if (!lastFailedUserMessage) return false;
+    if (lastFailedUserMessage.retry_available === false) return false;
+    // Non-retryable error codes
+    const nonRetryableCodes = new Set([
+      'bad_request',
+      'forbidden',
+      'unauthorized',
+      'method_not_allowed',
+      'not_found',
+      'unprocessable_entity',
+      'payload_too_large',
+      'token_limit_exceeded',
+      'feature_not_available',
+      'tier_upgrade_required',
+    ]);
+    const code = (lastFailedUserMessage.error_code || '').toLowerCase();
+    if (code && nonRetryableCodes.has(code)) return false;
+    // Heuristic for streaming errors where code may be missing
+    const msg = (lastFailedUserMessage.error_message || '').toLowerCase();
+    const nonRetryableByText = [
+      'character limit',
+      'web search is available for pro and enterprise',
+      'reasoning is available for enterprise',
+      'attachment limit exceeded',
+      'unsupported attachment type',
+      'does not support image input',
+    ];
+    if (nonRetryableByText.some((s) => msg.includes(s))) return false;
+    return true;
+  })();
+
   return (
     <div className="flex h-full overflow-visible mobile-safe-area">
   {/* Left Sidebar - Chat History (15%) */}
@@ -240,7 +294,7 @@ export default function ChatInterface() {
         </div>
 
         {/* Messages Container */}
-        <div className="flex-1 min-h-0">
+  <div className="flex-1 min-h-0">
           <MessageList 
             messages={messages} 
             isLoading={isLoading}
@@ -248,29 +302,38 @@ export default function ChatInterface() {
             hoveredGenerationId={hoveredGenerationId}
             scrollToCompletionId={scrollToCompletionId}
             onPromptSelect={handlePromptSelect}
+            isStreaming={isStreaming}
+            streamingContent={streamingContent}
+            streamingReasoning={streamingReasoning}
+            streamingReasoningDetails={streamingReasoningDetails}
+            streamingAnnotations={streamingAnnotations}
+            reasoningEnabled={lastReasoningEnabled}
           />
         </div>
 
-        {/* Error Display */}
-        {error && (
+    {/* Error Display (per-conversation) */}
+  {activeBanner && lastFailedUserMessage && (
           <div className="px-4 sm:px-6 py-2">
-            <ErrorDisplay
-              message={error.message}
-              type={error.code === 'too_many_requests' ? 'warning' : 'error'}
-              title={error.code === 'too_many_requests' ? 'Rate Limited' : 'Error'}
-              onRetry={handleRetry}
-              onClose={clearError}
-              suggestions={error.suggestions}
-              retryAfter={error.retryAfter}
-              code={error.code}
+        <ErrorDisplay
+              message={activeBanner.message || lastFailedUserMessage.error_message || 'Message failed. Please try again.'}
+      type={'error'}
+      title={'Error'}
+        onRetry={shouldShowRetry ? handleRetry : undefined}
+      code={lastFailedUserMessage.error_code || activeBanner.code}
+      retryAfter={lastFailedUserMessage.retry_after || activeBanner.retryAfter}
+        onClose={() => currentConversationId && closeErrorBannerAndDisableRetry(currentConversationId)}
             />
           </div>
         )}
 
-        {/* Input Area */}
-  <div className="border-t border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
+  {/* Input Area */}
+  <div className="border-t border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 sm:pb-2">
           <MessageInput 
             onSendMessage={(message, options) => {
+              // NEW: Track reasoning enablement for conditional display
+              setLastReasoningEnabled(!!options?.reasoning);
+              // Dismiss current conversation's visible error banner when a new message is sent
+              if (currentConversationId) clearConversationErrorBanner(currentConversationId);
               // Pass through to store; store will include options downstream in API body
               sendMessage(message, selectedModel, options);
               setSelectedPrompt(""); // Clear the selected prompt after sending

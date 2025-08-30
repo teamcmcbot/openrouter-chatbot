@@ -51,3 +51,44 @@ global.console = {
   warn: jest.fn(),
   error: jest.fn(),
 };
+
+// Polyfills for Node test env
+try {
+  const { TextEncoder, TextDecoder } = require("util");
+  if (!global.TextEncoder) global.TextEncoder = TextEncoder;
+  if (!global.TextDecoder) global.TextDecoder = TextDecoder;
+} catch {}
+
+try {
+  if (typeof global.ReadableStream === "undefined") {
+    const { ReadableStream } = require("stream/web");
+    global.ReadableStream = ReadableStream;
+  }
+  if (typeof global.TransformStream === "undefined") {
+    const { TransformStream } = require("stream/web");
+    global.TransformStream = TransformStream;
+  }
+} catch {}
+
+// Ensure WHATWG Request/Response/Headers exist for next/server
+try {
+  const { Request, Response, Headers, fetch } = require("undici");
+  if (typeof global.Request === "undefined") global.Request = Request;
+  if (typeof global.Response === "undefined") global.Response = Response;
+  if (typeof global.Headers === "undefined") global.Headers = Headers;
+  // Do not override existing jest fetch mock; only set if missing
+  if (typeof global.fetch === "undefined") global.fetch = fetch;
+} catch {}
+
+// Fallback minimal Response if still undefined (tests only)
+if (typeof global.Response === "undefined") {
+  // Minimal shim sufficient for handleError usage in tests
+  global.Response = class {
+    constructor(body, init) {
+      this.body = body;
+      this.status = (init && init.status) || 200;
+      this.statusText = (init && init.statusText) || "OK";
+      this.headers = (init && init.headers) || {};
+    }
+  };
+}

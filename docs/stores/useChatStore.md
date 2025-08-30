@@ -1,3 +1,36 @@
+## Store: useChatStore
+
+Zustand store that manages conversations, messages, and pagination state for the chat UI.
+
+### Key state
+
+- `conversations`: array of session summaries and, once loaded, messages.
+- `meta`: { hasMore, nextCursor, pageSize, totalCount? } from GET `/api/chat/sync`.
+- `activeConversationId`: currently selected conversation id.
+- `isLoading`: request-in-flight flag; `error`: last error string.
+
+### Core actions
+
+- `loadInitialConversations()`
+
+  - Calls GET `/api/chat/sync?summary_only=true` with default limit=20; sets `conversations` and `meta`.
+
+- `loadMoreConversations()`
+
+  - Uses `meta.nextCursor` to call GET `/api/chat/sync?summary_only=true&cursor_ts=...&cursor_id=...` and appends deduped results; updates `meta`.
+
+- `switchConversation(id)`
+
+  - Selects the conversation and, if messages are missing, triggers `loadConversationMessages(id)`.
+
+- `loadConversationMessages(id)`
+  - Calls GET `/api/chat/messages?session_id=...` and merges messages into the matching conversation; updates messageCount, lastMessagePreview, lastMessageTimestamp, updatedAt.
+
+### Notes
+
+- Conversations are sorted by `last_message_timestamp DESC, id DESC` per server; the store maintains that order on merges.
+- Summary-only keeps sidebar payloads small; messages are loaded on demand and cached in-state.
+
 # useChatStore
 
 ## Purpose / Overview
@@ -8,35 +41,39 @@ A hydration flag prevents mismatches during SSR.
 
 ## State Shape
 
-| State Variable          | Type                | Description                                 |
-| ----------------------- | ------------------- | ------------------------------------------- |
-| `conversations`         | `Conversation[]`    | All saved conversations.                    |
-| `currentConversationId` | `string \| null`    | ID of the active conversation.              |
-| `isLoading`             | `boolean`           | `true` while waiting for an API response.   |
-| `error`                 | `ChatError \| null` | Last request error.                         |
-| `isHydrated`            | `boolean`           | `true` once state is restored from storage. |
-| `isSyncing`             | `boolean`           | Indicates a sync request is in progress.    |
-| `lastSyncTime`          | `Date \| null`      | Timestamp of the last successful sync.      |
-| `syncError`             | `string \| null`    | Error message from the last sync attempt.   |
+| State Variable             | Type                                                                                                            | Description                                                       |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `conversations`            | `Conversation[]`                                                                                                | All saved conversations.                                          |
+| `currentConversationId`    | `string \| null`                                                                                                | ID of the active conversation.                                    |
+| `isLoading`                | `boolean`                                                                                                       | `true` while waiting for an API response.                         |
+| `error`                    | `ChatError \| null`                                                                                             | Last request error.                                               |
+| `conversationErrorBanners` | `Record<string, { messageId: string; message: string; code?: string; retryAfter?: number; createdAt: string }>` | Ephemeral, session-only per-conversation banners (not persisted). |
+| `isHydrated`               | `boolean`                                                                                                       | `true` once state is restored from storage.                       |
+| `isSyncing`                | `boolean`                                                                                                       | Indicates a sync request is in progress.                          |
+| `lastSyncTime`             | `Date \| null`                                                                                                  | Timestamp of the last successful sync.                            |
+| `syncError`                | `string \| null`                                                                                                | Error message from the last sync attempt.                         |
 
 ## Actions / Methods
 
-| Action                          | Parameters                                               | Description                                                                       |
-| ------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `createConversation`            | `(title?: string)`                                       | Start a new conversation and return its ID.                                       |
-| `switchConversation`            | `(id: string)`                                           | Mark a conversation as active.                                                    |
-| `sendMessage`                   | `(content: string, model?: string)`                      | Send a user message to the backend.                                               |
-| `updateConversationTitle`       | `(id: string, title: string, isAutoGenerated?: boolean)` | Rename a conversation. Enhanced to handle auto-generated vs manual title updates. |
-| `deleteConversation`            | `(id: string)`                                           | Remove a conversation and select another if available.                            |
-| `clearCurrentMessages`          | `()`                                                     | Remove all messages from the current conversation.                                |
-| `clearError`                    | `()`                                                     | Reset the `error` state.                                                          |
-| `clearMessageError`             | `(messageId: string)`                                    | Clear the error flag on a specific message.                                       |
-| `retryLastMessage`              | `()`                                                     | Resend the last user message.                                                     |
-| `syncConversations`             | `()`                                                     | Upload all user conversations to the server.                                      |
-| `loadUserConversations`         | `(userId: string)`                                       | Merge server conversations into local state.                                      |
-| `migrateAnonymousConversations` | `(userId: string)`                                       | Assign existing local conversations to the signed-in user.                        |
-| `filterConversationsByUser`     | `(userId: string \| null)`                               | Display conversations for the given user.                                         |
-| `clearAllConversations`         | `()`                                                     | Delete every conversation from local storage.                                     |
+| Action                             | Parameters                                               | Description                                                                       |
+| ---------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `createConversation`               | `(title?: string)`                                       | Start a new conversation and return its ID.                                       |
+| `switchConversation`               | `(id: string)`                                           | Mark a conversation as active.                                                    |
+| `sendMessage`                      | `(content: string, model?: string)`                      | Send a user message to the backend.                                               |
+| `updateConversationTitle`          | `(id: string, title: string, isAutoGenerated?: boolean)` | Rename a conversation. Enhanced to handle auto-generated vs manual title updates. |
+| `deleteConversation`               | `(id: string)`                                           | Remove a conversation and select another if available.                            |
+| `clearCurrentMessages`             | `()`                                                     | Remove all messages from the current conversation.                                |
+| `clearError`                       | `()`                                                     | Reset the `error` state.                                                          |
+| `clearMessageError`                | `(messageId: string)`                                    | Clear the error flag on a specific message.                                       |
+| `retryLastMessage`                 | `()`                                                     | Resend the last user message. Dismisses the ephemeral banner before retrying.     |
+| `setConversationErrorBanner`       | `(conversationId: string, banner: Banner)`               | Set the session-only banner for a conversation.                                   |
+| `clearConversationErrorBanner`     | `(conversationId: string)`                               | Clear the banner for a conversation.                                              |
+| `clearAllConversationErrorBanners` | `()`                                                     | Clear all banners (e.g., on sign-in/out).                                         |
+| `syncConversations`                | `()`                                                     | Upload all user conversations to the server.                                      |
+| `loadUserConversations`            | `(userId: string)`                                       | Merge server conversations into local state.                                      |
+| `migrateAnonymousConversations`    | `(userId: string)`                                       | Assign existing local conversations to the signed-in user.                        |
+| `filterConversationsByUser`        | `(userId: string \| null)`                               | Display conversations for the given user.                                         |
+| `clearAllConversations`            | `()`                                                     | Delete every conversation from local storage.                                     |
 
 ## Selectors / Computed State
 
@@ -83,6 +120,14 @@ internal state until hydration completes.
 - **Benefits**: Single API call instead of separate session title update
 - **Implementation**: `isAutoGenerated: true` flag bypasses `/api/chat/session` endpoint
 - **Retry Support**: If the first message fails, a successful retry will rerun this auto-title logic.
+- **Retry Support**: If the first message fails, a successful retry will rerun this auto-title logic.
+
+### Error/Retry flow (updated)
+
+- On a local failure, the store marks the failed user message with `error=true`, `error_message`, `retry_available=true`, and sets the session-only banner via `setConversationErrorBanner`.
+- On successful retry, error flags are cleared; the per-conversation banner is cleared before retry.
+- On manual dismiss or on sending a new message, only the banner is cleared. Message history remains unchanged.
+- When messages are loaded from the server (via sync endpoints), `retry_available` may be `false` on prior-session failures (CTA only). Banners are not derived from server data.
 
 ### Manual Title Updates
 

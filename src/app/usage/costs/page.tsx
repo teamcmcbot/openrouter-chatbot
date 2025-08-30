@@ -15,6 +15,7 @@ interface CostItem {
   prompt_cost: string;
   completion_cost: string;
   image_cost: string;
+  websearch_cost: string; // newly included from API
   total_cost: string;
   elapsed_ms?: number; // newly included from API (may be 0 for legacy rows)
 }
@@ -210,6 +211,7 @@ export default function UsageCostsPage() {
               <th className="text-right font-mono">Input Cost</th>
               <th className="text-right font-mono">Output Cost</th>
               <th className="text-right font-mono">Image Cost</th>
+              <th className="text-right font-mono">WebSearch Cost</th>
               <th className="text-right font-mono">Total Cost</th>
               <th className="text-right font-mono" title="Completion tokens per second (output_tokens / (elapsed_ms/1000)). 0 or blank if elapsed not captured.">Speed</th>
             </tr>
@@ -229,6 +231,7 @@ export default function UsageCostsPage() {
                 <td className="py-2 text-right font-mono tabular-nums">${item.prompt_cost}</td>
                 <td className="py-2 text-right font-mono tabular-nums">${item.completion_cost}</td>
                 <td className="py-2 text-right font-mono tabular-nums">${item.image_cost}</td>
+                <td className="py-2 text-right font-mono tabular-nums">${item.websearch_cost}</td>
                 <td className="py-2 text-right font-mono tabular-nums font-semibold">${item.total_cost}</td>
                 <td className="py-2 text-right font-mono tabular-nums" title={item.elapsed_ms ? `${item.elapsed_ms} ms` : 'No latency captured'}>{speed ? speed.toFixed(1) + ' tps' : '—'}</td>
               </tr>

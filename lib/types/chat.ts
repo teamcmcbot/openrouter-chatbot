@@ -17,13 +17,22 @@ export interface ChatMessage {
   completion_id?: string; // OpenRouter response id for metadata lookup
   // Reasoning metadata (assistant messages)
   reasoning?: string;
-  reasoning_details?: Record<string, unknown>;
+  reasoning_details?: Record<string, unknown>[];
   error?: boolean; // Flag to indicate if this message failed to send
   error_message?: string; // Error message text
   error_code?: string; // Error code for categorization
+  // Upstream error fields (from OpenRouter) when available
+  upstream_error_code?: number | string;
+  upstream_error_message?: string;
   retry_after?: number; // Seconds to wait before retry
   suggestions?: string[]; // Alternative suggestions for failed requests
   originalModel?: string; // Store the model used when this message was originally sent (for retry purposes)
+  /**
+   * Whether the UI should offer a retry action for this failed user message.
+   * - true (or undefined): retry is available (current-session failure)
+   * - false: retry is NOT available (old/persisted failure loaded from server)
+   */
+  retry_available?: boolean;
   // Attachments metadata (linked on persistence)
   has_attachments?: boolean;
   attachment_ids?: string[];
@@ -31,6 +40,14 @@ export interface ChatMessage {
   has_websearch?: boolean;
   websearch_result_count?: number;
   annotations?: OpenRouterUrlCitation[];
+  // NEW: Store original streaming mode for retry purposes
+  was_streaming?: boolean;
+
+  // Request-side metadata (user messages only) to enable exact-option retries
+  // These capture the options the user selected at send time and are not required server-side
+  requested_web_search?: boolean;
+  requested_web_max_results?: number;
+  requested_reasoning_effort?: "low" | "medium" | "high";
 }
 
 export interface ChatRequest {
@@ -53,10 +70,12 @@ export interface ChatResponse {
   elapsed_ms: number;
   contentType?: "text" | "markdown"; // New field
   id: string; // OpenRouter response id for metadata lookup
+  // The resolved model used by the provider for this response (may differ from requested model)
+  model?: string;
   annotations?: OpenRouterUrlCitation[]; // Optional URL citations from OpenRouter
   has_websearch?: boolean;
   websearch_result_count?: number;
   // Reasoning payload from provider if available
   reasoning?: string;
-  reasoning_details?: Record<string, unknown>;
+  reasoning_details?: Record<string, unknown>[];
 }

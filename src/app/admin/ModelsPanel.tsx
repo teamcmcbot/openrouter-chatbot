@@ -51,7 +51,7 @@ export default function ModelsPanel() {
     );
   }, [rows, q]);
 
-  type SortKey = 'model_id' | 'model_name' | 'created_at';
+  type SortKey = 'model_id' | 'model_name' | 'created_at' | 'updated_at';
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -67,9 +67,14 @@ export default function ModelsPanel() {
         const bn = (b.model_name || b.canonical_slug || '').toLowerCase();
         return an.localeCompare(bn) * dir;
       }
-  // created_at
-  const at = a.created_at ? Date.parse(a.created_at) : 0;
-  const bt = b.created_at ? Date.parse(b.created_at) : 0;
+      if (sortKey === 'updated_at') {
+        const au = a.updated_at ? Date.parse(a.updated_at) : 0;
+        const bu = b.updated_at ? Date.parse(b.updated_at) : 0;
+        return (au - bu) * dir;
+      }
+      // created_at
+      const at = a.created_at ? Date.parse(a.created_at) : 0;
+      const bt = b.created_at ? Date.parse(b.created_at) : 0;
       return (at - bt) * dir;
     });
     return copy;
@@ -165,23 +170,25 @@ export default function ModelsPanel() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setOffset(0); }, [filter]);
 
-  useEffect(() => {
-    // Load dynamic statuses
-    (async () => {
-      try {
-        const res = await fetch('/api/admin/model-access?meta=statuses');
-        const json = (await res.json()) as { success: boolean; statuses?: string[] };
-        if (res.ok && json.success && Array.isArray(json.statuses)) {
-          setStatuses(json.statuses);
-        }
-      } catch {}
-    })();
+  const fetchStatuses = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/model-access?meta=statuses');
+      const json = (await res.json()) as { success: boolean; statuses?: string[] };
+      if (res.ok && json.success && Array.isArray(json.statuses)) {
+        setStatuses(json.statuses);
+      }
+    } catch {
+      // ignore
+    }
   }, []);
 
+  useEffect(() => { void fetchStatuses(); }, [fetchStatuses]);
+
   const onSyncComplete = useCallback(() => {
-    // After a successful sync, reload models (keeps filter)
+    // After a successful sync, reload models (keeps filter) and refresh status options
     load();
-  }, [load]);
+    fetchStatuses();
+  }, [load, fetchStatuses]);
 
   // Stage changes locally instead of PATCH per cell
   const stageRow = (modelId: string, changes: Partial<ModelRow>) => {
@@ -238,12 +245,20 @@ export default function ModelsPanel() {
     { key: 'is_free', label: 'Free' },
     { key: 'is_pro', label: 'Pro' },
     { key: 'is_enterprise', label: 'Enterprise' },
+    { key: 'updated_at', label: 'Updated At' },
     { key: 'created_at', label: 'Created At' },
   ], []);
 
   // Dynamic status options for dropdowns; always include base statuses even if not present in current data
   const statusOptions = useMemo(() => {
-    const base = ['new', 'active', 'disabled'];
+    const base = ['new', 'active', 'disabled', 'inactive'];
+    const extras = (statuses || []).filter((s) => !base.includes(s));
+    return [...base, ...extras.sort()];
+  }, [statuses]);
+
+  // Filter dropdown options should also include base statuses so "new" appears immediately
+  const statusFilterOptions = useMemo(() => {
+    const base = ['new', 'active', 'disabled', 'inactive'];
     const extras = (statuses || []).filter((s) => !base.includes(s));
     return [...base, ...extras.sort()];
   }, [statuses]);
@@ -275,7 +290,7 @@ export default function ModelsPanel() {
               onChange={(e) => setFilter(e.target.value)}
             >
               <option value="all">All</option>
-              {statuses.map((s) => (
+              {statusFilterOptions.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
@@ -432,6 +447,18 @@ export default function ModelsPanel() {
                         />
                         <span>Enterprise</span>
                       </label>
+                    ) : c.key === 'updated_at' ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1"
+                        onClick={() => {
+                          setSortKey('updated_at');
+                          setSortDir(prev => (sortKey === 'updated_at' && prev === 'asc') ? 'desc' : 'asc');
+                        }}
+                      >
+                        <span>{c.label}</span>
+                        {sortKey === 'updated_at' && (<span>{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                      </button>
                     ) : c.key === 'created_at' ? (
                       <button
                         type="button"
@@ -482,6 +509,9 @@ export default function ModelsPanel() {
                   </td>
                   <td className="px-3 py-2">
                     <input className="checkbox-emerald" type="checkbox" checked={row.is_enterprise} onChange={(e) => stageRow(row.model_id, { is_enterprise: e.target.checked })} />
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-600">
+                    {row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'}
                   </td>
                   <td className="px-3 py-2 text-xs text-gray-600">
                     {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}

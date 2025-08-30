@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 
 interface ErrorDisplayProps {
   title?: string;
@@ -25,22 +26,23 @@ export default function ErrorDisplay({
 }: Readonly<ErrorDisplayProps>) {
   const typeStyles = {
     error: {
-      container: "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800",
-      icon: "text-red-600 dark:text-red-400",
-      title: "text-red-800 dark:text-red-300",
-      text: "text-red-700 dark:text-red-400"
+  // Dark mode: softer tinted surface + visible border; Light mode unchanged
+  container: "bg-red-50 border-red-200 dark:bg-red-500/20 dark:border-red-500/35",
+  icon: "text-red-600 dark:text-red-400",
+  title: "text-red-800 dark:text-red-200",
+  text: "text-red-700 dark:text-red-300"
     },
     warning: {
-      container: "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800",
-      icon: "text-yellow-600 dark:text-yellow-400",
-      title: "text-yellow-800 dark:text-yellow-300",
-      text: "text-yellow-700 dark:text-yellow-400"
+  container: "bg-yellow-50 border-yellow-200 dark:bg-yellow-500/10 dark:border-yellow-500/35",
+  icon: "text-yellow-700 dark:text-yellow-400",
+  title: "text-yellow-800 dark:text-yellow-200",
+  text: "text-yellow-700 dark:text-yellow-300"
     },
     info: {
-      container: "bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800",
-      icon: "text-emerald-600 dark:text-emerald-400",
-      title: "text-emerald-800 dark:text-emerald-300",
-      text: "text-emerald-700 dark:text-emerald-400"
+  container: "bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/35",
+  icon: "text-emerald-600 dark:text-emerald-400",
+  title: "text-emerald-800 dark:text-emerald-200",
+  text: "text-emerald-700 dark:text-emerald-300"
     }
   };
 
@@ -61,21 +63,17 @@ export default function ErrorDisplay({
           </svg>
         );
       case "info":
-        return (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        );
+        return <InformationCircleIcon className="w-5 h-5" aria-hidden="true" />;
     }
   };
 
   return (
-    <div className={`border rounded-lg p-4 ${styles.container} relative`}>
+  <div className={`border rounded-xl p-4 ${styles.container} relative`}>
       {/* Close button in top-right corner */}
       {onClose && (
         <button
           onClick={onClose}
-          className={`absolute top-2 right-2 inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-yellow-800 hover:bg-opacity-75 ${styles.icon} hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors`}
+          className={`absolute top-2 right-2 inline-flex rounded-md p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 hover:bg-red-100 active:bg-red-200 dark:hover:bg-gray-700 dark:active:bg-gray-600 ${styles.icon} transition-colors`}
           aria-label="Close error message"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -122,7 +120,7 @@ export default function ErrorDisplay({
               {onRetry && (
                 <button
                   onClick={onRetry}
-                  className={`text-sm font-medium underline hover:no-underline ${styles.text}`}
+                  className={`text-sm font-medium underline hover:no-underline hover:cursor-pointer rounded px-1 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 hover:bg-red-100 active:bg-red-200 dark:hover:bg-gray-700 dark:active:bg-gray-600 transition-colors ${styles.text}`}
                 >
                   Try again
                 </button>

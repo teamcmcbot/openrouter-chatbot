@@ -15,7 +15,13 @@
 
 Handles chat completion requests by sending user messages to the OpenRouter API and returning the assistant response with usage and metadata. The endpoint accepts both the legacy `message` field and the Phase 2 `messages` array. It validates the payload against the authenticated user's feature set, applies model‑aware token limits and rate limiting, then forwards the request to OpenRouter. Responses include the assistant message, token usage, elapsed time and other metadata.
 
-When Web Search is enabled (per-message toggle), the request includes `plugins: [{ id: 'web', max_results: 3 }]`. The response may include `annotations` with `type: "url_citation"`; these are normalized and returned to the client as `citations` and used to mark `has_websearch` and `websearch_result_count`.
+When Web Search is enabled (per-message toggle), the server may include `plugins: [{ id: 'web', max_results: N }]` when calling OpenRouter. `N` behavior by tier:
+
+- Enterprise: honors `webMaxResults` from the request (default 3; UI range 1–5; server clamps 1–10)
+- Pro: always uses `max_results = 3` even if the request provides a different value
+- Free/Anonymous: requests with `webSearch: true` are rejected (403)
+
+The response may include `annotations` with `type: "url_citation"`; these are normalized and returned to the client as `citations` and used to mark `has_websearch` and `websearch_result_count`.
 
 Note: When enabled, authenticated requests include a stable `user` identifier forwarded to OpenRouter. See `docs/api/openrouter-user-tracking.md` for configuration and privacy details.
 
@@ -42,7 +48,8 @@ Content-Type: application/json
   "model": "gpt-3.5-turbo",
   "temperature": 0.7,
   "systemPrompt": "You are a helpful assistant",
-  "webSearchOn": true
+  "webSearch": true,
+  "webMaxResults": 5 // Enterprise only; Pro will be forced to 3
 }
 ```
 
@@ -140,7 +147,7 @@ Retry-After: 3600 (when rate limit exceeded)
 
 1. **Validation** – `validateChatRequestWithAuth` checks message content, feature access and token counts.
 2. **Token Strategy** – `getModelTokenLimits` determines `max_tokens` for the chosen model; total input tokens are estimated with `estimateTokenCount`.
-3. **OpenRouter Call** – `getOpenRouterCompletion` sends the formatted request to OpenRouter. When `webSearchOn`, includes `plugins: [{ id: 'web', max_results: 3 }]`.
+3. **OpenRouter Call** – `getOpenRouterCompletion` sends the formatted request to OpenRouter. When `webSearch` is true, includes `plugins: [{ id: 'web', max_results: N }]` where `N` follows tier rules (Enterprise honors `webMaxResults`, Pro fixed to 3).
 4. **Response Transformation** – `detectMarkdownContent` sets `contentType`; metadata such as `request_id` and `elapsed_time` are added. If `annotations.url_citation[]` present, normalize to `citations` and set `has_websearch`/`websearch_result_count`.
 5. **Headers** – Standard rate‑limit headers are included via `addRateLimitHeaders`.
 

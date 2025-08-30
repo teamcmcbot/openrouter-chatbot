@@ -1,3 +1,91 @@
+## API: /api/chat/messages
+
+This endpoint fetches and persists messages for a single conversation (session).
+
+Auth and limits:
+
+- GET/POST protected with `withProtectedAuth`.
+- Tiered rate limit: tierC.
+
+### GET /api/chat/messages
+
+Query:
+
+- `session_id`: required conversation id
+
+Behavior:
+
+- Verifies the session belongs to the authenticated user.
+- Loads all messages ordered ascending by timestamp (filters out `system`).
+- Joins attachments (`chat_attachments` where status=ready) and annotations (`chat_message_annotations`).
+- Maps reasoning fields, web search fields, tokens, request options from metadata, and streaming flag.
+
+Response:
+
+```json
+{
+  "messages": [
+    {
+      "id": "msg_...",
+      "role": "user",
+      "content": "...",
+      "timestamp": "2025-08-31T...Z",
+      "originalModel": "google/gemini-2.5-flash-lite",
+      "has_attachments": true,
+      "attachment_ids": ["..."],
+      "was_streaming": true,
+      "requested_web_search": true,
+      "requested_web_max_results": 3,
+      "requested_reasoning_effort": "low",
+      "input_tokens": 1943
+    },
+    {
+      "id": "msg_...",
+      "role": "assistant",
+      "content": "...",
+      "timestamp": "2025-08-31T...Z",
+      "model": "google/gemini-2.5-flash-lite",
+      "contentType": "markdown",
+      "total_tokens": 9208,
+      "input_tokens": 1943,
+      "output_tokens": 7265,
+      "elapsed_ms": 24026,
+      "completion_id": "gen-...",
+      "was_streaming": true,
+      "reasoning": "...",
+      "reasoning_details": [{ "...": "..." }],
+      "annotations": [{ "type": "url_citation", "url": "..." }],
+      "has_websearch": true,
+      "websearch_result_count": 3
+    }
+  ],
+  "count": 2
+}
+```
+
+### POST /api/chat/messages
+
+Body:
+
+- Either `message: ChatMessage` or `messages: ChatMessage[]`
+- `sessionId`: required
+- Optional `sessionTitle`: to create/update session title
+- Optional `attachmentIds`: to link images to the triggering user message
+
+Behavior:
+
+- Upserts `chat_sessions` if missing, setting title from `sessionTitle` or first user message.
+- Upserts messages with contentType sanitization, tokens, reasoning fields, websearch fields, and `is_streaming`.
+- Updates session rollups (message*count, total_tokens, last*\* fields).
+- Links attachments to user message if owned by user and status=ready, and updates message flags.
+- Persists URL citations for assistant messages.
+
+Response:
+
+```json
+{ "messages": [...inserted], "count": n, "success": true }
+```
+
 # Endpoint: `/api/chat/messages`
 
 **Methods:** `GET`, `POST`
@@ -28,6 +116,7 @@ This endpoint provides CRUD operations for individual chat messages within a ses
 - **Message Array Support**: Process multiple messages atomically (user/assistant pairs)
 - **Error Message Handling**: Support for error messages with metadata (error_code, retry_after, suggestions)
 - **Session Title Preservation**: Existing sessions retain their original titles unless explicitly updated
+- **Retry Availability Flag**: Server sets `retry_available: false` on failed user messages returned from storage so clients won't offer a retry banner for prior-session failures. Frontend sets `retry_available: true` on fresh local failures and clears it on successful retry.
 
 ### Calls Made
 
@@ -50,6 +139,7 @@ This endpoint provides CRUD operations for individual chat messages within a ses
   - Example: `/api/chat/messages?session_id=abc123`
 
 - **POST Request Payload**:
+
   - **Single Message Format** (backward compatibility):
     ```json
     {
@@ -113,6 +203,8 @@ This endpoint provides CRUD operations for individual chat messages within a ses
     }
     ```
   - All fields in the `ChatMessage` interface are supported.
+
+  - Retry availability (new): When fetching via GET, failed user messages may include `"retry_available": false` to signal non-retriable prior-session failures.
 
 ### Responses
 

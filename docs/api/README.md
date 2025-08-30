@@ -77,11 +77,14 @@ These endpoints work for both anonymous and authenticated users with graceful de
 
 ### 🔐 Admin & Internal Endpoints
 
+- [Admin Attachments Overview](./admin-attachments.md)
 - [`/api/admin/model-access`](./admin-model-access.md) — protected via `withAdminAuth`
 - [`/api/admin/users`](./admin-users.md) — protected via `withAdminAuth`
 - [`/api/admin/sync-models`](./admin-sync-models.md) — protected via `withAdminAuth`
 - [`/api/admin/attachments/cleanup`](./admin-attachments-cleanup.md) — protected via `withAdminAuth`
 - [`/api/admin/attachments/stats`](./admin-attachments-stats.md) — protected via `withAdminAuth`
+  // Storage metrics are included in `/api/admin/attachments/stats`.
+- [`/api/admin/attachments/storage/purge`](./admin-attachments-storage-purge.md) — protected via `withAdminAuth`
 - `/api/internal/sync-models` — internal-only (Bearer or HMAC)
 - `/api/internal/attachments/cleanup` — internal-only (Bearer or HMAC)
   - See: [internal-sync-models.md](./internal-sync-models.md)
@@ -91,6 +94,48 @@ These endpoints work for both anonymous and authenticated users with graceful de
 These endpoints are intentionally public and have no rate limiting:
 
 - [`/api/health/cache`](./health-cache.md) - Health monitoring
+
+## Endpoint usage
+
+- Used by frontend (UI)
+
+  - `/api/chat`
+  - `/api/chat/stream`
+  - `/api/chat/messages`
+  - `/api/chat/sync` (initial sign-in only)
+  - `/api/chat/session`
+  - `/api/chat/sessions`
+  - `/api/chat/clear-all`
+  - `/api/models`
+  - `/api/user/data`
+  - `/api/generation/[id]`
+  - `/api/uploads/images`
+  - `/api/attachments/:id`
+  - `/api/attachments/:id/signed-url`
+  - `/api/usage/costs`
+  - `/api/usage/costs/daily`
+  - `/api/usage/costs/models/daily`
+  - `/api/analytics/cta`
+  - Admin UI:
+    - `/api/admin/users`
+    - `/api/admin/model-access`
+    - `/api/admin/attachments/stats`
+    - `/api/admin/attachments/cleanup`
+    - `/api/admin/attachments/retention`
+    - `/api/admin/attachments/storage/purge`
+    - `/api/admin/sync-models`
+
+- Not called by frontend (by design)
+
+  - `/api/health/cache` (observability/monitoring)
+  - `/api/cron/attachments/cleanup`
+  - `/api/cron/attachments/retention`
+  - `/api/cron/models/sync`
+  - `/api/internal/attachments/cleanup`
+  - `/api/internal/attachments/retention`
+  - `/api/internal/sync-models`
+
+// The storage-specific endpoint has been removed; storage metrics are reported by `/api/admin/attachments/stats`.
 
 ## Authentication Methods
 

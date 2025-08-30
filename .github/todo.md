@@ -1,0 +1,23 @@
+Chatbot todo:
+
+- [x] Error banner styling
+- [x] Chat history, load more
+- [ ] Is active handling, client only?
+- [x] Chat messages is streaming db
+- [ ] Conversation syncing brainstorm, multi-sessions, multi-device, account sharing.. etc
+- [ ] Admin analytics, models usage, users usage, chat messages errors, new users sign up
+- [ ] Anonymous user’s usage and analytics is not tracked.
+- [ ] Attachments multi-select?
+- [ ] User monitoring, account banning.
+- [ ] Logging in prod?
+- [ ] Landing page
+- [ ] Stripe payment? Account upgrade, billing.
+- [ ] Model sync not properly detecting “new” models.
+- [ ] Upload images migration to UploadThings?
+- [ ] Brainstorm tokens/request. Very hard to estimate and enforce especially with reasoning, attachments, web search etc
+- [ ] Proper supabase setup, local + GitHub integration + supabase mcp?
+- [ ] Database cleanup, unused tables, columns, functions etc..
+- [ ] Production readiness check
+- [ ] Console and terminal logs clean up, use logger.debug instead of console.log?
+- [ ] Gemini image model, can OpenRouter use those model to generate image?
+- [x] Why is this message showing? `I'm currently not available. The backend API is being developed by Gemini CLI. Please check back later!`

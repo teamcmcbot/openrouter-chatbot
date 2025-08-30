@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, ArrowPathIcon, CloudIcon, ComputerDesktopIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import Button from "./Button";
 import ConfirmModal from "./ConfirmModal";
@@ -24,7 +24,10 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     switchConversation,
     deleteConversation,
     updateConversationTitle,
-    getRecentConversations,
+  getRecentConversations,
+  loadInitialConversations,
+  loadMoreConversations,
+  loadConversationMessages,
     clearAllConversations,
     isHydrated,
   } = useChatStore();
@@ -50,9 +53,16 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  // Get recent conversations (limit to 20 for performance)
-  // Only show conversations after hydration to prevent SSR mismatch
-  const recentConversations = isHydrated ? getRecentConversations(20) : [];
+  // Kick off initial server-backed load when hydrated and authenticated
+  useEffect(() => {
+    if (isHydrated && isAuthenticated && loadInitialConversations) {
+      loadInitialConversations();
+    }
+  }, [isHydrated, isAuthenticated, loadInitialConversations]);
+
+  // Use full store list (sorted already) for display; server returns summary payload
+  const recentConversations = isHydrated ? getRecentConversations(1000) : [];
+  const sidebarPaging = useChatStore(s => s.sidebarPaging);
 
   const handleStartEdit = (conversationId: string, currentTitle: string) => {
     setEditingId(conversationId);
@@ -88,6 +98,13 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
 
   const handleConversationClick = (id: string) => {
     switchConversation(id);
+    // Kick off lazy message load if needed
+    if (loadConversationMessages) {
+      const selected = conversations.find(c => c.id === id);
+      if (selected && (!Array.isArray(selected.messages) || selected.messages.length === 0)) {
+        loadConversationMessages(id).catch(() => {});
+      }
+    }
     // Close mobile sidebar after selection
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       onClose();
@@ -318,7 +335,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                             </h4>
                           </div>
                           <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">
-                            {getLastMessage(conversation.messages)}
+                            {conversation.lastMessagePreview ?? getLastMessage(conversation.messages)}
                           </p>
                           <div className="flex items-center justify-between mt-2">
                             <span className="text-xs text-gray-500 dark:text-gray-500">
@@ -344,6 +361,25 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                   <ChatBubbleLeftIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">No conversations yet</p>
                   <p className="text-xs mt-1">Start a new chat to begin</p>
+                </div>
+              )}
+
+              {/* Load more control */}
+              {isAuthenticated && sidebarPaging?.hasMore && (
+                <div className="mt-3">
+                  <button
+                    className="w-full text-sm py-2 rounded-md border border-gray-300 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2"
+                    disabled={sidebarPaging.loading}
+                    onClick={() => loadMoreConversations && loadMoreConversations()}
+                  >
+                    {sidebarPaging.loading ? (
+                      <>
+                        <ArrowPathIcon className="w-4 h-4 animate-spin" /> Loading…
+                      </>
+                    ) : (
+                      <>Load more…</>
+                    )}
+                  </button>
                 </div>
               )}
             </div>

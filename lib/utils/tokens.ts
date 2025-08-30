@@ -6,34 +6,18 @@
  */
 
 import { ChatMessage } from '../types/chat';
-import { ModelInfo } from '../types/openrouter';
-import { getEnvVar } from './env';
 import { logger } from './logger';
 import { getModelConfigFromStore, hasModelConfigsInStore } from '../../stores/useModelStore';
+// Import a client-only helper lazily to hydrate models from /api/models when on the browser
+// Note: This function lives in a client module; only call it when typeof window !== 'undefined'.
+import { fetchModelsForStore } from '../../stores/useModelStore';
 
 // Fallback model context configurations
 // Used when dynamic fetching fails or for server-side initialization
-const FALLBACK_MODEL_CONFIGS: Record<string, { context_length: number; description: string }> = {
-  'openai/gpt-4o-mini': { context_length: 128000, description: 'GPT-4o Mini' },
-  'openai/gpt-4o': { context_length: 128000, description: 'GPT-4o' },
-  'google/gemini-2.0-flash-exp:free': { context_length: 1000000, description: 'Gemini 2.0 Flash' },
-  'google/gemini-2.5-flash': { context_length: 1000000, description: 'Gemini 2.5 Flash' },
-  'google/gemma-3-27b-it:free': { context_length: 8192, description: 'Gemma 3 27B' },
-  'deepseek/deepseek-r1-0528:free': { context_length: 128000, description: 'DeepSeek R1' },
-  'deepseek/deepseek-r1-0528-qwen3-8b:free': { context_length: 32768, description: 'DeepSeek R1 Qwen3' },
-  'openrouter/cypher-alpha:free': { context_length: 32768, description: 'Cypher Alpha' },
-  'mistralai/mistral-small-3.2-24b-instruct:free': { context_length: 32768, description: 'Mistral Small' },
-  'moonshotai/kimi-dev-72b:free': { context_length: 128000, description: 'Kimi Dev 72B' },
-  'x-ai/grok-3-mini': { context_length: 128000, description: 'Grok 3 Mini' },
-};
+// Legacy fallbacks removed; DB and /api/models are the sources of truth
 
-// Dynamic model context configurations
-let dynamicModelConfigs: Record<string, { context_length: number; description: string }> = {};
-let isConfigsInitialized = false;
+// Deprecated server-side cache (legacy). Kept as no-op placeholders to avoid breaking server-init.
 let configsLastFetched = 0;
-
-// Server-side cache configuration
-const SERVER_CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
 /**
  * Token allocation strategy for a model
@@ -161,29 +145,31 @@ export async function getModelTokenLimits(modelId?: string): Promise<TokenStrate
             console.log(`[Model Token Limits] Model '${modelId}' not found in cached configs, falling back to API`);
           }
         } else {
-          console.log(`[Model Token Limits] No cached model configs available, falling back to API`);
+          console.log(`[Model Token Limits] No cached model configs available, hydrating from /api/models`);
         }
       } catch (error) {
-        console.log(`[Model Token Limits] Error accessing store cache (expected on server-side), falling back to API:`, error);
+        console.log(`[Model Token Limits] Error accessing store cache (expected on server-side), will use conservative defaults if needed:`, error);
       }
-    } else {
-      console.log(`[Model Token Limits] Server-side execution, skipping store cache and using API`);
+      // Hydrate from our own API and re-check the store
+      try {
+        await fetchModelsForStore();
+        // Verify store actually hydrated
+        if (!hasModelConfigsInStore()) {
+          console.warn('[Model Token Limits] Hydration from /api/models did not populate model configs. Falling back to conservative default.');
+        }
+        const hydratedConfig = getModelConfigFromStore(modelId);
+        if (hydratedConfig) {
+          console.log(`[Model Token Limits] Hydrated from /api/models. Using ${hydratedConfig.description} with context ${hydratedConfig.context_length}`);
+          return calculateTokenStrategy(hydratedConfig.context_length);
+        }
+      } catch (e) {
+        console.log('[Model Token Limits] Hydration from /api/models failed, falling back to conservative default', e);
+      }
     }
-    
-    // Fallback to dynamic configuration (API call)
-    const modelConfig = await getModelConfig(modelId);
-    
-    if (!modelConfig) {
-      console.log(`[Model Token Limits] Model '${modelId}' not found in API config, using conservative default (8K context)`);
-      return calculateTokenStrategy(8000); // Conservative fallback
-    }
-    
-    console.log(`[Model Token Limits] Found ${modelConfig.description} with ${modelConfig.context_length} context length from API`);
-    
-    const contextLength = modelConfig.context_length;
-    console.log(`[Model Token Limits] Found model ${modelId} with context length: ${contextLength}`);
-    
-    return calculateTokenStrategy(contextLength);
+
+    // On server or if hydration didn’t yield a config, return conservative default
+    console.log(`[Model Token Limits] Model '${modelId}' not found in store after hydration or running on server. Using conservative default (8K context)`);
+    return calculateTokenStrategy(8000);
   } catch (error) {
     console.error(`[Model Token Limits] Error fetching model config for ${modelId}:`, error);
     return calculateTokenStrategy(8000); // Conservative fallback on error
@@ -221,122 +207,40 @@ export async function getMaxOutputTokens(modelId?: string): Promise<number> {
   return maxTokens;
 }
 
-/**
- * Fetches model configurations from OpenRouter API with server-side caching
- * Filters models based on OPENROUTER_MODELS_LIST environment variable
- */
-async function fetchModelConfigs(): Promise<void> {
-  try {
-    logger.info('[Model Configs] Fetching models from OpenRouter API...');
-    
-    const response = await fetch('https://openrouter.ai/api/v1/models');
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    // Get allowed models from environment variable
-    const allowedModelsEnv = getEnvVar('OPENROUTER_MODELS_LIST', '');
-    const allowedModels = allowedModelsEnv ? allowedModelsEnv.split(',').map(m => m.trim()) : [];
-    
-    logger.info(`[Model Configs] Found ${data.data?.length || 0} models from API, filtering by ${allowedModels.length} allowed models`);
-    
-    // Filter models based on allowed list (if specified)
-    const modelsToProcess = allowedModels.length > 0 
-      ? data.data.filter((model: ModelInfo) => allowedModels.includes(model.id))
-      : data.data;
-    
-    // Build configurations object
-    dynamicModelConfigs = modelsToProcess.reduce((configs: Record<string, { context_length: number; description: string }>, model: ModelInfo) => {
-      configs[model.id] = {
-        context_length: model.context_length || 8192, // fallback to 8K
-        description: model.name || model.id
-      };
-      return configs;
-    }, {});
-    
-    isConfigsInitialized = true;
-    configsLastFetched = Date.now();
-    logger.info(`[Model Configs] Successfully loaded ${Object.keys(dynamicModelConfigs).length} model configurations (server-side cache)`);
-    
-  } catch (error) {
-    logger.error('[Model Configs] Failed to fetch models from OpenRouter API:', error);
-    logger.info('[Model Configs] Using fallback configurations');
-    
-    // Use fallback configurations
-    dynamicModelConfigs = { ...FALLBACK_MODEL_CONFIGS };
-    isConfigsInitialized = true;
-    configsLastFetched = Date.now();
-  }
-}
-
-/**
- * Gets the current model configurations (dynamic or fallback) with server-side caching
- * Initializes configs if not already done or if cache has expired
- */
-async function getModelConfigs(): Promise<Record<string, { context_length: number; description: string }>> {
-  const now = Date.now();
-  const cacheAge = now - configsLastFetched;
-  const isExpired = cacheAge > SERVER_CACHE_TTL;
-  
-  if (!isConfigsInitialized || isExpired) {
-    if (isExpired && isConfigsInitialized) {
-      logger.info(`[Model Configs] Server-side cache expired (${Math.round(cacheAge / 1000 / 60)} minutes old), refreshing...`);
-    }
-    await fetchModelConfigs();
-  } else {
-    logger.debug(`[Model Configs] Using server-side cached configurations (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
-  }
-  
-  return Object.keys(dynamicModelConfigs).length > 0 ? dynamicModelConfigs : FALLBACK_MODEL_CONFIGS;
-}
-
-/**
- * Manually refresh model configurations (useful for runtime updates)
- */
-export async function refreshModelConfigs(): Promise<void> {
-  isConfigsInitialized = false;
-  await fetchModelConfigs();
-}
-
-/**
- * Gets model configuration for a specific model ID
- * @param modelId - The OpenRouter model ID
- * @returns Model configuration with context length and description
- */
-async function getModelConfig(modelId: string): Promise<{ context_length: number; description: string } | null> {
-  const configs = await getModelConfigs();
-  return configs[modelId] || null;
-}
-
-/**
- * Preloads model configurations into server-side cache
- * Useful for reducing latency on first chat requests
- */
+// Deprecated legacy admin hooks: retain as safe no-ops to avoid breaking health checks
 export async function preloadModelConfigs(): Promise<void> {
-  logger.info('[Model Configs] Preloading model configurations into server-side cache...');
-  await fetchModelConfigs();
+  logger.info('[Model Configs] preloadModelConfigs is deprecated. Model configs are DB-backed and hydrated on demand via /api/models.');
+  configsLastFetched = Date.now();
 }
 
-/**
- * Gets cache statistics for monitoring
- */
 export function getServerCacheStats(): {
   isInitialized: boolean;
   configCount: number;
   ageMinutes: number;
   isExpired: boolean;
 } {
-  const now = Date.now();
-  const cacheAge = now - configsLastFetched;
-  const ageMinutes = Math.round(cacheAge / 1000 / 60);
-  const isExpired = cacheAge > SERVER_CACHE_TTL;
-  
+  // No server-side OpenRouter cache anymore; report neutral stats
+  const ageMinutes = Math.round((Date.now() - configsLastFetched) / 1000 / 60);
   return {
-    isInitialized: isConfigsInitialized,
-    configCount: Object.keys(dynamicModelConfigs).length,
+    isInitialized: false,
+    configCount: 0,
     ageMinutes,
-    isExpired,
+    isExpired: false,
   };
+}
+
+// Back-compat: legacy name used by dev scripts. Hydrates store on client, no-op on server.
+export async function refreshModelConfigs(): Promise<void> {
+  try {
+    if (typeof window !== 'undefined') {
+      await fetchModelsForStore();
+      logger.info('[Model Configs] refreshModelConfigs: hydrated from /api/models');
+    } else {
+      logger.info('[Model Configs] refreshModelConfigs is a no-op on server; configs are DB-backed.');
+    }
+  } catch {
+    logger.warn('[Model Configs] refreshModelConfigs failed to hydrate; continuing with existing cache/defaults');
+  } finally {
+    configsLastFetched = Date.now();
+  }
 }

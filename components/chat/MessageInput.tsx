@@ -2,16 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import type React from "react";
-import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon, PlayIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
+import Tooltip from "../ui/Tooltip";
 import { useAuth } from "../../stores/useAuthStore";
 import { useModelSelection } from "../../stores";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import AttachmentTile, { type AttachmentData } from "./AttachmentTile";
 import toast from "react-hot-toast";
 import { useUserData } from "../../hooks/useUserData";
 import type { ModelInfo } from "../../lib/types/openrouter";
+import { MAX_MESSAGE_CHARS } from "../../lib/config/limits";
 
 interface MessageInputProps {
-  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => void
+  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => void
   disabled?: boolean;
   initialMessage?: string;
   // Optional: allow parent to open the model selector with a preset filter (e.g., 'multimodal')
@@ -21,9 +24,14 @@ interface MessageInputProps {
 export default function MessageInput({ onSendMessage, disabled = false, initialMessage, onOpenModelSelector }: Readonly<MessageInputProps>) {
   const [message, setMessage] = useState("");
   const [showCount, setShowCount] = useState(false);
+  const [liveMsg, setLiveMsg] = useState<string>(""); // for aria-live threshold announcements
+  const wasOverRef = useRef<boolean>(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [streamingOn, setStreamingOn] = useState(false); // UI-only toggle for streaming
   const [webSearchOn, setWebSearchOn] = useState(false); // UI-only toggle
+  const [webMaxResults, setWebMaxResults] = useState<number>(3); // UI setting for web search results (1-5)
   const [reasoningOn, setReasoningOn] = useState(false); // UI-only toggle
+  const [streamingModalOpen, setStreamingModalOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [reasoningModalOpen, setReasoningModalOpen] = useState(false);
   const [gatingOpen, setGatingOpen] = useState<
@@ -40,15 +48,18 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const hideCountTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const gatingRef = useRef<HTMLDivElement | null>(null);
+  const streamingModalRef = useRef<HTMLDivElement | null>(null);
   const searchModalRef = useRef<HTMLDivElement | null>(null);
   const reasoningModalRef = useRef<HTMLDivElement | null>(null);
   const { isAuthenticated } = useAuth();
+  const { getSetting, setSetting } = useSettingsStore();
   const { availableModels, selectedModel } = useModelSelection();
   // Track previous model to detect actual changes (not reselecting the same)
   const prevSelectedModelRef = useRef<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const { data: userData } = useUserData({ enabled: !!isAuthenticated });
   const userTier = (userData?.profile.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise';
+  const isEnterprise = userTier === 'enterprise';
   type LocalAttachment = {
     tempId: string; // local id for UI
     id?: string; // set when ready
@@ -90,6 +101,42 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+
+  // Load streaming setting from store
+  useEffect(() => {
+    const streamingEnabled = Boolean(getSetting('streamingEnabled', false));
+    setStreamingOn(streamingEnabled);
+  const savedWebMax = Number(getSetting('webMaxResults', 3));
+  if (Number.isFinite(savedWebMax)) setWebMaxResults(Math.max(1, Math.min(5, Math.trunc(savedWebMax))));
+  }, [getSetting]);
+
+  // Announce when crossing the character limit threshold
+  useEffect(() => {
+    const isOver = message.length > MAX_MESSAGE_CHARS;
+    if (isOver !== wasOverRef.current) {
+      wasOverRef.current = isOver;
+      setLiveMsg(isOver ? 'Character limit exceeded. Sending is disabled.' : 'Back under character limit. You can send now.');
+    }
+  }, [message.length]);
+
+  // Close streaming settings modal on outside click and Escape
+  useEffect(() => {
+    if (!streamingModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setStreamingModalOpen(false);
+    };
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      const el = streamingModalRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) setStreamingModalOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer, { capture: true } as EventListenerOptions);
+    };
+  }, [streamingModalOpen]);
 
   const genDraftId = () => {
     try {
@@ -135,12 +182,18 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   };
 
   const handleSend = () => {
+    const charCount = message.length;
+    const isOver = charCount > MAX_MESSAGE_CHARS;
+    if (isOver) {
+      // Block send when over limit
+      return;
+    }
     if (message.trim() && !disabled) {
       if (attachments.length > 0) {
         const ready = attachments.filter(a => a.status === 'ready' && a.id);
-        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined, webSearch: webSearchOn, reasoning: reasoningOn ? { effort: 'low' } : undefined });
+        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined, webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined, reasoning: reasoningOn ? { effort: 'low' } : undefined });
       } else {
-        onSendMessage(message.trim(), { webSearch: webSearchOn, reasoning: reasoningOn ? { effort: 'low' } : undefined });
+        onSendMessage(message.trim(), { webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined, reasoning: reasoningOn ? { effort: 'low' } : undefined });
       }
       setMessage("");
       // Reset draft and clear pending attachments
@@ -171,7 +224,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     for (const id of toDelete) {
       try { fetch(`/api/attachments/${id}`, { method: 'DELETE' }); } catch {}
     }
-    onSendMessage(message.trim(), { webSearch: webSearchOn });
+  onSendMessage(message.trim(), { webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined });
     // Clear local state
     setMessage("");
     setAttachments((prev) => {
@@ -188,6 +241,11 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
       // If IME composition is active, don't treat Enter as submit
       // (covers languages like Chinese/Japanese/Korean).
   if (e.nativeEvent.isComposing || composingRef.current) {
+        return;
+      }
+      // Block Enter-to-send when over the character limit
+      if (message.length > MAX_MESSAGE_CHARS) {
+        e.preventDefault();
         return;
       }
       if (isMobile) {
@@ -530,6 +588,16 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           />
         </div>
 
+        {/* Inline over-limit hint */}
+        {message.length > MAX_MESSAGE_CHARS && (
+          <div
+            data-testid="char-limit-hint"
+            className="mt-1 text-xs text-red-600 dark:text-red-400"
+          >
+            Reduce by {message.length - MAX_MESSAGE_CHARS} to send
+          </div>
+        )}
+
         {/* Row 2: Attachment previews (inside pill) */}
         {attachments.length > 0 && (
           <div className="flex gap-2 overflow-x-auto sm:overflow-x-visible snap-x snap-mandatory -mx-1 px-1">
@@ -593,6 +661,36 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   {/* Row 3: Controls (left features, right send) */}
   <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label={streamingOn ? 'Streaming: ON' : 'Streaming'}
+              aria-pressed={streamingOn}
+              title="Streaming"
+              onClick={() => {
+                if (disabled) return;
+                // Open streaming settings modal
+                setStreamingModalOpen(true);
+              }}
+              className={`relative inline-flex items-center justify-center w-10 h-10 rounded-lg border bg-transparent disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none 
+                border-gray-300 dark:border-gray-600 
+                ${streamingOn ? 'ring-0' : ''} 
+                ${!disabled ? 'hover:bg-gray-100/50 dark:hover:bg-gray-600/40' : ''}`}
+              disabled={disabled}
+            >
+              <PlayIcon
+                className={`w-5 h-5 transition-all duration-150 
+                  ${streamingOn
+                    ? 'text-emerald-600 dark:text-emerald-300 drop-shadow-[0_0_6px_rgba(16,185,129,0.6)]'
+                    : 'text-gray-700 dark:text-gray-200 opacity-80'}
+                `}
+              />
+              {streamingOn && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-1 w-5 h-px rounded-full bg-emerald-600 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
+                />
+              )}
+            </button>
             <button
               type="button"
               aria-label={webSearchOn ? 'Web Search: ON' : 'Web Search'}
@@ -690,9 +788,10 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
 
           <button
             onClick={handleSend}
-            disabled={!message.trim() || disabled}
+            disabled={!message.trim() || disabled || message.length > MAX_MESSAGE_CHARS}
             className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
             aria-label="Send message"
+            data-testid="send-button"
           >
             {disabled ? (
               <ArrowPathIcon className="w-5 h-5 animate-spin" />
@@ -704,13 +803,18 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           {/* Floating character counter centered in controls row (no layout shift) */}
           <div
             aria-live="polite"
-            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-0 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border 
+            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-0 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border shadow-md backdrop-blur-sm shadow-black/10 dark:shadow-black/30
               ${showCount ? 'opacity-100' : 'opacity-0'} 
-              bg-gray-100/80 text-gray-700 border-gray-300 
-              dark:bg-gray-800/70 dark:text-gray-200 dark:border-gray-600`}
+              ${message.length > MAX_MESSAGE_CHARS
+                ? 'bg-red-700 text-white border-red-600 dark:bg-red-700 dark:text-white dark:border-red-600 sm:bg-red-100/90 sm:text-red-700 sm:border-red-300 sm:dark:bg-red-900/50 sm:dark:text-red-200 sm:dark:border-red-700'
+                : 'bg-gray-900/80 text-white border-gray-800 dark:bg-gray-900/80 dark:text-white dark:border-gray-700 sm:bg-gray-100/80 sm:text-gray-700 sm:border-gray-300 sm:dark:bg-gray-800/70 sm:dark:text-gray-200 sm:dark:border-gray-600'}`}
+            data-testid="char-counter"
           >
             {`${message.length} characters`}
           </div>
+
+          {/* Screen-reader only live region for threshold crossings */}
+          <div className="sr-only" aria-live="polite">{liveMsg}</div>
 
           {/* Gating popovers anchored above the left buttons. */}
           {gatingOpen && (
@@ -720,7 +824,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-emerald-500 bg-emerald-50 ring-1 ring-inset ring-emerald-100 dark:border-emerald-400 dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -743,7 +847,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-emerald-500 bg-emerald-50 ring-1 ring-inset ring-emerald-100 dark:border-emerald-400 dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -766,7 +870,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-emerald-200 bg-emerald-50/95 ring-1 ring-inset ring-emerald-100 dark:border-white/10 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-emerald-500 bg-emerald-50 ring-1 ring-inset ring-emerald-100 dark:border-emerald-400 dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -789,7 +893,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -807,7 +911,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -825,7 +929,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -843,7 +947,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 <div
                   ref={gatingRef}
                   data-testid="gating-popover"
-                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white/95 dark:bg-gray-900/95 p-3 text-sm shadow-2xl"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
                 >
                   <button
                     aria-label="Close"
@@ -859,11 +963,47 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
             </>
           )}
 
+          {/* Streaming settings popover anchored above buttons */}
+          {streamingModalOpen && (
+            <div
+              ref={streamingModalRef}
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
+            >
+              <button
+                aria-label="Close"
+                onClick={() => setStreamingModalOpen(false)}
+                className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+              <div className="mb-2 pr-6 text-sm font-semibold text-slate-900 dark:text-gray-100">Enable streaming</div>
+              <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">Stream responses in real-time for faster interaction.</div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-800 dark:text-gray-200">Streaming</span>
+                <button
+                  type="button"
+                  data-testid="streaming-toggle"
+                  aria-pressed={streamingOn}
+                  onClick={() => {
+                    const newValue = !streamingOn;
+                    setStreamingOn(newValue);
+                    setSetting('streamingEnabled', newValue);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${streamingOn ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${streamingOn ? 'translate-x-5' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Web Search settings popover (pro/enterprise) anchored above buttons */}
           {searchModalOpen && (
             <div
               ref={searchModalRef}
-              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 shadow-2xl"
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
             >
               <button
                 aria-label="Close"
@@ -888,6 +1028,51 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                   />
                 </button>
               </div>
+              {/* Max results slider (disabled when Web Search is off or when not Enterprise) */}
+              <div className="mt-4">
+                <label
+                  className={`flex items-center justify-between gap-2 text-sm mb-2 ${webSearchOn && isEnterprise ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}`}
+                  aria-disabled={!webSearchOn || !isEnterprise}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>Max results</span>
+                    {/* Info tooltip explaining Enterprise-only configuration */}
+                    <Tooltip
+                      widthClassName="w-80"
+                      content={(
+                        <div className="text-sm">
+                          <div className="font-medium mb-1">Max results</div>
+                          <div className="text-gray-800 dark:text-gray-200">
+                            Controls how many web pages are fetched and cited per request.
+                            <br />
+                            <span className="font-medium">Enterprise</span> accounts can set 1–5. <span className="font-medium">Pro</span> uses the default of 3.
+                          </div>
+                        </div>
+                      )}
+                      ariaLabel="What is Max results?"
+                    >
+                      <InformationCircleIcon className="w-4 h-4 opacity-70" />
+                    </Tooltip>
+                  </span>
+                  <span className="font-medium">{isEnterprise ? webMaxResults : 3}</span>
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={isEnterprise ? webMaxResults : 3}
+                  onChange={(e) => {
+                    const v = Math.max(1, Math.min(5, Math.trunc(Number(e.target.value) || 3)));
+                    setWebMaxResults(v);
+                    setSetting('webMaxResults', v);
+                  }}
+                  disabled={!webSearchOn || !isEnterprise}
+                  className={`w-full accent-emerald-600 ${(!webSearchOn || !isEnterprise) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Web search max results"
+                  data-testid="websearch-max-results"
+                />
+              </div>
             </div>
           )}
 
@@ -895,7 +1080,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           {reasoningModalOpen && (
             <div
               ref={reasoningModalRef}
-              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 shadow-2xl"
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
             >
               <button
                 aria-label="Close"

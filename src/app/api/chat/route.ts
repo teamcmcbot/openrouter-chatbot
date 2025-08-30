@@ -5,13 +5,15 @@ import { validateChatRequestWithAuth, validateRequestLimits } from '../../../../
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../lib/utils/errors';
 import { createSuccessResponse } from '../../../../lib/utils/response';
 import { logger } from '../../../../lib/utils/logger';
-import { detectMarkdownContent } from '../../../../lib/utils/markdown';
 import { ChatResponse } from '../../../../lib/types';
 import { OpenRouterRequest, OpenRouterContentBlock, OpenRouterUrlCitation } from '../../../../lib/types/openrouter';
 import { AuthContext } from '../../../../lib/types/auth';
 import { withEnhancedAuth } from '../../../../lib/middleware/auth';
 import { withRedisRateLimitEnhanced } from '../../../../lib/middleware/redisRateLimitMiddleware';
-import { estimateTokenCount, getModelTokenLimits } from '../../../../lib/utils/tokens';
+import { estimateTokenCount } from '../../../../lib/utils/tokens';
+import { getModelTokenLimits } from '../../../../lib/utils/tokens.server';
+import { MAX_MESSAGE_CHARS } from '../../../../lib/config/limits';
+type SubscriptionTier = 'anonymous' | 'free' | 'pro' | 'enterprise';
 import { createClient } from '../../../../lib/supabase/server';
 
 async function chatHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
@@ -145,7 +147,35 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       });
     }
     
-  // Phase 2: Log request format for human verification
+    // Enforce character limit on the triggering user message (text only)
+    {
+      const lastUser = [...enhancedData.messages].reverse().find((m) => m.role === 'user');
+      let textLen = 0;
+      if (lastUser) {
+        if (typeof lastUser.content === 'string') {
+          textLen = lastUser.content.length;
+        } else if (Array.isArray(lastUser.content)) {
+          textLen = (lastUser.content as OpenRouterContentBlock[])
+            .reduce((acc, b) => {
+              const anyB = b as unknown as { type?: string; text?: string };
+              if (anyB && anyB.type === 'text' && typeof anyB.text === 'string') {
+                return acc + anyB.text.length;
+              }
+              return acc;
+            }, 0);
+        }
+      }
+      if (textLen > MAX_MESSAGE_CHARS) {
+        const overBy = textLen - MAX_MESSAGE_CHARS;
+        const limitStr = MAX_MESSAGE_CHARS.toLocaleString();
+        throw new ApiErrorResponse(
+          `Message exceeds ${limitStr} character limit. Reduce by ${overBy} characters and try again.`,
+          ErrorCode.PAYLOAD_TOO_LARGE
+        );
+      }
+    }
+
+    // Phase 2: Log request format for human verification
     console.log(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
     console.log(`[Chat API] Message count: ${messages.length} messages`);
     console.log(`[Chat API] Current message: "${body.message}"`);
@@ -184,7 +214,8 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     }
     
   // Phase 4: Calculate model-aware max tokens
-    const tokenStrategy = await getModelTokenLimits(enhancedData.model);
+  const tier = (authContext.profile?.subscription_tier || 'anonymous') as SubscriptionTier;
+  const tokenStrategy = await getModelTokenLimits(enhancedData.model, { tier });
     const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
     
     console.log(`[Chat API] Model: ${enhancedData.model}`);
@@ -210,6 +241,16 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     }
     
   const startTime = Date.now();
+  // Enforce enterprise-only configurability for webMaxResults (Pro defaults to 3)
+  const reqTier = (authContext.profile?.subscription_tier || 'anonymous') as SubscriptionTier;
+  const requestedMax = Number.isFinite(body?.webMaxResults) ? Math.max(1, Math.min(10, Math.trunc(body.webMaxResults))) : undefined;
+  const effectiveWebMax = (() => {
+    if (!body.webSearch) return undefined; // not used when web search is off
+    if (reqTier === 'enterprise') return requestedMax ?? 3; // enterprise can configure
+    if (reqTier === 'pro') return 3; // force default for Pro
+    return undefined; // anonymous/free: webSearch would have been rejected above
+  })();
+
   const openRouterResponse = await getOpenRouterCompletion(
       messages,
       enhancedData.model,
@@ -217,7 +258,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       enhancedData.temperature,
       enhancedData.systemPrompt,
       authContext,
-      { webSearch: !!body.webSearch, webMaxResults: 3, reasoning }
+      { webSearch: !!body.webSearch, webMaxResults: effectiveWebMax, reasoning }
     );
     logger.debug('OpenRouter response received:', openRouterResponse);
   const assistantResponse = openRouterResponse.choices[0].message.content;
@@ -226,7 +267,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   const maybe = openRouterResponse as unknown as MaybeReasoningMessage;
   const reasoningText = maybe?.choices?.[0]?.message?.reasoning;
   const reasoningDetails = maybe?.reasoning;
-    const usage = openRouterResponse.usage;
+  const usage = openRouterResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
   const rawAnnotations = openRouterResponse?.choices?.[0]?.message?.annotations ?? [];
   // Normalize annotations to a flat OpenRouterUrlCitation[] regardless of provider shape
   const annotations: OpenRouterUrlCitation[] = Array.isArray(rawAnnotations)
@@ -257,10 +298,6 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
         })
         .filter((x): x is OpenRouterUrlCitation => !!x))
     : [];
-
-    // Detect if the response contains markdown
-    const hasMarkdown = detectMarkdownContent(assistantResponse);
-    logger.debug('Markdown detection result:', hasMarkdown, 'for content:', assistantResponse.substring(0, 100));
 
   const endTime = Date.now();
   const elapsedMs = endTime - startTime; // integer milliseconds
@@ -300,18 +337,24 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   const response: ChatResponse = {
       response: assistantResponse,
       usage: {
-        prompt_tokens: usage.prompt_tokens,
-        completion_tokens: usage.completion_tokens,
-        total_tokens: usage.total_tokens,
+        prompt_tokens: usage?.prompt_tokens ?? 0,
+        completion_tokens: usage?.completion_tokens ?? 0,
+        total_tokens: usage?.total_tokens ?? 0,
       },
       request_id: triggeringUserId || undefined, // Deterministic linkage to triggering user message
       timestamp: new Date().toISOString(),
       elapsed_ms: elapsedMs,
-      contentType: hasMarkdown ? "markdown" : "text", // Add content type detection
+      contentType: "markdown", // Always use markdown rendering for consistent experience
       id: openRouterResponse.id, // Pass OpenRouter response id to ChatResponse
+  model: openRouterResponse.model || enhancedData.model,
     };
   if (typeof reasoningText === 'string' && reasoningText.length > 0) response.reasoning = reasoningText;
-  if (reasoningDetails && typeof reasoningDetails === 'object') response.reasoning_details = reasoningDetails;
+  if (reasoningDetails && typeof reasoningDetails === 'object') {
+    const reasoningArray = Array.isArray(reasoningDetails) ? reasoningDetails : [reasoningDetails];
+    if (reasoningArray.length > 0) {
+      response.reasoning_details = reasoningArray;
+    }
+  }
   // Attach annotations if present (for future UI rendering); ignored by client if unknown
   response.annotations = annotations;
   // Echo web search activation for persistence layer

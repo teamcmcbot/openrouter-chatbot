@@ -75,13 +75,13 @@ async function checkRateLimit(
     const remaining = Math.max(0, limit - totalRequests);
     const resetTime = now + windowMs;
 
-    logger.debug('Redis rate limit check', {
-      key,
-      limit,
-      totalRequests,
-      allowed,
-      remaining,
-    });
+    // logger.debug('Redis rate limit check', {
+    //   key,
+    //   limit,
+    //   totalRequests,
+    //   allowed,
+    //   remaining,
+    // });
 
     return {
       allowed,

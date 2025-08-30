@@ -19,7 +19,7 @@ describe('MessageList reasoning rendering', () => {
         ...baseAssistant,
         id: 'm1',
         reasoning: 'Model thinking here',
-        reasoning_details: { effort: 'low' },
+        reasoning_details: [{ type: 'reasoning.text', text: 'Detailed thinking process' }],
       },
     ];
 
@@ -42,7 +42,54 @@ describe('MessageList reasoning rendering', () => {
 
     // Content appears
     expect(screen.getByText('Model thinking here')).toBeInTheDocument();
-    // Details summary exists
-    expect(screen.getByText('Details')).toBeInTheDocument();
+    // Details summary exists (for non-empty array)
+    expect(screen.getByText('Technical Details')).toBeInTheDocument();
+  });
+
+  it('renders reasoning without details section when reasoning_details is empty', () => {
+    const messages: ChatMessage[] = [
+      {
+        ...baseAssistant,
+        id: 'm2',
+        reasoning: 'Model thinking here',
+        reasoning_details: [],
+      },
+    ];
+
+    render(
+      <MessageList
+        messages={messages}
+        isLoading={false}
+      />
+    );
+
+    // Expand reasoning
+    const button = screen.getByRole('button', { name: /reasoning/i });
+    fireEvent.click(button);
+
+    // Content appears but no Details section
+    expect(screen.getByText('Model thinking here')).toBeInTheDocument();
+    expect(screen.queryByText('Technical Details')).not.toBeInTheDocument();
+  });
+
+  it('does not render reasoning section when both reasoning and reasoning_details are empty', () => {
+    const messages: ChatMessage[] = [
+      {
+        ...baseAssistant,
+        id: 'm3',
+        reasoning: undefined,
+        reasoning_details: [],
+      },
+    ];
+
+    render(
+      <MessageList
+        messages={messages}
+        isLoading={false}
+      />
+    );
+
+    // No reasoning section should appear
+    expect(screen.queryByRole('button', { name: /reasoning/i })).not.toBeInTheDocument();
   });
 });

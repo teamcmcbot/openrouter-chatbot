@@ -29,6 +29,12 @@ const logger = createLogger("ChatStore");
 const generateConversationId = () => `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateMessageId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+// Ordering helpers
+const tsToMillis = (iso?: string) => (iso ? new Date(iso).getTime() : 0);
+const sortByLastTimestampDesc = (a: Conversation, b: Conversation) =>
+  tsToMillis(b.lastMessageTimestamp || b.updatedAt || b.createdAt) -
+  tsToMillis(a.lastMessageTimestamp || a.updatedAt || a.createdAt);
+
 // Function to convert string dates back to Date objects after rehydration
 const deserializeDates = (conversations: Conversation[]): Conversation[] => {
   return conversations.map(conversation => ({
@@ -91,6 +97,15 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           isLoading: false,
           error: null,
           isHydrated: false,
+          sidebarPaging: {
+            pageSize: 20,
+            loading: false,
+            hasMore: false,
+            nextCursor: null,
+            initialized: false,
+          },
+          // Ephemeral banners (session-only, not persisted)
+          conversationErrorBanners: {},
 
           // Sync state
           isSyncing: false,
@@ -128,6 +143,18 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               currentConversationId: id,
               error: null,
             }));
+
+            // If authenticated and the selected conversation has no messages yet (summary-only listing), load them lazily
+            const { user } = useAuthStore.getState();
+            if (user) {
+              const conv = get().conversations.find(c => c.id === id);
+              if (conv && (!Array.isArray(conv.messages) || conv.messages.length === 0)) {
+                // Fire and forget; UI can render spinner if needed based on isLoading
+                get().loadConversationMessages?.(id).catch((err) => {
+                  logger.warn("Failed to load conversation messages", { id, err });
+                });
+              }
+            }
           },
 
           // Phase 3: Context selection method with pair-based and token-based limits
@@ -260,6 +287,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               originalModel: model, // Store the model used for this message (for retry purposes)
               has_attachments: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? true : undefined,
               attachment_ids: Array.isArray(options?.attachmentIds) && options!.attachmentIds!.length > 0 ? options!.attachmentIds : undefined,
+              // Store that this was sent in non-streaming mode
+              was_streaming: false,
+              // Capture request-side options for accurate retry later
+              requested_web_search: options?.webSearch,
+              requested_web_max_results: options?.webMaxResults,
+              requested_reasoning_effort: options?.reasoning?.effort,
             };
 
             logger.debug("Sending message", { conversationId: currentConversationId, content: content.substring(0, 50) + "..." });
@@ -285,7 +318,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Send Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -344,6 +377,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     attachmentIds: options?.attachmentIds,
                     draftId: options?.draftId,
                     webSearch: options?.webSearch,
+                    webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
                   };
                 } else {
@@ -355,6 +389,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     attachmentIds: options?.attachmentIds,
                     draftId: options?.draftId,
                     webSearch: options?.webSearch,
+                    webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
                   };
                 }
@@ -366,7 +401,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 console.log(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch, reasoning: options?.reasoning };
+                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch, webMaxResults: options?.webMaxResults, reasoning: options?.reasoning };
                 if (model) {
                   requestBody.model = model;
                 }
@@ -397,6 +432,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 const chatError: ChatError = {
                   message: errorData.error ?? `HTTP error! status: ${response.status}`,
                   code: errorData.code,
+                  upstreamErrorCode: errorData.upstreamErrorCode,
+                  upstreamErrorMessage: errorData.upstreamErrorMessage,
                   suggestions: errorData.suggestions,
                   retryAfter: errorData.retryAfter,
                   timestamp: errorData.timestamp ?? new Date().toISOString(),
@@ -417,7 +454,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
               type ChatResponseWithReasoning = {
                 reasoning?: string;
-                reasoning_details?: Record<string, unknown>;
+                reasoning_details?: Record<string, unknown>[];
               };
               const respWithReasoning = data as ChatResponseWithReasoning;
               const assistantMessage: ChatMessage = {
@@ -433,11 +470,13 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 model: data.model || model,
                 contentType: data.contentType || "text",
                 completion_id: data.id,
+                // Mark assistant as non-streaming in this path
+                was_streaming: false,
                 has_websearch: !!data.has_websearch,
                 websearch_result_count: typeof data.websearch_result_count === 'number' ? data.websearch_result_count : undefined,
                 annotations: Array.isArray(data.annotations) ? data.annotations : undefined,
                 reasoning: typeof respWithReasoning.reasoning === 'string' ? respWithReasoning.reasoning : undefined,
-                reasoning_details: respWithReasoning.reasoning_details && typeof respWithReasoning.reasoning_details === 'object' ? respWithReasoning.reasoning_details : undefined,
+                reasoning_details: respWithReasoning.reasoning_details && Array.isArray(respWithReasoning.reasoning_details) ? respWithReasoning.reasoning_details : undefined,
               };
 
               // Add assistant response and update conversation metadata
@@ -615,6 +654,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                                 error: true, 
                                 input_tokens: 0, // Ensure input_tokens is 0 for failed requests
                                 error_message: chatError.message, // Map error_message to user message
+                                error_code: chatError.code,
+                                upstream_error_code: chatError.upstreamErrorCode,
+                                upstream_error_message: chatError.upstreamErrorMessage,
+                                retry_after: chatError.retryAfter,
+                                retry_available: true,
                               }
                             : msg
                         ),
@@ -625,26 +669,20 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 error: chatError,
               }));
 
-              // For development: Add a mock response when backend is not available
-              if (chatError.code === "network_error") {
-                const mockResponse: ChatMessage = {
-                  id: generateMessageId(),
-                  content: "I'm currently not available. The backend API is being developed by Gemini CLI. Please check back later!",
-                  role: "assistant",
-                  timestamp: new Date(),
-                };
-
-                set((state) => ({
-                  conversations: state.conversations.map((conv) =>
-                    conv.id === state.currentConversationId
-                      ? updateConversationFromMessages({
-                          ...conv,
-                          messages: [...conv.messages, mockResponse],
-                        })
-                      : conv
-                  ),
-                }));
+              // Set ephemeral banner for current conversation (session-only)
+              const convId = get().currentConversationId;
+              if (convId) {
+                get().setConversationErrorBanner(convId, {
+                  messageId: userMessage.id,
+                  message: chatError.message,
+                  code: chatError.code,
+                  retryAfter: chatError.retryAfter,
+                  createdAt: new Date().toISOString(),
+                });
               }
+
+              // Note: We no longer add a mock assistant message on errors.
+              // The ErrorDisplay banner handles user-facing error feedback.
 
               // Phase 3: Save error message to database for authenticated users
               const { user } = useAuthStore.getState();
@@ -867,6 +905,51 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }));
           },
 
+          // Ephemeral banner controls (client-session only)
+          setConversationErrorBanner: (conversationId, banner) => {
+            set((state) => ({
+              conversationErrorBanners: {
+                ...state.conversationErrorBanners,
+                [conversationId]: banner,
+              },
+            }));
+          },
+          clearConversationErrorBanner: (conversationId) => {
+            set((state) => {
+              const next = { ...state.conversationErrorBanners } as Record<string, typeof state.conversationErrorBanners[string]>;
+              delete next[conversationId];
+              return { conversationErrorBanners: next };
+            });
+          },
+          clearAllConversationErrorBanners: () => {
+            set({ conversationErrorBanners: {} });
+          },
+
+          // When a user manually dismisses the error banner, disable retry for that failed message
+          closeErrorBannerAndDisableRetry: (conversationId: string) => {
+            const { conversationErrorBanners } = get();
+            const banner = conversationErrorBanners[conversationId];
+            // Clear the banner first
+            get().clearConversationErrorBanner(conversationId);
+            if (!banner) return;
+
+            // Flip retry_available to false on the referenced user message
+            set((state) => ({
+              conversations: state.conversations.map((conv) =>
+                conv.id === conversationId
+                  ? {
+                      ...conv,
+                      messages: conv.messages.map((m) =>
+                        m.id === banner.messageId && m.role === 'user'
+                          ? { ...m, retry_available: false }
+                          : m
+                      ),
+                    }
+                  : conv
+              ),
+            }));
+          },
+
           retryLastMessage: async () => {
             const currentConversation = get().conversations.find(
               (c) => c.id === get().currentConversationId
@@ -885,6 +968,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               return;
             }
 
+            // If user manually dismissed the banner earlier, do not allow retry
+            if (lastFailedMessage.retry_available === false) {
+              logger.debug('Retry disabled for this message due to manual dismissal');
+              return;
+            }
+
             // Get the model to use for retry (priority: originalModel > conversation lastModel > fallback)
             const modelToUse = lastFailedMessage.originalModel ||
                               currentConversation.lastModel ||
@@ -896,9 +985,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               modelToUse
             });
             
-            // Clear error state first
+            // Clear global error; keep message.error for history. Dismiss conversation banner on retry.
             get().clearError();
-            get().clearMessageError(lastFailedMessage.id);
+            const convId = get().currentConversationId;
+            if (convId) {
+              get().clearConversationErrorBanner(convId);
+            }
             
             // Retry the message with the original model
             // This will reuse the existing message instead of creating a new one
@@ -906,7 +998,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           },
 
           // New function to retry a specific message without creating duplicates
-          retryMessage: async (messageId: string, content: string, model?: string) => {
+          retryMessage: async (
+            messageId: string,
+            content: string,
+            model?: string,
+            options?: { attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
+          ) => {
             if (!content.trim() || get().isLoading) {
               logger.warn("Cannot retry message: empty content or already loading");
               return;
@@ -920,7 +1017,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             // Capture retry start time BEFORE building context so ordering uses the new timestamp
             const retryStartedAt = new Date();
 
-            // Set loading state
+            // Set loading state (do not clear banners globally)
             set({ isLoading: true, error: null });
 
             // Update the existing user message timestamp to reflect this new retry attempt
@@ -946,7 +1043,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               console.log(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               console.log(`[Retry Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -972,6 +1069,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   role: "user",
                   timestamp: retryStartedAt,
                   originalModel: model,
+                  // Store that this retry is using non-streaming mode
+                  was_streaming: false,
                 };
                 
                 // Build complete message array (context + retry message)
@@ -1009,13 +1108,21 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   requestBody = {
                     message: content,
                     messages: [...finalContextMessages, retryMessage],
-                    current_message_id: messageId
+                    current_message_id: messageId,
+                    attachmentIds: options?.attachmentIds,
+                    webSearch: options?.webSearch,
+                    webMaxResults: options?.webMaxResults,
+                    reasoning: options?.reasoning,
                   };
                 } else {
                   requestBody = {
                     message: content,
                     messages: allMessages,
-                    current_message_id: messageId
+                    current_message_id: messageId,
+                    attachmentIds: options?.attachmentIds,
+                    webSearch: options?.webSearch,
+                    webMaxResults: options?.webMaxResults,
+                    reasoning: options?.reasoning,
                   };
                 }
                 
@@ -1048,11 +1155,13 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 body: JSON.stringify(requestBody),
               });
 
-              if (!response.ok) {
+        if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 const chatError: ChatError = {
                   message: errorData.error ?? `HTTP error! status: ${response.status}`,
                   code: errorData.code,
+          upstreamErrorCode: errorData.upstreamErrorCode,
+          upstreamErrorMessage: errorData.upstreamErrorMessage,
                   suggestions: errorData.suggestions,
                   retryAfter: errorData.retryAfter,
                   timestamp: errorData.timestamp ?? new Date().toISOString(),
@@ -1070,7 +1179,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
               type ChatResponseWithReasoning2 = {
                 reasoning?: string;
-                reasoning_details?: Record<string, unknown>;
+                reasoning_details?: Record<string, unknown>[];
               };
               const respWithReasoning2 = data as ChatResponseWithReasoning2;
               const assistantMessage: ChatMessage = {
@@ -1087,11 +1196,13 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 model: data.model || model,
                 contentType: data.contentType || "text",
                 completion_id: data.id,
+                // Mark assistant as non-streaming in retry non-streaming path
+                was_streaming: false,
                 has_websearch: !!data.has_websearch,
                 websearch_result_count: typeof data.websearch_result_count === 'number' ? data.websearch_result_count : undefined,
                 annotations: Array.isArray(data.annotations) ? data.annotations : undefined,
                 reasoning: typeof respWithReasoning2.reasoning === 'string' ? respWithReasoning2.reasoning : undefined,
-                reasoning_details: respWithReasoning2.reasoning_details && typeof respWithReasoning2.reasoning_details === 'object' ? respWithReasoning2.reasoning_details : undefined,
+                reasoning_details: respWithReasoning2.reasoning_details && Array.isArray(respWithReasoning2.reasoning_details) ? respWithReasoning2.reasoning_details : undefined,
               };
 
               // Update the conversation: clear error on retried message and add assistant response
@@ -1241,6 +1352,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                                 error: true, 
                                 input_tokens: 0, // Ensure input_tokens is 0 for failed retry
                                 error_message: chatError.message, // Map error_message to user message
+                                error_code: chatError.code,
+                                upstream_error_code: chatError.upstreamErrorCode,
+                                upstream_error_message: chatError.upstreamErrorMessage,
+                                retry_after: chatError.retryAfter,
+                                retry_available: true,
                               }
                             : msg
                         ),
@@ -1250,6 +1366,18 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 isLoading: false,
                 error: chatError,
               }));
+
+              // Set ephemeral banner on retry failure as well
+              const convId2 = get().currentConversationId;
+              if (convId2) {
+                get().setConversationErrorBanner(convId2, {
+                  messageId,
+                  message: chatError.message,
+                  code: chatError.code,
+                  retryAfter: chatError.retryAfter,
+                  createdAt: new Date().toISOString(),
+                });
+              }
             }
           },
 
@@ -1344,7 +1472,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             try {
               logger.debug("Loading user conversations from server", { userId });
               
-              const response = await fetch('/api/chat/sync');
+              // Request summary mode for lean sidebar payload with pagination meta
+              const response = await fetch('/api/chat/sync?limit=20&summary_only=true');
               
               if (!response.ok) {
                 throw new Error(`Failed to load conversations: ${response.statusText}`);
@@ -1352,6 +1481,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
               const result = await response.json();
               const serverConversations = result.conversations || [];
+              const meta = result.meta as { hasMore?: boolean; nextCursor?: { ts: string; id: string } | null; pageSize?: number } | undefined;
               
               // Log sample message metadata for verification
               const sampleMessage = serverConversations[0]?.messages?.find((m: ChatMessage) => m.role === 'assistant');
@@ -1366,17 +1496,25 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               
               // Merge with existing conversations, prioritizing server data
               set((state) => {
-                const existingIds = new Set(state.conversations.map(c => c.id));
-                const newConversations = serverConversations.filter((conv: Conversation) => !existingIds.has(conv.id));
-                
-                // Sort merged conversations by updatedAt (most recent first)
-                const allConversations = [...newConversations, ...state.conversations]
-                  .sort((a, b) => new Date(b.last_message_timestamp).getTime() - new Date(a.last_message_timestamp).getTime());
-                
+                // Merge: server wins on ID conflicts to refresh metadata from DB
+                const byId = new Map<string, Conversation>();
+                for (const conv of state.conversations) byId.set(conv.id, conv);
+                for (const conv of serverConversations as Conversation[]) byId.set(conv.id, conv);
+
+                // Sort by lastMessageTimestamp (fallback to updatedAt/createdAt)
+                const allConversations = Array.from(byId.values()).sort(sortByLastTimestampDesc);
+
                 return {
                   conversations: allConversations,
                   isLoading: false,
-                  lastSyncTime: result.syncTime
+                  lastSyncTime: result.syncTime,
+                  sidebarPaging: {
+                    pageSize: meta?.pageSize ?? 20,
+                    loading: false,
+                    hasMore: !!meta?.hasMore,
+                    nextCursor: meta?.nextCursor ?? null,
+                    initialized: true,
+                  }
                 };
               });
               
@@ -1390,6 +1528,125 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 isLoading: false, 
                 error: { message: errorMessage, timestamp: new Date().toISOString() }
               });
+            }
+          },
+
+          // New: load more for sidebar pagination
+          loadInitialConversations: async () => {
+            const paging = get().sidebarPaging;
+            if (paging?.loading) return;
+            set({ sidebarPaging: { ...(paging || { pageSize: 20 }), loading: true, initialized: paging?.initialized ?? false, hasMore: paging?.hasMore ?? false, nextCursor: paging?.nextCursor ?? null } });
+            try {
+              const response = await fetch(`/api/chat/sync?limit=${(paging?.pageSize ?? 20)}&summary_only=true`);
+              if (!response.ok) throw new Error(`Failed to load conversations: ${response.statusText}`);
+              const result = await response.json();
+              const serverConversations = result.conversations || [];
+              const meta = result.meta as { hasMore?: boolean; nextCursor?: { ts: string; id: string } | null; pageSize?: number } | undefined;
+              set((state) => {
+                const byId = new Map<string, Conversation>();
+                for (const conv of state.conversations) byId.set(conv.id, conv);
+                for (const conv of serverConversations as Conversation[]) byId.set(conv.id, conv);
+                const allConversations = Array.from(byId.values()).sort(sortByLastTimestampDesc);
+                return {
+                  conversations: allConversations,
+                  sidebarPaging: {
+                    pageSize: meta?.pageSize ?? (paging?.pageSize ?? 20),
+                    loading: false,
+                    hasMore: !!meta?.hasMore,
+                    nextCursor: meta?.nextCursor ?? null,
+                    initialized: true,
+                  },
+                  lastSyncTime: result.syncTime,
+                };
+              });
+            } catch (e) {
+              const fallback = paging || { pageSize: 20, hasMore: false, nextCursor: null, initialized: false, loading: false };
+              set({ sidebarPaging: { ...fallback, loading: false } });
+              throw e;
+            }
+          },
+
+          loadMoreConversations: async () => {
+            const paging = get().sidebarPaging;
+            if (!paging?.hasMore || paging.loading) return;
+            set({ sidebarPaging: { ...paging, loading: true } });
+            try {
+              const params = new URLSearchParams();
+              params.set('limit', String(paging.pageSize));
+              params.set('summary_only', 'true');
+              if (paging.nextCursor) {
+                params.set('cursor_ts', paging.nextCursor.ts);
+                params.set('cursor_id', paging.nextCursor.id);
+              }
+              const response = await fetch(`/api/chat/sync?${params.toString()}`);
+              if (!response.ok) throw new Error(`Failed to load more conversations: ${response.statusText}`);
+              const result = await response.json();
+              const serverConversations = result.conversations || [];
+              const meta = result.meta as { hasMore?: boolean; nextCursor?: { ts: string; id: string } | null } | undefined;
+              set((state) => {
+                const byId = new Map<string, Conversation>();
+                for (const conv of state.conversations) byId.set(conv.id, conv);
+                for (const conv of serverConversations as Conversation[]) byId.set(conv.id, conv);
+                const allConversations = Array.from(byId.values()).sort(sortByLastTimestampDesc);
+                return {
+                  conversations: allConversations,
+                  sidebarPaging: {
+                    ...state.sidebarPaging!,
+                    loading: false,
+                    hasMore: !!meta?.hasMore,
+                    nextCursor: meta?.nextCursor ?? null,
+                  }
+                };
+              });
+            } catch (e) {
+              set({ sidebarPaging: { ...(paging || { pageSize: 20, hasMore: false, nextCursor: null, initialized: false, loading: false }), loading: false } });
+              throw e;
+            }
+          },
+
+          // Lazy loader: fetch full messages for a session and merge into store
+          loadConversationMessages: async (id: string) => {
+            // Avoid duplicate loads if messages already present
+            const existing = get().conversations.find(c => c.id === id);
+            if (!existing) return;
+            if (Array.isArray(existing.messages) && existing.messages.length > 0) return;
+
+            set({ isLoading: true });
+            try {
+              const res = await fetch(`/api/chat/messages?session_id=${encodeURIComponent(id)}`);
+              if (!res.ok) throw new Error(`Failed to load messages: ${res.statusText}`);
+              const data = await res.json();
+              const msgs = Array.isArray(data.messages) ? data.messages : [];
+              set((state) => ({
+                conversations: state.conversations.map(conv =>
+                  conv.id === id
+                    ? {
+                        ...conv,
+                        messages: msgs,
+                        messageCount: msgs.length,
+                        lastMessagePreview:
+                          msgs.length > 0
+                            ? (msgs[msgs.length - 1].content.length > 100
+                                ? msgs[msgs.length - 1].content.substring(0, 100) + "..."
+                                : msgs[msgs.length - 1].content)
+                            : conv.lastMessagePreview,
+                        lastMessageTimestamp:
+                          msgs.length > 0
+                            ? (typeof msgs[msgs.length - 1].timestamp === 'string'
+                                ? msgs[msgs.length - 1].timestamp
+                                : (msgs[msgs.length - 1].timestamp as Date).toISOString())
+                            : conv.lastMessageTimestamp,
+                        updatedAt: new Date().toISOString(),
+                      }
+                    : conv
+                ),
+                isLoading: false,
+              }));
+            } catch (e) {
+              const message = e instanceof Error ? e.message : 'Failed to load messages';
+              logger.error('loadConversationMessages failed', message);
+              set({ isLoading: false, error: { message, timestamp: new Date().toISOString() } });
+              throw e;
             }
           },
 
@@ -1442,7 +1699,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             const isCurrentConversationVisible = filteredConversations.some(c => c.id === currentConversationId);
             
             set({
-              conversations: filteredConversations,
+              conversations: [...filteredConversations].sort(sortByLastTimestampDesc),
               currentConversationId: isCurrentConversationVisible ? currentConversationId : null
             });
             
@@ -1480,7 +1737,9 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           },
 
           getRecentConversations: (limit = 10) => {
-            return get().conversations
+            // Always present most-recent first by lastMessageTimestamp (with sensible fallbacks)
+            return [...get().conversations]
+              .sort(sortByLastTimestampDesc)
               .slice(0, limit);
           },
         }),
@@ -1490,6 +1749,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           partialize: (state) => ({
             conversations: state.conversations,
             currentConversationId: state.currentConversationId,
+            // Note: conversationErrorBanners intentionally NOT persisted (session-only)
           }),
           onRehydrateStorage: () => (state) => {
             if (state?.conversations) {

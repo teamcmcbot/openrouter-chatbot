@@ -63,8 +63,8 @@ export function UserMenu() {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
-          <div className="p-2">
+        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-lg z-50">
+          <div className="py-1">
             {/* User Info */}
             <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
               <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -76,22 +76,22 @@ export function UserMenu() {
             </div>
 
             {/* Menu Items */}
-            <div className="py-1">
-              <button className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+            <div id="user-menu-actions" className="py-0">
+              <button className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <UserIcon className="w-4 h-4" />
                 Profile
               </button>
-              <button className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+              <button className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <Cog6ToothIcon className="w-4 h-4" />
                 Settings
               </button>
             </div>
 
             {/* Sign Out */}
-            <div className="border-t border-gray-100 dark:border-gray-700 pt-1">
+      <div id="user-menu-divider" className="border-t border-gray-100 dark:border-gray-700">
               <button
                 onClick={handleSignOut}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md"
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-300 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/35"
               >
                 <ArrowRightOnRectangleIcon className="w-4 h-4" />
                 Sign out

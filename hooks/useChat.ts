@@ -92,7 +92,7 @@ export function useChat(): UseChatReturn {
         total_tokens: data.usage?.total_tokens
       });
 
-      type ChatResponseWithReasoning = { reasoning?: string; reasoning_details?: Record<string, unknown> };
+      type ChatResponseWithReasoning = { reasoning?: string; reasoning_details?: Record<string, unknown>[] };
       const respWithReasoning = data as ChatResponseWithReasoning;
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -108,7 +108,7 @@ export function useChat(): UseChatReturn {
         contentType: data.contentType || "text",
         completion_id: data.id,
         reasoning: typeof respWithReasoning.reasoning === 'string' ? respWithReasoning.reasoning : undefined,
-        reasoning_details: respWithReasoning.reasoning_details && typeof respWithReasoning.reasoning_details === 'object' ? respWithReasoning.reasoning_details : undefined,
+        reasoning_details: respWithReasoning.reasoning_details && Array.isArray(respWithReasoning.reasoning_details) ? respWithReasoning.reasoning_details : undefined,
       };
 
       console.log('Created assistant message:', assistantMessage);
@@ -156,16 +156,8 @@ export function useChat(): UseChatReturn {
         msg.id === userMessage.id ? { ...msg, error: true } : msg
       ));
       
-      // For development: Add a mock response when backend is not available
-      if (chatError.code === "network_error") {
-        const mockResponse: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          content: "I'm currently not available. The backend API is being developed by Gemini CLI. Please check back later!",
-          role: "assistant",
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, mockResponse]);
-      }
+  // Note: We no longer add a mock assistant message on errors.
+  // The ErrorDisplay banner handles user-facing error feedback.
     } finally {
       setIsLoading(false);
     }

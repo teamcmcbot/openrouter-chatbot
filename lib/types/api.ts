@@ -12,6 +12,9 @@ export interface ApiError {
   timestamp: string;
   retryAfter?: number; // For rate limiting errors
   suggestions?: string[]; // Helpful suggestions for the user
+  // Optional: structured upstream error info (e.g., from OpenRouter)
+  upstreamErrorCode?: number | string;
+  upstreamErrorMessage?: string;
 }
 
 export type ErrorCategory = 'rate_limit' | 'validation' | 'server' | 'network' | 'unknown';

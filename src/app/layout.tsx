@@ -106,15 +106,16 @@ export default function RootLayout({
                 </div>
               </nav>
               <MainContainer>{children}</MainContainer>
-                <footer className="hidden sm:block border-t border-slate-200 bg-slate-100 dark:border-gray-800 dark:bg-gray-900 flex-shrink-0">
-                <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+              {/* Footer: explicit height to match --footer-height for precise layout math at sm+ */}
+              <footer className="hidden sm:flex h-[var(--footer-height)] border-t border-slate-200 bg-slate-100 dark:border-gray-800 dark:bg-gray-900 flex-shrink-0 items-center">
+                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
                   <div className="text-center text-sm text-slate-600 dark:text-gray-400">
                     <p>
-                    &copy; 2025 {process.env.BRAND_NAME || "OpenRouter Chatbot"}. Powered by OpenRouter AI.
+                      &copy; 2025 {process.env.BRAND_NAME || "OpenRouter Chatbot"}. Powered by OpenRouter AI.
                     </p>
                   </div>
                 </div>
-                </footer>
+              </footer>
             </div>
             <ThemeInitializer />
             </ThemeProvider>

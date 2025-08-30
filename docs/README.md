@@ -6,22 +6,29 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 
 ### Architecture Documentation (`/architecture/`)
 
+- **[streaming-chat-architecture.md](./architecture/streaming-chat-architecture.md)** - Comprehensive streaming chat implementation architecture
 - **[redis-rate-limiting.md](./architecture/redis-rate-limiting.md)** - Redis-based rate limiting system architecture
+- **[chat-history-pagination-and-lazy-loading.md](./architecture/chat-history-pagination-and-lazy-loading.md)** - Conversation pagination and lazy message loading design
 - Technical design documents and system architecture guides
 
 ### API Documentation (`/api/`)
 
+- **[streaming-chat-api.md](./api/streaming-chat-api.md)** - Streaming chat API endpoint documentation and integration guide
 - **[rate-limiting.md](./api/rate-limiting.md)** - API rate limiting behavior, headers, and client integration
+- **[chat-sync.md](./api/chat-sync.md)** - Conversation sync and paginated listing API
+- **[chat-messages.md](./api/chat-messages.md)** - Messages fetch/persist API for a conversation
 
 ### Operations Documentation (`/ops/`)
 
 - **[redis-rate-limiting-setup.md](./ops/redis-rate-limiting-setup.md)** - Redis setup guide for development and production
 - **[redis-rate-limiting-troubleshooting.md](./ops/redis-rate-limiting-troubleshooting.md)** - Troubleshooting guide for Redis rate limiting
+- **[supabase-setup.md](./ops/supabase-setup.md)** - Supabase setup: apply schema, create bucket, expose `storage` schema
 - Deployment guides and operational procedures
 
 ### Component Documentation (`/components/`)
 
 - React component usage guides and examples
+- **[ChatSidebar.md](./components/ChatSidebar.md)** - Sidebar pagination and click-to-load behavior
 
 ### Database Documentation (`/database/`)
 
@@ -29,6 +36,11 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 
 ### Other Guides
 
+- **[feature-matrix.md](./feature-matrix.md)** - Comprehensive feature comparison and capabilities overview
+- **[streaming-implementation-summary.md](./streaming-implementation-summary.md)** - Streaming feature implementation status and testing guide
+- **[tiered-rate-limiting-completion-summary.md](./tiered-rate-limiting-completion-summary.md)** - Tiered rate limiting rollout summary
+- **[reasoning-fixes-summary.md](./reasoning-fixes-summary.md)** - Reasoning data flow fixes and validation
+- **[reasoning-empty-array-fix.md](./reasoning-empty-array-fix.md)** - Fix for reasoning display with empty arrays
 - **[security-review.md](./security-review.md)** - Security implementation review including rate limiting
 - **[user-settings-guide.md](./user-settings-guide.md)** - User settings and preferences
 - **[subscription-tier-access.md](./subscription-tier-access.md)** - Subscription tiers and access control
@@ -37,20 +49,23 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 
 ### For Developers
 
-1. **Set up Rate Limiting**: Follow [redis-rate-limiting-setup.md](./ops/redis-rate-limiting-setup.md)
-2. **Understand Security**: Review [security-review.md](./security-review.md)
-3. **Architecture Overview**: Read [redis-rate-limiting.md](./architecture/redis-rate-limiting.md)
+1. **Streaming Architecture**: Understand real-time chat in [streaming-chat-architecture.md](./architecture/streaming-chat-architecture.md)
+2. **Streaming API**: Integration guide in [streaming-chat-api.md](./api/streaming-chat-api.md)
+3. **Set up Rate Limiting**: Follow [redis-rate-limiting-setup.md](./ops/redis-rate-limiting-setup.md)
+4. **Understand Security**: Review [security-review.md](./security-review.md)
 
 ### For API Consumers
 
-1. **Rate Limiting**: Understand limits and headers in [rate-limiting.md](./api/rate-limiting.md)
-2. **Troubleshooting**: Common issues in [redis-rate-limiting-troubleshooting.md](./ops/redis-rate-limiting-troubleshooting.md)
+1. **Streaming Chat**: Real-time responses with [streaming-chat-api.md](./api/streaming-chat-api.md)
+2. **Rate Limiting**: Understand limits and headers in [rate-limiting.md](./api/rate-limiting.md)
+3. **Troubleshooting**: Common issues in [redis-rate-limiting-troubleshooting.md](./ops/redis-rate-limiting-troubleshooting.md)
 
 ### For Operations
 
 1. **Deployment**: Setup instructions in [redis-rate-limiting-setup.md](./ops/redis-rate-limiting-setup.md)
 2. **Monitoring**: Troubleshooting guide in [redis-rate-limiting-troubleshooting.md](./ops/redis-rate-limiting-troubleshooting.md)
 3. **Security**: Review [security-review.md](./security-review.md)
+4. **Supabase**: Follow [supabase-setup.md](./ops/supabase-setup.md) and ensure `storage` is in Exposed schemas (Data API)
 
 ## 🛡️ Rate Limiting System
 
@@ -87,6 +102,11 @@ The application implements comprehensive Redis-based rate limiting:
 - **[phase3-completion-summary.md](./phase3-completion-summary.md)** - Phase 3 implementation summary
 - **[serverless-caching-completion-summary.md](./serverless-caching-completion-summary.md)** - Caching implementation
 - **[session-title-optimization.md](./session-title-optimization.md)** - Session title optimization
+- **[frontend-rate-limiting-fixes-completion-summary.md](./frontend-rate-limiting-fixes-completion-summary.md)** - Frontend rate limiting fixes
+
+### Store Documentation (`/stores/`)
+
+- **[useChatStore.md](./stores/useChatStore.md)** - Chat store state, pagination, and lazy-loading actions
 
 ## 🔍 Finding Documentation
 

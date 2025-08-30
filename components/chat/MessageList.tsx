@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { ChatMessage } from "../../lib/types/chat";
 import { formatMessageTime } from "../../lib/utils/dateFormat";
+import { detectMarkdownContent } from "../../lib/utils/markdown";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { 
   CustomCodeBlock, 
@@ -47,11 +48,38 @@ interface MessageListProps {
   hoveredGenerationId?: string;
   scrollToCompletionId?: string; // Add scroll trigger prop
   onPromptSelect?: (prompt: string) => void;
+  // Streaming support
+  isStreaming?: boolean;
+  streamingContent?: string;
+  // NEW: Real-time reasoning support
+  streamingReasoning?: string;
+  streamingReasoningDetails?: Record<string, unknown>[];
+  // NEW: Real-time annotations support
+  streamingAnnotations?: Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>;
+  // NEW: Reasoning enablement state for conditional display
+  reasoningEnabled?: boolean;
 }
 
-export default function MessageList({ messages, isLoading, onModelClick, hoveredGenerationId, scrollToCompletionId, onPromptSelect }: Readonly<MessageListProps>) {
+export default function MessageList({ 
+  messages, 
+  isLoading, 
+  onModelClick, 
+  hoveredGenerationId, 
+  scrollToCompletionId, 
+  onPromptSelect,
+  // Streaming props
+  isStreaming = false,
+  streamingContent = '',
+  streamingReasoning = '', // NEW: Real-time reasoning
+  streamingReasoningDetails = [], // NEW: Real-time reasoning details
+  streamingAnnotations = [], // NEW: Real-time annotations
+  reasoningEnabled = false, // NEW: Reasoning enablement state for conditional display
+}: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const streamingReasoningRef = useRef<HTMLDivElement>(null);
+  // NEW: track which pane should own auto-scroll during streaming
+  const [streamingScrollTarget, setStreamingScrollTarget] = useState<"reasoning" | "content" | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
   const [lightbox, setLightbox] = useState<{ open: boolean; url?: string; alt?: string }>(() => ({ open: false }));
@@ -111,6 +139,48 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
 
+  // Streaming scroll owner selection
+  useEffect(() => {
+    if (!isStreaming) {
+      // Reset when stream completes
+      setStreamingScrollTarget(null);
+      return;
+    }
+    // If content has started, content takes over permanently for this stream
+    if (isStreaming && streamingContent && streamingContent.length > 0) {
+      setStreamingScrollTarget("content");
+      return;
+    }
+    // Otherwise, fall back to reasoning if we have any reasoning text
+    if (isStreaming && (!streamingScrollTarget || streamingScrollTarget === null) && streamingReasoning && streamingReasoning.length > 0) {
+      setStreamingScrollTarget("reasoning");
+    }
+  }, [isStreaming, streamingContent, streamingReasoning, streamingScrollTarget]);
+
+  // Auto-scroll streaming reasoning to bottom (only when reasoning is the active target)
+  useEffect(() => {
+    if (
+      isStreaming &&
+      streamingScrollTarget === "reasoning" &&
+      streamingReasoning &&
+      streamingReasoningRef.current
+    ) {
+      streamingReasoningRef.current.scrollTop = streamingReasoningRef.current.scrollHeight;
+    }
+  }, [isStreaming, streamingReasoning, streamingScrollTarget]);
+
+  // Auto-scroll main container to bottom while content streams (takes over once any content arrives)
+  useEffect(() => {
+    if (isStreaming && streamingScrollTarget === "content" && streamingContent && messagesContainerRef.current) {
+      // Use a micro-delay to ensure DOM has painted the latest chunk
+      const id = window.setTimeout(() => {
+        const el = messagesContainerRef.current!;
+        el.scrollTop = el.scrollHeight - el.clientHeight;
+      }, 0);
+      return () => window.clearTimeout(id);
+    }
+  }, [isStreaming, streamingContent, streamingScrollTarget]);
+
   const handleOpenImage = async (attachmentId: string, alt?: string) => {
     try {
       const url = await fetchSignedUrl(attachmentId);
@@ -138,6 +208,7 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
   return (
     <div 
       ref={messagesContainerRef}
+  data-testid="messages-container"
   className="h-full overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 scroll-smooth"
     >
       <div className="space-y-4">
@@ -216,20 +287,12 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                   </span>
                 )}
                 
-                {/* Message Content - Conditional Markdown Rendering */}
-                {message.contentType === "markdown" ? (
-                  <div className="markdown-content">
-                    <MemoizedMarkdown>
-                      {message.content}
-                    </MemoizedMarkdown>
-                  </div>
-                ) : (
-                  <p className="whitespace-pre-wrap">{message.content}</p>
-                )}
-
-                {/* Reasoning (assistant) - collapsed by default */}
-                {message.role === "assistant" && (message.reasoning || message.reasoning_details) && (
-                  <div className="mt-2 border rounded-md bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300/80 dark:border-yellow-700/60">
+                {/* Reasoning (assistant) - show before content for better UX */}
+                {message.role === "assistant" && (
+                  (typeof message.reasoning === 'string' && message.reasoning.trim().length > 0) ||
+                  (Array.isArray(message.reasoning_details) && message.reasoning_details.length > 0)
+                ) && (
+                  <div className="mb-3 border rounded-md bg-slate-50/80 dark:bg-slate-800/20 border-slate-300/80 dark:border-slate-500/60 shadow-sm backdrop-blur-sm">
                     <button
                       type="button"
                       aria-expanded={expandedReasoning.has(message.id)}
@@ -240,31 +303,46 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                           return next;
                         });
                       }}
-                      className="w-full text-left px-2 py-1 flex items-center justify-between hover:bg-yellow-100/70 dark:hover:bg-yellow-900/40 rounded-t-md"
+                      className="w-full text-left px-3 py-2 flex items-center justify-between hover:bg-slate-100/60 dark:hover:bg-slate-700/30 rounded-t-md transition-all duration-200"
                     >
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-900 dark:text-yellow-100">
+                      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                          <path d="M10 2a6 6 0 00-3.832 10.59c.232.186.332.49.245.776l-.451 1.486a1 1 0 001.265 1.265l1.486-.451c.286-.087.59.013.776.245A6 6 0 1010 2z" />
+                          <path d="M10 2a3 3 0 00-3 3v1.5a1.5 1.5 0 01-1.5 1.5v1a1.5 1.5 0 001.5 1.5V12a3 3 0 106 0v-1.5A1.5 1.5 0 0114.5 9V8A1.5 1.5 0 0113 6.5V5a3 3 0 00-3-3zM6.5 15.5a1 1 0 011-1h5a1 1 0 110 2h-5a1 1 0 01-1-1zM8 17a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
                         </svg>
-                        Reasoning
+                        AI Reasoning
                       </span>
-                      <span className="text-[11px] text-yellow-900/80 dark:text-yellow-200/80">
-                        {expandedReasoning.has(message.id) ? 'Hide' : 'Show'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          {expandedReasoning.has(message.id) ? 'Hide' : 'Show'} process
+                        </span>
+                        <svg 
+                          className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 ${expandedReasoning.has(message.id) ? 'rotate-180' : ''}`}
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
                     </button>
                     {expandedReasoning.has(message.id) && (
-                      <div className="px-2 pb-2 pt-1 border-t border-yellow-300/60 dark:border-yellow-800/60 text-yellow-950 dark:text-yellow-50">
+                      <div className="px-3 pb-3 pt-2 border-t border-slate-300/60 dark:border-slate-500/40 text-slate-800 dark:text-slate-200">
                         {typeof message.reasoning === 'string' && message.reasoning.trim().length > 0 && (
-                          <div className="prose prose-sm max-w-none dark:prose-invert">
+                          <div className="prose prose-sm prose-slate dark:prose-invert max-w-none max-h-32 overflow-y-auto scroll-smooth">
                             <MemoizedMarkdown>
                               {message.reasoning}
                             </MemoizedMarkdown>
                           </div>
                         )}
-                        {message.reasoning_details && (
-                          <details className="mt-2">
-                            <summary className="cursor-pointer text-xs text-yellow-900/80 dark:text-yellow-200/90">Details</summary>
-                            <pre className="mt-1 text-[11px] whitespace-pre-wrap break-words p-2 rounded bg-yellow-100/70 dark:bg-yellow-900/40 border border-yellow-300/60 dark:border-yellow-800/60 overflow-x-auto">
+                        {message.reasoning_details && Array.isArray(message.reasoning_details) && message.reasoning_details.length > 0 && (
+                          <details className="mt-3">
+                            <summary className="cursor-pointer text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                              <span>Technical Details</span>
+                              <span className="text-xs bg-slate-200/60 dark:bg-slate-700/60 px-2 py-0.5 rounded">
+                                {message.reasoning_details.length} steps
+                              </span>
+                            </summary>
+                            <pre className="mt-2 text-xs whitespace-pre-wrap break-words p-3 rounded bg-slate-100/70 dark:bg-slate-800/50 border border-slate-300/70 dark:border-slate-500/50 overflow-x-auto">
 {JSON.stringify(message.reasoning_details, null, 2)}
                             </pre>
                           </details>
@@ -273,6 +351,19 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                     )}
                   </div>
                 )}
+                
+                {/* Message Content - Conditional rendering based on contentType */}
+                <div className="markdown-content">
+                  {message.contentType === "markdown" ? (
+                    <MemoizedMarkdown>
+                      {message.content}
+                    </MemoizedMarkdown>
+                  ) : (
+                    <p className="whitespace-pre-wrap">
+                      {message.content}
+                    </p>
+                  )}
+                </div>
 
                 {/* Linked image attachments (history and recent) */}
                 {message.has_attachments && Array.isArray(message.attachment_ids) && message.attachment_ids.length > 0 && (
@@ -313,14 +404,13 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
                             >
                               {/* Favicon (32x32, contrasting border) */}
                               {favicon ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
+                                <Image
                                   src={favicon}
                                   alt=""
                                   width={32}
                                   height={32}
                                   className="mt-0.5 h-8 w-8 rounded bg-white dark:bg-gray-900 border border-black/40 dark:border-white/60 shadow-sm flex-shrink-0"
-                                  loading="lazy"
+                                  unoptimized
                                 />
                               ) : (
                                 <span className="mt-0.5 h-8 w-8 rounded bg-gray-300 dark:bg-gray-600 border border-black/40 dark:border-white/60 inline-block flex-shrink-0" aria-hidden="true" />
@@ -428,20 +518,195 @@ export default function MessageList({ messages, isLoading, onModelClick, hovered
           </div>
         ))}
 
-        {/* Loading indicator */}
-        {isLoading && (
+        {/* Streaming content with reasoning */}
+        {isStreaming && (streamingContent || (reasoningEnabled && streamingReasoning) || (!reasoningEnabled && streamingReasoning.length > 0)) && (
           <div className="flex justify-start">
-            <div className="flex w-full sm:max-w-[70%]">
+            <div className="flex w-full sm:max-w-[90%] lg:max-w-[85%] xl:max-w-[80%]">
               {/* Avatar - Hidden on mobile (< sm breakpoint) */}
               <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 items-center justify-center text-sm font-medium mr-3">
                 AI
               </div>
-              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 sm:flex-initial border border-slate-200/80 dark:border-white/10 shadow-sm">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                </div>
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 sm:px-4 py-2 flex-1 border border-slate-200/80 dark:border-white/10 shadow-sm">
+                
+                {/* ENHANCED: Conditional streaming reasoning section */}
+                {isStreaming && reasoningEnabled && (
+                  <div className="mb-3 border rounded-md bg-slate-50/80 dark:bg-slate-800/20 border-slate-300/80 dark:border-slate-500/60 shadow-sm backdrop-blur-sm">
+                    <div className="w-full text-left px-3 py-2 rounded-t-md">
+                      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-slate-500 rounded-full animate-pulse"></div>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                            <path d="M10 2a3 3 0 00-3 3v1.5a1.5 1.5 0 01-1.5 1.5v1a1.5 1.5 0 001.5 1.5V12a3 3 0 106 0v-1.5A1.5 1.5 0 0114.5 9V8A1.5 1.5 0 0113 6.5V5a3 3 0 00-3-3zM6.5 15.5a1 1 0 011-1h5a1 1 0 110 2h-5a1 1 0 01-1-1zM8 17a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                          </svg>
+                          {streamingReasoning ? 'AI Thinking...' : 'Processing...'}
+                        </div>
+                      </span>
+                    </div>
+                    
+                    {/* ENHANCED: Always show reasoning content area, even if empty initially */}
+                    <div className="px-3 pb-3 pt-2 border-t border-slate-300/60 dark:border-slate-500/40 text-slate-800 dark:text-slate-200">
+                      {streamingReasoning ? (
+                        <div ref={streamingReasoningRef} data-testid="streaming-reasoning" className="prose prose-sm prose-slate dark:prose-invert max-w-none max-h-32 overflow-y-auto scroll-smooth">
+                          <MemoizedMarkdown>
+                            {streamingReasoning}
+                          </MemoizedMarkdown>
+                          <span className="inline-block ml-1 animate-pulse text-slate-600 dark:text-slate-400">▋</span>
+                        </div>
+                      ) : (
+                        <div className="text-slate-600 dark:text-slate-400 text-sm italic">
+                          Initializing AI reasoning...
+                        </div>
+                      )}
+                      
+                      {/* ENHANCED: Only show details when there's actual content */}
+                      {streamingReasoningDetails.length > 0 && (
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                            <span>Reasoning Details</span>
+                            <span className="text-xs bg-slate-200/60 dark:bg-slate-700/60 px-2 py-0.5 rounded">
+                              {streamingReasoningDetails.length} chunks
+                            </span>
+                          </summary>
+                          <pre className="mt-2 text-xs whitespace-pre-wrap break-words p-3 rounded bg-slate-100/70 dark:bg-slate-800/50 border border-slate-300/70 dark:border-slate-500/50 overflow-x-auto">
+{JSON.stringify(streamingReasoningDetails, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* NEW: Handle models that send reasoning anyway (after first chunk) */}
+                {isStreaming && !reasoningEnabled && streamingReasoning.length > 0 && (
+                  <div className="mb-3 border rounded-md bg-slate-50/80 dark:bg-slate-800/20 border-slate-300/80 dark:border-slate-500/60 shadow-sm backdrop-blur-sm">
+                    <div className="w-full text-left px-3 py-2 rounded-t-md">
+                      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <div className="flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                            <path d="M10 2a3 3 0 00-3 3v1.5a1.5 1.5 0 01-1.5 1.5v1a1.5 1.5 0 001.5 1.5V12a3 3 0 106 0v-1.5A1.5 1.5 0 0114.5 9V8A1.5 1.5 0 0113 6.5V5a3 3 0 00-3-3zM6.5 15.5a1 1 0 011-1h5a1 1 0 110 2h-5a1 1 0 01-1-1zM8 17a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                          </svg>
+                          Technical Details
+                        </div>
+                      </span>
+                    </div>
+                    
+                    <div className="px-3 pb-3 pt-2 border-t border-slate-300/60 dark:border-slate-500/40 text-slate-800 dark:text-slate-200">
+                      <div ref={streamingReasoningRef} data-testid="streaming-reasoning" className="prose prose-sm prose-slate dark:prose-invert max-w-none max-h-32 overflow-y-auto scroll-smooth">
+                        <MemoizedMarkdown>
+                          {streamingReasoning}
+                        </MemoizedMarkdown>
+                        <span className="inline-block ml-1 animate-pulse text-slate-600 dark:text-slate-400">▋</span>
+                      </div>
+                      
+                      {/* Show details when there's actual content */}
+                      {streamingReasoningDetails.length > 0 && (
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                            <span>Reasoning Details</span>
+                            <span className="text-xs bg-slate-200/60 dark:bg-slate-700/60 px-2 py-0.5 rounded">
+                              {streamingReasoningDetails.length} chunks
+                            </span>
+                          </summary>
+                          <pre className="mt-2 text-xs whitespace-pre-wrap break-words p-3 rounded bg-slate-100/70 dark:bg-slate-800/50 border border-slate-300/70 dark:border-slate-500/50 overflow-x-auto">
+{JSON.stringify(streamingReasoningDetails, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* ENHANCED: Streaming content section */}
+                {isStreaming && streamingContent && (
+                  <div className="content-section markdown-content">
+                    {detectMarkdownContent(streamingContent) ? (
+                      <div className="streaming-markdown">
+                        <MemoizedMarkdown>{streamingContent}</MemoizedMarkdown>
+                        <span className="inline-block ml-1 animate-pulse text-blue-500">▋</span>
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap">
+                        {streamingContent}
+                        <span className="inline-block ml-1 animate-pulse text-blue-500">▋</span>
+                      </div>
+                    )}
+                    
+                    {/* NEW: Streaming URL Citations (Sources) - show while streaming */}
+                    {Array.isArray(streamingAnnotations) && streamingAnnotations.length > 0 && (
+                      <div className="mt-3 border-t border-black/10 dark:border-white/10 pt-2 overflow-x-hidden max-w-full">
+                        <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Sources</div>
+                        <ul className="space-y-1.5 max-w-full overflow-x-hidden">
+                          {streamingAnnotations.map((ann, i) => {
+                            const host = getDomainFromUrl(ann.url) || ann.url;
+                            const favicon = getFaviconUrl(ann.url, 32);
+                            const title = ann.title?.trim() || host;
+                            return (
+                              <li key={`streaming-ann-${i}`} className="w-full max-w-full min-w-0">
+                                <a
+                                  href={ann.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer nofollow"
+                                  className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-xs group min-w-0 max-w-full"
+                                >
+                                  <Image
+                                    src={favicon || `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23e5e7eb'/></svg>`}
+                                    alt=""
+                                    width={16}
+                                    height={16}
+                                    className="w-4 h-4 rounded-sm bg-white dark:bg-gray-700 flex-shrink-0"
+                                    unoptimized
+                                  />
+                                  <span className="truncate min-w-0 flex-1 text-blue-700 dark:text-blue-300 group-hover:text-blue-800 dark:group-hover:text-blue-200">
+                                    {title}
+                                  </span>
+                                  <svg className="w-3 h-3 text-blue-500 dark:text-blue-400 opacity-70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                </a>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Compact loading indicator for streaming (before content appears) */}
+        {isStreaming && !streamingContent && !(reasoningEnabled && streamingReasoning) && !(!reasoningEnabled && streamingReasoning.length > 0) && (
+          <div className="flex justify-start">
+            <div className="flex items-center">
+              {/* Avatar - Hidden on mobile (< sm breakpoint) */}
+              <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 items-center justify-center text-sm font-medium mr-3">
+                AI
+              </div>
+              {/* Compact 3-dot loading animation */}
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Compact loading indicator for non-streaming */}
+        {isLoading && !isStreaming && (
+          <div className="flex justify-start">
+            <div className="flex items-center">
+              {/* Avatar - Hidden on mobile (< sm breakpoint) */}
+              <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 items-center justify-center text-sm font-medium mr-3">
+                AI
+              </div>
+              {/* Compact 3-dot loading animation */}
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
               </div>
             </div>
           </div>
