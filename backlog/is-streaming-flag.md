@@ -355,7 +355,7 @@ Phases are small and sequential. Each sub-task includes a brief verification ste
   - Run production build; ensure no type or lint errors.
   - Verification: Build completes successfully.
 
-- [ ] Manual QA (per .github/tasks.md)
+- [x] Manual QA (per .github/tasks.md)
 
   - Run full scenario including anonymous → sign-in → sync; ensure messages persist and session aggregates reflect all pairs.
   - Verification: No DB errors; GET /api/chat/sync shows all messages; message*count/last*\* accurate.

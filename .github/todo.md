@@ -3,7 +3,7 @@ Chatbot todo:
 - [x] Error banner styling
 - [ ] Chat history, load more
 - [ ] Is active handling, client only?
-- [ ] Chat messages is streaming db
+- [x] Chat messages is streaming db
 - [ ] Conversation syncing brainstorm, multi-sessions, multi-device, account sharing.. etc
 - [ ] Admin analytics, models usage, users usage, chat messages errors, new users sign up
 - [ ] Anonymous user’s usage and analytics is not tracked.
