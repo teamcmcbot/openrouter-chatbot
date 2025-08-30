@@ -1,6 +1,7 @@
 // src/app/api/chat/sync/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
+import { coerceReasoningDetailsToArray } from '../../../../../lib/utils/reasoning';
 import { ChatMessage } from '../../../../../lib/types/chat';
 import type { OpenRouterUrlCitation } from '../../../../../lib/types/openrouter';
 import { withConversationOwnership } from '../../../../../lib/middleware/auth';
@@ -457,11 +458,7 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
             websearch_result_count: typeof message.websearch_result_count === 'number' ? message.websearch_result_count : 0,
             reasoning: typeof message.reasoning === 'string' ? message.reasoning : undefined,
             // Accept array or object; coerce object to single-element array to match ChatMessage type
-            reasoning_details: Array.isArray(message.reasoning_details)
-              ? (message.reasoning_details as unknown as Record<string, unknown>[])
-              : (message.reasoning_details && typeof message.reasoning_details === 'object'
-                  ? [message.reasoning_details as unknown as Record<string, unknown>]
-                  : undefined),
+            reasoning_details: coerceReasoningDetailsToArray(message.reasoning_details),
             annotations: annotationsByMessage[message.id] || [],
             has_attachments: Array.isArray(attachmentsByMessage[message.id]) && attachmentsByMessage[message.id].length > 0,
             attachment_ids: attachmentsByMessage[message.id] || [],

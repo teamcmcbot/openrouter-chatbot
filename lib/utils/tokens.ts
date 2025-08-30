@@ -153,6 +153,10 @@ export async function getModelTokenLimits(modelId?: string): Promise<TokenStrate
       // Hydrate from our own API and re-check the store
       try {
         await fetchModelsForStore();
+        // Verify store actually hydrated
+        if (!hasModelConfigsInStore()) {
+          console.warn('[Model Token Limits] Hydration from /api/models did not populate model configs. Falling back to conservative default.');
+        }
         const hydratedConfig = getModelConfigFromStore(modelId);
         if (hydratedConfig) {
           console.log(`[Model Token Limits] Hydrated from /api/models. Using ${hydratedConfig.description} with context ${hydratedConfig.context_length}`);

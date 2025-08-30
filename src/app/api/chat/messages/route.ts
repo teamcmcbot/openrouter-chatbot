@@ -1,6 +1,7 @@
 // src/app/api/chat/messages/route.ts
 import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { coerceReasoningDetailsToArray } from '../../../../../lib/utils/reasoning';
 import { ChatMessage } from '../../../../../lib/types/chat';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
@@ -118,17 +119,13 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
     }
 
     // Transform to frontend format (filter out system messages)
-    const formattedMessages = (messages || [])
+  const formattedMessages = (messages || [])
       .filter((m) => m.role === 'user' || m.role === 'assistant')
       .map((message: DbMessage) => {
         // Sanitize content type
         const contentType = message.content_type === 'markdown' ? 'markdown' : 'text';
         // Coerce reasoning_details into array when object
-        const reasoningDetails = Array.isArray(message.reasoning_details)
-          ? message.reasoning_details
-          : (message.reasoning_details && typeof message.reasoning_details === 'object'
-              ? [message.reasoning_details]
-              : undefined);
+  const reasoningDetails = coerceReasoningDetailsToArray(message.reasoning_details);
 
         // Extract requested_* options from metadata JSONB (if present)
         const md = (message.metadata && typeof message.metadata === 'object') ? message.metadata as Record<string, unknown> : {};
@@ -277,7 +274,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
   if (requestData.messages && Array.isArray(requestData.messages)) {
       // Process multiple messages atomically
       for (const message of requestData.messages) {
-    type MessageWithReasoning = ChatMessage & { reasoning?: string; reasoning_details?: Record<string, unknown> };
+  type MessageWithReasoning = ChatMessage & { reasoning?: string; reasoning_details?: Record<string, unknown>[] };
     const mwr = message as MessageWithReasoning;
     const { data: newMessage, error: messageError } = await supabase
           .from('chat_messages')
@@ -295,7 +292,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
             completion_id: message.completion_id || null,
             user_message_id: message.user_message_id || null,
       reasoning: mwr.reasoning || null,
-      reasoning_details: mwr.reasoning_details || null,
+  reasoning_details: mwr.reasoning_details || null,
       has_websearch: message.has_websearch ?? false,
       websearch_result_count: message.websearch_result_count ?? 0,
             metadata: {
@@ -328,7 +325,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
   } else if (requestData.message) {
       // Process single message (existing logic)
       const message = requestData.message;
-    type MessageWithReasoning = ChatMessage & { reasoning?: string; reasoning_details?: Record<string, unknown> };
+  type MessageWithReasoning = ChatMessage & { reasoning?: string; reasoning_details?: Record<string, unknown>[] };
     const mwr = message as MessageWithReasoning;
     const { data: newMessage, error: messageError } = await supabase
         .from('chat_messages')

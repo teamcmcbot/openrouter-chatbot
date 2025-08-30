@@ -260,7 +260,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       id?: string;
       model?: string;
       reasoning?: string;
-      reasoning_details?: Record<string, unknown>;
+      reasoning_details?: Record<string, unknown>[];
       annotations?: {
         type: 'url_citation';
         url: string;
