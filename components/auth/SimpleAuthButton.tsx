@@ -221,7 +221,7 @@ export function SimpleAuthButton() {
 
           {/* Dropdown menu */}
           {showMenu && (
-            <div className="absolute right-0 mt-2 w-64 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-50">
+            <div className="absolute right-0 mt-2 w-64 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-50">
             {/* Header with user info */}
             <div className="flex items-center gap-3 px-3 py-3 border-b border-gray-100 dark:border-gray-700">
               {avatar ? (
@@ -238,7 +238,7 @@ export function SimpleAuthButton() {
             </div>
 
             {/* Actions */}
-            <div className="py-1">
+            <div id="user-menu-actions" className="py-0">
               {/* 1) Chat - visible to all authenticated users */}
               <Link
                 href="/chat"
@@ -283,10 +283,10 @@ export function SimpleAuthButton() {
                 </Link>
               )}
 
-              <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
+              <div id="user-menu-divider" className="border-t border-gray-100 dark:border-gray-700" />
 
               <button
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/35"
                 onClick={async () => {
                   setShowMenu(false)
                   await handleSignOut()
