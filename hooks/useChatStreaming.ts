@@ -6,6 +6,7 @@ import { useChatStore } from '../stores/useChatStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useAuth, useAuthStore } from '../stores/useAuthStore';
 import { createLogger } from '../stores/storeUtils';
+import { isStreamingDebugEnabled, streamDebug } from '../lib/utils/streamDebug';
 import { checkRateLimitHeaders } from '../lib/utils/rateLimitNotifications';
 import { getModelTokenLimits } from '../lib/utils/tokens';
 
@@ -66,6 +67,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
   // Get user settings
   const settings = useSettingsStore();
   const streamingEnabled = Boolean(settings.getSetting('streamingEnabled', false));
+  const streamingDebug = isStreamingDebugEnabled();
   
   // console.log('🔴 STREAMING HOOK: streamingEnabled =', streamingEnabled);
   
@@ -104,7 +106,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       reasoning?: { effort?: 'low' | 'medium' | 'high' } 
     }
   ) => {
-    if (!content.trim() || storeIsLoading || isStreaming) {
+  if (!content.trim() || storeIsLoading || isStreaming) {
       logger.warn("Cannot send message: empty content or already loading");
       return;
     }
@@ -140,6 +142,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
     };
 
     if (streamingEnabled) {
+      if (streamingDebug) streamDebug('sendMessage: streaming path', { model, hasAttachments: !!options?.attachmentIds, web: options?.webSearch, max: options?.webMaxResults, effort: options?.reasoning?.effort });
       // console.log('🟢 STREAMING PATH: Taking streaming path - should see more logs');
       // Alert to force visibility
       // console.log('🔴 ALERT: Streaming path activated!');
@@ -200,6 +203,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
         });
 
         if (!response.ok) {
+          if (streamingDebug) streamDebug('sendMessage: non-ok response', response.status);
           // Handle rate limiting
           if (response.status === 429) {
             checkRateLimitHeaders(response);
@@ -209,7 +213,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
 
-        if (!response.body) {
+  if (!response.body) {
           throw new Error('No response body received');
         }
 
@@ -239,13 +243,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
           let buffer = '';
           
           while (true) {
-            const { done, value } = await reader.read();
+    const { done, value } = await reader.read();
             
             if (done) break;
             
             const chunk = decoder.decode(value, { stream: true });
-      // DEBUG: chunk snapshot (truncated)
-      try { logger.debug(`[STREAM-NORMAL] chunk len=${chunk.length}, head='${chunk.slice(0, 80).replace(/\n/g, '\\n')}'`); } catch {}
+  // DEBUG: chunk snapshot (truncated)
+  try { logger.debug(`[STREAM-NORMAL] chunk len=${chunk.length}, head='${chunk.slice(0, 80).replace(/\n/g, '\\n')}'`); } catch {}
+  if (streamingDebug) streamDebug('STREAM-NORMAL chunk', { len: chunk.length, head: chunk.slice(0, 80) });
             buffer += chunk;
             
             // Look for complete JSON lines (ending with newline)
@@ -257,10 +262,11 @@ export function useChatStreaming(): UseChatStreamingReturn {
               
               // Check for annotation chunks FIRST
               if (line.startsWith('__ANNOTATIONS_CHUNK__')) {
-                try {
+        try {
                   const annotationData = JSON.parse(line.replace('__ANNOTATIONS_CHUNK__', ''));
                   if (annotationData.type === 'annotations' && Array.isArray(annotationData.data)) {
         try { logger.debug(`[STREAM-NORMAL] annotations chunk count=${annotationData.data.length}`); } catch {}
+          if (streamingDebug) streamDebug('STREAM-NORMAL annotations chunk', annotationData.data.length);
                     // Accumulate and dedupe by URL (case-insensitive)
                     for (const ann of annotationData.data as Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>) {
                       if (!ann || typeof ann.url !== 'string') continue;
@@ -300,6 +306,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           reasoningAccum += reasoningData.data;
           setStreamingReasoning(prev => prev + reasoningData.data);
           try { logger.debug(`[STREAM-NORMAL] reasoning chunk head='${String(reasoningData.data).slice(0, 60).replace(/\n/g, ' ')}'`); } catch {}
+                      if (streamingDebug) streamDebug('STREAM-NORMAL reasoning chunk', String(reasoningData.data).slice(0, 60));
                       // logger.debug('🧠 Streaming reasoning chunk received:', reasoningData.data.substring(0, 100) + '...');
                     } else {
                       // logger.debug('🧠 Skipping empty reasoning chunk');
@@ -340,6 +347,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
                 if (potentialJson.__FINAL_METADATA__) {
                   finalMetadata = potentialJson.__FINAL_METADATA__;
                   try { logger.debug('[STREAM-NORMAL] final metadata received'); } catch {}
+                  if (streamingDebug) streamDebug('STREAM-NORMAL final metadata');
                   // Don't break here - continue reading to ensure stream is complete
                   continue;
                 }
@@ -358,27 +366,84 @@ export function useChatStreaming(): UseChatStreamingReturn {
             
             // Handle any remaining content in buffer (without newline)
             if (buffer && !finalMetadata) {
-              // Only attempt to parse standardized final metadata JSON; otherwise treat as content
               try { logger.debug(`[STREAM-NORMAL] buffer flush len=${buffer.length}, head='${buffer.slice(0, 80).replace(/\n/g, '\\n')}'`); } catch {}
+              if (streamingDebug) streamDebug('STREAM-NORMAL buffer flush', { len: buffer.length, head: buffer.slice(0, 80) });
+
+              // Marker-aware guard: don't leak partial marker lines into content
+              const startsWithReasoning = buffer.startsWith('__REASONING_CHUNK__');
+              const startsWithAnnotations = buffer.startsWith('__ANNOTATIONS_CHUNK__');
+
+              // First, attempt to parse final metadata JSON strictly
+              let handled = false;
               try {
                 const potentialJson = JSON.parse(buffer.trim());
                 if (potentialJson.__FINAL_METADATA__) {
                   finalMetadata = potentialJson.__FINAL_METADATA__;
-                } else {
-                  try {
-                    logger.debug(`[STREAM-NORMAL] buffer not JSON -> append; startsWithReasoning=${buffer.startsWith('__REASONING_CHUNK__')}, startsWithAnnotations=${buffer.startsWith('__ANNOTATIONS_CHUNK__')}`);
-                  } catch {}
-                  fullContent += buffer;
-                  setStreamingContent(fullContent);
+                  handled = true;
                 }
               } catch {
-                try {
-                  logger.debug(`[STREAM-NORMAL] buffer parse failed -> append; startsWithReasoning=${buffer.startsWith('__REASONING_CHUNK__')}, startsWithAnnotations=${buffer.startsWith('__ANNOTATIONS_CHUNK__')}`);
-                } catch {}
-                fullContent += buffer;
-                setStreamingContent(fullContent);
+                // ignore, may not be JSON
               }
-              buffer = '';
+
+              if (!handled && (startsWithReasoning || startsWithAnnotations)) {
+                // Try to parse complete marker payloads; if incomplete, keep buffer for next chunk
+                try {
+                  if (startsWithReasoning) {
+                    const reasoningData = JSON.parse(buffer.replace('__REASONING_CHUNK__', ''));
+                    if (reasoningData?.type === 'reasoning' && typeof reasoningData.data === 'string' && reasoningData.data.trim()) {
+                      reasoningAccum += reasoningData.data;
+                      setStreamingReasoning(prev => prev + reasoningData.data);
+                      handled = true;
+                    } else {
+                      // Incomplete or empty marker payload; keep buffer
+                    }
+                  } else if (startsWithAnnotations) {
+                    const annotationData = JSON.parse(buffer.replace('__ANNOTATIONS_CHUNK__', ''));
+                    if (annotationData?.type === 'annotations' && Array.isArray(annotationData.data)) {
+                      for (const ann of annotationData.data as Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>) {
+                        if (!ann || typeof ann.url !== 'string') continue;
+                        const key = ann.url.toLowerCase();
+                        const existing = annotationsMapRef.current.get(key);
+                        if (!existing) {
+                          annotationsMapRef.current.set(key, { ...ann, type: 'url_citation' });
+                        } else {
+                          annotationsMapRef.current.set(key, {
+                            type: 'url_citation',
+                            url: existing.url || ann.url,
+                            title: ann.title || existing.title,
+                            content: ann.content || existing.content,
+                            start_index: typeof ann.start_index === 'number' ? ann.start_index : existing.start_index,
+                            end_index: typeof ann.end_index === 'number' ? ann.end_index : existing.end_index,
+                          });
+                        }
+                      }
+                      setStreamingAnnotations(Array.from(annotationsMapRef.current.values()));
+                      handled = true;
+                    } else {
+                      // Incomplete marker payload; keep buffer
+                    }
+                  }
+                } catch {
+                  // Likely partial JSON; keep buffer for next iteration
+                }
+              }
+
+              if (!handled) {
+                // Safe to append only if not starting with known markers
+                if (!startsWithReasoning && !startsWithAnnotations) {
+                  try { logger.debug(`[STREAM-NORMAL] buffer appended as content`); } catch {}
+                  fullContent += buffer;
+                  setStreamingContent(fullContent);
+                  buffer = '';
+                } else {
+                  try { logger.debug(`[STREAM-NORMAL] buffer kept for next chunk due to marker start`); } catch {}
+                  if (streamingDebug) streamDebug('STREAM-NORMAL buffer kept');
+                  // Keep buffer untouched; wait for next chunk/newline
+                }
+              } else {
+                // Handled (metadata/marker parsed) -> clear buffer
+                buffer = '';
+              }
             }
           }
         } finally {
@@ -592,12 +657,13 @@ export function useChatStreaming(): UseChatStreamingReturn {
         abortControllerRef.current = null;
       }
     } else {
-      // Non-streaming path - delegate to existing store implementation
+  // Non-streaming path - delegate to existing store implementation
   const storeSendMessage = useChatStore.getState().sendMessage;
   await storeSendMessage(content, model, options);
     }
   }, [
     streamingEnabled,
+    streamingDebug,
     storeIsLoading,
     isStreaming,
     currentConversationId,
@@ -638,7 +704,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       reasoning?: { effort?: 'low' | 'medium' | 'high' };
     }
   ) => {
-    if (!content.trim() || storeIsLoading || isStreaming) {
+  if (!content.trim() || storeIsLoading || isStreaming) {
       logger.warn("Cannot retry message: empty content or already loading");
       return;
     }
@@ -686,6 +752,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
 
   // Force streaming regardless of current toggle when this path is chosen
   if (true) {
+      if (streamingDebug) streamDebug('retryMessageStreaming: streaming retry', { messageId, model });
       // Streaming path - reuse existing streaming logic
       setIsStreaming(true);
       setStreamingContent('');
@@ -779,12 +846,13 @@ export function useChatStreaming(): UseChatStreamingReturn {
 
     try {
           while (true) {
-            const { done, value } = await reader.read();
+    const { done, value } = await reader.read();
             if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
       // DEBUG: chunk snapshot (retry)
       try { logger.debug(`[STREAM-RETRY] chunk len=${chunk.length}, head='${chunk.slice(0, 80).replace(/\n/g, '\\n')}'`); } catch {}
+  if (streamingDebug) streamDebug('STREAM-RETRY chunk', { len: chunk.length, head: chunk.slice(0, 80) });
             buffer += chunk;
 
             // Look for complete JSON lines (ending with newline)
@@ -796,10 +864,11 @@ export function useChatStreaming(): UseChatStreamingReturn {
 
               // Check for annotation chunks FIRST
               if (line.startsWith('__ANNOTATIONS_CHUNK__')) {
-                try {
+        try {
                   const annotationData = JSON.parse(line.replace('__ANNOTATIONS_CHUNK__', ''));
                   if (annotationData.type === 'annotations' && Array.isArray(annotationData.data)) {
                     try { logger.debug(`[STREAM-RETRY] annotations chunk count=${annotationData.data.length}`); } catch {}
+          if (streamingDebug) streamDebug('STREAM-RETRY annotations chunk', annotationData.data.length);
                     // Accumulate and dedupe by URL (case-insensitive)
                     for (const ann of annotationData.data as Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>) {
                       if (!ann || typeof ann.url !== 'string') continue;
@@ -834,6 +903,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
                 try {
                   const reasoningData = JSON.parse(line.replace('__REASONING_CHUNK__', ''));
                   try { logger.debug(`[STREAM-RETRY] reasoning chunk head='${String(reasoningData.data).slice(0, 60).replace(/\n/g, ' ')}'`); } catch {}
+                  if (streamingDebug) streamDebug('STREAM-RETRY reasoning chunk', String(reasoningData.data).slice(0, 60));
                   if (reasoningData.type === 'reasoning') {
                     // Only process reasoning chunks with actual content
                     if (reasoningData.data && typeof reasoningData.data === 'string' && reasoningData.data.trim()) {
@@ -855,6 +925,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
                 if (potentialJson.__FINAL_METADATA__) {
                   finalMetadata = potentialJson.__FINAL_METADATA__;
                   try { logger.debug('[STREAM-RETRY] final metadata received'); } catch {}
+                  if (streamingDebug) streamDebug('STREAM-RETRY final metadata');
                   continue;
                 }
               } catch {
@@ -873,25 +944,74 @@ export function useChatStreaming(): UseChatStreamingReturn {
             // Handle any remaining content in buffer
             if (buffer && !finalMetadata) {
               try { logger.debug(`[STREAM-RETRY] buffer flush len=${buffer.length}, head='${buffer.slice(0, 80).replace(/\n/g, '\\n')}'`); } catch {}
+              if (streamingDebug) streamDebug('STREAM-RETRY buffer flush', { len: buffer.length, head: buffer.slice(0, 80) });
+
+              const startsWithReasoning = buffer.startsWith('__REASONING_CHUNK__');
+              const startsWithAnnotations = buffer.startsWith('__ANNOTATIONS_CHUNK__');
+              let handled = false;
+
+              // Final metadata JSON attempt
               try {
                 const potentialJson = JSON.parse(buffer.trim());
                 if (potentialJson.__FINAL_METADATA__) {
                   finalMetadata = potentialJson.__FINAL_METADATA__;
-                } else {
-                  try {
-                    logger.debug(`[STREAM-RETRY] buffer not JSON -> append; startsWithReasoning=${buffer.startsWith('__REASONING_CHUNK__')}, startsWithAnnotations=${buffer.startsWith('__ANNOTATIONS_CHUNK__')}`);
-                  } catch {}
-                  fullContent += buffer;
-                  setStreamingContent(fullContent);
+                  handled = true;
                 }
               } catch {
-                try {
-                  logger.debug(`[STREAM-RETRY] buffer parse failed -> append; startsWithReasoning=${buffer.startsWith('__REASONING_CHUNK__')}, startsWithAnnotations=${buffer.startsWith('__ANNOTATIONS_CHUNK__')}`);
-                } catch {}
-                fullContent += buffer;
-                setStreamingContent(fullContent);
+                // ignore
               }
-              buffer = '';
+
+              if (!handled && (startsWithReasoning || startsWithAnnotations)) {
+                try {
+                  if (startsWithReasoning) {
+                    const reasoningData = JSON.parse(buffer.replace('__REASONING_CHUNK__', ''));
+                    if (reasoningData?.type === 'reasoning' && typeof reasoningData.data === 'string' && reasoningData.data.trim()) {
+                      reasoningAccum += reasoningData.data;
+                      setStreamingReasoning(prev => prev + reasoningData.data);
+                      handled = true;
+                    }
+                  } else if (startsWithAnnotations) {
+                    const annotationData = JSON.parse(buffer.replace('__ANNOTATIONS_CHUNK__', ''));
+                    if (annotationData?.type === 'annotations' && Array.isArray(annotationData.data)) {
+                      for (const ann of annotationData.data as Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>) {
+                        if (!ann || typeof ann.url !== 'string') continue;
+                        const key = ann.url.toLowerCase();
+                        const existing = retryAnnotationsMap.get(key);
+                        if (!existing) {
+                          retryAnnotationsMap.set(key, { ...ann, type: 'url_citation' });
+                        } else {
+                          retryAnnotationsMap.set(key, {
+                            type: 'url_citation',
+                            url: existing.url || ann.url,
+                            title: ann.title || existing.title,
+                            content: ann.content || existing.content,
+                            start_index: typeof ann.start_index === 'number' ? ann.start_index : existing.start_index,
+                            end_index: typeof ann.end_index === 'number' ? ann.end_index : existing.end_index,
+                          });
+                        }
+                      }
+                      setStreamingAnnotations(Array.from(retryAnnotationsMap.values()));
+                      handled = true;
+                    }
+                  }
+                } catch {
+                  // Partial; keep buffer
+                }
+              }
+
+              if (!handled) {
+                if (!startsWithReasoning && !startsWithAnnotations) {
+                  try { logger.debug(`[STREAM-RETRY] buffer appended as content`); } catch {}
+                  fullContent += buffer;
+                  setStreamingContent(fullContent);
+                  buffer = '';
+                } else {
+                  try { logger.debug(`[STREAM-RETRY] buffer kept for next chunk due to marker start`); } catch {}
+                  // keep buffer
+                }
+              } else {
+                buffer = '';
+              }
             }
           }
         } finally {
@@ -1073,6 +1193,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
     currentConversationId,
     createConversation,
     getContextMessages,
+    streamingDebug,
   ]);
 
   const retryLastMessage = useCallback(async () => {

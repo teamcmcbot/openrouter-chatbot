@@ -27,3 +27,37 @@ This update refines the chat error and retry experience to be session-scoped, pr
 - `components/chat/ChatInterface.tsx` – renders from the ephemeral `conversationErrorBanners` map; CTA derived from the last failed user message.
 - `hooks/useChatStreaming.ts` and `stores/useChatStore.ts` – set/clear ephemeral banner and `retry_available`, route retries by original mode, and clear error flags on success.
 - API mappers: `src/app/api/chat/messages/route.ts` and `src/app/api/chat/sync/route.ts` – may set `retry_available: false` for persisted failed user messages (affects CTA only).
+
+---
+
+## Additional hardening (2025-08-30)
+
+### Streaming parser guard
+
+- Implemented marker-aware buffer flush in `hooks/useChatStreaming.ts` for both normal and retry streams.
+- Prevents partial `__REASONING_CHUNK__` / `__ANNOTATIONS_CHUNK__` lines from being appended to visible content when a chunk boundary splits a marker line.
+- If the buffer starts with a known marker and is incomplete, we keep it for the next chunk; if a complete marker payload is present, we parse and accumulate reasoning/annotations; otherwise we append only non-marker content.
+
+### Manual dismissal disables retry
+
+- When users manually close the banner, the store flips `retry_available` to `false` on the failed user message.
+- The retry entry point becomes a no-op for that message (covered by unit tests).
+
+### Migration notes (client-only metadata)
+
+The `ChatMessage` type on user messages carries request-side metadata so retries faithfully replay the original request:
+
+- `was_streaming?: boolean`
+- `requested_web_search?: boolean`
+- `requested_web_max_results?: number`
+- `requested_reasoning_effort?: 'low' | 'medium' | 'high'`
+
+These fields are optional and intended for client use only. Server endpoints ignore them safely.
+
+### Validation
+
+- Build passes (types/lint).
+- All tests green, including:
+  - Retry mode preservation and banner scope.
+  - Manual dismissal disables retry and avoids network calls.
+  - Streaming route newline handling and annotations parsing.

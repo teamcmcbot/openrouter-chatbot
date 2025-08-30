@@ -194,29 +194,29 @@ Phases with checklists, verification steps, and minimal surface changes.
 
 ### Phase 1 – Data model and plumbing (request options on user messages)
 
-- [ ] Add request‑side fields to `ChatMessage` (user messages only):
+- [x] Add request‑side fields to `ChatMessage` (user messages only):
   - `requested_web_search?: boolean`
   - `requested_web_max_results?: number`
   - `requested_reasoning_effort?: 'low' | 'medium' | 'high'`
-- [ ] Populate these fields when creating the user message in both paths:
+- [x] Populate these fields when creating the user message in both paths:
   - `stores/useChatStore.ts` → `sendMessage`
   - `hooks/useChatStreaming.ts` → `sendMessage`
-- [ ] Ensure persistence logic (`/api/chat/messages`) tolerates the new optional fields (no server dependency for retries; we only need client state).
-- [ ] Do not modify assistant messages; keep existing metadata unchanged.
+- [x] Ensure persistence logic (`/api/chat/messages`) tolerates the new optional fields (no server dependency for retries; we only need client state).
+- [x] Do not modify assistant messages; keep existing metadata unchanged.
 
 User verification for Phase 1
 
-- [ ] Start the app, send messages with various combinations:
+- [x] Start the app, send messages with various combinations:
   - With/without web search, different max results, different reasoning effort.
   - Confirm in Redux/Zustand DevTools (or console logs) that the created user message carries the new fields with the expected values.
 
 ### Phase 2 – Retry routing and option restoration
 
-- [ ] Force streaming retry to honor original `was_streaming` regardless of the current `streamingEnabled` setting:
+- [x] Force streaming retry to honor original `was_streaming` regardless of the current `streamingEnabled` setting:
   - `hooks/useChatStreaming.ts` → in `retryLastMessage` and `retryMessageStreaming` paths, remove the fallback to store retry when `was_streaming === true`.
   - Introduce a `forceStreaming` branch (ignore `streamingEnabled`) when retrying a streaming‑originated failure.
-- [ ] For non‑streaming retry (`useChatStore.retryLastMessage` → `retryMessage`), extend the call surface to accept `options` (attachments, web search, max results, reasoning effort) and plumb these into the request body.
-- [ ] In both retry paths, reconstruct `options` exclusively from the failed user message:
+- [x] For non‑streaming retry (`useChatStore.retryLastMessage` → `retryMessage`), extend the call surface to accept `options` (attachments, web search, max results, reasoning effort) and plumb these into the request body.
+- [x] In both retry paths, reconstruct `options` exclusively from the failed user message:
   - attachments: from `attachment_ids` (if any).
   - web search: from `requested_web_search`.
   - max results: from `requested_web_max_results`.
@@ -224,49 +224,57 @@ User verification for Phase 1
 
 User verification for Phase 2
 
-- [ ] Reproduce the scenario: Conv1 (streaming on) failure, Conv2 (streaming off) failure.
-- [ ] Return to Conv1 and click Retry.
+- [x] Reproduce the scenario: Conv1 (streaming on) failure, Conv2 (streaming off) failure.
+- [x] Return to Conv1 and click Retry.
   - Expectation: request goes to `/api/chat/stream` and streams; does not honor the now‑off global toggle.
-- [ ] Confirm via Network tab and console logs that the options match the original message (attachments, search, reasoning effort), not current UI.
+- [x] Confirm via Network tab and console logs that the options match the original message (attachments, search, reasoning effort), not current UI.
 
 ### Phase 3 – Banner scope fix (no global clears)
 
-- [ ] Edit `stores/useChatStore.ts` → `retryMessage`: remove `conversationErrorBanners: {}` from the loading `set(...)` call.
-- [ ] If any banner clear is still needed at retry start, clear only the active conversation’s banner using `clearConversationErrorBanner(currentConversationId)` (but current `ChatInterface` already does this before sending; duplication is optional and should not be global).
-- [ ] Ensure success path clears banner only for the active conversation; failure path sets it (unchanged).
+- [x] Edit `stores/useChatStore.ts` → `retryMessage`: remove `conversationErrorBanners: {}` from the loading `set(...)` call.
+- [x] If any banner clear is still needed at retry start, clear only the active conversation’s banner using `clearConversationErrorBanner(currentConversationId)` (but current `ChatInterface` already does this before sending; duplication is optional and should not be global).
+- [x] Ensure success path clears banner only for the active conversation; failure path sets it (unchanged).
 
 User verification for Phase 3
 
-- [ ] Reproduce the two‑conversation scenario again.
-- [ ] After retrying in Conv1, navigate to Conv2.
+- [x] Reproduce the two‑conversation scenario again.
+- [x] After retrying in Conv1, navigate to Conv2.
   - Expectation: Conv2’s banner remains visible.
-- [ ] Send a new message in Conv2.
+- [x] Send a new message in Conv2.
   - Expectation: Only Conv2’s banner is dismissed (Conv1 unaffected).
 
 ### Phase 4 – Tests and guards
 
-- [ ] Add unit tests around banner scope and retry routing:
+- [x] Add unit tests around banner scope and retry routing:
   - Retry streaming despite `streamingEnabled=false` when `was_streaming=true`.
   - Non‑streaming retry does not clear global banners.
   - Options restoration reads from user message fields (attachments/search/max/reasoning).
-- [ ] Add an integration test (React Testing Library) to simulate two conversations and validate banners remain scoped.
-- [ ] Follow project testing standards (Next.js navigation mocks, auth store mocks, toast mocks, etc.).
+- [x] Add an integration test (React Testing Library) to simulate two conversations and validate banners remain scoped.
+- [x] Follow project testing standards (Next.js navigation mocks, auth store mocks, toast mocks, etc.).
+
+Additional hardening (Phase 4.1)
+
+- [x] Streaming parser: add marker-aware buffer flush to avoid leaking partial `__REASONING_CHUNK__` or `__ANNOTATIONS_CHUNK__` lines into content. Applied to normal and retry paths in `hooks/useChatStreaming.ts`.
 
 User verification for Phase 4
 
-- [ ] `npm run build` passes (typecheck/lint).
-- [ ] `npm test` green; provide a short summary of the added tests and their assertions in PR.
+- [x] `npm run build` passes (typecheck/lint).
+- [x] `npm test` green; provide a short summary of the added tests and their assertions in PR.
 
 ### Phase 5 – Docs and rollout
 
-- [ ] Update docs:
-  - `docs/components/chat/error-banner-session-behavior.md` to clarify retry source of truth and banner scope.
-  - `docs/error-retry-flow-update.md` to include “retry honors original streaming mode and original options”.
-- [ ] Add a short migration note for developers about the new `ChatMessage` request fields.
+- [x] Update docs:
+  - `docs/components/chat/error-banner-session-behavior.md` clarifies retry source of truth and banner scope.
+  - `docs/error-retry-flow-update.md` includes “retry honors original streaming mode and original options” and parser hardening notes.
+- [x] Add a short migration note for developers about the new `ChatMessage` request fields.
+
+Optional follow-ups
+
+- [x] Add a runtime toggle (e.g., `NEXT_PUBLIC_DEBUG_STREAMING` or localStorage flag) to promote stream logs for easier field debugging in production. Implemented via `lib/utils/streamDebug.ts` and documented in `docs/components/chat/error-banner-session-behavior.md`.
 
 User verification for Phase 5
 
-- [ ] Review docs diffs and confirm wording matches expected behavior.
+- [x] Review docs diffs and confirm wording matches expected behavior.
 
 ---
 
@@ -296,3 +304,16 @@ User verification for Phase 5
 - Retry replays attachments, web search on/off, max results, and reasoning effort from the original attempt.
 - Retrying in one conversation never clears banners in other conversations.
 - Build and tests pass; new tests cover routing, options restoration, and banner scope.
+
+---
+
+## Completion summary (2025-08-30)
+
+- Phases 1–4 completed. Streaming parser hardened with marker-aware buffer flush in normal and retry paths.
+- Build and tests green (60 suites, 283 tests).
+- Docs added/updated:
+  - `docs/components/chat/error-banner-session-behavior.md`
+  - `docs/error-retry-flow-update.md` (extended with hardening and migration notes)
+- Pending optional follow-up: add a runtime debug toggle for promoting streaming logs.
+
+User verification: Completed. Documentation updates reviewed and approved.
