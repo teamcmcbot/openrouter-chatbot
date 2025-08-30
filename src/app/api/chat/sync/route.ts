@@ -129,31 +129,67 @@ async function syncHandler(request: NextRequest, authContext: AuthContext): Prom
 
         // Sync messages for this conversation
         if (conversation.messages && conversation.messages.length > 0) {
-          const messagesData = conversation.messages.map((message: ChatMessage) => ({
-            id: message.id, // Use original message ID
-            session_id: databaseId, // This is now the original conversation ID
-            role: message.role,
-            content: message.content,
-            model: message.model,
-            total_tokens: message.total_tokens || 0,
-            input_tokens: message.input_tokens || 0, // NEW: input token tracking
-            output_tokens: message.output_tokens || 0, // NEW: output token tracking
-            user_message_id: message.user_message_id || null, // NEW: user message linking
-            content_type: message.contentType || 'text', // New: content type
-            elapsed_ms: message.elapsed_ms || 0, // New: elapsed time (ms)
-            completion_id: message.completion_id || null, // New: completion ID
-            has_websearch: message.has_websearch ?? null,
-            websearch_result_count: message.websearch_result_count ?? null,
-            // Reasoning fields
-            reasoning: message.reasoning ?? null,
-            reasoning_details: message.reasoning_details ?? null,
-            message_timestamp: typeof message.timestamp === 'string'
-              ? message.timestamp
-              : message.timestamp?.toISOString() || new Date().toISOString(),
-            error_message: message.error ? 'Message failed' : undefined,
-            // Preserve original streaming mode used on client for this message
-            is_streaming: (message as ChatMessage).was_streaming === true
-          }));
+          const messagesData = conversation.messages.map((message: ChatMessage) => {
+            // Prefer originalModel for user messages when present (aligns with /api/chat/messages payloads)
+            const resolvedModel = message.model ?? (message.role === 'user' ? message.originalModel : undefined);
+
+            // Strictly sanitize content type
+            const contentType = message.contentType === 'markdown' ? 'markdown' : 'text';
+
+            // Websearch fields: assistant-only; never null
+            const hasWeb = message.role === 'assistant' ? Boolean(message.has_websearch) : false;
+            const webCount = message.role === 'assistant' && typeof message.websearch_result_count === 'number'
+              ? message.websearch_result_count
+              : 0;
+
+            // Attachment flags derived from attachment_ids or explicit has_attachments
+            const attCount = Array.isArray(message.attachment_ids) ? Math.min(Math.max(message.attachment_ids.length, 0), 3) : 0;
+            const hasAtts = typeof message.has_attachments === 'boolean'
+              ? message.has_attachments
+              : attCount > 0;
+
+            // Metadata parity with messages route
+            const metadata: Record<string, unknown> = {};
+            if (typeof message.requested_web_search === 'boolean') metadata.requested_web_search = message.requested_web_search;
+            if (typeof message.requested_web_max_results === 'number') metadata.requested_web_max_results = message.requested_web_max_results;
+            if (typeof message.requested_reasoning_effort === 'string') metadata.requested_reasoning_effort = message.requested_reasoning_effort;
+            if (message.upstream_error_code !== undefined) metadata.upstream_error_code = message.upstream_error_code;
+            if (typeof message.upstream_error_message === 'string' && message.upstream_error_message.length > 0) metadata.upstream_error_message = message.upstream_error_message;
+            if (typeof message.retry_after === 'number') metadata.upstream_retry_after = message.retry_after;
+            if (Array.isArray(message.suggestions)) metadata.upstream_suggestions = message.suggestions;
+
+            return {
+              id: message.id, // Use original message ID
+              session_id: databaseId, // This is now the original conversation ID
+              role: message.role,
+              content: message.content,
+              model: resolvedModel,
+              total_tokens: message.total_tokens || 0,
+              input_tokens: message.input_tokens || 0, // NEW: input token tracking
+              output_tokens: message.output_tokens || 0, // NEW: output token tracking
+              user_message_id: message.user_message_id || null, // NEW: user message linking
+              content_type: contentType, // New: content type (sanitized)
+              elapsed_ms: message.elapsed_ms || 0, // New: elapsed time (ms)
+              completion_id: message.completion_id || null, // New: completion ID
+              // Reasoning fields
+              reasoning: message.reasoning ?? null,
+              reasoning_details: message.reasoning_details ?? null,
+              // Web search fields (NOT NULL safe)
+              has_websearch: hasWeb,
+              websearch_result_count: webCount,
+              // Attachment flags (NOT NULL safe)
+              has_attachments: hasAtts,
+              attachment_count: attCount,
+              // Optional metadata JSONB (omit when empty to let default apply)
+              ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+              message_timestamp: typeof message.timestamp === 'string'
+                ? message.timestamp
+                : message.timestamp?.toISOString() || new Date().toISOString(),
+              error_message: message.error ? 'Message failed' : undefined,
+              // Preserve original streaming mode used on client for this message
+              is_streaming: (message as ChatMessage).was_streaming === true
+            };
+          });
 
           const { error: messagesError } = await supabase
             .from('chat_messages')

@@ -307,50 +307,50 @@ This ensures that if/when these features are enabled for anonymous sessions in t
 
 Phases are small and sequential. Each sub-task includes a brief verification step.
 
-- [ ] Server: fix NOT NULL websearch fields in /api/chat/sync
+- [x] Server: fix NOT NULL websearch fields in /api/chat/sync
 
   - Change mapping to never send nulls:
     - has_websearch = message.role === 'assistant' ? Boolean(message.has_websearch) : false
     - websearch_result_count = message.role === 'assistant' && typeof message.websearch_result_count === 'number' ? message.websearch_result_count : 0
   - Verification: Add temporary log when payload contains undefined/null websearch fields and ensure final upsert body shows false/0 (or keys omitted). Run one sync; confirm no 23502 in logs.
 
-- [ ] Server: sanitize content_type in /api/chat/sync
+- [x] Server: sanitize content_type in /api/chat/sync
 
   - Map contentType → content_type with allowed values only ('markdown' | 'text'); fallback to 'text' for anything else.
   - Verification: Create a message with unexpected contentType; sync should insert with content_type='text' and no CHECK violation.
 
-- [ ] Server: tokens and timings coalesce in /api/chat/sync
+- [x] Server: tokens and timings coalesce in /api/chat/sync
 
   - Ensure total_tokens/input_tokens/output_tokens default to 0; elapsed_ms default 0; completion_id nullable.
   - Verification: Sync a conversation where some fields are missing; insert succeeds and triggers recompute session totals.
 
-- [ ] Server: attachment flags in /api/chat/sync (safe parity)
+- [x] Server: attachment flags in /api/chat/sync (safe parity)
 
   - If attachment_ids is present, set has_attachments and clamp attachment_count to [0..3]. Do not link files during sync.
   - Verification: Sync one user message with attachment_ids length 1; DB row has has_attachments=true, attachment_count=1.
 
-- [ ] Server: metadata parity in /api/chat/sync
+- [x] Server: metadata parity in /api/chat/sync
 
   - Persist requested_web_search, requested_web_max_results, requested_reasoning_effort and any upstream error hints into metadata JSONB.
   - Verification: Sync payload including these fields; select chat_messages.metadata to confirm presence and shape.
 
-- [ ] Server: annotations parity in /api/chat/sync
+- [x] Server: annotations parity in /api/chat/sync
 
   - For assistant messages with annotations, delete existing then bulk insert into chat_message_annotations.
   - Verification: Sync sample that includes annotations (see .github/tasks.md sample); rows appear with correct indices and URLs.
 
-- [ ] Client: confirm anonymous gating (no changes expected)
+- [x] Client: confirm anonymous gating (no changes expected)
 
   - Ensure /api/chat/messages is never called when not authenticated in streaming and non-streaming paths.
   - Verification: Repeat steps 2–7 in .github/tasks.md; DevTools shows no /api/chat/messages network calls.
 
-- [ ] Tests: unit tests for /api/chat/sync mapping
+- [x] Tests: unit tests for /api/chat/sync mapping
 
   - Assert payload never includes null for NOT NULL fields (has_websearch, websearch_result_count, has_attachments, attachment_count, content_type).
   - Assert was_streaming → is_streaming mapping for both roles.
   - Verification: npm test passes new cases; snapshot payloads as needed.
 
-- [ ] Build and typecheck
+- [x] Build and typecheck
 
   - Run production build; ensure no type or lint errors.
   - Verification: Build completes successfully.
