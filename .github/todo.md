@@ -20,3 +20,4 @@ Chatbot todo:
 - [ ] Production readiness check
 - [ ] Console and terminal logs clean up, use logger.debug instead of console.log?
 - [ ] Gemini image model, can OpenRouter use those model to generate image?
+- [ ] Why is this message showing? `I'm currently not available. The backend API is being developed by Gemini CLI. Please check back later!`

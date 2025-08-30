@@ -27,7 +27,7 @@ export default function ErrorDisplay({
   const typeStyles = {
     error: {
   // Dark mode: softer tinted surface + visible border; Light mode unchanged
-  container: "bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/35",
+  container: "bg-red-50 border-red-200 dark:bg-red-500/20 dark:border-red-500/35",
   icon: "text-red-600 dark:text-red-400",
   title: "text-red-800 dark:text-red-200",
   text: "text-red-700 dark:text-red-300"
@@ -73,7 +73,7 @@ export default function ErrorDisplay({
       {onClose && (
         <button
           onClick={onClose}
-          className={`absolute top-2 right-2 inline-flex rounded-md p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 hover:bg-gray-100 dark:hover:bg-red-500/15 ${styles.icon} transition-colors`}
+          className={`absolute top-2 right-2 inline-flex rounded-md p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 ${styles.icon} transition-colors`}
           aria-label="Close error message"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,7 +120,7 @@ export default function ErrorDisplay({
               {onRetry && (
                 <button
                   onClick={onRetry}
-                  className={`text-sm font-medium underline hover:no-underline ${styles.text}`}
+                  className={`text-sm font-medium underline hover:no-underline hover:cursor-pointer rounded px-1 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors ${styles.text}`}
                 >
                   Try again
                 </button>
