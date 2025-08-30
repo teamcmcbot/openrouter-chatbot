@@ -73,7 +73,7 @@ export default function ErrorDisplay({
       {onClose && (
         <button
           onClick={onClose}
-          className={`absolute top-2 right-2 inline-flex rounded-md p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 ${styles.icon} transition-colors`}
+          className={`absolute top-2 right-2 inline-flex rounded-md p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 hover:bg-red-100 active:bg-red-200 dark:hover:bg-gray-700 dark:active:bg-gray-600 ${styles.icon} transition-colors`}
           aria-label="Close error message"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,7 +120,7 @@ export default function ErrorDisplay({
               {onRetry && (
                 <button
                   onClick={onRetry}
-                  className={`text-sm font-medium underline hover:no-underline hover:cursor-pointer rounded px-1 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors ${styles.text}`}
+                  className={`text-sm font-medium underline hover:no-underline hover:cursor-pointer rounded px-1 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 hover:bg-red-100 active:bg-red-200 dark:hover:bg-gray-700 dark:active:bg-gray-600 transition-colors ${styles.text}`}
                 >
                   Try again
                 </button>
