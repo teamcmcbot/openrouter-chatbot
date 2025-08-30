@@ -469,6 +469,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
           output_tokens: finalMetadata?.usage?.completion_tokens || 0,
           elapsed_ms: finalMetadata?.elapsed_ms || 0,
           completion_id: finalMetadata?.id,
+          // Mark assistant message as streamed
+          was_streaming: true,
           // ENHANCED: Use locally accumulated reasoning first, then state, then metadata
           ...(reasoningAccum && { reasoning: reasoningAccum }),
           ...(!reasoningAccum && streamingReasoning && { reasoning: streamingReasoning }),
@@ -548,18 +550,24 @@ export function useChatStreaming(): UseChatStreamingReturn {
             // });
           }
 
-          const syncResponse = await fetch('/api/chat/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(syncPayload),
-          });
+          // Only persist for authenticated users; skip for anonymous
+          const { user } = useAuthStore.getState();
+          if (user?.id) {
+            const syncResponse = await fetch('/api/chat/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(syncPayload),
+            });
 
-          if (!syncResponse.ok) {
-            logger.warn('Failed to sync messages to database:', syncResponse.status);
+            if (!syncResponse.ok) {
+              logger.warn('Failed to sync messages to database:', syncResponse.status);
+            } else {
+              // logger.debug('Messages synced to database successfully');
+            }
           } else {
-            // logger.debug('Messages synced to database successfully');
+            logger.debug('Skipping /api/chat/messages persistence for anonymous user');
           }
         } catch (syncError) {
           logger.warn('Database sync failed:', syncError);
@@ -1036,6 +1044,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
           output_tokens: finalMetadata?.usage?.completion_tokens || 0,
           elapsed_ms: finalMetadata?.elapsed_ms || 0,
           completion_id: finalMetadata?.id,
+          // Mark assistant message as streamed on retry
+          was_streaming: true,
           ...(reasoningAccum && { reasoning: reasoningAccum }),
           ...(!reasoningAccum && finalMetadata?.reasoning && { reasoning: finalMetadata.reasoning }),
           ...(mergedAnnotations.length > 0 && { annotations: mergedAnnotations }),
@@ -1096,16 +1106,22 @@ export function useChatStreaming(): UseChatStreamingReturn {
             syncPayload.sessionTitle = updatedConv?.title;
           }
 
-          const syncResponse = await fetch('/api/chat/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(syncPayload),
-          });
+          // Only persist for authenticated users; skip for anonymous
+          const { user } = useAuthStore.getState();
+          if (user?.id) {
+            const syncResponse = await fetch('/api/chat/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(syncPayload),
+            });
 
-          if (!syncResponse.ok) {
-            logger.warn('Failed to sync messages to database:', syncResponse.status);
+            if (!syncResponse.ok) {
+              logger.warn('Failed to sync messages to database:', syncResponse.status);
+            }
+          } else {
+            logger.debug('Skipping /api/chat/messages persistence for anonymous user (retry)');
           }
         } catch (syncError) {
           logger.warn('Database sync failed:', syncError);

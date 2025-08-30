@@ -445,6 +445,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 model: data.model || model,
                 contentType: data.contentType || "text",
                 completion_id: data.id,
+                // Mark assistant as non-streaming in this path
+                was_streaming: false,
                 has_websearch: !!data.has_websearch,
                 websearch_result_count: typeof data.websearch_result_count === 'number' ? data.websearch_result_count : undefined,
                 annotations: Array.isArray(data.annotations) ? data.annotations : undefined,
@@ -1169,6 +1171,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 model: data.model || model,
                 contentType: data.contentType || "text",
                 completion_id: data.id,
+                // Mark assistant as non-streaming in retry non-streaming path
+                was_streaming: false,
                 has_websearch: !!data.has_websearch,
                 websearch_result_count: typeof data.websearch_result_count === 'number' ? data.websearch_result_count : undefined,
                 annotations: Array.isArray(data.annotations) ? data.annotations : undefined,

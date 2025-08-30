@@ -195,7 +195,8 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
               ? message.timestamp 
               : message.timestamp.toISOString(),
             error_message: message.error_message || (message.error ? 'Message failed' : null),
-            is_streaming: false
+            // Persist original streaming mode used when this message was sent
+            is_streaming: message.was_streaming === true
           }, { onConflict: 'id' })
           .select()
           .single();
@@ -244,7 +245,8 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
             ? message.timestamp 
             : message.timestamp.toISOString(),
           error_message: message.error_message || (message.error ? 'Message failed' : null),
-          is_streaming: false
+          // Persist original streaming mode used when this message was sent
+          is_streaming: message.was_streaming === true
         }, { onConflict: 'id' })
         .select()
         .single();

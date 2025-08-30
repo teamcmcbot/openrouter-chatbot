@@ -151,7 +151,8 @@ async function syncHandler(request: NextRequest, authContext: AuthContext): Prom
               ? message.timestamp
               : message.timestamp?.toISOString() || new Date().toISOString(),
             error_message: message.error ? 'Message failed' : undefined,
-            is_streaming: false // Default to false since streaming is complete when syncing
+            // Preserve original streaming mode used on client for this message
+            is_streaming: (message as ChatMessage).was_streaming === true
           }));
 
           const { error: messagesError } = await supabase
