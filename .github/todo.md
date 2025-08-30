@@ -1,7 +1,7 @@
 Chatbot todo:
 
 - [x] Error banner styling
-- [ ] Chat history, load more
+- [x] Chat history, load more
 - [ ] Is active handling, client only?
 - [x] Chat messages is streaming db
 - [ ] Conversation syncing brainstorm, multi-sessions, multi-device, account sharing.. etc

@@ -3,6 +3,7 @@
 This endpoint handles conversation synchronization (POST) and paginated listing (GET).
 
 Auth and limits:
+
 - GET/POST are protected with `withConversationOwnership`.
 - Tiered rate limit: tierC.
 
@@ -11,14 +12,17 @@ Auth and limits:
 Synchronize client conversations to the server.
 
 Request body (partial):
+
 - `conversations: Array<{ id, title, messages[], messageCount?, totalTokens?, lastModel?, lastMessagePreview?, lastMessageTimestamp?, createdAt?, updatedAt? }>`
 
 Behavior:
+
 - Upserts `chat_sessions` with original client IDs.
 - Upserts `chat_messages` for each conversation (sanitizes contentType; sets websearch and attachment flags; preserves is_streaming; stores reasoning fields and tokens).
 - Replaces and inserts `chat_message_annotations` for assistant messages.
 
 Response:
+
 ```json
 {
   "success": true,
@@ -38,6 +42,7 @@ Response:
 Returns a paginated list of conversations.
 
 Query params:
+
 - `limit`: number (default 20, max 20)
 - `cursor_ts`: ISO timestamp of the last row from previous page
 - `cursor_id`: id of the last row (tiebreaker)
@@ -46,6 +51,7 @@ Query params:
 - `with_total`: default `false`. If `true`, includes `meta.totalCount`.
 
 Summary response:
+
 ```json
 {
   "conversations": [
@@ -74,6 +80,7 @@ Summary response:
 ```
 
 Full response (summary_only=false):
+
 - `conversations[].messages` are ordered ascending by message_timestamp and shaped with:
   - role, content, model/originalModel, tokens, elapsed_ms, completion_id
   - user_message_id, contentType, was_streaming
@@ -81,6 +88,7 @@ Full response (summary_only=false):
   - reasoning, reasoning_details (array)
   - annotations (URL citations)
   - has_attachments, attachment_ids
+
 # Endpoi## Authentication & Authorization
 
 - **Authentication Required:** Uses `withConversationOwnership` middleware, which requires valid user authentication via `withProtectedAuth`

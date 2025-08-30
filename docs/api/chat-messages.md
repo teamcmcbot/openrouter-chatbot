@@ -3,21 +3,25 @@
 This endpoint fetches and persists messages for a single conversation (session).
 
 Auth and limits:
+
 - GET/POST protected with `withProtectedAuth`.
 - Tiered rate limit: tierC.
 
 ### GET /api/chat/messages
 
 Query:
+
 - `session_id`: required conversation id
 
 Behavior:
+
 - Verifies the session belongs to the authenticated user.
 - Loads all messages ordered ascending by timestamp (filters out `system`).
 - Joins attachments (`chat_attachments` where status=ready) and annotations (`chat_message_annotations`).
 - Maps reasoning fields, web search fields, tokens, request options from metadata, and streaming flag.
 
 Response:
+
 ```json
 {
   "messages": [
@@ -49,8 +53,8 @@ Response:
       "completion_id": "gen-...",
       "was_streaming": true,
       "reasoning": "...",
-      "reasoning_details": [ { "...": "..." } ],
-      "annotations": [ { "type": "url_citation", "url": "..." } ],
+      "reasoning_details": [{ "...": "..." }],
+      "annotations": [{ "type": "url_citation", "url": "..." }],
       "has_websearch": true,
       "websearch_result_count": 3
     }
@@ -62,22 +66,26 @@ Response:
 ### POST /api/chat/messages
 
 Body:
+
 - Either `message: ChatMessage` or `messages: ChatMessage[]`
 - `sessionId`: required
 - Optional `sessionTitle`: to create/update session title
 - Optional `attachmentIds`: to link images to the triggering user message
 
 Behavior:
+
 - Upserts `chat_sessions` if missing, setting title from `sessionTitle` or first user message.
 - Upserts messages with contentType sanitization, tokens, reasoning fields, websearch fields, and `is_streaming`.
-- Updates session rollups (message_count, total_tokens, last_* fields).
+- Updates session rollups (message*count, total_tokens, last*\* fields).
 - Links attachments to user message if owned by user and status=ready, and updates message flags.
 - Persists URL citations for assistant messages.
 
 Response:
+
 ```json
 { "messages": [...inserted], "count": n, "success": true }
 ```
+
 # Endpoint: `/api/chat/messages`
 
 **Methods:** `GET`, `POST`

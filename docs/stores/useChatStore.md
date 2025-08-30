@@ -12,12 +12,15 @@ Zustand store that manages conversations, messages, and pagination state for the
 ### Core actions
 
 - `loadInitialConversations()`
+
   - Calls GET `/api/chat/sync?summary_only=true` with default limit=20; sets `conversations` and `meta`.
 
 - `loadMoreConversations()`
+
   - Uses `meta.nextCursor` to call GET `/api/chat/sync?summary_only=true&cursor_ts=...&cursor_id=...` and appends deduped results; updates `meta`.
 
 - `switchConversation(id)`
+
   - Selects the conversation and, if messages are missing, triggers `loadConversationMessages(id)`.
 
 - `loadConversationMessages(id)`
@@ -27,6 +30,7 @@ Zustand store that manages conversations, messages, and pagination state for the
 
 - Conversations are sorted by `last_message_timestamp DESC, id DESC` per server; the store maintains that order on merges.
 - Summary-only keeps sidebar payloads small; messages are loaded on demand and cached in-state.
+
 # useChatStore
 
 ## Purpose / Overview

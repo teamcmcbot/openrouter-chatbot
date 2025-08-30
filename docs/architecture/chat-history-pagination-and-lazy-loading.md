@@ -47,7 +47,7 @@ See `docs/architecture/redis-rate-limiting.md` for details.
 
 ### Data model highlights
 
-- `chat_sessions`: per-conversation rollups (message_count, total_tokens, last_* fields, timestamps).
+- `chat_sessions`: per-conversation rollups (message*count, total_tokens, last*\* fields, timestamps).
 - `chat_messages`: individual messages (role, content, models, tokens, reasoning, websearch fields, metadata, is_streaming).
 - `chat_attachments`: image uploads linked to messages when ready.
 - `chat_message_annotations`: URL citations linked to assistant messages.
