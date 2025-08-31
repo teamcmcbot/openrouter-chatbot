@@ -2,7 +2,6 @@
 
 import { useEffect, useCallback } from 'react';
 import { logger } from '../lib/utils/logger';
-import { streamDebug } from '../lib/utils/streamDebug';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useChatStore } from '../stores/useChatStore';
 import { useDebounce } from './useDebounce';
@@ -22,7 +21,7 @@ export const useChatSync = () => {
   // Stabilize the sync process to prevent multiple calls
   const handleUserAuthentication = useCallback(async () => {
     if (!debouncedIsAuthenticated || !debouncedUserId) {
-      streamDebug(`[ChatSync] User not authenticated at ${new Date().toISOString()}, showing anonymous conversations`);
+  logger.debug('[ChatSync] User not authenticated, showing anonymous conversations', { at: new Date().toISOString() });
       // Get fresh store actions inside the callback to avoid dependency issues
       const { filterConversationsByUser } = useChatStore.getState();
       filterConversationsByUser(null);
@@ -30,7 +29,7 @@ export const useChatSync = () => {
     }
 
     try {
-  streamDebug(`[ChatSync] User authenticated at ${new Date().toISOString()}, initiating sync process`);
+  logger.debug('[ChatSync] User authenticated, initiating sync process', { at: new Date().toISOString() });
       
       // Get fresh store actions inside the callback to avoid dependency issues
       const { 
@@ -48,7 +47,7 @@ export const useChatSync = () => {
       // Step 3: Filter to show only user's conversations (now that migration is complete)
       filterConversationsByUser(debouncedUserId);
       
-  streamDebug(`[ChatSync] Sync process completed successfully at ${new Date().toISOString()}`);
+  logger.debug('[ChatSync] Sync process completed successfully', { at: new Date().toISOString() });
     } catch (error) {
   logger.error('[ChatSync] Sync process failed:', error);
     }
