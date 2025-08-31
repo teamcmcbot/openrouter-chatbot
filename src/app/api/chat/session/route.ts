@@ -15,7 +15,6 @@ interface SessionUpdateData {
   last_model?: string;
   last_message_preview?: string;
   last_message_timestamp?: string;
-  is_active?: boolean;
   updated_at: string;
 }
 
@@ -79,7 +78,14 @@ async function postSessionHandler(request: NextRequest, authContext: AuthContext
     logger.info('[POST] /api/chat/session - Request received', { userId: user!.id });
 
     const sessionData = await request.json();
-    const { id: sessionId, title, is_active, ...otherFields } = sessionData;
+    const { id: sessionId, title, ...otherFields } = sessionData;
+    // Deprecation: ignore legacy is_active in payload, log once per request
+    if (Object.prototype.hasOwnProperty.call(sessionData, 'is_active')) {
+      logger.warn('[POST] Deprecated field is_active received and ignored', {
+        sessionId,
+        userId: user!.id,
+      });
+    }
     logger.info('[POST] Session update payload', { sessionData });
 
     if (!sessionId) {
@@ -109,47 +115,6 @@ async function postSessionHandler(request: NextRequest, authContext: AuthContext
       );
     }
 
-    // Check for special active session update (requires atomic operation)
-    if (is_active === true) {
-      logger.info('[POST] Processing active session update', { sessionId, userId: user!.id });
-      
-      // Use the database function for atomic active session management
-      const { error: setActiveError } = await supabase.rpc('set_active_session', {
-        target_user_id: user!.id,
-        target_session_id: sessionId
-      });
-
-      if (setActiveError) {
-        logger.error('[POST] Set active session error', { error: setActiveError });
-        return NextResponse.json(
-          { error: 'Failed to set active session' },
-          { status: 500 }
-        );
-      }
-
-      // Get the updated session data
-      const { data: updatedSession, error: fetchError } = await supabase
-        .from('chat_sessions')
-        .select()
-        .eq('id', sessionId)
-        .eq('user_id', user!.id)
-        .single();
-
-      if (fetchError) {
-        logger.error('[POST] Failed to fetch updated session', { error: fetchError });
-        return NextResponse.json(
-          { error: 'Failed to retrieve updated session' },
-          { status: 500 }
-        );
-      }
-
-      logger.info('[POST] Active session updated successfully', { sessionId: updatedSession?.id });
-      return NextResponse.json({
-        session: updatedSession,
-        success: true
-      });
-    }
-
     // Regular session update (non-active status changes)
     const updateData: SessionUpdateData = {
       updated_at: new Date().toISOString()
@@ -160,10 +125,7 @@ async function postSessionHandler(request: NextRequest, authContext: AuthContext
       updateData.title = title;
     }
 
-    // Handle non-active is_active updates (setting to false)
-    if (is_active !== undefined && is_active === false) {
-      updateData.is_active = false;
-    }
+  // Note: legacy is_active updates are ignored; active selection is client-side only
 
     // Add any other allowed fields for session updates
     // Note: user_id cannot be changed, and id cannot be changed

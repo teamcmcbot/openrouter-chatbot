@@ -68,13 +68,53 @@ Data contract for compare:
 
 Phases
 
-- [ ] A1. Remove `is_active` write paths in API (feature flag to ease rollout)
-  - Stop calling RPC `set_active_session` and ignore `is_active` in request bodies.
-  - Keep DB schema unchanged in this phase.
-  - Add deprecation warning in server logs if client sends `is_active`.
-- [ ] A2. DB patch to drop column and supporting RPC (gated by migration window)
-  - Patch: drop dependent objects, drop column, update views; idempotent.
-  - After approval, merge into `/database/schema/02-chat.sql`.
+### Phase A — Remove `is_active` (DB + API)
+
+- [x] A1. Create DB patches (idempotent) to remove RPC and column
+
+  - Directory: `database/patches/remove-is-active/`
+  - Files to add (and run in order):
+    - `01-drop-rpc-set_active_session.sql`
+      - Drop `public.set_active_session` if it exists (idempotent; safe no-op if never applied).
+    - `02-update-views-and-references.sql`
+      - Recreate `public.get_user_recent_sessions` without `is_active` and update any helper views/selects.
+    - `03-drop-column-chat_sessions-is_active.sql`
+      - Drop `public.chat_sessions.is_active` if it exists.
+  - Acceptance: Running patches twice is safe; no remaining references to `is_active` or `set_active_session`.
+
+- [x] A2. User executes the patch in environment(s)
+
+  - Apply patches in order 01→02→03 per project DB workflow (Dev → Staging → Prod).
+  - Verify: `chat_sessions` has no `is_active` column; `public.set_active_session` does not exist.
+  - Rollback plan: Restore from backup or re-add column/function if needed.
+
+- [x] A3. Update server code to remove references
+
+  - File: `src/app/api/chat/session/route.ts`
+    - Remove special branch that calls `supabase.rpc('set_active_session', ...)` when `is_active === true`.
+    - Ignore `is_active` in request bodies; log a deprecation warning if present for one release.
+    - Remove `is_active` from `SessionUpdateData` and update the UPDATE shape.
+  - Grep for any other references to `is_active` or `set_active_session` and remove/update accordingly.
+  - Acceptance: Build passes; POST `/api/chat/session` still updates titles and rollups normally.
+
+- [x] A4. Manual shakedown (user verification)
+
+  - Title update still works via `/api/chat/session`.
+  - ChatSidebar selection works across navigations; active highlight is client-only.
+  - Sending/receiving messages unaffected.
+  - No 500s related to missing `set_active_session` or column.
+  - DB schema reflects drop; app logs show deprecation warning only when legacy clients send `is_active`.
+
+- [ ] A5. Documentation and schema merge
+  - Docs:
+    - Update `docs/api/chat-session.md` to remove `is_active` from request/response examples and parameter tables; add deprecation note in changelog.
+    - Update `docs/database/database_architecture.md` to remove `is_active` from UI fields.
+  - Schema merge:
+    - Reflect executed patches in canonical DDL (`/database/schema/02-chat.sql`) by removing the column and any references.
+  - Close the loop: archive the old RPC patch folder `database/patches/active-session-management/` if fully obsolete.
+
+### Phase B — Sidebar local cache + strict revalidation
+
 - [ ] B1. Store-level revalidation utilities
   - Add a selector/helper to return top N conversations in canonical sort order.
   - Add `revalidateTopPage(serverConvs: Conversation[], pageSize: number)` that performs the match-or-reset logic.
