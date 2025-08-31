@@ -1,5 +1,6 @@
 // lib/utils/database-rate-limiter.ts
 import { createClient } from "@supabase/supabase-js";
+import { logger } from './logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -64,7 +65,12 @@ export async function checkRateLimit(
       totalRequests: currentCount + 1,
     };
   } catch (error) {
-    console.error("Database rate limit error:", error);
+    logger.error('Database rate limit error', {
+      error,
+      key,
+      limit,
+      windowMs,
+    });
     
     // Fallback: Allow request but log error
     return {

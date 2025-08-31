@@ -20,7 +20,6 @@ import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 export const maxDuration = 300; // 5 minutes for reasoning mode and slow models
 
 async function chatStreamHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
-  // console.log('🔴🔴🔴 STREAM API CALLED - This should always show if streaming endpoint is hit');
   
     // Generate or forward a request id for correlation
   const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
@@ -186,9 +185,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
   const tokenStrategy = await getModelTokenLimits(enhancedData.model, { tier });
     const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
     
-    // console.log(`[Chat Stream API] Model: ${enhancedData.model}`);
-    // console.log(`[Chat Stream API] Token strategy - Input: ${tokenStrategy.maxInputTokens}, Output: ${tokenStrategy.maxOutputTokens}`);
-    // console.log(`[Chat Stream API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`);
+    
     
     const totalInputTokens = enhancedData.messages.reduce((total, msg) => {
       return total + estimateTokenCount(String(msg.content || ''));
@@ -231,11 +228,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
         );
       }
     }
-    // console.log(`[Chat Stream API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
-    // console.log(`[Chat Stream API] Message count: ${enhancedData.messages.length} messages`);
-    // console.log(`[Chat Stream API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`);
-    // console.log(`[Chat Stream API] Web search enabled: ${!!body.webSearch}`);
-    // console.log(`[Chat Stream API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`);
+    
 
     const startTime = Date.now();
 
@@ -380,7 +373,6 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
         }
       },
       async flush(controller) {
-        // console.log('🟡 [STREAM DEBUG] Stream flush called');
         // Calculate elapsed time - always use markdown rendering
         const endTime = Date.now();
         const elapsedMs = endTime - startTime;
@@ -400,7 +392,6 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
                     const { url, title, content, start_index, end_index } = nested as {
                       url: string; title?: string; content?: string; start_index?: number; end_index?: number;
                     };
-                    // console.log('🟢 [STREAM DEBUG] Normalizing OpenRouter citation:', { url, title: title?.substring(0, 50) + '...' });
                     return { type: 'url_citation', url, title, content, start_index, end_index };
                   }
                 }
@@ -440,8 +431,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
             websearch_result_count: Array.isArray(annotations) ? annotations.length : 0,
           }
         };
-
-        // console.log('🟢 [STREAM DEBUG] Final metadata created:', finalMetadata);
+        
 
   // Emit standardized one-line final metadata JSON
   const finalLine = JSON.stringify(finalMetadata);
