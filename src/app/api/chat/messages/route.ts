@@ -8,6 +8,7 @@ import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimi
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 // Shape of chat_messages rows we read from DB
 interface DbMessage {
@@ -35,8 +36,7 @@ interface DbMessage {
 
 async function getMessagesHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   // Generate or forward a request id for correlation
-  const forwardedId = request.headers.get('x-request-id') || request.headers.get('x-correlation-id');
-  const requestId = forwardedId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
   try {
     const supabase = await createClient();
     const { user } = authContext;
@@ -225,8 +225,7 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
 
 async function postMessagesHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   // Generate or forward a request id for correlation
-  const forwardedId = request.headers.get('x-request-id') || request.headers.get('x-correlation-id');
-  const requestId = forwardedId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
   try {
     const supabase = await createClient();
     const { user } = authContext;

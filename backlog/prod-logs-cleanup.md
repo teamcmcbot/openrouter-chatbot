@@ -204,15 +204,15 @@ Verification checklist
 
 API routes
 
-- [ ] `src/app/api/chat/route.ts`: remove lines printing request format, counts, model/token strategy on happy path; replace with a single `logger.info('chat.request.end', { requestId, model, durationMs, tokens })` (sampled) and keep errors as `logger.error`.
+- [x] `src/app/api/chat/route.ts`: remove lines printing request format, counts, model/token strategy on happy path; replace with a single `logger.info('chat.request.end', { requestId, model, durationMs, tokens })` (sampled) and keep errors as `logger.error`.
 - [ ] `src/app/api/chat/stream/route.ts`: delete commented `console.log` lines; use `streamDebug()` only.
-- [ ] `src/app/api/chat/messages/route.ts`: replace `console.error` with `logger.error('chat.stats.update_failed', err, { requestId, conversationId })`.
+- [x] `src/app/api/chat/messages/route.ts`: replace `console.error` with `logger.error('chat.stats.update_failed', err, { requestId, conversationId })`.
 
 Utilities
 
-- [ ] `lib/utils/tokens.ts` and `.server.ts`: change all `console.log` to `logger.debug`; keep at most one INFO summary per invocation; remove purely narrative prints.
+- [x] `lib/utils/tokens.ts` and `.server.ts`: change all `console.log` to `logger.debug`; keep at most one INFO summary per invocation; remove purely narrative prints.
 - [ ] `lib/utils/env.ts`: convert `console.info` to `logger.info` and ensure it runs once per cold start.
-- [ ] `lib/utils/errors.ts`: switch to `logger.error` with structured context.
+- [x] `lib/utils/errors.ts`: switch to `logger.error` with structured context.
 - [ ] `lib/utils/redis-rate-limiter.ts` and `lib/utils/database-rate-limiter.ts`: keep errors via `logger.error` and add a minimal context (`keyPrefix`, `tier`, `requestId`).
 
 Stores/UI
@@ -222,7 +222,7 @@ Stores/UI
 
 Tooling
 
-- [ ] ESLint: enforce `no-console` for app code with overrides to allow in `tests/**` and `scripts/**`.
+- [x] ESLint: enforce `no-console` for app code with overrides to allow in `tests/**` and `scripts/**`.
 - [ ] CI: fail on new `console.*` in app code.
 
 ---

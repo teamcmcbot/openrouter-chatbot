@@ -14,49 +14,16 @@ type SubscriptionTier = 'anonymous' | 'free' | 'pro' | 'enterprise';
 import { createClient } from '../../../../../lib/supabase/server';
 import { getOpenRouterCompletionStream, fetchOpenRouterModels } from '../../../../../lib/utils/openrouter';
 import { OpenRouterContentBlock } from '../../../../../lib/types/openrouter';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 // Configure extended timeout for streaming requests
 export const maxDuration = 300; // 5 minutes for reasoning mode and slow models
-
-// Safe header accessor to support both real NextRequest headers and plain object mocks in tests
-function safeHeaderGet(headers: unknown, key: string): string | undefined {
-  if (!headers) return undefined;
-  const lowerKey = key.toLowerCase();
-  try {
-    const anyHeaders = headers as { get?: (k: string) => unknown };
-    if (typeof anyHeaders.get === 'function') {
-      const v = anyHeaders.get(key) ?? anyHeaders.get(lowerKey) ?? anyHeaders.get(key.toUpperCase());
-      if (typeof v === 'string') return v;
-      if (Array.isArray(v)) return v[0];
-      return v as string | undefined;
-    }
-  } catch {
-    // ignore and try object access below
-  }
-  if (typeof headers === 'object') {
-    const rec = headers as Record<string, unknown>;
-    // direct lower-case match first
-    if (typeof rec[lowerKey] === 'string') return rec[lowerKey] as string;
-    // case-insensitive search across keys
-    for (const k of Object.keys(rec)) {
-      if (k.toLowerCase() === lowerKey) {
-        const v = rec[k];
-        if (typeof v === 'string') return v;
-        if (Array.isArray(v)) return v[0] as string;
-        return v as string | undefined;
-      }
-    }
-  }
-  return undefined;
-}
 
 async function chatStreamHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   // console.log('🔴🔴🔴 STREAM API CALLED - This should always show if streaming endpoint is hit');
   
     // Generate or forward a request id for correlation
-    const forwardedId = safeHeaderGet((request as unknown as { headers?: unknown })?.headers, 'x-request-id')
-      || safeHeaderGet((request as unknown as { headers?: unknown })?.headers, 'x-correlation-id');
-    const requestId = forwardedId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
 
     logger.info('Chat stream request received', {
       isAuthenticated: authContext.isAuthenticated,
