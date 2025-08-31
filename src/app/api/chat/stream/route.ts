@@ -227,8 +227,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           ErrorCode.PAYLOAD_TOO_LARGE
         );
       }
-    }
-    
+  }
 
     const startTime = Date.now();
 

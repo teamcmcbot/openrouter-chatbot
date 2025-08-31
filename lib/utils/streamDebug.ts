@@ -27,7 +27,7 @@ export function isStreamingDebugEnabled(): boolean {
 
 export function streamDebug(...args: unknown[]) {
   if (isStreamingDebugEnabled()) {
-  // Defer to centralized logger (warn level)
-  logger.warn('[STREAM-DEBUG]', ...args);
+  // Defer to centralized logger (debug level)
+  logger.debug('[STREAM-DEBUG]', ...args);
   }
 }

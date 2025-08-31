@@ -75,7 +75,7 @@ function log(level: Level, message: string, ...args: unknown[]) {
   if (!enabled(level)) return;
   const payload = buildPayload(level, message, args);
 
-  // In tests, emit plain message and include context args for better debugging
+  // In tests, emit a single line string including message and serialized args (to match test expectations)
   if (isTest) {
     const hasArgs = Array.isArray(args) && args.length > 0;
     const output = hasArgs ? `${message} ${JSON.stringify(args)}` : message;
