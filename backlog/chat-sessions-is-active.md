@@ -115,7 +115,7 @@ Phases
 
 ### Phase B — Sidebar local cache + strict revalidation
 
-- [ ] B1. Store-level revalidation, preservation, and inflight guards
+- [x] B1. Store-level revalidation, preservation, and inflight guards
 
   - Add `getTopNConversations(n)` (sorted by `lastMessageTimestamp DESC, id DESC`, filtered by current user).
   - Add `revalidateTopPage(serverConvs: Conversation[], pageSize: number)` with strict compare by `[id, lastMessageTimestamp]`:
@@ -124,7 +124,7 @@ Phases
     - When replacing, preserve local `messages` for any conversation that already has cached messages; if active conversation is in the N but has no messages, schedule immediate lazy hydrate.
   - Add a per-session inflight map in `loadConversationMessages(id)` to dedupe concurrent fetches.
 
-- [ ] B2. Initial load orchestration (single entry point)
+- [x] B2. Initial load orchestration (single entry point)
 
   - Use `useChatSync` as the sole initializer for authenticated users (auth-change driven). Remove `ChatSidebar`’s on-mount `loadInitialConversations` effect to avoid double GETs.
   - Flow example:
@@ -132,17 +132,17 @@ Phases
     2. If authenticated, `useChatSync` calls GET `/api/chat/sync?limit=20&summary_only=true` in background and then `revalidateTopPage`.
     3. If active conversation is among the top 20 and has empty messages, call GET `/api/chat/messages?session_id=...` to hydrate the middle pane.
 
-- [ ] B3. Sidebar pagination source of truth
+- [x] B3. Sidebar pagination source of truth
 
   - Switch `ChatSidebar` to render from the paginated list in store (page size = 20 by default, with Load More) instead of `getRecentConversations(1000)`.
   - Keep the Load More control as the only way to append additional pages.
 
-- [ ] B4. Selection flow: remove duplicates and lazy hydrate
+- [x] B4. Selection flow: remove duplicates and lazy hydrate
 
   - Remove the extra `loadConversationMessages` call from `ChatSidebar` click handler; rely on `switchConversation(id)` to trigger lazy load when `messages.length === 0`.
   - Ensure the inflight guard (B1) prevents duplicate fetches if multiple triggers occur.
 
-- [ ] B5. Message-level revalidation (since timestamp)
+- [x] B5. Message-level revalidation (since timestamp)
 
   - Extend GET `/api/chat/messages` to accept `since_ts` (alias: `lastMessageTimestamp`) to support cheap validation of cached message lists:
     - If server has newer messages after `since_ts`, respond accordingly (either incremental list or a flag + full list).
@@ -150,19 +150,22 @@ Phases
       - On re-select of a conversation with cached messages: call `GET /api/chat/messages?session_id=...&since_ts=...` (debounced). If up to date: no-op; if newer: append or refetch and re-render.
       - On top-20 mismatch replace: hydrate only the active conversation if it is empty; preserve other cached messages per policy above.
 
-- [ ] B6. Persistence verification
+- [x] B6. Persistence verification
 
   - Ensure `persist.partialize` includes `conversations` and `currentConversationId` (already present). Confirm dates are deserialized via `deserializeDates` (already present).
   - Monitor localStorage size; plan a future pruning strategy if needed (not in scope for this change).
 
 - [ ] B7. Logging & tests
-  - Add minimal debug logs to identify single vs duplicate initial loads (e.g., log in `useChatSync` and, temporarily, in removed ChatSidebar loader to confirm removal).
-  - Unit tests:
-    - `revalidateTopPage` match vs mismatch (various lengths and null timestamps), preservation of cached messages, active hydration scheduling.
-    - `loadConversationMessages` inflight dedupe (only one network call for simultaneous requests).
-  - Integration tests:
-    - Rehydrate store, navigate to /chat: verify immediate render from cache; background revalidation does not reorder if equal; resets to server 20 on mismatch.
-    - Click reselect on a cached conversation: call messages `since_ts` path and update only when newer exist.
+
+Pending next: Add targeted unit tests for top-page revalidation and inflight dedupe, plus a small integration test for messages since_ts; optionally add lightweight debug logs.
+
+- Add minimal debug logs to identify single vs duplicate initial loads (e.g., log in `useChatSync` and, temporarily, in removed ChatSidebar loader to confirm removal).
+- Unit tests:
+  - `revalidateTopPage` match vs mismatch (various lengths and null timestamps), preservation of cached messages, active hydration scheduling.
+  - `loadConversationMessages` inflight dedupe (only one network call for simultaneous requests).
+- Integration tests:
+  - Rehydrate store, navigate to /chat: verify immediate render from cache; background revalidation does not reorder if equal; resets to server 20 on mismatch.
+  - Click reselect on a cached conversation: call messages `since_ts` path and update only when newer exist.
 
 ## Testing
 

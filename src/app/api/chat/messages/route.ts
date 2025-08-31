@@ -40,8 +40,9 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
 
     logger.info('Get messages request', { userId: user!.id });
 
-    const { searchParams } = new URL(request.url);
-    const sessionId = searchParams.get('session_id');
+  const { searchParams } = new URL(request.url);
+  const sessionId = searchParams.get('session_id');
+  const sinceTs = searchParams.get('since_ts');
 
     if (!sessionId) {
       return NextResponse.json(
@@ -65,14 +66,31 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
       );
     }
 
-    // Get messages for the session
-    const { data: messages, error: messagesError } = await supabase
-      .from('chat_messages')
-      .select('*')
-      .eq('session_id', sessionId)
-      .order('message_timestamp', { ascending: true });
+    // Build base query for messages in this session
+    let messages: DbMessage[] | null = null;
+    let messagesError: unknown = null;
 
-    if (messagesError) {
+    if (sinceTs) {
+      // Incremental fetch for messages strictly newer than since_ts
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .gt('message_timestamp', sinceTs)
+        .order('message_timestamp', { ascending: true });
+      messages = (data as unknown as DbMessage[]) || [];
+      messagesError = error;
+    } else {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('message_timestamp', { ascending: true });
+      messages = (data as unknown as DbMessage[]) || [];
+      messagesError = error;
+    }
+
+  if (messagesError) {
       throw messagesError;
     }
 
@@ -182,9 +200,18 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
         };
       });
 
+    // When since_ts is provided, return quick up_to_date signal when no new messages
+    if (sinceTs) {
+      return NextResponse.json({
+        up_to_date: formattedMessages.length === 0,
+        messages: formattedMessages,
+        count: formattedMessages.length,
+      });
+    }
+
     return NextResponse.json({
       messages: formattedMessages,
-      count: formattedMessages.length
+      count: formattedMessages.length,
     });
 
   } catch (error) {

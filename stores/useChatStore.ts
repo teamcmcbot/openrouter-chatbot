@@ -25,6 +25,9 @@ import { checkRateLimitHeaders } from "../lib/utils/rateLimitNotifications";
 
 const logger = createLogger("ChatStore");
 
+// In-flight guard for per-session message loads to prevent duplicate fetches
+const messagesInflight = new Set<string>();
+
 // Helper functions
 const generateConversationId = () => `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateMessageId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -144,12 +147,12 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               error: null,
             }));
 
-            // If authenticated and the selected conversation has no messages yet (summary-only listing), load them lazily
+            // If authenticated, trigger lazy load/revalidation of messages for this conversation
             const { user } = useAuthStore.getState();
             if (user) {
               const conv = get().conversations.find(c => c.id === id);
-              if (conv && (!Array.isArray(conv.messages) || conv.messages.length === 0)) {
-                // Fire and forget; UI can render spinner if needed based on isLoading
+              // Always call loader: it will either full-load or incrementally revalidate via since_ts
+              if (conv) {
                 get().loadConversationMessages?.(id).catch((err) => {
                   logger.warn("Failed to load conversation messages", { id, err });
                 });
@@ -1494,18 +1497,29 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 });
               }
               
-              // Merge with existing conversations, prioritizing server data
+              // Reset top page strictly to server list, preserving messages for any matching cached conversations
               set((state) => {
-                // Merge: server wins on ID conflicts to refresh metadata from DB
-                const byId = new Map<string, Conversation>();
-                for (const conv of state.conversations) byId.set(conv.id, conv);
-                for (const conv of serverConversations as Conversation[]) byId.set(conv.id, conv);
+                const localById = new Map<string, Conversation>();
+                for (const conv of state.conversations) localById.set(conv.id, conv);
 
-                // Sort by lastMessageTimestamp (fallback to updatedAt/createdAt)
-                const allConversations = Array.from(byId.values()).sort(sortByLastTimestampDesc);
+                const updatedTop: Conversation[] = (serverConversations as Conversation[]).map((serverConv) => {
+                  const local = localById.get(serverConv.id);
+                  if (local && Array.isArray(local.messages) && local.messages.length > 0) {
+                    // Preserve cached messages and recompute counters/lasts
+                    return updateConversationFromMessages({ ...serverConv, messages: local.messages });
+                  }
+                  // Ensure messages array exists
+                  return { ...serverConv, messages: Array.isArray(serverConv.messages) ? serverConv.messages : [] } as Conversation;
+                });
+
+                // Keep other local conversations (not in top page) so they can appear after loading more
+                const serverIds = new Set(updatedTop.map(c => c.id));
+                const others = state.conversations.filter(c => !serverIds.has(c.id));
+
+                const merged = [...updatedTop, ...others].sort(sortByLastTimestampDesc);
 
                 return {
-                  conversations: allConversations,
+                  conversations: merged,
                   isLoading: false,
                   lastSyncTime: result.syncTime,
                   sidebarPaging: {
@@ -1543,12 +1557,20 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               const serverConversations = result.conversations || [];
               const meta = result.meta as { hasMore?: boolean; nextCursor?: { ts: string; id: string } | null; pageSize?: number } | undefined;
               set((state) => {
-                const byId = new Map<string, Conversation>();
-                for (const conv of state.conversations) byId.set(conv.id, conv);
-                for (const conv of serverConversations as Conversation[]) byId.set(conv.id, conv);
-                const allConversations = Array.from(byId.values()).sort(sortByLastTimestampDesc);
+                const localById = new Map<string, Conversation>();
+                for (const conv of state.conversations) localById.set(conv.id, conv);
+                const updatedTop: Conversation[] = (serverConversations as Conversation[]).map((serverConv) => {
+                  const local = localById.get(serverConv.id);
+                  if (local && Array.isArray(local.messages) && local.messages.length > 0) {
+                    return updateConversationFromMessages({ ...serverConv, messages: local.messages });
+                  }
+                  return { ...serverConv, messages: Array.isArray(serverConv.messages) ? serverConv.messages : [] } as Conversation;
+                });
+                const serverIds = new Set(updatedTop.map(c => c.id));
+                const others = state.conversations.filter(c => !serverIds.has(c.id));
+                const merged = [...updatedTop, ...others].sort(sortByLastTimestampDesc);
                 return {
-                  conversations: allConversations,
+                  conversations: merged,
                   sidebarPaging: {
                     pageSize: meta?.pageSize ?? (paging?.pageSize ?? 20),
                     loading: false,
@@ -1604,49 +1626,73 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }
           },
 
-          // Lazy loader: fetch full messages for a session and merge into store
+          // Lazy loader: fetch or revalidate messages for a session and merge into store
           loadConversationMessages: async (id: string) => {
-            // Avoid duplicate loads if messages already present
             const existing = get().conversations.find(c => c.id === id);
             if (!existing) return;
-            if (Array.isArray(existing.messages) && existing.messages.length > 0) return;
 
-            set({ isLoading: true });
+            if (messagesInflight.has(id)) {
+              logger.debug('Message load already in-flight, skipping', { id });
+              return;
+            }
+
+            messagesInflight.add(id);
+            const hasExistingMessages = Array.isArray(existing.messages) && existing.messages.length > 0;
+
+            // Only toggle global isLoading when performing a full initial fetch
+            if (!hasExistingMessages) set({ isLoading: true });
+
             try {
-              const res = await fetch(`/api/chat/messages?session_id=${encodeURIComponent(id)}`);
+              let url = `/api/chat/messages?session_id=${encodeURIComponent(id)}`;
+              let lastTsIso: string | null = null;
+              if (hasExistingMessages) {
+                const last = existing.messages[existing.messages.length - 1];
+                const ts = typeof last.timestamp === 'string' ? new Date(last.timestamp) : last.timestamp as Date;
+                lastTsIso = ts.toISOString();
+                url += `&since_ts=${encodeURIComponent(lastTsIso)}`;
+              }
+
+              const res = await fetch(url);
               if (!res.ok) throw new Error(`Failed to load messages: ${res.statusText}`);
               const data = await res.json();
-              const msgs = Array.isArray(data.messages) ? data.messages : [];
-              set((state) => ({
-                conversations: state.conversations.map(conv =>
-                  conv.id === id
-                    ? {
-                        ...conv,
-                        messages: msgs,
-                        messageCount: msgs.length,
-                        lastMessagePreview:
-                          msgs.length > 0
-                            ? (msgs[msgs.length - 1].content.length > 100
-                                ? msgs[msgs.length - 1].content.substring(0, 100) + "..."
-                                : msgs[msgs.length - 1].content)
-                            : conv.lastMessagePreview,
-                        lastMessageTimestamp:
-                          msgs.length > 0
-                            ? (typeof msgs[msgs.length - 1].timestamp === 'string'
-                                ? msgs[msgs.length - 1].timestamp
-                                : (msgs[msgs.length - 1].timestamp as Date).toISOString())
-                            : conv.lastMessageTimestamp,
-                        updatedAt: new Date().toISOString(),
-                      }
-                    : conv
-                ),
-                isLoading: false,
-              }));
+              const newMsgs: ChatMessage[] = Array.isArray(data.messages) ? data.messages : [];
+
+              if (hasExistingMessages) {
+                if (newMsgs.length === 0) {
+                  // No changes; nothing to update
+                  return;
+                }
+                // Append strictly newer messages
+                set((state) => {
+                  const conv = state.conversations.find(c => c.id === id)!;
+                  const combined = [...conv.messages];
+                  for (const m of newMsgs) {
+                    if (!combined.some(x => x.id === m.id)) combined.push(m);
+                  }
+                  const updated = updateConversationFromMessages({ ...conv, messages: combined });
+                  return {
+                    conversations: state.conversations.map(c => c.id === id ? updated : c),
+                  };
+                });
+              } else {
+                // Initial full load
+                const msgs = newMsgs;
+                set((state) => ({
+                  conversations: state.conversations.map(conv =>
+                    conv.id === id
+                      ? updateConversationFromMessages({ ...conv, messages: msgs })
+                      : conv
+                  ),
+                  isLoading: false,
+                }));
+              }
             } catch (e) {
               const message = e instanceof Error ? e.message : 'Failed to load messages';
               logger.error('loadConversationMessages failed', message);
               set({ isLoading: false, error: { message, timestamp: new Date().toISOString() } });
               throw e;
+            } finally {
+              messagesInflight.delete(id);
             }
           },
 
