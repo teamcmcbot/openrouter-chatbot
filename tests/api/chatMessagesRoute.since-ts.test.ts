@@ -32,7 +32,7 @@ import type { User } from '@supabase/supabase-js';
 import { AuthContext, FeatureFlags, UserProfile } from '../../lib/types/auth';
 import type { NextRequest } from 'next/server';
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/auth', () => ({
+jest.mock('../../lib/middleware/auth', () => ({
   withProtectedAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
 }));
 
@@ -43,13 +43,13 @@ const currentAuthContext: AuthContext = { isAuthenticated: true, user: minimalUs
 
 jest.mock('../../lib/utils/logger', () => ({ logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() } }));
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/errors', () => {
-  const actual = jest.requireActual('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/errors');
+jest.mock('../../lib/utils/errors', () => {
+  const actual = jest.requireActual('../../lib/utils/errors');
   return { ...actual, handleError: (err: unknown) => { const mod = jest.requireMock('next/server'); const message = err instanceof Error ? err.message : String(err); return mod.NextResponse.json({ error: message, code: 'internal_server_error' }, { status: 500 }); } };
 });
 
 // Mock supabase for incremental behavior
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/supabase/server', () => {
+jest.mock('../../lib/supabase/server', () => {
   type MessageRow = { id: string; session_id: string; role: 'user'|'assistant'|'system'; content: string; message_timestamp: string };
   const messages: MessageRow[] = [
     { id: 'u-1', session_id: 'sess-1', role: 'user', content: 'one', message_timestamp: '2025-08-30T10:00:00.000Z' },
