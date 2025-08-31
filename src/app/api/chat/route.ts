@@ -181,13 +181,17 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       }
     }
 
-  // Phase 2: Log request format for human verification
-  logger.info(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`, { requestId });
-  logger.debug(`[Chat API] Message count: ${messages.length} messages`, { requestId });
-  logger.debug(`[Chat API] Current message present: ${typeof body.message === 'string' && body.message.length > 0}`, { requestId });
-  logger.info(`[Chat API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`, { requestId });
-  logger.info(`[Chat API] Web search enabled: ${!!body.webSearch}`, { requestId });
-  logger.info(`[Chat API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`, { requestId });
+  // Phase 2: Log consolidated request characteristics
+  logger.info('[Chat API] Request characteristics', {
+    requestId,
+    requestFormat: body.messages ? 'NEW' : 'LEGACY',
+    messageCount: messages.length,
+    currentMessagePresent: typeof body.message === 'string' && body.message.length > 0,
+    userTier: authContext.profile?.subscription_tier || 'anonymous',
+    webSearchEnabled: !!body.webSearch,
+    reasoningRequested: !!reasoning,
+    reasoningEffort: reasoning ? reasoning.effort : undefined,
+  });
 
     // Tier gating for Web Search (Pro/Enterprise only)
     // Anonymous and Free are both forbidden for this feature

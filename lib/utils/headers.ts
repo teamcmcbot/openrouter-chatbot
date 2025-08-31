@@ -7,7 +7,9 @@ export function safeHeaderGet(headers: unknown, key: string): string | undefined
   try {
     const anyHeaders = headers as { get?: (k: string) => unknown };
     if (typeof anyHeaders.get === 'function') {
-      const v = anyHeaders.get(key) ?? anyHeaders.get(lowerKey) ?? anyHeaders.get(key.toUpperCase());
+      let v = anyHeaders.get(key);
+      if (v == null) v = anyHeaders.get(lowerKey);
+      if (v == null) v = anyHeaders.get(key.toUpperCase());
       if (typeof v === 'string') return v;
       if (Array.isArray(v)) return (v[0] as string) ?? undefined;
       return v as string | undefined;

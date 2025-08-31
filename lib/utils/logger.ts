@@ -75,11 +75,13 @@ function log(level: Level, message: string, ...args: unknown[]) {
   if (!enabled(level)) return;
   const payload = buildPayload(level, message, args);
 
-  // In tests, emit plain message strings to match historical expectations
+  // In tests, emit plain message and include context args for better debugging
   if (isTest) {
-    if (level === 'error') console.error(message);
-    else if (level === 'warn') console.warn(message);
-    else console.log(message);
+    const hasArgs = Array.isArray(args) && args.length > 0;
+    const output = hasArgs ? `${message} ${JSON.stringify(args)}` : message;
+    if (level === 'error') console.error(output);
+    else if (level === 'warn') console.warn(output);
+    else console.log(output);
     return;
   }
 
