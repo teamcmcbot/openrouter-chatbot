@@ -105,7 +105,7 @@ Phases
   - No 500s related to missing `set_active_session` or column.
   - DB schema reflects drop; app logs show deprecation warning only when legacy clients send `is_active`.
 
-- [ ] A5. Documentation and schema merge
+- [x] A5. Documentation and schema merge
   - Docs:
     - Update `docs/api/chat-session.md` to remove `is_active` from request/response examples and parameter tables; add deprecation note in changelog.
     - Update `docs/database/database_architecture.md` to remove `is_active` from UI fields.

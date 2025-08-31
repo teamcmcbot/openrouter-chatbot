@@ -30,7 +30,7 @@ Audit trail of user actions. Populated via the `log_user_activity` function.
 
 ### `chat_sessions`
 
-Represents a conversation. Uses text IDs so the client can generate them. Triggers update statistics whenever messages change.
+Represents a conversation. Uses text IDs so the client can generate them. Triggers update statistics whenever messages change. Active selection is tracked client‑side only; no `is_active` column.
 
 ### `chat_messages`
 
@@ -144,7 +144,7 @@ Execute the scripts in `/database` sequentially (01‑04) using the Supabase SQL
 - **user_id** references `profiles(id)`.
 - **title**, **created_at**, **updated_at**, **last_activity**.
 - **message_count**, **total_tokens**, **last_model** for stats.
-- **last_message_preview**, **last_message_timestamp**, **is_active** for UI.
+- **last_message_preview**, **last_message_timestamp** for UI.
 - RLS: users can `SELECT/INSERT/UPDATE/DELETE` only where `user_id = auth.uid()`.
 
 #### `chat_messages`
