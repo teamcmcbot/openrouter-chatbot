@@ -86,20 +86,31 @@ export function validateChatRequest(body: unknown): {
 
         if (isValidMessagesArray) {
           validatedMessages = body.messages as ChatMessage[];
+          logger.debug('[Request Validation] Successfully validated context messages', { count: body.messages.length });
+          // Preserve legacy console line for tests expecting exact message
+          // eslint-disable-next-line no-console
           console.log('[Request Validation] Successfully validated ' + body.messages.length + ' context messages');
         } else {
+          logger.warn('[Request Validation] Invalid messages array format, ignoring');
+          // eslint-disable-next-line no-console
           console.log('[Request Validation] Invalid messages array format, ignoring');
         }
       } else {
-        console.log('[Request Validation] Invalid messages array format, ignoring');
+  logger.warn('[Request Validation] Invalid messages array format, ignoring');
+  // eslint-disable-next-line no-console
+  console.log('[Request Validation] Invalid messages array format, ignoring');
       }
     } else {
-      console.log('[Request Validation] No messages array provided, using single message format');
+  logger.debug('[Request Validation] No messages array provided, using single message format');
+  // eslint-disable-next-line no-console
+  console.log('[Request Validation] No messages array provided, using single message format');
     }
 
     // Log the final format being used
     const format = validatedMessages ? 'NEW' : 'LEGACY';
-    console.log(`[Request Validation] Final request: ${format} format with model: ${model}`);
+  logger.info('[Request Validation] Final request', { format, model });
+  // eslint-disable-next-line no-console
+  console.log(`[Request Validation] Final request: ${format} format with model: ${model}`);
 
     return {
       data: {

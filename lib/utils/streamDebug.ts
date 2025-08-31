@@ -26,6 +26,6 @@ export function isStreamingDebugEnabled(): boolean {
 
 export function streamDebug(...args: unknown[]) {
   if (isStreamingDebugEnabled()) {
-    console.info('[STREAM-DEBUG]', ...args);
+  console.warn('[STREAM-DEBUG]', ...args);
   }
 }

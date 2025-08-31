@@ -331,7 +331,6 @@ export function SimpleAuthButton() {
         </button>
         <Button
           onClick={() => {
-            console.log('Sign in button clicked!')
             clearError() // Clear any previous errors
             setShowModal(true)
           }}
@@ -346,7 +345,6 @@ export function SimpleAuthButton() {
         <div 
           className="fixed inset-0 z-50 bg-black bg-opacity-50"
           onClick={() => {
-            console.log('Backdrop clicked, closing modal')
             setShowModal(false)
             clearError() // Clear error when closing modal
           }}

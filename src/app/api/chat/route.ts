@@ -175,13 +175,13 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       }
     }
 
-    // Phase 2: Log request format for human verification
-    console.log(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
-    console.log(`[Chat API] Message count: ${messages.length} messages`);
-    console.log(`[Chat API] Current message: "${body.message}"`);
-    console.log(`[Chat API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`);
-  console.log(`[Chat API] Web search enabled: ${!!body.webSearch}`);
-  console.log(`[Chat API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`);
+  // Phase 2: Log request format for human verification
+  logger.info(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
+  logger.debug(`[Chat API] Message count: ${messages.length} messages`);
+  logger.debug(`[Chat API] Current message present: ${typeof body.message === 'string' && body.message.length > 0}`);
+  logger.info(`[Chat API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`);
+  logger.info(`[Chat API] Web search enabled: ${!!body.webSearch}`);
+  logger.info(`[Chat API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`);
 
     // Tier gating for Web Search (Pro/Enterprise only)
     // Anonymous and Free are both forbidden for this feature
@@ -218,9 +218,9 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   const tokenStrategy = await getModelTokenLimits(enhancedData.model, { tier });
     const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
     
-    console.log(`[Chat API] Model: ${enhancedData.model}`);
-    console.log(`[Chat API] Token strategy - Input: ${tokenStrategy.maxInputTokens}, Output: ${tokenStrategy.maxOutputTokens}`);
-    console.log(`[Chat API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`);
+  logger.info(`[Chat API] Model: ${enhancedData.model}`);
+  logger.debug(`[Chat API] Token strategy - Input: ${tokenStrategy.maxInputTokens}, Output: ${tokenStrategy.maxOutputTokens}`);
+  logger.debug(`[Chat API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`);
     
     // Additional validation for token limits based on user tier
     const totalInputTokens = messages.reduce((total, msg) => {
