@@ -448,7 +448,9 @@ export const useModelStore = create<ModelState & ModelSelectors>()(
           },
         }),
         {
-          name: STORAGE_KEYS.MODELS,
+          // Use a distinct key for the small persisted slice to avoid clobbering
+          // the full models cache stored under STORAGE_KEYS.MODELS
+          name: STORAGE_KEYS.MODELS_PERSIST,
           storage: createJSONStorage(() => localStorage),
           partialize: (state) => ({
             selectedModel: state.selectedModel,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, ArrowPathIcon, CloudIcon, ComputerDesktopIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import Button from "./Button";
 import ConfirmModal from "./ConfirmModal";
@@ -24,10 +24,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     switchConversation,
     deleteConversation,
     updateConversationTitle,
-  getRecentConversations,
-  loadInitialConversations,
   loadMoreConversations,
-  loadConversationMessages,
     clearAllConversations,
     isHydrated,
   } = useChatStore();
@@ -53,15 +50,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  // Kick off initial server-backed load when hydrated and authenticated
-  useEffect(() => {
-    if (isHydrated && isAuthenticated && loadInitialConversations) {
-      loadInitialConversations();
-    }
-  }, [isHydrated, isAuthenticated, loadInitialConversations]);
-
-  // Use full store list (sorted already) for display; server returns summary payload
-  const recentConversations = isHydrated ? getRecentConversations(1000) : [];
+  // Sidebar now relies on store-managed paginated list; initial load is orchestrated by useChatSync
   const sidebarPaging = useChatStore(s => s.sidebarPaging);
 
   const handleStartEdit = (conversationId: string, currentTitle: string) => {
@@ -98,13 +87,6 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
 
   const handleConversationClick = (id: string) => {
     switchConversation(id);
-    // Kick off lazy message load if needed
-    if (loadConversationMessages) {
-      const selected = conversations.find(c => c.id === id);
-      if (selected && (!Array.isArray(selected.messages) || selected.messages.length === 0)) {
-        loadConversationMessages(id).catch(() => {});
-      }
-    }
     // Close mobile sidebar after selection
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       onClose();
@@ -241,7 +223,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
           )}
             
             <div className="space-y-1">
-              {recentConversations.map((conversation, index) => (
+              {conversations.map((conversation, index) => (
                 <div
                   key={conversation.id}
       className={`group p-3 rounded-lg cursor-pointer border transition-all duration-200 relative ${
@@ -356,7 +338,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                 </div>
               ))}
               
-              {recentConversations.length === 0 && (
+              {conversations.length === 0 && (
                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   <ChatBubbleLeftIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">No conversations yet</p>

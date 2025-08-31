@@ -2,16 +2,12 @@
 
 ## Overview
 
-The Chat Session API provides endpoints for managing chat sessions, including updating session metadata such as titles and active status.
+The Chat Session API provides endpoints for managing chat sessions, including updating session metadata such as titles.
 
 ## Authentication & Authorization
 
-- **Authentication Required**: Uses `withProtectedAuth` middleware - requires valid user authentication
-- **Rate Limiting**: Tier-based rate limits applied via `withRedisRateLimit` middleware:
-  - **Anonymous**: 20 requests/hour _(N/A - authentication required)_
-  - **Free**: 100 requests/hour
-  - **Pro**: 500 requests/hour
-  - **Enterprise**: 2000 requests/hour
+- Authentication: Uses standardized `withProtectedAuth` middleware
+- Rate limiting: Uses tiered rate limiting via `withTieredRateLimit(..., { tier: "tierC" })`
 - **Ownership Validation**: Users can only update their own sessions
 - **Feature Flags**: Automatic tier-based access control applied
 
@@ -25,10 +21,9 @@ POST /api/chat/session
 
 ### Description
 
-Updates session metadata including title and active status. This endpoint is used to:
+Updates session metadata such as the title. This endpoint is used to:
 
 - Update conversation titles from the frontend UI
-- Set/unset active session status
 - Modify other session metadata
 
 ### Authentication
@@ -50,18 +45,16 @@ Content-Type: application/json
 ```json
 {
   "id": "session-uuid",
-  "title": "New Session Title",
-  "is_active": true
+  "title": "New Session Title"
 }
 ```
 
 #### Parameters
 
-| Parameter   | Type    | Required | Description                                      |
-| ----------- | ------- | -------- | ------------------------------------------------ |
-| `id`        | string  | Yes      | The session UUID to update                       |
-| `title`     | string  | No       | New title for the session                        |
-| `is_active` | boolean | No       | Set session as active (true) or inactive (false) |
+| Parameter | Type   | Required | Description               |
+| --------- | ------ | -------- | ------------------------- |
+| `id`      | string | Yes      | The session ID to update  |
+| `title`   | string | No       | New title for the session |
 
 ### Response Format
 
@@ -73,7 +66,6 @@ Content-Type: application/json
     "id": "session-uuid",
     "title": "New Session Title",
     "user_id": "user-uuid",
-    "is_active": true,
     "updated_at": "2024-01-01T00:00:00.000Z",
     "message_count": 10,
     "total_tokens": 500,
@@ -171,31 +163,7 @@ async function updateSessionTitle(sessionId: string, newTitle: string) {
   }
 }
 
-// Set session as active
-async function setActiveSession(sessionId: string) {
-  try {
-    const response = await fetch("/api/chat/session", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        id: sessionId,
-        is_active: true,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to set active session: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    return result.session;
-  } catch (error) {
-    console.error("Error setting active session:", error);
-    throw error;
-  }
-}
+// Note: Active session selection is tracked client-side only; no server API needed.
 ```
 
 ### cURL Examples
@@ -212,17 +180,7 @@ curl -X POST http://localhost:3000/api/chat/session \
   }'
 ```
 
-**Set Active Session:**
-
-```bash
-curl -X POST http://localhost:3000/api/chat/session \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-session-token" \
-  -d '{
-    "id": "session-uuid-here",
-    "is_active": true
-  }'
-```
+Note: Active session selection is managed entirely on the client; there is no server API to toggle an "active" flag.
 
 ## Integration with Frontend
 
@@ -291,17 +249,17 @@ The session updates modify the `chat_sessions` table:
 
 ```sql
 CREATE TABLE chat_sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  title TEXT DEFAULT 'New Chat',
-  is_active BOOLEAN DEFAULT false,
-  message_count INTEGER DEFAULT 0,
-  total_tokens INTEGER DEFAULT 0,
-  last_model TEXT,
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  title VARCHAR(255) NOT NULL DEFAULT 'New Chat',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_activity TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  message_count INTEGER NOT NULL DEFAULT 0,
+  total_tokens INTEGER NOT NULL DEFAULT 0,
+  last_model VARCHAR(100),
   last_message_preview TEXT,
-  last_message_timestamp TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  last_message_timestamp TIMESTAMPTZ
 );
 ```
 
@@ -316,13 +274,13 @@ CREATE TABLE chat_sessions (
 
 ## Rate Limiting
 
-All responses include rate limit headers:
+All responses include rate limit headers (tiered):
 
 ```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
+X-RateLimit-Limit: 2000
+X-RateLimit-Remaining: 1995
 X-RateLimit-Reset: 2025-08-07T09:30:00.000Z
-Retry-After: 3600 (when rate limit exceeded)
+Retry-After: 3600
 ```
 
 ## Error Handling
@@ -341,3 +299,7 @@ The API implements comprehensive error handling:
 - Implements optimistic updates on the frontend for better UX
 - Efficient queries with proper indexing on `user_id` and `id` fields
 - Minimal data transfer with selective field updates
+
+## Deprecation Notes
+
+- 2025-08: Removed `is_active` from API and database. Active conversation selection is tracked only on the client side and not stored on the server. Legacy requests including `is_active` are accepted but ignored; a server log warning is emitted for observability.

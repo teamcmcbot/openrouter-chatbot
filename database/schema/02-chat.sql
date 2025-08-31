@@ -29,8 +29,7 @@ CREATE TABLE public.chat_sessions (
     total_tokens INTEGER DEFAULT 0 NOT NULL,
     last_model VARCHAR(100),
 
-    -- Status flags
-    is_active BOOLEAN DEFAULT true NOT NULL,
+    -- Status flags (is_active removed; active selection is client-side only)
 
     -- Preview information (for sidebar display)
     last_message_preview TEXT,
@@ -407,7 +406,6 @@ RETURNS TABLE (
     message_count INTEGER,
     total_tokens INTEGER,
     last_model VARCHAR(100),
-    is_active BOOLEAN,
     last_message_preview TEXT,
     last_message_timestamp TIMESTAMPTZ
 ) AS $$
@@ -422,7 +420,6 @@ BEGIN
         s.message_count,
         s.total_tokens,
         s.last_model,
-        s.is_active,
         s.last_message_preview,
         s.last_message_timestamp
     FROM public.chat_sessions s

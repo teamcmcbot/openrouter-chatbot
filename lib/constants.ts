@@ -5,7 +5,10 @@
  */
 export const STORAGE_KEYS = {
   CHAT: 'openrouter-chat-storage',
+  // Cache of fetched model list (version/timestamp/models/modelConfigs)
   MODELS: 'openrouter-models-cache',
+  // NEW: Persisted UI slice for model store (selectedModel/flags)
+  MODELS_PERSIST: 'openrouter-models-persist',
   UI_PREFERENCES: 'openrouter-ui-preferences',
   SETTINGS: 'openrouter-settings-storage',
   GENERATION: 'openrouter-generation-cache',
