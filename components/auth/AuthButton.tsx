@@ -11,9 +11,6 @@ export function AuthButton() {
   const { user, loading } = useAuth()
   const [showSignInModal, setShowSignInModal] = useState(false)
 
-  // Debug logging
-  console.log('AuthButton render:', { user, loading, showSignInModal })
-
   if (loading) {
     return (
       <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
@@ -28,7 +25,6 @@ export function AuthButton() {
     <>
       <Button
         onClick={() => {
-          console.log('Sign In button clicked')
           setShowSignInModal(true)
         }}
         variant="primary"
@@ -39,7 +35,6 @@ export function AuthButton() {
       <SignInModal
         isOpen={showSignInModal}
         onClose={() => {
-          console.log('Modal close called')
           setShowSignInModal(false)
         }}
       />

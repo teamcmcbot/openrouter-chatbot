@@ -1,5 +1,6 @@
 // lib/utils/redis-rate-limiter.ts
 import { Redis } from "@upstash/redis";
+import { logger } from './logger';
 
 // Initialize Redis connection
 const redis = Redis.fromEnv(); // Uses UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
@@ -54,7 +55,12 @@ export async function checkRateLimit(
       totalRequests,
     };
   } catch (error) {
-    console.error("Redis rate limit error:", error);
+    logger.error('Redis rate limit error', {
+      error,
+      key,
+      limit,
+      windowMs,
+    });
     
     // Fallback: Allow request but log error
     // This prevents Redis outages from breaking your API
@@ -91,7 +97,12 @@ export async function getRateLimitInfo(
       totalRequests,
     };
   } catch (error) {
-    console.error("Redis rate limit info error:", error);
+    logger.error('Redis rate limit info error', {
+      error,
+      key,
+      limit,
+      windowMs,
+    });
     return {
       remaining: limit,
       resetTime: now + windowMs,

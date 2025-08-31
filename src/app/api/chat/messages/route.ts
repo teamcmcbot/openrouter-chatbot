@@ -8,6 +8,7 @@ import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimi
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 // Shape of chat_messages rows we read from DB
 interface DbMessage {
@@ -34,11 +35,13 @@ interface DbMessage {
 }
 
 async function getMessagesHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  // Generate or forward a request id for correlation
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
   try {
     const supabase = await createClient();
     const { user } = authContext;
 
-    logger.info('Get messages request', { userId: user!.id });
+    logger.info('Get messages request', { userId: user!.id, requestId });
 
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get('session_id');
@@ -47,7 +50,7 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
     if (!sessionId) {
       return NextResponse.json(
         { error: 'Session ID required' },
-        { status: 400 }
+        { status: 400, headers: { 'x-request-id': requestId } }
       );
     }
 
@@ -62,7 +65,7 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
     if (sessionError || !session) {
       return NextResponse.json(
         { error: 'Session not found or access denied' },
-        { status: 404 }
+        { status: 404, headers: { 'x-request-id': requestId } }
       );
     }
 
@@ -70,7 +73,7 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
     let messages: DbMessage[] | null = null;
     let messagesError: unknown = null;
 
-    if (sinceTs) {
+  if (sinceTs) {
       // Incremental fetch for messages strictly newer than since_ts
       const { data, error } = await supabase
         .from('chat_messages')
@@ -206,26 +209,28 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
         up_to_date: formattedMessages.length === 0,
         messages: formattedMessages,
         count: formattedMessages.length,
-      });
+      }, { headers: { 'x-request-id': requestId } });
     }
 
     return NextResponse.json({
       messages: formattedMessages,
       count: formattedMessages.length,
-    });
+    }, { headers: { 'x-request-id': requestId } });
 
   } catch (error) {
-    logger.error('Get messages error:', error);
-    return handleError(error);
+    logger.error('Get messages error:', { error, requestId });
+    return handleError(error, requestId);
   }
 }
 
 async function postMessagesHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  // Generate or forward a request id for correlation
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
   try {
     const supabase = await createClient();
     const { user } = authContext;
 
-    logger.info('Create messages request', { userId: user!.id });
+    logger.info('Create messages request', { userId: user!.id, requestId });
 
     const requestData = await request.json() as {
       message?: ChatMessage; // Single message (backward compatibility)
@@ -275,7 +280,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       if (createError || !newSession) {
         return NextResponse.json(
           { error: 'Session creation failed' },
-          { status: 500 }
+          { status: 500, headers: { 'x-request-id': requestId } }
         );
       }
     } else if (requestData.sessionTitle && existingSession.title !== requestData.sessionTitle) {
@@ -290,7 +295,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
         .eq('user_id', user!.id);
 
       if (titleUpdateError) {
-        logger.error('Error updating session title:', titleUpdateError);
+        logger.error('Error updating session title:', { error: titleUpdateError, requestId, sessionId: requestData.sessionId, userId: user!.id });
         // Don't fail the request for title update errors
       }
     }
@@ -401,7 +406,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
     } else {
       return NextResponse.json(
         { error: 'Either message or messages array is required' },
-        { status: 400 }
+        { status: 400, headers: { 'x-request-id': requestId } }
       );
     }
 
@@ -492,7 +497,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       .eq('id', requestData.sessionId);
 
     if (updateError) {
-      console.error('Error updating session stats:', updateError);
+      logger.error('Error updating session stats', { error: updateError, requestId, sessionId: requestData.sessionId, userId: user!.id });
       // Don't fail the request for stats update errors
     }
 
@@ -539,11 +544,11 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       messages: insertedMessages,
       count: insertedMessages.length,
       success: true
-    }, { status: 201 });
+    }, { status: 201, headers: { 'x-request-id': requestId } });
 
   } catch (error) {
-    logger.error('Create message error:', error);
-    return handleError(error);
+    logger.error('Create message error:', { error, requestId });
+    return handleError(error, requestId);
   }
 }
 

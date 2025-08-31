@@ -17,6 +17,26 @@ const eslintConfig = [
       "@typescript-eslint/no-require-imports": "off",
     },
   },
+  {
+    files: ["**/*.{ts,tsx,js,jsx}"],
+    rules: {
+      // Enforce no console usage globally; allow only warn/error
+      "no-console": ["error", { allow: ["warn", "error"] }],
+    },
+  },
+  // Allow console usage inside the logger implementation by design
+  {
+    files: ["lib/utils/logger.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
+  {
+    files: ["tests/**", "scripts/**"],
+    rules: {
+      "no-console": "off",
+    },
+  },
 ];
 
 export default eslintConfig;

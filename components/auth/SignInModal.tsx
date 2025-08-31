@@ -15,15 +15,11 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
   const { signInWithGoogle } = useAuth()
   const [loading, setLoading] = useState(false)
 
-  // Debug logging
-  console.log('SignInModal render:', { isOpen, loading })
 
   const handleGoogleSignIn = async () => {
     try {
-      console.log('Starting Google sign in...')
       setLoading(true)
       await signInWithGoogle()
-      console.log('Google sign in completed')
       // Modal will close automatically when auth state changes
     } catch (error) {
       console.error('Sign in error:', error)
@@ -32,11 +28,8 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
   }
 
   if (!isOpen) {
-    console.log('Modal not open, returning null')
     return null
   }
-
-  console.log('Rendering modal...')
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">

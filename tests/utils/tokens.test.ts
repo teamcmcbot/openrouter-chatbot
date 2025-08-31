@@ -23,6 +23,8 @@ const originalEnv = process.env;
 beforeEach(() => {
   jest.clearAllMocks();
   process.env = { ...originalEnv };
+  // Enable verbose logging in tests to capture debug/info logs from centralized logger
+  process.env.LOG_LEVEL = 'debug';
 });
 
 afterAll(() => {

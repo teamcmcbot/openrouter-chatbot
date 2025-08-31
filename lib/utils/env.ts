@@ -1,3 +1,4 @@
+import { logger } from './logger';
 // lib/utils/env.ts
 
 export function getEnvVar(name: string, defaultValue?: string): string {
@@ -79,11 +80,11 @@ export function validateEnvVars() {
   // Log info about optional variables
   optionalEnvVars.forEach(varName => {
     if (!process.env[varName]) {
-      console.info(`Optional environment variable ${varName} not set, using defaults`);
+    logger.warn(`Optional environment variable ${varName} not set, using defaults`);
     }
   });
 
-  console.info(`Models cache TTL: ${getModelsCacheTTL()} minutes`);
+  logger.info(`Models cache TTL: ${getModelsCacheTTL()} minutes`);
 }
 
 /**

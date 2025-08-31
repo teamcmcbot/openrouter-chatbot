@@ -99,7 +99,7 @@ import type { User } from '@supabase/supabase-js';
 import { AuthContext, FeatureFlags, UserProfile } from '../../lib/types/auth';
 import type { NextRequest } from 'next/server';
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/auth', () => ({
+jest.mock('../../lib/middleware/auth', () => ({
   withProtectedAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
   withEnhancedAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
   withTierAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
@@ -140,15 +140,15 @@ const mockAuthContext: AuthContext = {
 };
 const currentAuthContext = mockAuthContext;
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/auth', () => ({
+jest.mock('../../lib/utils/auth', () => ({
   extractAuthContext: jest.fn(() => currentAuthContext),
   hasPermission: jest.fn(() => true),
 }));
 
 jest.mock('../../lib/utils/logger', () => ({ logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() } }));
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/errors', () => {
-  const actual = jest.requireActual('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/errors');
+jest.mock('../../lib/utils/errors', () => {
+  const actual = jest.requireActual('../../lib/utils/errors');
   return {
     ...actual,
     handleError: (err: unknown) => {
@@ -160,7 +160,7 @@ jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/errors', () =>
 });
 
 // In-memory mock supabase server for GET /api/chat/messages
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/supabase/server', () => {
+jest.mock('../../lib/supabase/server', () => {
   type SessionRow = { id: string; user_id: string; title?: string };
   type MessageRow = {
     id: string; session_id: string; role: string; content: string; model?: string | null;

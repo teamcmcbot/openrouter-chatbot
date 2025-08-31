@@ -1,3 +1,4 @@
+import { logger } from './logger';
 // lib/utils/syncManager.ts
 
 /**
@@ -25,12 +26,12 @@ class SyncManager {
     
     // Prevent sync if already in progress or if last sync was too recent
     if (this.syncInProgress) {
-      console.log(`[SyncManager] Sync already in progress, skipping`);
+  logger.debug(`[SyncManager] Sync already in progress, skipping`);
       return false;
     }
     
     if (timeSinceLastSync < this.DEBOUNCE_MS) {
-      console.log(`[SyncManager] Sync debounced, last sync was ${timeSinceLastSync}ms ago`);
+  logger.debug(`[SyncManager] Sync debounced, last sync was ${timeSinceLastSync}ms ago`);
       return false;
     }
     
@@ -44,13 +45,13 @@ class SyncManager {
     
     this.syncInProgress = true;
     this.lastSyncTime = Date.now();
-    console.log(`[SyncManager] Sync started at ${new Date().toISOString()}`);
+  logger.debug(`[SyncManager] Sync started at ${new Date().toISOString()}`);
     return true;
   }
 
   public endSync(): void {
     this.syncInProgress = false;
-    console.log(`[SyncManager] Sync completed at ${new Date().toISOString()}`);
+  logger.debug(`[SyncManager] Sync completed at ${new Date().toISOString()}`);
   }
 
   public isSyncing(): boolean {
@@ -60,7 +61,7 @@ class SyncManager {
   public reset(): void {
     this.syncInProgress = false;
     this.lastSyncTime = 0;
-    console.log(`[SyncManager] Reset sync state`);
+  logger.debug(`[SyncManager] Reset sync state`);
   }
 }
 

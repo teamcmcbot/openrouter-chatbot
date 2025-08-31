@@ -51,7 +51,7 @@ export function estimateTokenCount(text: string): number {
   // This is a conservative estimate that works reasonably well
   const estimatedTokens = Math.ceil(text.length / 4);
   
-  console.log(`[Token Estimation] Text length: ${text.length} chars → ~${estimatedTokens} tokens`);
+  logger.debug(`[Token Estimation] Text length: ${text.length} chars → ~${estimatedTokens} tokens`);
   
   return estimatedTokens;
 }
@@ -77,7 +77,7 @@ export function estimateMessagesTokens(messages: ChatMessage[]): number {
   
   const totalTokens = contentTokens + structureTokens;
   
-  console.log(`[Token Estimation] ${messages.length} messages: ${contentTokens} content + ${structureTokens} structure = ${totalTokens} total tokens`);
+  logger.debug(`[Token Estimation] ${messages.length} messages: ${contentTokens} content + ${structureTokens} structure = ${totalTokens} total tokens`);
   
   return totalTokens;
 }
@@ -110,7 +110,7 @@ export function calculateTokenStrategy(contextLength: number): TokenStrategy {
     totalContextLength: contextLength,
   };
   
-  console.log(`[Token Strategy] Model context: ${contextLength} → Input: ${maxInputTokens} (${Math.round(contextRatio * 100)}%) | Output: ${maxOutputTokens} (${Math.round(outputRatio * 100)}%) | Reserve: ${reserveTokens}`);
+  logger.info(`[Token Strategy] Model context: ${contextLength} → Input: ${maxInputTokens} (${Math.round(contextRatio * 100)}%) | Output: ${maxOutputTokens} (${Math.round(outputRatio * 100)}%) | Reserve: ${reserveTokens}`);
   
   return strategy;
 }
@@ -123,10 +123,10 @@ export function calculateTokenStrategy(contextLength: number): TokenStrategy {
  * @returns Token strategy for the specified model
  */
 export async function getModelTokenLimits(modelId?: string): Promise<TokenStrategy> {
-  console.log(`[Model Token Limits] Looking up limits for model: ${modelId || 'default'}`);
+  logger.debug(`[Model Token Limits] Looking up limits for model: ${modelId || 'default'}`);
   
   if (!modelId) {
-    console.log(`[Model Token Limits] No model specified, using conservative default (8K context)`);
+  logger.info(`[Model Token Limits] No model specified, using conservative default (8K context)`);
     return calculateTokenStrategy(8000); // Conservative default
   }
   
@@ -138,40 +138,40 @@ export async function getModelTokenLimits(modelId?: string): Promise<TokenStrate
         if (hasModelConfigsInStore()) {
           const cachedModelConfig = getModelConfigFromStore(modelId);
           if (cachedModelConfig) {
-            console.log(`[Model Token Limits] Found ${cachedModelConfig.description} with ${cachedModelConfig.context_length} context length from cache`);
-            console.log(`[Model Token Limits] Using cached model ${modelId} with context length: ${cachedModelConfig.context_length}`);
+            logger.info(`[Model Token Limits] Found ${cachedModelConfig.description} with ${cachedModelConfig.context_length} context length from cache`);
+            logger.info(`[Model Token Limits] Using cached model ${modelId} with context length: ${cachedModelConfig.context_length}`);
             return calculateTokenStrategy(cachedModelConfig.context_length);
           } else {
-            console.log(`[Model Token Limits] Model '${modelId}' not found in cached configs, falling back to API`);
+            logger.debug(`[Model Token Limits] Model '${modelId}' not found in cached configs, falling back to API`);
           }
         } else {
-          console.log(`[Model Token Limits] No cached model configs available, hydrating from /api/models`);
+          logger.debug(`[Model Token Limits] No cached model configs available, hydrating from /api/models`);
         }
       } catch (error) {
-        console.log(`[Model Token Limits] Error accessing store cache (expected on server-side), will use conservative defaults if needed:`, error);
+  logger.warn(`[Model Token Limits] Error accessing store cache (expected on server-side), will use conservative defaults if needed:`, error);
       }
       // Hydrate from our own API and re-check the store
       try {
         await fetchModelsForStore();
         // Verify store actually hydrated
         if (!hasModelConfigsInStore()) {
-          console.warn('[Model Token Limits] Hydration from /api/models did not populate model configs. Falling back to conservative default.');
+          logger.warn('[Model Token Limits] Hydration from /api/models did not populate model configs. Falling back to conservative default.');
         }
         const hydratedConfig = getModelConfigFromStore(modelId);
         if (hydratedConfig) {
-          console.log(`[Model Token Limits] Hydrated from /api/models. Using ${hydratedConfig.description} with context ${hydratedConfig.context_length}`);
+          logger.info(`[Model Token Limits] Hydrated from /api/models. Using ${hydratedConfig.description} with context ${hydratedConfig.context_length}`);
           return calculateTokenStrategy(hydratedConfig.context_length);
         }
       } catch (e) {
-        console.log('[Model Token Limits] Hydration from /api/models failed, falling back to conservative default', e);
+  logger.warn('[Model Token Limits] Hydration from /api/models failed, falling back to conservative default', e);
       }
     }
 
     // On server or if hydration didn’t yield a config, return conservative default
-    console.log(`[Model Token Limits] Model '${modelId}' not found in store after hydration or running on server. Using conservative default (8K context)`);
+  logger.info(`[Model Token Limits] Model '${modelId}' not found in store after hydration or running on server. Using conservative default (8K context)`);
     return calculateTokenStrategy(8000);
   } catch (error) {
-    console.error(`[Model Token Limits] Error fetching model config for ${modelId}:`, error);
+    logger.error(`[Model Token Limits] Error fetching model config for ${modelId}:`, error);
     return calculateTokenStrategy(8000); // Conservative fallback on error
   }
 }
@@ -186,7 +186,7 @@ export async function getModelTokenLimits(modelId?: string): Promise<TokenStrate
 export function isWithinInputBudget(tokenCount: number, strategy: TokenStrategy): boolean {
   const fits = tokenCount <= strategy.maxInputTokens;
   
-  console.log(`[Token Budget] ${tokenCount} tokens ${fits ? 'fits within' : 'exceeds'} input budget of ${strategy.maxInputTokens}`);
+  logger.debug(`[Token Budget] ${tokenCount} tokens ${fits ? 'fits within' : 'exceeds'} input budget of ${strategy.maxInputTokens}`);
   
   return fits;
 }
@@ -202,7 +202,7 @@ export async function getMaxOutputTokens(modelId?: string): Promise<number> {
   const strategy = await getModelTokenLimits(modelId);
   const maxTokens = strategy.maxOutputTokens;
   
-  console.log(`[Legacy Token Limit] Model ${modelId || 'default'} max output tokens: ${maxTokens}`);
+  logger.info(`[Legacy Token Limit] Model ${modelId || 'default'} max output tokens: ${maxTokens}`);
   
   return maxTokens;
 }

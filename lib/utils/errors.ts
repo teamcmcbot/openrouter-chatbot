@@ -3,6 +3,7 @@
 import type { NextResponse } from 'next/server';
 import { ApiError } from '../types';
 import { AuthErrorCode, AuthError } from '../types/auth';
+import { logger } from './logger';
 
 export enum ErrorCode {
   // Client Errors
@@ -95,8 +96,9 @@ export class ApiErrorResponse extends Error {
   }
 }
 
-export function handleError(error: unknown): NextResponse<ApiError> {
-  console.error('[API_ERROR]', error);
+export function handleError(error: unknown, requestId?: string): NextResponse<ApiError> {
+  // Centralized error logging with optional correlation id
+  logger.error('[API_ERROR]', { error, requestId });
 
   let errorResponse: ApiError;
   let status: number;
@@ -140,7 +142,7 @@ export function handleError(error: unknown): NextResponse<ApiError> {
   // Return a standard Response in non-Next runtimes (e.g., unit tests)
   const res = new Response(JSON.stringify(errorResponse), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(requestId ? { 'x-request-id': requestId } : {}) },
   });
   return res as unknown as NextResponse<ApiError>;
 }

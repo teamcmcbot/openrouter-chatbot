@@ -99,7 +99,7 @@ import type { User } from '@supabase/supabase-js';
 import { AuthContext, FeatureFlags, UserProfile } from '../../lib/types/auth';
 import type { NextRequest } from 'next/server';
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/auth', () => ({
+jest.mock('../../lib/middleware/auth', () => ({
   withProtectedAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
   withEnhancedAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
   withTierAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
@@ -140,15 +140,15 @@ const mockAuthContext: AuthContext = {
 };
 const currentAuthContext = mockAuthContext;
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/auth', () => ({
+jest.mock('../../lib/utils/auth', () => ({
   extractAuthContext: jest.fn(() => currentAuthContext),
   hasPermission: jest.fn(() => true),
 }));
 
 jest.mock('../../lib/utils/logger', () => ({ logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() } }));
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/errors', () => {
-  const actual = jest.requireActual('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/errors');
+jest.mock('../../lib/utils/errors', () => {
+  const actual = jest.requireActual('../../lib/utils/errors');
   return {
     ...actual,
     handleError: (err: unknown) => {
@@ -160,7 +160,7 @@ jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/errors', () =>
 });
 
 // In-memory mock supabase server with reasoning support
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/supabase/server', () => {
+jest.mock('../../lib/supabase/server', () => {
   type SessionRow = { id: string; user_id: string; title?: string; message_count?: number; total_tokens?: number; last_model?: string; last_message_preview?: string; last_message_timestamp?: string; created_at?: string; updated_at?: string };
   type MessageRow = { id: string; session_id: string; role: string; content: string; model?: string | null; total_tokens?: number; input_tokens?: number; output_tokens?: number; user_message_id?: string | null; content_type?: string | null; elapsed_ms?: number | null; completion_id?: string | null; message_timestamp: string; has_attachments?: boolean; attachment_count?: number; has_websearch?: boolean | null; websearch_result_count?: number | null; error_message?: string | null; reasoning?: string | null; reasoning_details?: Record<string, unknown> | null };
   type AnnotationRow = { id: string; user_id: string; session_id: string; message_id: string; annotation_type: 'url_citation'; url: string; title: string | null; content: string | null; start_index: number | null; end_index: number | null; created_at: string };

@@ -3,22 +3,22 @@
  */
 
 // Mock supabase server client to control rpc behavior
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/supabase/server', () => ({
+jest.mock('../../lib/supabase/server', () => ({
   createClient: async () => ({
     rpc: jest.fn(async () => ({ data: null, error: null })),
   }),
 }));
 
 // Reuse middleware and logger mocks from previous test
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/auth', () => ({
+jest.mock('../../lib/middleware/auth', () => ({
   withEnhancedAuth: (handler: (req: unknown, ctx: unknown) => unknown) => (req: unknown) => handler(req, { isAuthenticated: false, user: null }),
 }));
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/redisRateLimitMiddleware', () => ({
+jest.mock('../../lib/middleware/redisRateLimitMiddleware', () => ({
   withRedisRateLimit: (handler: (req: unknown, ctx: unknown) => unknown) => (req: unknown, ctx: unknown) => handler(req, ctx),
   withRedisRateLimitEnhanced: (handler: (req: unknown, ctx: unknown) => unknown) => (req: unknown, ctx: unknown) => handler(req, ctx),
   addRateLimitHeaders: (res: unknown) => res,
 }));
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() } }));
+jest.mock('../../lib/utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() } }));
 
 // Mock next/server minimal
 jest.mock('next/server', () => ({
@@ -32,7 +32,7 @@ const req = (body: unknown) => ({ method: 'POST', headers: new Map(), json: asyn
 
 describe('CTA analytics API DB path', () => {
   it('returns ok even if RPC errors', async () => {
-    const serverMod = await import('/Users/zhenwei.seo/github/openrouter-chatbot/lib/supabase/server');
+  const serverMod = await import('../../lib/supabase/server');
     const client = await (serverMod as unknown as { createClient: () => Promise<{ rpc: jest.Mock }> }).createClient();
     client.rpc.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
 

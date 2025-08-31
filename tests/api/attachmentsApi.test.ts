@@ -99,7 +99,7 @@ import { AuthContext, FeatureFlags, UserProfile } from '../../lib/types/auth';
 import type { NextRequest } from 'next/server';
 
 // Mock auth middleware to pass through with our context and simple header setter
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/auth', () => ({
+jest.mock('../../lib/middleware/auth', () => ({
     withProtectedAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
     withEnhancedAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
     withTierAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
@@ -141,7 +141,7 @@ const mockAuthContext: AuthContext = {
 };
 const currentAuthContext = mockAuthContext;
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/auth', () => ({
+jest.mock('../../lib/utils/auth', () => ({
   extractAuthContext: jest.fn(() => currentAuthContext),
   hasPermission: jest.fn(() => true),
 }));
@@ -149,8 +149,8 @@ jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/auth', () => (
 jest.mock('../../lib/utils/logger', () => ({ logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() } }));
 
 // Enhance error visibility in tests by wrapping handleError
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/errors', () => {
-  const actual = jest.requireActual('/Users/zhenwei.seo/github/openrouter-chatbot/lib/utils/errors');
+jest.mock('../../lib/utils/errors', () => {
+  const actual = jest.requireActual('../../lib/utils/errors');
   return {
     ...actual,
     handleError: (err: unknown) => {
@@ -178,7 +178,7 @@ type Attachment = {
 };
 function uuid() { return 'att-' + Math.random().toString(36).slice(2, 10); }
 // Mock Supabase server using absolute path to match route import resolution
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/supabase/server', () => {
+jest.mock('../../lib/supabase/server', () => {
   // Internal state for the mock module
   type SessionRow = { id: string; user_id: string; title?: string; message_count?: number; updated_at?: string; last_model?: string; last_message_preview?: string; last_message_timestamp?: string };
   type MessageRow = { id: string; session_id: string; role: string; content: string; model?: string | null; total_tokens?: number; message_timestamp: string; has_attachments?: boolean; attachment_count?: number };

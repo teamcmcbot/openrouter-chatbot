@@ -6,9 +6,11 @@
 import { validateChatRequest } from '../../lib/utils/validation';
 import { ChatMessage } from '../../lib/types/chat';
 
-// Mock console.log to capture verification logs
+// Mock console to capture verification logs from centralized logger in test mode
 const mockConsoleLog = jest.fn();
+const mockConsoleWarn = jest.fn();
 console.log = mockConsoleLog;
+console.warn = mockConsoleWarn;
 
 // Mock environment variables
 const originalEnv = process.env;
@@ -18,7 +20,9 @@ beforeEach(() => {
   process.env = { 
     ...originalEnv,
     OPENROUTER_API_MODEL: 'test-model',
-    OPENROUTER_MODELS_LIST: 'test-model,another-model'
+  OPENROUTER_MODELS_LIST: 'test-model,another-model',
+  // Ensure logger debug/info lines are emitted during tests
+  LOG_LEVEL: 'debug'
   };
 });
 
@@ -93,7 +97,7 @@ describe('Enhanced Chat Request Validation (Phase 2)', () => {
       });
 
       expect(mockConsoleLog).toHaveBeenCalledWith(
-        '[Request Validation] Successfully validated 2 context messages'
+        expect.stringMatching(/\[Request Validation\] Successfully validated.*"count":2/)
       );
     });
 
@@ -115,7 +119,7 @@ describe('Enhanced Chat Request Validation (Phase 2)', () => {
       expect(result.error).toBeNull();
       expect(result.data?.messages).toBeUndefined();
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
+      expect(mockConsoleWarn).toHaveBeenCalledWith(
         '[Request Validation] Invalid messages array format, ignoring'
       );
     });
@@ -186,7 +190,7 @@ describe('Enhanced Chat Request Validation (Phase 2)', () => {
       // Test legacy format
       validateChatRequest({ message: 'test' });
       expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringMatching(/Final request: LEGACY format/)
+        expect.stringMatching(/\[Request Validation\] Final request .*"format":"LEGACY"/)
       );
 
       jest.clearAllMocks();
@@ -201,7 +205,7 @@ describe('Enhanced Chat Request Validation (Phase 2)', () => {
 
       validateChatRequest({ message: 'test', messages });
       expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringMatching(/Final request: NEW format/)
+        expect.stringMatching(/\[Request Validation\] Final request .*"format":"NEW"/)
       );
     });
   });

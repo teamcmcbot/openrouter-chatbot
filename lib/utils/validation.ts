@@ -86,20 +86,20 @@ export function validateChatRequest(body: unknown): {
 
         if (isValidMessagesArray) {
           validatedMessages = body.messages as ChatMessage[];
-          console.log('[Request Validation] Successfully validated ' + body.messages.length + ' context messages');
+          logger.debug('[Request Validation] Successfully validated context messages', { count: body.messages.length });
         } else {
-          console.log('[Request Validation] Invalid messages array format, ignoring');
+          logger.warn('[Request Validation] Invalid messages array format, ignoring');
         }
       } else {
-        console.log('[Request Validation] Invalid messages array format, ignoring');
+  logger.warn('[Request Validation] Invalid messages array format, ignoring');
       }
     } else {
-      console.log('[Request Validation] No messages array provided, using single message format');
+  logger.debug('[Request Validation] No messages array provided, using single message format');
     }
 
     // Log the final format being used
     const format = validatedMessages ? 'NEW' : 'LEGACY';
-    console.log(`[Request Validation] Final request: ${format} format with model: ${model}`);
+  logger.info('[Request Validation] Final request', { format, model });
 
     return {
       data: {
