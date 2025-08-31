@@ -104,13 +104,13 @@ const featureFlags: FeatureFlags = {
 };
 const currentAuthContext: AuthContext = { isAuthenticated: false, user: null, profile: null, accessLevel: 'anonymous', features: featureFlags };
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/auth', () => ({
+jest.mock('../../lib/middleware/auth', () => ({
   withEnhancedAuth: (handler: (req: unknown, ctx: AuthContext) => unknown) => (req: unknown) => handler(req, currentAuthContext),
 }));
 
 type RLHandler = (req: unknown, ctx: AuthContext) => Promise<unknown> | unknown;
 
-jest.mock('/Users/zhenwei.seo/github/openrouter-chatbot/lib/middleware/redisRateLimitMiddleware', () => ({
+jest.mock('../../lib/middleware/redisRateLimitMiddleware', () => ({
   withRedisRateLimit: (handler: RLHandler) => (req: unknown, ctx: AuthContext) => handler(req, ctx),
   withRedisRateLimitEnhanced: (handler: RLHandler) => (req: unknown, ctx: AuthContext) => handler(req, ctx),
   addRateLimitHeaders: (res: unknown) => res,
