@@ -1,3 +1,4 @@
+import { logger } from './logger';
 /**
  * Client-side streaming debug flag helper.
  *
@@ -26,6 +27,7 @@ export function isStreamingDebugEnabled(): boolean {
 
 export function streamDebug(...args: unknown[]) {
   if (isStreamingDebugEnabled()) {
-  console.warn('[STREAM-DEBUG]', ...args);
+  // Defer to centralized logger (warn level)
+  logger.warn('[STREAM-DEBUG]', ...args);
   }
 }

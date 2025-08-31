@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { logger } from "../lib/utils/logger";
 import { ChatMessage } from "../lib/types/chat";
 
 interface ChatError {
@@ -84,9 +85,9 @@ export function useChat(): UseChatReturn {
         throw new Error(data.error);
       }
 
-      console.log('Raw API response data:', data);
-      console.log('Usage object:', data.usage);
-      console.log('Individual token values:', {
+  logger.debug('Raw API response data:', data);
+  logger.debug('Usage object:', data.usage);
+  logger.debug('Individual token values:', {
         prompt_tokens: data.usage?.prompt_tokens,
         completion_tokens: data.usage?.completion_tokens,
         total_tokens: data.usage?.total_tokens
@@ -111,8 +112,8 @@ export function useChat(): UseChatReturn {
         reasoning_details: respWithReasoning.reasoning_details && Array.isArray(respWithReasoning.reasoning_details) ? respWithReasoning.reasoning_details : undefined,
       };
 
-      console.log('Created assistant message:', assistantMessage);
-      console.log('Assistant message tokens:', {
+  logger.debug('Created assistant message:', assistantMessage);
+  logger.debug('Assistant message tokens:', {
         input_tokens: assistantMessage.input_tokens,
         output_tokens: assistantMessage.output_tokens,
         total_tokens: assistantMessage.total_tokens
@@ -120,7 +121,7 @@ export function useChat(): UseChatReturn {
 
       // Update user message with input tokens when assistant response arrives
       setMessages(prev => {
-        console.log('Token mapping debug:', {
+  logger.debug('Token mapping debug:', {
           request_id: data.request_id,
           prompt_tokens: data.usage?.prompt_tokens,
           completion_tokens: data.usage?.completion_tokens,

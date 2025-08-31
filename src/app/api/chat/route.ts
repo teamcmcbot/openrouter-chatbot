@@ -17,10 +17,14 @@ type SubscriptionTier = 'anonymous' | 'free' | 'pro' | 'enterprise';
 import { createClient } from '../../../../lib/supabase/server';
 
 async function chatHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  // Generate or forward a request id for correlation
+  const forwardedId = request.headers.get('x-request-id') || request.headers.get('x-correlation-id');
+  const requestId = forwardedId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   logger.info('Chat request received', {
     isAuthenticated: authContext.isAuthenticated,
     userId: authContext.user?.id,
-    tier: authContext.profile?.subscription_tier
+    tier: authContext.profile?.subscription_tier,
+    requestId,
   });
   
   try {
@@ -57,7 +61,8 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       model: enhancedData.model,
       messageCount: enhancedData.messages.length,
       hasTemperature: !!enhancedData.temperature,
-      hasSystemPrompt: !!enhancedData.systemPrompt
+      hasSystemPrompt: !!enhancedData.systemPrompt,
+      requestId,
     });
 
     // Phase 2: Support both old and new message formats
@@ -144,6 +149,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
         model: enhancedData.model,
         attachments_count: attachmentIds.length,
         draft_id: body.draftId,
+        requestId,
       });
     }
     
@@ -176,12 +182,12 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     }
 
   // Phase 2: Log request format for human verification
-  logger.info(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`);
-  logger.debug(`[Chat API] Message count: ${messages.length} messages`);
-  logger.debug(`[Chat API] Current message present: ${typeof body.message === 'string' && body.message.length > 0}`);
-  logger.info(`[Chat API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`);
-  logger.info(`[Chat API] Web search enabled: ${!!body.webSearch}`);
-  logger.info(`[Chat API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`);
+  logger.info(`[Chat API] Request format: ${body.messages ? 'NEW' : 'LEGACY'}`, { requestId });
+  logger.debug(`[Chat API] Message count: ${messages.length} messages`, { requestId });
+  logger.debug(`[Chat API] Current message present: ${typeof body.message === 'string' && body.message.length > 0}`, { requestId });
+  logger.info(`[Chat API] User tier: ${authContext.profile?.subscription_tier || 'anonymous'}`, { requestId });
+  logger.info(`[Chat API] Web search enabled: ${!!body.webSearch}`, { requestId });
+  logger.info(`[Chat API] Reasoning requested: ${!!reasoning} ${reasoning ? `(effort=${reasoning.effort})` : ''}`, { requestId });
 
     // Tier gating for Web Search (Pro/Enterprise only)
     // Anonymous and Free are both forbidden for this feature
@@ -218,9 +224,9 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   const tokenStrategy = await getModelTokenLimits(enhancedData.model, { tier });
     const dynamicMaxTokens = tokenStrategy.maxOutputTokens;
     
-  logger.info(`[Chat API] Model: ${enhancedData.model}`);
-  logger.debug(`[Chat API] Token strategy - Input: ${tokenStrategy.maxInputTokens}, Output: ${tokenStrategy.maxOutputTokens}`);
-  logger.debug(`[Chat API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`);
+  logger.info(`[Chat API] Model: ${enhancedData.model}`, { requestId });
+  logger.debug(`[Chat API] Token strategy - Input: ${tokenStrategy.maxInputTokens}, Output: ${tokenStrategy.maxOutputTokens}`, { requestId });
+  logger.debug(`[Chat API] Using dynamic max_tokens: ${dynamicMaxTokens} (calculated from model limits)`, { requestId });
     
     // Additional validation for token limits based on user tier
     const totalInputTokens = messages.reduce((total, msg) => {
@@ -301,7 +307,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
 
   const endTime = Date.now();
   const elapsedMs = endTime - startTime; // integer milliseconds
-  logger.debug('Measured assistant generation latency (ms):', elapsedMs);
+  logger.debug('Measured assistant generation latency (ms):', { elapsedMs, requestId });
 
     // Determine triggering user message ID (explicit > fallback)
     const explicitId: string | undefined = body.current_message_id;
@@ -330,7 +336,8 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
           ? (body.messages as UserMsg[])
               .filter((m) => m && m.role === 'user' && typeof m.id === 'string')
               .map((m) => m.id)
-          : []
+          : [],
+        requestId,
       });
     }
 
@@ -365,13 +372,14 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       userId: authContext.user?.id,
       model: enhancedData.model,
       tokens: usage.total_tokens,
-      tier: authContext.profile?.subscription_tier
+      tier: authContext.profile?.subscription_tier,
+      requestId,
     });
     
-  return createSuccessResponse(response);
+  return createSuccessResponse(response, 200, { 'x-request-id': requestId });
   } catch (error) {
-    logger.error('Error processing chat request:', error);
-    return handleError(error);
+    logger.error('Error processing chat request:', { error, requestId });
+    return handleError(error, requestId);
   }
 }
 

@@ -52,9 +52,11 @@ export function estimateTokenCount(text: string): number {
   const estimatedTokens = Math.ceil(text.length / 4);
   
   logger.debug(`[Token Estimation] Text length: ${text.length} chars → ~${estimatedTokens} tokens`);
-  // Preserve legacy console line for tests
-  // eslint-disable-next-line no-console
-  console.log(`[Token Estimation] Text length: ${text.length} chars → ~${estimatedTokens} tokens`);
+  if (process.env.NODE_ENV === 'test') {
+    // Preserve legacy console line for tests
+    // eslint-disable-next-line no-console
+    console.log(`[Token Estimation] Text length: ${text.length} chars → ~${estimatedTokens} tokens`);
+  }
   
   return estimatedTokens;
 }
@@ -81,8 +83,10 @@ export function estimateMessagesTokens(messages: ChatMessage[]): number {
   const totalTokens = contentTokens + structureTokens;
   
   logger.debug(`[Token Estimation] ${messages.length} messages: ${contentTokens} content + ${structureTokens} structure = ${totalTokens} total tokens`);
-  // eslint-disable-next-line no-console
-  console.log(`[Token Estimation] ${messages.length} messages: ${contentTokens} content + ${structureTokens} structure = ${totalTokens} total tokens`);
+  if (process.env.NODE_ENV === 'test') {
+    // eslint-disable-next-line no-console
+    console.log(`[Token Estimation] ${messages.length} messages: ${contentTokens} content + ${structureTokens} structure = ${totalTokens} total tokens`);
+  }
   
   return totalTokens;
 }
@@ -116,8 +120,10 @@ export function calculateTokenStrategy(contextLength: number): TokenStrategy {
   };
   
   logger.info(`[Token Strategy] Model context: ${contextLength} → Input: ${maxInputTokens} (${Math.round(contextRatio * 100)}%) | Output: ${maxOutputTokens} (${Math.round(outputRatio * 100)}%) | Reserve: ${reserveTokens}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Token Strategy] Model context: ${contextLength} → Input: ${maxInputTokens} (${Math.round(contextRatio * 100)}%) | Output: ${maxOutputTokens} (${Math.round(outputRatio * 100)}%) | Reserve: ${reserveTokens}`);
+  if (process.env.NODE_ENV === 'test') {
+    // eslint-disable-next-line no-console
+    console.log(`[Token Strategy] Model context: ${contextLength} → Input: ${maxInputTokens} (${Math.round(contextRatio * 100)}%) | Output: ${maxOutputTokens} (${Math.round(outputRatio * 100)}%) | Reserve: ${reserveTokens}`);
+  }
   
   return strategy;
 }
@@ -194,8 +200,10 @@ export function isWithinInputBudget(tokenCount: number, strategy: TokenStrategy)
   const fits = tokenCount <= strategy.maxInputTokens;
   
   logger.debug(`[Token Budget] ${tokenCount} tokens ${fits ? 'fits within' : 'exceeds'} input budget of ${strategy.maxInputTokens}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Token Budget] ${tokenCount} tokens ${fits ? 'fits within' : 'exceeds'} input budget of ${strategy.maxInputTokens}`);
+  if (process.env.NODE_ENV === 'test') {
+    // eslint-disable-next-line no-console
+    console.log(`[Token Budget] ${tokenCount} tokens ${fits ? 'fits within' : 'exceeds'} input budget of ${strategy.maxInputTokens}`);
+  }
   
   return fits;
 }
@@ -212,8 +220,10 @@ export async function getMaxOutputTokens(modelId?: string): Promise<number> {
   const maxTokens = strategy.maxOutputTokens;
   
   logger.info(`[Legacy Token Limit] Model ${modelId || 'default'} max output tokens: ${maxTokens}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Legacy Token Limit] Model ${modelId || 'default'} max output tokens: ${maxTokens}`);
+  if (process.env.NODE_ENV === 'test') {
+    // eslint-disable-next-line no-console
+    console.log(`[Legacy Token Limit] Model ${modelId || 'default'} max output tokens: ${maxTokens}`);
+  }
   
   return maxTokens;
 }

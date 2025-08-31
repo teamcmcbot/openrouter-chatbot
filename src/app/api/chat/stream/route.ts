@@ -18,14 +18,52 @@ import { OpenRouterContentBlock } from '../../../../../lib/types/openrouter';
 // Configure extended timeout for streaming requests
 export const maxDuration = 300; // 5 minutes for reasoning mode and slow models
 
+// Safe header accessor to support both real NextRequest headers and plain object mocks in tests
+function safeHeaderGet(headers: unknown, key: string): string | undefined {
+  if (!headers) return undefined;
+  const lowerKey = key.toLowerCase();
+  try {
+    const anyHeaders = headers as { get?: (k: string) => unknown };
+    if (typeof anyHeaders.get === 'function') {
+      const v = anyHeaders.get(key) ?? anyHeaders.get(lowerKey) ?? anyHeaders.get(key.toUpperCase());
+      if (typeof v === 'string') return v;
+      if (Array.isArray(v)) return v[0];
+      return v as string | undefined;
+    }
+  } catch {
+    // ignore and try object access below
+  }
+  if (typeof headers === 'object') {
+    const rec = headers as Record<string, unknown>;
+    // direct lower-case match first
+    if (typeof rec[lowerKey] === 'string') return rec[lowerKey] as string;
+    // case-insensitive search across keys
+    for (const k of Object.keys(rec)) {
+      if (k.toLowerCase() === lowerKey) {
+        const v = rec[k];
+        if (typeof v === 'string') return v;
+        if (Array.isArray(v)) return v[0] as string;
+        return v as string | undefined;
+      }
+    }
+  }
+  return undefined;
+}
+
 async function chatStreamHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   // console.log('🔴🔴🔴 STREAM API CALLED - This should always show if streaming endpoint is hit');
   
-  logger.info('Chat stream request received', {
-    isAuthenticated: authContext.isAuthenticated,
-    userId: authContext.user?.id,
-    tier: authContext.profile?.subscription_tier
-  });
+    // Generate or forward a request id for correlation
+    const forwardedId = safeHeaderGet((request as unknown as { headers?: unknown })?.headers, 'x-request-id')
+      || safeHeaderGet((request as unknown as { headers?: unknown })?.headers, 'x-correlation-id');
+    const requestId = forwardedId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    logger.info('Chat stream request received', {
+      isAuthenticated: authContext.isAuthenticated,
+      userId: authContext.user?.id,
+      tier: authContext.profile?.subscription_tier,
+      requestId,
+    });
   
   try {
     const body = await request.json();
@@ -62,7 +100,8 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       messageCount: enhancedData.messages.length,
       hasTemperature: !!enhancedData.temperature,
       hasSystemPrompt: !!enhancedData.systemPrompt,
-      streaming: true
+      streaming: true,
+      requestId,
     });
 
     // All the same validation logic as non-streaming endpoint
@@ -155,6 +194,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
         model: enhancedData.model,
         attachments_count: attachmentIds.length,
         draft_id: body.draftId,
+        requestId,
       });
     }
 
@@ -309,7 +349,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
               streamMetadata = metadataChunk.data;
             }
           } catch (e) {
-            if (streamDebug) logger.warn('STREAM_DEBUG metadata parse error', e);
+            if (streamDebug) logger.warn('STREAM_DEBUG metadata parse error', { error: e, requestId });
           }
         }
 
@@ -339,7 +379,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
               if (depth === 0) {
                 if (firstAnnotationMs === undefined) {
                   firstAnnotationMs = Date.now() - startTime;
-                  logger.info('TTF_annotation', { ms: firstAnnotationMs, model: enhancedData.model });
+                  logger.info('TTF_annotation', { ms: firstAnnotationMs, model: enhancedData.model, requestId });
                 }
                 controller.enqueue(trimmed + '\n');
                 continue;
@@ -453,7 +493,8 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           hasReasoning: !!streamMetadata.reasoning,
           annotationCount: annotations.length,
           triggeredBy: triggeringUserId,
-          metadataInFinalChunk: true
+            metadataInFinalChunk: true,
+            requestId,
         });
       }
     });
@@ -486,7 +527,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       headers: {
         'X-Streaming': 'true',
         'X-Model': enhancedData.model,
-        'X-Request-ID': body.current_message_id || `stream_${Date.now()}`,
+      'X-Request-ID': requestId,
       }
     });
 
@@ -506,8 +547,8 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     });
 
   } catch (error) {
-    logger.error('Error processing chat stream request:', error);
-    return handleError(error);
+    logger.error('Error processing chat stream request:', { error, requestId });
+    return handleError(error, requestId);
   }
 }
 
