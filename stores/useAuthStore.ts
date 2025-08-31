@@ -201,7 +201,8 @@ export const useAuthStore = create<AuthStore>()(
           const keysToRemove = [
             // Actual persisted keys
             STORAGE_KEYS.CHAT,               // 'openrouter-chat-storage'
-            STORAGE_KEYS.MODELS,             // 'openrouter-models-cache'
+            STORAGE_KEYS.MODELS,             // 'openrouter-models-cache' (full cache)
+            STORAGE_KEYS.MODELS_PERSIST,     // 'openrouter-models-persist' (persist slice)
             STORAGE_KEYS.UI_PREFERENCES,     // 'openrouter-ui-preferences'
             STORAGE_KEYS.SETTINGS,           // 'openrouter-settings-storage'
             STORAGE_KEYS.GENERATION,         // 'openrouter-generation-cache'
@@ -221,7 +222,25 @@ export const useAuthStore = create<AuthStore>()(
             }
           });
 
-          console.log('All stores and localStorage cleared');
+          // Clear sessionStorage caches (e.g., signed URLs: att:{id})
+          try {
+            const toDelete: string[] = [];
+            for (let i = 0; i < sessionStorage.length; i++) {
+              const k = sessionStorage.key(i);
+              if (!k) continue;
+              // Remove any attachment signed URL cache entries and other app-scoped session items
+              if (k.startsWith('att:') || k.startsWith('openrouter-')) {
+                toDelete.push(k);
+              }
+            }
+            toDelete.forEach((k) => {
+              try { sessionStorage.removeItem(k); } catch {}
+            });
+          } catch (error) {
+            console.warn('Failed to clear sessionStorage items', error);
+          }
+
+          console.log('All stores, localStorage, and sessionStorage cleared');
         } catch (error) {
           console.error('Error clearing stores:', error);
         }
