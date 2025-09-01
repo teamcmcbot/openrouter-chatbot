@@ -438,6 +438,11 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     const remaining = ATTACHMENT_CAP - attachments.length;
+    
+    // If user picked more than remaining capacity, notify but continue with allowed subset
+    if (files.length > remaining) {
+      toast.error('You can attached up to 3 images.');
+    }
     const toUpload = files.slice(0, Math.max(0, remaining));
     for (const f of toUpload) {
       const validation = validateClientFile(f);

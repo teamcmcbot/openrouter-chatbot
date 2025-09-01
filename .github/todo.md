@@ -7,10 +7,10 @@ Chatbot todo:
 - [ ] Conversation syncing brainstorm, multi-sessions, multi-device, account sharing.. etc
 - [ ] Admin analytics, models usage, users usage, chat messages errors, new users sign up
 - [ ] Anonymous user’s usage and analytics is not tracked.
-- [ ] Attachments multi-select?
+- [x] Attachments toast error when > ATTACHMENT_CAP
 - [ ] User monitoring, account banning.
-- [ ] Logging in prod?
-- [ ] Console and terminal logs clean up, use logger.debug instead of console.log?
+- [x] Logging in prod?
+- [x] Console and terminal logs clean up, use logger.debug instead of console.log?
 - [ ] Landing page
 - [ ] Stripe payment? Account upgrade, billing.
 - [ ] Model sync not properly detecting “new” models.

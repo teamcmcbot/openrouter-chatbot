@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { sanitizeAttachmentName, fallbackImageLabel } from "../../lib/utils/sanitizeAttachmentName";
 
@@ -29,6 +30,24 @@ export default function AttachmentTile({ data, index, onRemove, onRetry, classNa
   const uploading = data.status === "uploading";
   const deleting = data.status === "deleting";
   const idOrTemp = data.tempId || data.id || String(index);
+
+  // Detect whether the environment supports hover; if not (mobile/touch),
+  // we always show the remove button to compensate for lack of hover.
+  const [hasHover, setHasHover] = useState(true);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    try {
+      const mq = window.matchMedia("(hover: hover)");
+      setHasHover(!!mq.matches);
+      // Some devices can change hover capability (e.g., connecting a mouse)
+      const handler = (e: MediaQueryListEvent) => setHasHover(!!e.matches);
+      mq.addEventListener?.("change", handler);
+      return () => mq.removeEventListener?.("change", handler);
+    } catch {
+      // default true (desktop-like)
+      setHasHover(true);
+    }
+  }, []);
 
   return (
     <div
@@ -68,7 +87,9 @@ export default function AttachmentTile({ data, index, onRemove, onRetry, classNa
         aria-label="Remove image"
         onClick={() => onRemove(idOrTemp as string)}
         disabled={uploading || deleting}
-        className={`absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition ${uploading || deleting ? 'pointer-events-none opacity-60' : ''}`}
+        className={`absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 transition
+          ${hasHover ? 'opacity-0 group-hover:opacity-100 focus:opacity-100' : 'opacity-100'}
+          ${uploading || deleting ? 'pointer-events-none opacity-60' : ''}`}
       >
         <XMarkIcon className="w-4 h-4" />
       </button>
