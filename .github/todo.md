@@ -8,6 +8,8 @@ Chatbot todo:
 - [ ] Admin analytics, models usage, users usage, chat messages errors, new users sign up
 - [ ] Anonymous user’s usage and analytics is not tracked.
 - [x] Attachments toast error when > ATTACHMENT_CAP
+- [x] Remove attachment without hover on mobile
+- [ ] Edit conversation title, delete conversation on mobile
 - [ ] User monitoring, account banning.
 - [x] Logging in prod?
 - [x] Console and terminal logs clean up, use logger.debug instead of console.log?
