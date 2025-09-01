@@ -1,6 +1,6 @@
 # ChatSidebar – Mobile Delete (and optional Rename) UX
 
-Status: Planning (no implementation yet)  
+Status: Completed (2025-09-01)  
 Owner: TBD  
 Related: components/chat/ChatSidebar.tsx (hover-only controls today)
 
@@ -16,7 +16,7 @@ Related: components/chat/ChatSidebar.tsx (hover-only controls today)
 
 - Provide an intuitive, non-blocking way to delete a conversation on mobile/touch.
 - Keep the title area clean (no always-visible buttons).
-- Add a confirmation/undo path to prevent accidental deletes.
+- Provide immediate delete with a success toast (no undo) to keep flow simple on mobile.
 - Maintain accessibility and RTL support.
 - Defer “Rename” on mobile unless discoverability and UI footprint are acceptable.
 
@@ -30,11 +30,12 @@ Option A: Long‑press to open an Action Sheet (bottom sheet)
   - Edit Title (secondary)
   - Cancel
 - Safety:
-  - Perform delete immediately and show an Undo Snackbar (5s). No extra confirmation step.
+  - Perform delete immediately. No Undo; show a success toast on completion.
 - Discoverability:
-  - One-time hint toast on first mobile visit: “Tip: Long‑press a chat to delete.”
+  - One-time hint toast on first mobile visit: “Tip: Long‑press a chat to delete or edit.”
+  - Gated to mobile devices (no hover) and only when the ChatSidebar is open.
 - Accessibility:
-  - role="dialog", aria-modal="true", focus trap, Escape/Backdrop to close.
+  - role="dialog", aria-modal="true", first action focused, Escape/Backdrop to close.
   - Provide accessible labels (e.g., “Delete conversation ‘{title}’”).
 - Internationalization:
   - Strings routed through existing i18n utility if present; otherwise place under a shared strings module for future i18n.
@@ -62,7 +63,7 @@ Option C: Overflow menu (“…”) on tap or focus
 
 - Mobile/touch users can delete a conversation without hover.
 - Title area remains unobstructed until the user performs an intentional action.
-- Prevent accidental deletes via undo snackbar (5s) after immediate delete; user can restore within the window.
+- Delete is immediate; a success toast confirms deletion. No Undo.
 - Works on iOS Safari and Chrome on Android; RTL support is deferred to a later phase.
 - Desktop behavior unchanged.
 
@@ -70,26 +71,26 @@ Option C: Overflow menu (“…”) on tap or focus
 
 ### Phase 1 — Long‑press Action Sheet (Mobile)
 
-- [x] Decide confirm vs undo pattern for deletion → Immediate delete + Undo (5s).
-- [ ] UX copy for buttons and undo toast.
-- [ ] Implement long‑press detection on chat rows (touch/pointer-safe; threshold 500 ms; cancel on scroll/move).
-- [ ] Open bottom sheet with Delete + Edit Title + Cancel (Edit Title included on mobile per decision).
-- [ ] Wire Delete to existing delete conversation action (no new API if already present).
-- [ ] Add one-time discoverability hint (stored with localStorage flag).
-- [ ] A11y: focus management, screen reader labels ("Delete conversation '{title}'"), aria-modal.
+- [x] Decide confirm vs undo pattern for deletion → Immediate delete (no Undo).
+- [x] UX copy for buttons and success toasts (delete + title updated).
+- [x] Implement long‑press detection on chat rows (touch/pointer-safe; threshold 500 ms; cancel on scroll/move > 8 px).
+- [x] Open bottom sheet with Delete + Edit Title + Cancel (Edit Title included on mobile).
+- [x] Wire Delete to existing delete conversation action (no new API if already present).
+- [x] Add one-time discoverability hint (stored with localStorage flag; mobile-only; only when sidebar is open).
+- [x] A11y: focus management, screen reader labels, aria-modal, Escape/Backdrop to close.
 - [ ] Analytics: track long‑press opens and delete confirmations.
-- [ ] Unit tests for the action sheet open/close logic and delete invocation (mock store/actions).
+- [x] Unit tests for the action sheet open/close logic and delete invocation (mock store/actions).
 - [ ] Manual cross-browser sanity on iOS Safari, Chrome Android.
 
 Summary for user verification
 
-- Long‑press opens a sheet; Delete flows through confirm/undo; desktop unchanged.
+- Long‑press opens a sheet; Delete is immediate and shows a success toast; desktop unchanged.
 
 Manual test steps
 
 1. On mobile, long‑press a conversation row.
 2. Confirm the sheet appears; focus lands on the sheet.
-3. Tap Delete → confirm/undo behaves as decided.
+3. Tap Delete → conversation is removed immediately and a success toast appears.
 4. Ensure normal tap still navigates to the conversation.
 5. Ensure desktop hover behavior is unchanged.
 
@@ -119,9 +120,11 @@ Manual test steps
 
 ### Phase 3 — Optional Rename on Mobile (Deferred)
 
-- [ ] Decide whether to include Rename in the action sheet for mobile.
-- [ ] If yes: inline input in sheet or a secondary dialog with validation.
-- [ ] Unit/UI tests; i18n strings.
+- (Merged into Phase 1)
+- [x] Include Edit Title in the action sheet on mobile.
+- [x] Inline input inside the sheet with Save/Cancel; success toast on save; sheet closes on success.
+- [x] Unit/UI tests for inline edit flow.
+- [ ] i18n strings.
 
 - [ ] User verification: Phase 3 passes.
 
