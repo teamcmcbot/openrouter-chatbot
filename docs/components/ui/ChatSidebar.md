@@ -50,3 +50,27 @@
 ## Notes for Juniors
 
 - Conversations come from `useChatStore` and may be synced to the backend when signed in.
+
+## Mobile Long‑Press Actions
+
+- Long‑press (500ms) on a conversation row opens a bottom Action Sheet with actions: Delete and Edit Title.
+- The sheet has no separate title label; it shows a contextual header with the conversation title and a one‑line preview.
+- The Action Sheet receives `contextTitle` and `contextSubtitle` to display the selected conversation’s title and a one‑line preview.
+- Movement over 8px cancels the long‑press to avoid accidental triggers during scroll.
+
+### iOS considerations
+
+- Disable text selection and touch callout during long‑press (`user-select: none`, `-webkit-touch-callout: none`).
+- Allow vertical scroll while suppressing unintended gestures (`touch-action: pan-y`).
+- Prevent the system context menu while the sheet is opening (suppress `contextmenu`).
+
+### Visual state and a11y
+
+- When the sheet opens, the pressed row is highlighted with a ring; others are dimmed; the row is scrolled into view.
+- The highlighted row sets `aria-selected` for assistive tech.
+- The sheet focuses the first action on open and closes on Escape or backdrop click.
+
+### Deletion and editing semantics
+
+- Delete executes immediately with no Undo. On success, a toast notification confirms: “Conversation deleted successfully.”
+- Edit Title renders an inline form inside the Action Sheet with Save/Cancel. On successful save, a toast.success("Conversation title updated.") is shown and the sheet closes.
