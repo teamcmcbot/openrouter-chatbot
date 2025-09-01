@@ -37,10 +37,7 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
   );
 }
 
-export default function AnalyticsPanel() {
-  const [range, setRange] = useState<RangeKey>('7d');
-  const q = useMemo(() => `?range=${range}`, [range]);
-
+// Types shared across tabs
   interface OverviewTopModel { model_id: string; total_cost: number; total_tokens: number; }
   interface OverviewResponse {
     ok: boolean;
@@ -54,96 +51,108 @@ export default function AnalyticsPanel() {
     stacked_tokens: StackedBarData;
   }
   interface PerformanceResponse { ok: boolean; overall: { avg_ms: number; error_count: number } }
+  interface ErrorRow { message_id: string; session_id: string; user_id: string | null; model: string | null; message_timestamp: string; error_message: string | null; completion_id: string | null; user_message_id: string | null; elapsed_ms: number | null }
+  interface ErrorsResponse { ok: boolean; range: { start: string; end: string }; errors: ErrorRow[] }
   interface UsageDay { date: string; active_users: number; messages: number; tokens: number }
   interface UsageResponse { ok: boolean; total_messages: number; daily: UsageDay[] }
   interface ModelsCounts { total_count: number; new_count: number; active_count: number; inactive_count: number; disabled_count: number }
   interface ModelsRecent { day: string; flagged_new: number; flagged_active: number; flagged_inactive: number; flagged_disabled: number }
   interface ModelsResponse { ok: boolean; counts: ModelsCounts; recent: ModelsRecent[] }
 
-  const overview = useFetch<OverviewResponse>(`/api/admin/analytics/overview${q}`, [q]);
-  const costs = useFetch<CostsResponse>(`/api/admin/analytics/costs${q}`, [q]);
-  const performance = useFetch<PerformanceResponse>(`/api/admin/analytics/performance${q}`, [q]);
-  const usage = useFetch<UsageResponse>(`/api/admin/analytics/usage${q}`, [q]);
-  const models = useFetch<ModelsResponse>(`/api/admin/analytics/models`, []);
+  // Tab components (fetch only when mounted)
+  function OverviewTab({ range, setRange }: { range: RangeKey; setRange: (v: RangeKey)=>void }) {
+    const q = useMemo(() => `?range=${range}`, [range]);
+    const overview = useFetch<OverviewResponse>(`/api/admin/analytics/overview${q}`, [q]);
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between"><h3 className="font-semibold">Overview</h3><RangePicker value={range} onChange={setRange} /></div>
+        {overview.loading && <div className="text-xs text-gray-500">Loading…</div>}
+        {overview.error && <div className="text-xs text-red-600">{overview.error}</div>}
+        {overview.data && (
+          <div className="grid md:grid-cols-3 gap-3">
+            <div className="p-3 border rounded-md">
+              <div className="text-xs text-gray-500">Users</div>
+              <div className="text-xl font-semibold">{overview.data.totals?.users ?? 0}</div>
+            </div>
+            <div className="p-3 border rounded-md">
+              <div className="text-xs text-gray-500">Conversations</div>
+              <div className="text-xl font-semibold">{overview.data.totals?.conversations ?? 0}</div>
+            </div>
+            <div className="p-3 border rounded-md">
+              <div className="text-xs text-gray-500">Messages</div>
+              <div className="text-xl font-semibold">{overview.data.totals?.messages ?? 0}</div>
+            </div>
+            <div className="p-3 border rounded-md md:col-span-3">
+              <div className="text-xs text-gray-500 mb-2">Top models (by cost)</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="text-gray-500">
+                    <tr>
+                      <th className="text-left font-medium py-1 pr-2">Model</th>
+                      <th className="text-right font-medium py-1 pr-2">Cost</th>
+                      <th className="text-right font-medium py-1">Tokens</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(overview.data.top_models || []).map((m: OverviewTopModel) => (
+                      <tr key={m.model_id} className="border-t border-gray-100 dark:border-gray-800">
+                        <td className="py-1 pr-2 font-mono break-all">{m.model_id}</td>
+                        <td className="py-1 pr-2 text-right">${(Number(m.total_cost ?? 0)).toFixed(4)}</td>
+                        <td className="py-1 text-right">{Number(m.total_tokens ?? 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
-  const tabs = [
-    {
-      id: 'overview',
-      label: 'Overview',
-      content: (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between"><h3 className="font-semibold">Overview</h3><RangePicker value={range} onChange={setRange} /></div>
-          {overview.loading && <div className="text-xs text-gray-500">Loading…</div>}
-          {overview.error && <div className="text-xs text-red-600">{overview.error}</div>}
-          {overview.data && (
-            <div className="grid md:grid-cols-3 gap-3">
-              <div className="p-3 border rounded-md">
-                <div className="text-xs text-gray-500">Users</div>
-                <div className="text-xl font-semibold">{overview.data.totals?.users ?? 0}</div>
-              </div>
-              <div className="p-3 border rounded-md">
-                <div className="text-xs text-gray-500">Conversations</div>
-                <div className="text-xl font-semibold">{overview.data.totals?.conversations ?? 0}</div>
-              </div>
-              <div className="p-3 border rounded-md">
-                <div className="text-xs text-gray-500">Messages</div>
-                <div className="text-xl font-semibold">{overview.data.totals?.messages ?? 0}</div>
-              </div>
-              <div className="p-3 border rounded-md md:col-span-3">
-                <div className="text-xs text-gray-500">Top models (by cost)</div>
-                <div className="flex flex-wrap gap-3 mt-2">
-                  {(overview.data.top_models || []).map((m: OverviewTopModel)=> {
-                    const cost = typeof m.total_cost === 'number' ? m.total_cost : Number(m.total_cost || 0);
-                    return (
-                      <div key={m.model_id} className="text-xs">
-                        <span className="font-mono">{m.model_id}</span> · {cost.toFixed(4)}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+  function CostsTab({ range, setRange }: { range: RangeKey; setRange: (v: RangeKey)=>void }) {
+    const q = useMemo(() => `?range=${range}`, [range]);
+    const costs = useFetch<CostsResponse>(`/api/admin/analytics/costs${q}`, [q]);
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between"><h3 className="font-semibold">Costs</h3><RangePicker value={range} onChange={setRange} /></div>
+        {costs.loading && <div className="text-xs text-gray-500">Loading…</div>}
+        {costs.error && <div className="text-xs text-red-600">{costs.error}</div>}
+        {costs.data && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Total cost</div><div className="text-xl font-semibold">${(costs.data.totals?.total_cost ?? 0).toFixed(4)}</div></div>
+              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Tokens</div><div className="text-xl font-semibold">{costs.data.totals?.total_tokens ?? 0}</div></div>
+              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Assistant msgs</div><div className="text-xl font-semibold">{costs.data.totals?.assistant_messages ?? 0}</div></div>
             </div>
-          )}
-        </div>
-      )
-    },
-    {
-      id: 'costs',
-      label: 'Costs',
-      content: (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between"><h3 className="font-semibold">Costs</h3><RangePicker value={range} onChange={setRange} /></div>
-          {costs.loading && <div className="text-xs text-gray-500">Loading…</div>}
-          {costs.error && <div className="text-xs text-red-600">{costs.error}</div>}
-          {costs.data && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Total cost</div><div className="text-xl font-semibold">${'{'}(costs.data.totals?.total_cost ?? 0).toFixed(4){'}'}</div></div>
-                <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Tokens</div><div className="text-xl font-semibold">{costs.data.totals?.total_tokens ?? 0}</div></div>
-                <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Assistant msgs</div><div className="text-xl font-semibold">{costs.data.totals?.assistant_messages ?? 0}</div></div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Cost by model</div>
-                <StackedBarChart data={costs.data.stacked_cost} metric="cost" height={260} hideSingleDay={true} />
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Tokens by model</div>
-                <StackedBarChart data={costs.data.stacked_tokens} metric="tokens" height={260} hideSingleDay={true} />
-              </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Cost by model</div>
+              <StackedBarChart data={costs.data.stacked_cost} metric="cost" height={260} hideSingleDay={true} />
             </div>
-          )}
-        </div>
-      )
-    },
-    {
-      id: 'performance',
-      label: 'Performance',
-      content: (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between"><h3 className="font-semibold">Performance</h3><RangePicker value={range} onChange={setRange} /></div>
-          {performance.loading && <div className="text-xs text-gray-500">Loading…</div>}
-          {performance.error && <div className="text-xs text-red-600">{performance.error}</div>}
-          {performance.data && (
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Tokens by model</div>
+              <StackedBarChart data={costs.data.stacked_tokens} metric="tokens" height={260} hideSingleDay={true} />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function PerformanceTab({ range, setRange }: { range: RangeKey; setRange: (v: RangeKey)=>void }) {
+    const q = useMemo(() => `?range=${range}`, [range]);
+    const performance = useFetch<PerformanceResponse>(`/api/admin/analytics/performance${q}`, [q]);
+    const errors = useFetch<ErrorsResponse>(`/api/admin/analytics/performance/errors${q}`, [q]);
+  // Local state for copy button feedback per message id
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between"><h3 className="font-semibold">Performance</h3><RangePicker value={range} onChange={setRange} /></div>
+        {performance.loading && <div className="text-xs text-gray-500">Loading…</div>}
+        {performance.error && <div className="text-xs text-red-600">{performance.error}</div>}
+        {performance.data && (
+          <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 border rounded-md">
                 <div className="text-xs text-gray-500">Avg latency</div>
@@ -154,72 +163,206 @@ export default function AnalyticsPanel() {
                 <div className="text-xl font-semibold">{performance.data.overall?.error_count ?? 0}</div>
               </div>
             </div>
-          )}
-        </div>
-      )
+            <div className="p-3 border rounded-md">
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-gray-500">Last 100 errors</div>
+                {errors.loading && <div className="text-xs text-gray-400">Loading…</div>}
+              </div>
+              {errors.error && <div className="text-xs text-red-600">{errors.error}</div>}
+              {errors.data && (
+                <div className="overflow-x-auto mt-2">
+                  <table className="w-full text-xs">
+                    <thead className="text-gray-500">
+                      <tr>
+                        <th className="text-left font-medium py-1 pr-2">Time</th>
+                        <th className="text-left font-medium py-1 pr-2">Model</th>
+                        <th className="text-left font-medium py-1 pr-2">Message</th>
+                        <th className="text-left font-medium py-1">Error</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(errors.data.errors || []).map((e: ErrorRow) => (
+                        <tr key={e.message_id} className="border-t border-gray-100 dark:border-gray-800">
+                          <td className="py-1 pr-2 whitespace-nowrap font-mono text-gray-600 dark:text-gray-400">{(() => { const d = new Date(e.message_timestamp); return isNaN(d.getTime()) ? '-' : d.toLocaleString(); })()}</td>
+                          <td className="py-1 pr-2 font-mono break-all text-gray-600 dark:text-gray-400">{e.model || 'unknown'}</td>
+                          <td className="py-1 pr-2 font-mono break-all text-gray-800 dark:text-gray-300">
+                            <div className="flex items-center gap-2">
+                              <span className="break-all">{e.message_id}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(e.message_id);
+                                  setCopiedId(e.message_id);
+                                  window.setTimeout(() => setCopiedId(null), 1500);
+                                }}
+                                className="ml-1 p-1 rounded transition-colors hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-300"
+                                title={copiedId === e.message_id ? 'Copied!' : 'Copy message id'}
+                                aria-label="Copy message id"
+                              >
+                                {copiedId === e.message_id ? (
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : (
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="py-1 pr-2 leading-snug font-semibold text-slate-900 dark:text-slate-100 max-w-[640px] truncate" title={e.error_message || ''}>{e.error_message || ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function UsageTab({ range, setRange }: { range: RangeKey; setRange: (v: RangeKey)=>void }) {
+    const q = useMemo(() => `?range=${range}`, [range]);
+    const usage = useFetch<UsageResponse>(`/api/admin/analytics/usage${q}`, [q]);
+    // Ensure daily rows are ordered by date desc for readability
+    const dailySorted = useMemo(() => {
+      const days = usage.data?.daily ?? [];
+      return [...days].sort((a: UsageDay, b: UsageDay) => b.date.localeCompare(a.date));
+    }, [usage.data]);
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between"><h3 className="font-semibold">Usage</h3><RangePicker value={range} onChange={setRange} /></div>
+        {usage.loading && <div className="text-xs text-gray-500">Loading…</div>}
+        {usage.error && <div className="text-xs text-red-600">{usage.error}</div>}
+        {usage.data && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-3 border rounded-md">
+              <div className="text-xs text-gray-500">Messages (range)</div>
+              <div className="text-xl font-semibold">{usage.data.total_messages ?? 0}</div>
+            </div>
+            <div className="p-3 border rounded-md col-span-2">
+              <div className="text-xs text-gray-500">Daily active users (rough)</div>
+              <div className="mt-2 overflow-x-auto max-h-40 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="text-gray-500">
+                    <tr>
+                      <th className="text-left font-medium py-1 pr-2">Date</th>
+                      <th className="text-right font-medium py-1 pr-2">Active users</th>
+                      <th className="text-right font-medium py-1">Messages</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dailySorted.map((d: UsageDay) => (
+                      <tr key={d.date} className="border-t border-gray-100 dark:border-gray-800">
+                        <td className="py-1 pr-2 font-mono text-gray-700 dark:text-gray-300">{d.date}</td>
+                        <td className="py-1 pr-2 text-right font-semibold">{d.active_users}</td>
+                        <td className="py-1 text-right text-gray-700 dark:text-gray-300">{d.messages}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function ModelsTab() {
+    const models = useFetch<ModelsResponse>(`/api/admin/analytics/models`, []);
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between"><h3 className="font-semibold">Models</h3></div>
+        {models.loading && <div className="text-xs text-gray-500">Loading…</div>}
+        {models.error && <div className="text-xs text-red-600">{models.error}</div>}
+        {models.data && (
+          <div className="grid grid-cols-5 gap-3">
+            <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Total</div><div className="text-xl font-semibold">{models.data.counts?.total_count ?? 0}</div></div>
+            <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">New</div><div className="text-xl font-semibold">{models.data.counts?.new_count ?? 0}</div></div>
+            <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Active</div><div className="text-xl font-semibold">{models.data.counts?.active_count ?? 0}</div></div>
+            <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Inactive</div><div className="text-xl font-semibold">{models.data.counts?.inactive_count ?? 0}</div></div>
+            <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Disabled</div><div className="text-xl font-semibold">{models.data.counts?.disabled_count ?? 0}</div></div>
+            <div className="md:col-span-5 p-3 border rounded-md">
+              <div className="text-xs text-gray-500">Recent changes (30d)</div>
+              {(() => {
+                // Sort most recent first for quick scanning
+                const recentSorted = [...(models.data?.recent || [])].sort((a, b) => b.day.localeCompare(a.day));
+                const fmtIsoDate = (iso: string) => (typeof iso === 'string' && iso.length >= 10 ? iso.slice(0, 10) : iso);
+                return (
+                  <div className="mt-2 overflow-x-auto max-h-56 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="text-gray-500">
+                        <tr>
+                          <th className="text-left font-medium py-1 pr-2">Date</th>
+                          <th className="text-right font-medium py-1 pr-2">New</th>
+                          <th className="text-right font-medium py-1 pr-2">Active</th>
+                          <th className="text-right font-medium py-1 pr-2">Inactive</th>
+                          <th className="text-right font-medium py-1 pr-2">Disabled</th>
+                          <th className="text-right font-medium py-1">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentSorted.map((r: ModelsRecent) => {
+                          const total = r.flagged_new + r.flagged_active + r.flagged_inactive + r.flagged_disabled;
+                          const cell = (val: number) => (
+                            <span className={val === 0 ? 'text-gray-400' : 'font-semibold'}>{val}</span>
+                          );
+                          return (
+                            <tr key={r.day} className="border-t border-gray-100 dark:border-gray-800">
+                              <td className="py-1 pr-2 font-mono text-gray-700 dark:text-gray-300" title={r.day}>{fmtIsoDate(r.day)}</td>
+                              <td className="py-1 pr-2 text-right">{cell(r.flagged_new)}</td>
+                              <td className="py-1 pr-2 text-right">{cell(r.flagged_active)}</td>
+                              <td className="py-1 pr-2 text-right">{cell(r.flagged_inactive)}</td>
+                              <td className="py-1 pr-2 text-right">{cell(r.flagged_disabled)}</td>
+                              <td className="py-1 text-right">{cell(total)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+export default function AnalyticsPanel() {
+  const [range, setRange] = useState<RangeKey>('7d');
+
+  const tabs = [
+    {
+      id: 'overview',
+      label: 'Overview',
+      content: (<OverviewTab range={range} setRange={setRange} />)
+    },
+    {
+      id: 'costs',
+      label: 'Costs',
+      content: (<CostsTab range={range} setRange={setRange} />)
+    },
+    {
+      id: 'performance',
+      label: 'Performance',
+      content: (<PerformanceTab range={range} setRange={setRange} />)
     },
     {
       id: 'usage',
       label: 'Usage',
-      content: (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between"><h3 className="font-semibold">Usage</h3><RangePicker value={range} onChange={setRange} /></div>
-          {usage.loading && <div className="text-xs text-gray-500">Loading…</div>}
-          {usage.error && <div className="text-xs text-red-600">{usage.error}</div>}
-          {usage.data && (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-3 border rounded-md">
-                <div className="text-xs text-gray-500">Messages (range)</div>
-                <div className="text-xl font-semibold">{usage.data.total_messages ?? 0}</div>
-              </div>
-              <div className="p-3 border rounded-md col-span-2">
-                <div className="text-xs text-gray-500">Daily active users (rough)</div>
-                <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600 max-h-24 overflow-y-auto">
-                  {(usage.data.daily || []).map((d: UsageDay)=> (
-                    <span key={d.date} className="font-mono">{d.date}:{' '}{d.active_users}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )
+      content: (<UsageTab range={range} setRange={setRange} />)
     },
     {
       id: 'models',
       label: 'Models',
-      content: (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between"><h3 className="font-semibold">Models</h3></div>
-          {models.loading && <div className="text-xs text-gray-500">Loading…</div>}
-          {models.error && <div className="text-xs text-red-600">{models.error}</div>}
-          {models.data && (
-            <div className="grid grid-cols-5 gap-3">
-              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Total</div><div className="text-xl font-semibold">{models.data.counts?.total_count ?? 0}</div></div>
-              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">New</div><div className="text-xl font-semibold">{models.data.counts?.new_count ?? 0}</div></div>
-              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Active</div><div className="text-xl font-semibold">{models.data.counts?.active_count ?? 0}</div></div>
-              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Inactive</div><div className="text-xl font-semibold">{models.data.counts?.inactive_count ?? 0}</div></div>
-              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Disabled</div><div className="text-xl font-semibold">{models.data.counts?.disabled_count ?? 0}</div></div>
-              <div className="md:col-span-5 p-3 border rounded-md">
-                <div className="text-xs text-gray-500">Recent changes (30d)</div>
-                <div className="mt-2 grid grid-cols-4 gap-2 text-xs text-gray-700">
-                  {(models.data.recent || []).map((r: ModelsRecent)=> (
-                    <div key={r.day} className="p-2 border rounded">
-                      <div className="font-mono">{r.day}</div>
-                      <div className="grid grid-cols-4 gap-1">
-                        <div>N:{'{'}r.flagged_new{'}'}</div>
-                        <div>A:{'{'}r.flagged_active{'}'}</div>
-                        <div>I:{'{'}r.flagged_inactive{'}'}</div>
-                        <div>D:{'{'}r.flagged_disabled{'}'}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )
+      content: (<ModelsTab />)
     },
   ];
 

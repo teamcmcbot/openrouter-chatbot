@@ -502,3 +502,47 @@ General validation
 - All admin analytics endpoints must be wrapped with standardized auth + tiered rate limiting.
 - Response times: under ~1s for 30D windows on seeded/staging data.
 - Error handling: UI shows friendly empty/error states; no unhandled exceptions in console.
+
+---
+
+## Current implementation status (Sep 2025)
+
+What’s live in the Admin Analytics UI (Next.js App Router):
+
+- Tabs shipped: Overview, Costs, Performance, Usage, Models
+- Admin gating + tiered rate limiting on all endpoints
+- Lazy-loading per tab; dark-mode readable tables
+- “Last 100 errors” with copyable message IDs (parity with MessageList)
+- Usage: daily table (date, active users, messages) sorted desc
+- Models: compact “Recent changes (30d)” table with totals and muted zeros
+
+Backed endpoints (all protected with `withAdminAuth` + tiered limits):
+
+- GET `/api/admin/analytics/overview` – totals (users, conversations, messages), 7d usage/cost summaries, top models by spend, sync/model counts
+- GET `/api/admin/analytics/costs` – stacked cost/tokens by model (day/week/month) via `get_global_model_costs`
+- GET `/api/admin/analytics/performance` – avg latency (excludes 0 ms), total error count via `get_error_count`
+- GET `/api/admin/analytics/performance/errors` – last N errors via `get_recent_errors`
+- GET `/api/admin/analytics/usage` – DAU/messages/tokens per day (from `user_model_costs_daily` + `message_token_costs`)
+- GET `/api/admin/analytics/models` – model counts and recent activity via `v_model_counts_public` + `v_model_recent_activity_admin`
+
+DB artifacts leveraged:
+
+- Views: `v_model_counts_public`, `v_model_recent_activity_admin`, `v_sync_stats`
+- Functions: `get_global_model_costs`, `get_error_count`, `get_recent_errors`
+
+Data-quality notes:
+
+- Latency excludes zero-duration rows (`elapsed_ms = 0`)
+- Costs “ambiguous model_id” resolved earlier via forward-only patch
+- Known gap: Daily “New” counts in Models reflect final status among rows updated that day (updated_at). New additions may be flipped to active/disabled same-day, resulting in 0s. Tracked in `backlog/trigger-sync-not-detecting-new-status.md` with fix options (count by created_at or add transition history).
+
+Verification
+
+- Production builds green; test suites passing
+- Manual smoke tests across Today/7D/30D windows
+
+Next
+
+- Decide metrics semantics for daily “New” and implement chosen fix
+- Optional: add status transition audit for robust per-day transitions
+- Document semantics/tooltips in UI and docs/api

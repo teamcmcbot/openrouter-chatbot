@@ -77,6 +77,13 @@ These endpoints work for both anonymous and authenticated users with graceful de
 
 ### 🔐 Admin & Internal Endpoints
 
+- [Admin Analytics](./admin-analytics.md) — consolidated documentation for:
+  - `/api/admin/analytics/overview`
+  - `/api/admin/analytics/costs`
+  - `/api/admin/analytics/performance`
+  - `/api/admin/analytics/performance/errors`
+  - `/api/admin/analytics/usage`
+  - `/api/admin/analytics/models`
 - [Admin Attachments Overview](./admin-attachments.md)
 - [`/api/admin/model-access`](./admin-model-access.md) — protected via `withAdminAuth`
 - [`/api/admin/users`](./admin-users.md) — protected via `withAdminAuth`

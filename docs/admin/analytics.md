@@ -29,6 +29,21 @@ This page describes the available analytics aggregates and how to use them in th
 - Optionally materialize v_sync_stats for faster reads if the sync log grows.
 - Add date-range parameters via server APIs for more flexible charts.
 
+## API endpoints powering the dashboard
+
+- GET `/api/admin/analytics/overview`
+- GET `/api/admin/analytics/costs`
+- GET `/api/admin/analytics/performance`
+- GET `/api/admin/analytics/performance/errors`
+- GET `/api/admin/analytics/usage`
+- GET `/api/admin/analytics/models`
+
+See details and response shapes in `docs/api/admin-analytics.md`.
+
+## Semantics note on "New" (Models)
+
+`v_model_recent_activity_admin` groups by `updated_at` day and counts final status among rows updated that day. This means daily "New" does not necessarily equal models added that day. If inserts are flipped to active/disabled within the same day, "New" can read as 0. Tracked in `backlog/trigger-sync-not-detecting-new-status.md` with proposed fixes (count by `created_at` or add a status-transition history).
+
 ## Audit log (admin_audit_log)
 
 Admin-only table that records privileged actions (bulk model updates, user updates, manual/scheduled sync triggers). Entries are written via the SECURITY DEFINER function `public.write_admin_audit(...)`.

@@ -20,35 +20,50 @@ async function handler(req: NextRequest, auth: AuthContext) {
     const startISO = toISODate(range.start);
     const endExclusive = toISODate(new Date(range.end.getTime() + 24*60*60*1000));
 
-    // Average latency by day and overall, plus error counts if any
-    const [latencyRows, errorRows] = await Promise.all([
+    // Average latency by day and overall, plus error counts (admin-wide)
+    // - Latency from message_token_costs (admins can read all via RLS policy)
+    //   Use avg(nullif(elapsed_ms,0)) to ignore legacy zeros.
+    // - Errors via SECURITY DEFINER function to bypass RLS safely for admins
+    const [latencyRows, errorCount] = await Promise.all([
       supabase
         .from('message_token_costs')
-        .select('usage_day:message_timestamp::date, avg_latency:avg(elapsed_ms), assistant_messages:count(*)')
+        .select('message_timestamp, elapsed_ms')
         .gte('message_timestamp', startISO)
         .lt('message_timestamp', endExclusive)
-        .order('usage_day', { ascending: true }),
+        .order('message_timestamp', { ascending: true }),
       supabase
-        .from('chat_messages')
-        .select('message_timestamp, error_message', { count: 'exact' })
-        .gte('message_timestamp', startISO)
-        .lt('message_timestamp', endExclusive)
-        .not('error_message', 'is', null)
+        .rpc('get_error_count', { p_start_date: startISO, p_end_date: toISODate(range.end) })
     ]);
 
-    // Transform latency series
-    type LatencyRow = { usage_day: string; avg_latency: number; assistant_messages: number };
-    const days = (latencyRows.data || []) as unknown as LatencyRow[];
-    const series = days.map(d => ({ date: d.usage_day, avg_ms: Number(d.avg_latency || 0), messages: Number(d.assistant_messages || 0) }));
+    if (latencyRows.error) throw latencyRows.error;
 
-    // Overall averages
-    let sumLatency = 0, sumMsgs = 0;
-    for (const d of days) {
-      sumLatency += Number(d.avg_latency || 0) * Number(d.assistant_messages || 0);
-      sumMsgs += Number(d.assistant_messages || 0);
+    type RawRow = { message_timestamp: string; elapsed_ms: number | null };
+    const rows = (latencyRows.data || []) as unknown as RawRow[];
+
+    // Group by day and compute averages excluding zeros/nulls
+    const dayMap = new Map<string, { totalMsgs: number; nonZeroCount: number; nonZeroSum: number }>();
+    for (const r of rows) {
+      const day = new Date(r.message_timestamp).toISOString().slice(0,10);
+      const entry = dayMap.get(day) || { totalMsgs: 0, nonZeroCount: 0, nonZeroSum: 0 };
+      entry.totalMsgs += 1;
+      const v = Number(r.elapsed_ms || 0);
+      if (v > 0) { entry.nonZeroCount += 1; entry.nonZeroSum += v; }
+      dayMap.set(day, entry);
     }
-    const overall_avg_ms = sumMsgs > 0 ? Math.round(sumLatency / sumMsgs) : 0;
-    const error_count = errorRows.count || 0;
+
+    const series = Array.from(dayMap.entries())
+      .sort((a,b) => a[0] < b[0] ? -1 : 1)
+      .map(([day, v]) => ({
+        date: day,
+        avg_ms: v.nonZeroCount > 0 ? Math.round(v.nonZeroSum / v.nonZeroCount) : 0,
+        messages: v.totalMsgs,
+      }));
+
+    // Overall average across all non-zero rows
+    let grandCount = 0, grandSum = 0;
+    for (const v of dayMap.values()) { grandCount += v.nonZeroCount; grandSum += v.nonZeroSum; }
+    const overall_avg_ms = grandCount > 0 ? Math.round(grandSum / grandCount) : 0;
+    const error_count = (errorCount.data as unknown as number) ?? 0;
 
     return NextResponse.json({
       ok: true,
