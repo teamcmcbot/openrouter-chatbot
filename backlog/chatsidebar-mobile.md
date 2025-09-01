@@ -24,13 +24,13 @@ Related: components/chat/ChatSidebar.tsx (hover-only controls today)
 
 Option A: Long‑press to open an Action Sheet (bottom sheet)
 
-- Gesture: Press-and-hold the chat row (~450–600 ms) to open a modal sheet.
+- Gesture: Press-and-hold the chat row (~500 ms) to open a modal sheet.
 - Sheet contents:
   - Delete Conversation (destructive, red)
+  - Edit Title (secondary)
   - Cancel
-  - Optional: Rename (secondary, if we decide to include later)
 - Safety:
-  - Either ask for confirmation inside the sheet, or perform delete immediately and show an Undo Snackbar (5s). We’ll pick one in Phase 1 design sign‑off.
+  - Perform delete immediately and show an Undo Snackbar (5s). No extra confirmation step.
 - Discoverability:
   - One-time hint toast on first mobile visit: “Tip: Long‑press a chat to delete.”
 - Accessibility:
@@ -62,21 +62,21 @@ Option C: Overflow menu (“…”) on tap or focus
 
 - Mobile/touch users can delete a conversation without hover.
 - Title area remains unobstructed until the user performs an intentional action.
-- Prevent accidental deletes via confirm dialog or undo snackbar.
-- Works on iOS Safari and Chrome on Android; supports RTL.
+- Prevent accidental deletes via undo snackbar (5s) after immediate delete; user can restore within the window.
+- Works on iOS Safari and Chrome on Android; RTL support is deferred to a later phase.
 - Desktop behavior unchanged.
 
 ## Phased Plan
 
 ### Phase 1 — Long‑press Action Sheet (Mobile)
 
-- [ ] Decide confirm vs undo pattern for deletion.
-- [ ] UX copy for buttons, confirmation text, and undo toast.
-- [ ] Implement long‑press detection on chat rows (touch/pointer-safe; threshold ~500 ms; cancel on scroll/move).
-- [ ] Open bottom sheet with Delete + Cancel (and optional Rename hidden by default).
+- [x] Decide confirm vs undo pattern for deletion → Immediate delete + Undo (5s).
+- [ ] UX copy for buttons and undo toast.
+- [ ] Implement long‑press detection on chat rows (touch/pointer-safe; threshold 500 ms; cancel on scroll/move).
+- [ ] Open bottom sheet with Delete + Edit Title + Cancel (Edit Title included on mobile per decision).
 - [ ] Wire Delete to existing delete conversation action (no new API if already present).
 - [ ] Add one-time discoverability hint (stored with localStorage flag).
-- [ ] A11y: focus management, screen reader labels, aria-modal.
+- [ ] A11y: focus management, screen reader labels ("Delete conversation '{title}'"), aria-modal.
 - [ ] Analytics: track long‑press opens and delete confirmations.
 - [ ] Unit tests for the action sheet open/close logic and delete invocation (mock store/actions).
 - [ ] Manual cross-browser sanity on iOS Safari, Chrome Android.
@@ -100,7 +100,7 @@ Manual test steps
 - [ ] Implement horizontal swipe gesture with reveal (width ~72–88 px).
 - [ ] Thresholds: commit > 50% width or velocity < −0.3; otherwise spring back.
 - [ ] Ensure only one row can be “open” at a time; close on outside tap/scroll.
-- [ ] RTL support (reverse direction).
+- [ ] RTL support (reverse direction). (Deferred; not required for Phase 1.)
 - [ ] Keep long‑press as fallback.
 - [ ] Unit/interaction tests for swipe thresholds and open/close rules.
 

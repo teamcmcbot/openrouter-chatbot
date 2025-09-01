@@ -27,6 +27,8 @@ Developer guide for the chat UI image-attachment experience: attach, preview, se
   - user is authenticated, and
   - selected model’s `input_modalities` includes `image`.
 - Cap: max 3 images per message (UI enforces; server enforces at upload and linking).
+  - If a selection exceeds the cap, the UI accepts only up to the remaining capacity and shows a toast error: "You can attach up to 3 images.".
+  - The file input is reset after handling to allow re-selecting the same files if needed.
 - MIME allowlist: png, jpeg, webp.
 - Size: client does a soft check (<=10MB); server enforces tier caps (Free ≤ 5MB, Pro/Enterprise ≤ 10MB).
 
@@ -35,6 +37,11 @@ Developer guide for the chat UI image-attachment experience: attach, preview, se
 - After a successful upload, the UI creates an Object URL for instant preview.
 - Remove calls `DELETE /api/attachments/:id` to soft-delete the DB row and storage object, then revokes the Object URL.
 - Draft state resets and a new `draftId` is generated on successful send.
+
+### Mobile vs desktop affordance
+
+- On devices without hover (touch devices), the remove (×) button is always visible.
+- On hover-capable devices (desktop), the remove button is revealed on hover for a cleaner UI.
 
 ## History rendering
 

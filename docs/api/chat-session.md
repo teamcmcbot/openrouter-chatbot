@@ -164,6 +164,11 @@ async function updateSessionTitle(sessionId: string, newTitle: string) {
 }
 
 // Note: Active session selection is tracked client-side only; no server API needed.
+
+// Mobile UX note (2025-09-01):
+// On touch devices, the ChatSidebar presents an inline Edit Title form inside a bottom Action Sheet.
+// On successful save, the sheet closes and a success toast is shown.
+// This does not change the API contract; it continues to post to /api/chat/session as shown above.
 ```
 
 ### cURL Examples

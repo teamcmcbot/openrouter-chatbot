@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, ArrowPathIcon, CloudIcon, ComputerDesktopIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import Button from "./Button";
+import toast from "react-hot-toast";
+import ActionSheet from "./ActionSheet";
 import ConfirmModal from "./ConfirmModal";
 import UserSettings from "./UserSettings";
 import { useChatStore } from "../../stores";
@@ -49,6 +51,49 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   const [editTitle, setEditTitle] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [sheetOpenFor, setSheetOpenFor] = useState<string | null>(null);
+  const [editingInSheet, setEditingInSheet] = useState(false);
+  const [sheetEditTitle, setSheetEditTitle] = useState("");
+  const longPressTimer = useRef<number | null>(null);
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
+  const [hasHover, setHasHover] = useState(true);
+
+  // Detect whether the device supports hover (desktop) vs touch (mobile)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('matchMedia' in window)) return;
+    const mq = window.matchMedia('(hover: hover)');
+    const update = () => setHasHover(mq.matches);
+    update();
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
+  }, []);
+
+  // One-time discoverability hint for mobile/touch users when sidebar becomes visible
+  useEffect(() => {
+    if (hasHover || !isOpen) return; // desktop or sidebar hidden
+    try {
+      const key = 'chatSidebar.longpress.hint.v1';
+      if (!localStorage.getItem(key)) {
+        toast('Tip: Long‑press a chat to delete or edit.', { id: 'longpress-tip', duration: 4000 });
+        localStorage.setItem(key, '1');
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [hasHover, isOpen]);
+
+  // When the action sheet opens, ensure the target row is visible
+  useEffect(() => {
+    if (!sheetOpenFor || typeof document === 'undefined') return;
+    const el = document.getElementById(`conv-row-${sheetOpenFor}`);
+    if (el) {
+      try {
+        el.scrollIntoView({ block: 'nearest' });
+      } catch {
+        // no-op
+      }
+    }
+  }, [sheetOpenFor]);
 
   // Sidebar now relies on store-managed paginated list; initial load is orchestrated by useChatSync
   const sidebarPaging = useChatStore(s => s.sidebarPaging);
@@ -79,6 +124,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
   const handleDeleteChat = async (id: string) => {
     try {
       await deleteConversation(id);
+  toast.success('Conversation deleted successfully.');
     } catch (error) {
       console.error('Failed to delete conversation:', error);
       alert('Failed to delete conversation. Please try again.');
@@ -226,14 +272,59 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
               {conversations.map((conversation, index) => (
                 <div
                   key={conversation.id}
-      className={`group p-3 rounded-lg cursor-pointer border transition-all duration-200 relative ${
+                  id={`conv-row-${conversation.id}`}
+                  aria-selected={sheetOpenFor === conversation.id}
+                  data-action-target={sheetOpenFor === conversation.id ? 'true' : 'false'}
+      className={`group p-3 rounded-lg cursor-pointer border transition-all duration-200 relative select-none touch-pan-y ${
                     conversation.id === currentConversationId
                       ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 shadow-sm'
                       : index % 2 === 0
         ? 'bg-gray-100/30 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10'
         : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border-transparent dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10'
-                  }`}
+                  } ${sheetOpenFor === conversation.id ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-50 dark:ring-offset-gray-800 shadow-md' : ''} ${sheetOpenFor && sheetOpenFor !== conversation.id ? 'opacity-60' : ''}`}
+                  style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
                   onClick={() => handleConversationClick(conversation.id)}
+                  onContextMenu={(e) => {
+                    // Prevent iOS Safari "Copy/Look Up" sheet during long-press
+                    e.preventDefault();
+                  }}
+                  onPointerDown={(e) => {
+                    // Enable long-press only on non-hover (mobile/touch) devices
+                    if (hasHover) return;
+                    pointerStart.current = { x: e.clientX, y: e.clientY };
+                    // Cancel any prior timer
+                    if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+                    longPressTimer.current = window.setTimeout(() => {
+                      setSheetOpenFor(conversation.id);
+                    }, 500); // 500ms threshold
+                  }}
+                  onPointerMove={(e) => {
+                    if (hasHover) return;
+                    if (!pointerStart.current || longPressTimer.current == null) return;
+                    const dx = Math.abs(e.clientX - pointerStart.current.x);
+                    const dy = Math.abs(e.clientY - pointerStart.current.y);
+                    // Cancel if finger moves significantly (likely scrolling)
+                    if (dx > 8 || dy > 8) {
+                      window.clearTimeout(longPressTimer.current);
+                      longPressTimer.current = null;
+                    }
+                  }}
+                  onPointerUp={() => {
+                    if (hasHover) return;
+                    if (longPressTimer.current) {
+                      window.clearTimeout(longPressTimer.current);
+                      longPressTimer.current = null;
+                    }
+                    pointerStart.current = null;
+                  }}
+                  onPointerCancel={() => {
+                    if (hasHover) return;
+                    if (longPressTimer.current) {
+                      window.clearTimeout(longPressTimer.current);
+                      longPressTimer.current = null;
+                    }
+                    pointerStart.current = null;
+                  }}
                 >
                   {/* Action buttons overlay - only visible on hover */}
                   {editingId !== conversation.id && (
@@ -397,6 +488,98 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
           </div>
         </div>
       </aside>
+      <ActionSheet
+        isOpen={!!sheetOpenFor}
+        // title removed per request; keep only the context header
+        contextTitle={sheetOpenFor ? (conversations.find(c => c.id === sheetOpenFor)?.title ?? '') : undefined}
+        contextSubtitle={sheetOpenFor ? (
+          conversations.find(c => c.id === sheetOpenFor)?.lastMessagePreview ??
+          (conversations.find(c => c.id === sheetOpenFor)?.messages?.length
+            ? (conversations.find(c => c.id === sheetOpenFor)!.messages!.slice(-1)[0].content).slice(0, 80)
+            : undefined)
+        ) : undefined}
+        items={sheetOpenFor ? (
+          editingInSheet ? [] : [
+            {
+              key: 'delete',
+              label: 'Delete Conversation',
+              destructive: true,
+              onSelect: () => {
+                const id = sheetOpenFor;
+                setSheetOpenFor(null);
+                setEditingInSheet(false);
+                if (id) handleDeleteChat(id);
+              },
+            },
+            {
+              key: 'edit',
+              label: 'Edit Title',
+              onSelect: () => {
+                const id = sheetOpenFor;
+                if (!id) return;
+                const conv = conversations.find(c => c.id === id);
+                if (conv) {
+                  setEditingInSheet(true);
+                  setSheetEditTitle(conv.title);
+                }
+              },
+            },
+          ]
+        ) : []}
+        onClose={() => {
+          setSheetOpenFor(null);
+          setEditingInSheet(false);
+          setSheetEditTitle("");
+        }}
+      >
+        {editingInSheet && sheetOpenFor && (
+          <div className="px-4 pb-3">
+            <label htmlFor="sheet-edit-title" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+              Edit title
+            </label>
+            <input
+              id="sheet-edit-title"
+              type="text"
+              value={sheetEditTitle}
+              onChange={(e) => setSheetEditTitle(e.target.value)}
+              className="w-full text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-gray-900 dark:text-white"
+              autoFocus
+            />
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={async () => {
+                  const id = sheetOpenFor;
+                  if (!id) return;
+                  const trimmed = sheetEditTitle.trim();
+                  if (!trimmed) {
+                    // no-op if empty
+                    return;
+                  }
+                  try {
+                    await updateConversationTitle(id, trimmed);
+                    toast.success('Conversation title updated.');
+                    setEditingInSheet(false);
+                    setSheetOpenFor(null);
+                  } catch (err) {
+                    console.error('Failed to update conversation title:', err);
+                  }
+                }}
+                className="text-sm px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setEditingInSheet(false);
+                }}
+                className="text-sm px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </ActionSheet>
       <UserSettings
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
