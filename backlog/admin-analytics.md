@@ -332,3 +332,173 @@ Deployment/ops
 
 - Ensure tiered rate-limiting tiers are configured (Tier D used here)
 - If enabling `system_stats`, schedule a daily job; otherwise derive metrics on the fly
+
+---
+
+## Manual test plans (admin analytics UI)
+
+The following checklists validate each Analytics tab end-to-end. For each plan:
+
+- Use an Admin account (profile.account_type = 'admin').
+- Test three ranges: Today, Last 7 days, Last 30 days.
+- Confirm API calls return 200 and payload matches expected shape.
+- Validate UI renders KPIs/charts/tables accordingly and no error toasts.
+- Note edge cases and gating behavior.
+
+### 1) Overview
+
+Scope: KPIs + cost per day + assistant messages per day.
+
+Setup
+
+- Ensure there’s at least some data in the chosen windows (messages, costs).
+
+Steps (repeat for Today, 7D, 30D)
+
+- Navigate: /admin → Analytics → Overview.
+- Select range from filter bar (Today/7D/30D).
+- Observe loading state, then final KPIs and charts.
+
+Verify on screen
+
+- KPI tiles visible: Active users, New users, Sessions, Assistant messages, Total tokens, Est. cost, Latency p50/p95.
+- Cost per day chart renders with >= 1 data point when data exists.
+- Assistant messages/day line renders with >= 1 data point when data exists.
+- Empty-state messaging appears when no data.
+
+Verify API
+
+- Endpoint: GET /api/admin/analytics/overview?start=…&end=…&g=g
+- Status: 200; no rate-limit or auth errors.
+- JSON keys:
+  - range.start, range.end
+  - kpis.active_users, kpis.new_users, kpis.sessions, kpis.assistant_messages, kpis.total_tokens, kpis.estimated_cost
+  - kpis.latency_ms.p50, kpis.latency_ms.p95
+  - series.cost_per_day[] with date, total_cost
+  - series.assistant_messages_per_day[] with date, count
+
+Edge cases
+
+- No data → all KPIs should show 0 and charts show empty-state.
+- Large windows (30D) should still render within ~1s.
+- Admin gating: Non-admin should receive 403.
+
+### 2) Costs
+
+Scope: cost/time series stacked by model; totals and top models.
+
+Steps (repeat for Today, 7D, 30D)
+
+- Navigate: /admin → Analytics → Costs.
+- Select range and confirm stacked chart renders.
+
+Verify on screen
+
+- Stacked chart by model visible; legend shows top models.
+- Totals match legend sum for a given day (spot-check 1–2 days).
+- Table/cards of top models show spend and tokens where present.
+
+Verify API
+
+- Endpoint: GET /api/admin/analytics/costs?start=…&end=…&granularity=day
+- Status: 200.
+- JSON keys:
+  - granularity = 'day'
+  - series[] items with usage_period (date), model_id, prompt_tokens, completion_tokens, total_tokens, total_cost, assistant_messages, distinct_users
+
+Edge cases
+
+- If no costs, chart shows empty-state; totals are 0.
+- Performance: large model list is truncated to top N in UI; rest grouped as “Other”.
+- Admin gating and rate limiting enforced.
+
+### 3) Performance
+
+Scope: latency percentiles and counts by model.
+
+Steps (repeat for Today, 7D, 30D)
+
+- Navigate: /admin → Analytics → Performance.
+- Select range; verify chart/table of p50/p95 by model.
+
+Verify on screen
+
+- Chart renders p50/p95 per model (bar/line as implemented).
+- Rows exclude errored messages from latency aggregates.
+- A total/average row is present if provided by UI.
+
+Verify API
+
+- Endpoint: GET /api/admin/analytics/performance?start=…&end=…
+- Status: 200.
+- JSON keys:
+  - by_model[] items include model_id, p50, p95, count
+
+Edge cases
+
+- If elapsed_ms is sparse, percentiles still compute or UI shows N/A.
+- Models with only errors should not skew latency; ensure exclusion.
+- Admin gating and rate limiting enforced.
+
+### 4) Usage
+
+Scope: daily usage aggregates: messages, tokens, sessions, DAU.
+
+Steps (repeat for Today, 7D, 30D)
+
+- Navigate: /admin → Analytics → Usage.
+- Select range; verify charts update.
+
+Verify on screen
+
+- Lines/bars for active_users, messages, tokens, sessions per day.
+- Totals/KPIs reflect the selected window.
+
+Verify API
+
+- Endpoint: GET /api/admin/analytics/usage?start=…&end=…&g=day
+- Status: 200.
+- JSON keys:
+  - range.start, range.end
+  - totals: messages, total_tokens, sessions (if provided)
+  - series[] per day with active_users, messages, tokens
+
+Edge cases
+
+- If user_usage_daily empty for range, show empty-state.
+- Distinct users calculation aligns with DAU when data present.
+- Admin gating and rate limiting enforced.
+
+### 5) Models
+
+Scope: portfolio health: counts and recent activity.
+
+Steps (repeat for Today, 7D, 30D)
+
+- Navigate: /admin → Analytics → Models.
+- Select range; verify counts and activity table update.
+
+Verify on screen
+
+- Cards show total active/inactive/disabled as applicable.
+- Recent activity table lists adds/updates/removals with timestamps.
+
+Verify API
+
+- Endpoint: GET /api/admin/analytics/models?start=…&end=…
+- Status: 200.
+- JSON keys:
+  - counts: from v_model_counts_public (e.g., active, inactive, disabled)
+  - recent_activity[]: from v_model_recent_activity_admin (id, model_id, action, at least a timestamp field)
+  - sync_stats (optional): from v_sync_stats (last_run_at, success rates)
+
+Edge cases
+
+- If no changes in window, recent_activity is empty; counts still display.
+- Admin gating and rate limiting enforced.
+
+General validation
+
+- All admin analytics endpoints must be wrapped with standardized auth + tiered rate limiting.
+- Response times: under ~1s for 30D windows on seeded/staging data.
+- Error handling: UI shows friendly empty/error states; no unhandled exceptions in console.
