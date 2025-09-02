@@ -262,7 +262,13 @@ BEGIN
         FROM public.model_access
         WHERE model_id = model_record->>'id';
 
-        -- Try UPDATE first; if no row updated, perform INSERT. This avoids ambiguity of FOUND in UPSERT.
+    -- Try UPDATE first; if no row updated, perform INSERT.
+    -- Rationale: In PL/pgSQL, after INSERT ... ON CONFLICT DO UPDATE ("UPSERT"),
+    -- the FOUND flag evaluates to true regardless of whether a new row was inserted
+    -- or an existing row was updated. That makes it unsuitable for distinguishing
+    -- inserts vs updates. By doing UPDATE first and checking ROW_COUNT, we can
+    -- reliably detect if an existing row was updated, and only perform INSERT when
+    -- no rows were updated.
         UPDATE public.model_access
         SET
             canonical_slug = model_record->>'canonical_slug',
