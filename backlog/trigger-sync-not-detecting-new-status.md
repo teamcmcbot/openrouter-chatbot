@@ -2,6 +2,30 @@
 
 Observed: The Models tab in Admin Analytics shows New = 0 consistently, and the "Recent changes (30d)" table shows 0 in the New column across days, despite OpenRouter adding new models in the last two weeks. Trigger sync is working and inserts rows into `model_access` with `status = 'new'` initially, but the analytics-derived "modelsAdded" appears to remain 0.
 
+## Response details
+
+```json
+{
+  "success": true,
+  "message": "Model synchronization completed successfully",
+  "data": {
+    "syncLogId": "ecf0b99f-b5f4-4d27-80a8-68af2ece3918",
+    "totalProcessed": 323,
+    "modelsAdded": 0,
+    "modelsUpdated": 323,
+    "modelsMarkedInactive": 0,
+    "durationMs": 0,
+    "triggeredBy": "f319ca56-4197-477c-92e7-e6e2d95884be",
+    "triggeredAt": "2025-09-02T03:07:52.450Z"
+  },
+  "previousSync": {
+    "lastSyncAt": "2025-09-01T17:12:32.445Z",
+    "lastSyncStatus": "completed",
+    "lastSyncDuration": 0
+  }
+}
+```
+
 ## TL;DR hypothesis
 
 - The analytics view counts final status among rows updated on a given day (by `updated_at`), not transitions or creations. If a model is inserted as `new` and then immediately updated to `active`/`disabled` in the same sync cycle (or later the same day), the final status on that day is not `new`, so the daily "New" count remains 0. Similarly, the top-level "New" metric we surface likely reflects current status counts, not "newly added" counts.

@@ -240,6 +240,7 @@ DECLARE
     start_time TIMESTAMPTZ := NOW();
     current_model_ids TEXT[];
     previous_status VARCHAR(20);
+    updated_rows INTEGER;
 BEGIN
     -- Start sync log
     INSERT INTO public.model_sync_log (sync_status, total_openrouter_models, added_by_user_id)
@@ -261,99 +262,99 @@ BEGIN
         FROM public.model_access
         WHERE model_id = model_record->>'id';
 
-        -- Insert or update model
-        INSERT INTO public.model_access (
-            model_id,
-            canonical_slug,
-            hugging_face_id,
-            model_name,
-            model_description,
-            context_length,
-            created_timestamp,
-            modality,
-            input_modalities,
-            output_modalities,
-            tokenizer,
-            prompt_price,
-            completion_price,
-            request_price,
-            image_price,
-            web_search_price,
-            internal_reasoning_price,
-            input_cache_read_price,
-            input_cache_write_price,
-            max_completion_tokens,
-            is_moderated,
-            supported_parameters,
-            openrouter_last_seen,
-            last_synced_at
-        ) VALUES (
-            model_record->>'id',
-            model_record->>'canonical_slug',
-            model_record->>'hugging_face_id',
-            model_record->>'name',
-            model_record->>'description',
-            COALESCE((model_record->>'context_length')::integer, 8192),
-            COALESCE((model_record->>'created')::bigint, extract(epoch from now())::bigint),
-            model_record->'architecture'->>'modality',
-            COALESCE(model_record->'architecture'->'input_modalities', '[]'::jsonb),
-            COALESCE(model_record->'architecture'->'output_modalities', '[]'::jsonb),
-            model_record->'architecture'->>'tokenizer',
-            COALESCE(model_record->'pricing'->>'prompt', '0'),
-            COALESCE(model_record->'pricing'->>'completion', '0'),
-            COALESCE(model_record->'pricing'->>'request', '0'),
-            COALESCE(model_record->'pricing'->>'image', '0'),
-            COALESCE(model_record->'pricing'->>'web_search', '0'),
-            COALESCE(model_record->'pricing'->>'internal_reasoning', '0'),
-            model_record->'pricing'->>'input_cache_read',
-            model_record->'pricing'->>'input_cache_write',
-            (model_record->'top_provider'->>'max_completion_tokens')::integer,
-            COALESCE((model_record->'top_provider'->>'is_moderated')::boolean, false),
-            COALESCE(model_record->'supported_parameters', '[]'::jsonb),
-            NOW(),
-            NOW()
-        )
-        ON CONFLICT (model_id) DO UPDATE SET
-            canonical_slug = EXCLUDED.canonical_slug,
-            hugging_face_id = EXCLUDED.hugging_face_id,
-            model_name = EXCLUDED.model_name,
-            model_description = EXCLUDED.model_description,
-            context_length = EXCLUDED.context_length,
-            modality = EXCLUDED.modality,
-            input_modalities = EXCLUDED.input_modalities,
-            output_modalities = EXCLUDED.output_modalities,
-            tokenizer = EXCLUDED.tokenizer,
-            prompt_price = EXCLUDED.prompt_price,
-            completion_price = EXCLUDED.completion_price,
-            request_price = EXCLUDED.request_price,
-            image_price = EXCLUDED.image_price,
-            web_search_price = EXCLUDED.web_search_price,
-            internal_reasoning_price = EXCLUDED.internal_reasoning_price,
-            input_cache_read_price = EXCLUDED.input_cache_read_price,
-            input_cache_write_price = EXCLUDED.input_cache_write_price,
-            max_completion_tokens = EXCLUDED.max_completion_tokens,
-            is_moderated = EXCLUDED.is_moderated,
-            supported_parameters = EXCLUDED.supported_parameters,
-            openrouter_last_seen = EXCLUDED.openrouter_last_seen,
-            last_synced_at = EXCLUDED.last_synced_at,
-            -- Handle status transitions: inactive -> new (preserve tier access), others keep existing status
+        -- Try UPDATE first; if no row updated, perform INSERT. This avoids ambiguity of FOUND in UPSERT.
+        UPDATE public.model_access
+        SET
+            canonical_slug = model_record->>'canonical_slug',
+            hugging_face_id = model_record->>'hugging_face_id',
+            model_name = model_record->>'name',
+            model_description = model_record->>'description',
+            context_length = COALESCE((model_record->>'context_length')::integer, 8192),
+            modality = model_record->'architecture'->>'modality',
+            input_modalities = COALESCE(model_record->'architecture'->'input_modalities', '[]'::jsonb),
+            output_modalities = COALESCE(model_record->'architecture'->'output_modalities', '[]'::jsonb),
+            tokenizer = model_record->'architecture'->>'tokenizer',
+            prompt_price = COALESCE(model_record->'pricing'->>'prompt', '0'),
+            completion_price = COALESCE(model_record->'pricing'->>'completion', '0'),
+            request_price = COALESCE(model_record->'pricing'->>'request', '0'),
+            image_price = COALESCE(model_record->'pricing'->>'image', '0'),
+            web_search_price = COALESCE(model_record->'pricing'->>'web_search', '0'),
+            internal_reasoning_price = COALESCE(model_record->'pricing'->>'internal_reasoning', '0'),
+            input_cache_read_price = model_record->'pricing'->>'input_cache_read',
+            input_cache_write_price = model_record->'pricing'->>'input_cache_write',
+            max_completion_tokens = (model_record->'top_provider'->>'max_completion_tokens')::integer,
+            is_moderated = COALESCE((model_record->'top_provider'->>'is_moderated')::boolean, false),
+            supported_parameters = COALESCE(model_record->'supported_parameters', '[]'::jsonb),
+            openrouter_last_seen = NOW(),
+            last_synced_at = NOW(),
             status = CASE
-                WHEN public.model_access.status = 'inactive' THEN 'new'
-                WHEN public.model_access.status = 'disabled' THEN 'disabled'
-                ELSE public.model_access.status
+                WHEN previous_status = 'inactive' THEN 'new'
+                WHEN previous_status = 'disabled' THEN 'disabled'
+                ELSE status
             END,
-            -- Preserve existing tier access flags (is_free, is_pro, is_enterprise) for all updates
-            -- These are not updated during sync - only via admin functions
-            updated_at = NOW();
+            updated_at = NOW()
+        WHERE model_id = model_record->>'id';
 
-        -- Count if this was an insert or update, and track reactivations
-        IF FOUND THEN
+        GET DIAGNOSTICS updated_rows = ROW_COUNT;
+
+        IF updated_rows > 0 THEN
             count_models_updated := count_models_updated + 1;
-            -- Check if this was a reactivation from inactive status
             IF previous_status = 'inactive' THEN
                 count_models_reactivated := count_models_reactivated + 1;
             END IF;
         ELSE
+            INSERT INTO public.model_access (
+                model_id,
+                canonical_slug,
+                hugging_face_id,
+                model_name,
+                model_description,
+                context_length,
+                created_timestamp,
+                modality,
+                input_modalities,
+                output_modalities,
+                tokenizer,
+                prompt_price,
+                completion_price,
+                request_price,
+                image_price,
+                web_search_price,
+                internal_reasoning_price,
+                input_cache_read_price,
+                input_cache_write_price,
+                max_completion_tokens,
+                is_moderated,
+                supported_parameters,
+                openrouter_last_seen,
+                last_synced_at
+            ) VALUES (
+                model_record->>'id',
+                model_record->>'canonical_slug',
+                model_record->>'hugging_face_id',
+                model_record->>'name',
+                model_record->>'description',
+                COALESCE((model_record->>'context_length')::integer, 8192),
+                COALESCE((model_record->>'created')::bigint, extract(epoch from now())::bigint),
+                model_record->'architecture'->>'modality',
+                COALESCE(model_record->'architecture'->'input_modalities', '[]'::jsonb),
+                COALESCE(model_record->'architecture'->'output_modalities', '[]'::jsonb),
+                model_record->'architecture'->>'tokenizer',
+                COALESCE(model_record->'pricing'->>'prompt', '0'),
+                COALESCE(model_record->'pricing'->>'completion', '0'),
+                COALESCE(model_record->'pricing'->>'request', '0'),
+                COALESCE(model_record->'pricing'->>'image', '0'),
+                COALESCE(model_record->'pricing'->>'web_search', '0'),
+                COALESCE(model_record->'pricing'->>'internal_reasoning', '0'),
+                model_record->'pricing'->>'input_cache_read',
+                model_record->'pricing'->>'input_cache_write',
+                (model_record->'top_provider'->>'max_completion_tokens')::integer,
+                COALESCE((model_record->'top_provider'->>'is_moderated')::boolean, false),
+                COALESCE(model_record->'supported_parameters', '[]'::jsonb),
+                NOW(),
+                NOW()
+            );
+
             count_models_added := count_models_added + 1;
         END IF;
     END LOOP;

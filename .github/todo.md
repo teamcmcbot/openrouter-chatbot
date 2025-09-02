@@ -5,7 +5,7 @@ Chatbot todo:
 - [x] Is active handling, remove is_active in db, client side cache for conversation/messages/is_active
 - [x] Chat messages is streaming db
 - [ ] Conversation syncing brainstorm, multi-sessions, multi-device, account sharing.. etc
-- [ ] Admin analytics, models usage, users usage, chat messages errors, new users sign up
+- [x] Admin analytics, models usage, users usage, chat messages errors, new users sign up
 - [ ] Anonymous user’s usage and analytics is not tracked.
 - [x] Attachments toast error when > ATTACHMENT_CAP
 - [x] Remove attachment without hover on mobile
