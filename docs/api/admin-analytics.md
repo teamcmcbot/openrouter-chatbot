@@ -118,7 +118,7 @@ Notes
 GET /api/admin/analytics/models
 
 - Purpose: Model portfolio counts + recent activity
-- Sources: `v_model_counts_public`, `v_model_recent_activity_admin`
+- Sources: `v_model_counts_public`, `v_model_sync_activity_daily`
 - Query params
   - none
 - Response

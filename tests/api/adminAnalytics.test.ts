@@ -53,9 +53,9 @@ const iso = (d: Date) => d.toISOString().slice(0,10);
 const day = (off: number) => new Date(now.getTime() + off*86400000);
 
 const seedCounts = { total_count: 358, new_count: 0, active_count: 52, inactive_count: 35, disabled_count: 271 } as const;
-const seedRecent = [
-  { day: iso(day(0)), flagged_new: 0, flagged_active: 52, flagged_inactive: 0, flagged_disabled: 271 },
-  { day: iso(day(-1)), flagged_new: 0, flagged_active: 0, flagged_inactive: 1, flagged_disabled: 0 },
+const seedRecentDaily = [
+  { day: iso(day(0)), models_added: 0, models_marked_inactive: 0, models_reactivated: 0 },
+  { day: iso(day(-1)), models_added: 1, models_marked_inactive: 0, models_reactivated: 0 },
 ];
 const seedUsageDaily = [
   { usage_date: iso(day(-1)), user_id: 'u1', assistant_messages: 3, total_tokens: 1000 },
@@ -91,7 +91,7 @@ function makeBuilder(table: string, opts?: { head?: boolean }) {
     },
     order: () => {
       if (table === 'message_token_costs') return Promise.resolve({ data: seedLatency, error: null });
-      if (table === 'v_model_recent_activity_admin') return Promise.resolve({ data: seedRecent, error: null });
+      if (table === 'v_model_sync_activity_daily') return Promise.resolve({ data: seedRecentDaily, error: null });
       return Promise.resolve({ data: [], error: null });
     },
     limit: (n: number) => {
@@ -114,7 +114,7 @@ jest.mock('../../lib/supabase/server', () => ({
         return makeBuilder(table, options);
       },
       order: (col: string) => {
-        if (table === 'v_model_recent_activity_admin' && col === 'day') return Promise.resolve({ data: seedRecent, error: null });
+        if (table === 'v_model_sync_activity_daily' && col === 'day') return Promise.resolve({ data: seedRecentDaily, error: null });
         return Promise.resolve({ data: [], error: null });
       },
     }),
@@ -184,7 +184,7 @@ describe('Admin Analytics API', () => {
 
   test('models returns counts and recent activity', async () => {
     const res = await (getModels as unknown as (r: UrlOnlyRequest) => Promise<{ status: number; json: () => Promise<unknown> }>)(req('http://localhost/api/admin/analytics/models'));
-    const body = await res.json() as { counts: typeof seedCounts; recent: typeof seedRecent };
+    const body = await res.json() as { counts: typeof seedCounts; recent: typeof seedRecentDaily };
     expect(body.counts.total_count).toBe(seedCounts.total_count);
     expect(Array.isArray(body.recent)).toBe(true);
   });

@@ -22,7 +22,7 @@ Canonical SQL lives in `database/schema/`. Run these files in order from the Sup
 What this creates (high level):
 
 - Tables: `profiles`, `chat_sessions`, `chat_messages`, `model_access`, `user_activity_log`, `user_usage_daily`, `model_sync_log`, `admin_audit_log`, `system_cache`, `system_stats`
-- Views: `api_user_summary`, `v_sync_stats`, `v_model_counts_public`, `v_model_recent_activity_admin`
+- Views: `api_user_summary`, `v_sync_stats`, `v_model_counts_public`, `v_model_sync_activity_daily`
 - RLS: Enabled on user-facing tables with safe SECURITY DEFINER helpers
 - Triggers: Profile sync from `auth.users`, chat session stats maintenance
 
@@ -104,7 +104,7 @@ See `database/schema/*` for detailed DDL. Highlights:
 - Main: `public.profiles`, `public.chat_sessions`, `public.chat_messages`, `public.model_access`
 - Analytics/Audit: `public.user_activity_log`, `public.user_usage_daily`, `public.model_sync_log`, `public.admin_audit_log`
 - System: `public.system_cache`, `public.system_stats`
-- Views: `public.api_user_summary`, `public.v_sync_stats`, `public.v_model_counts_public`, `public.v_model_recent_activity_admin`
+- Views: `public.api_user_summary`, `public.v_sync_stats`, `public.v_model_counts_public`, `public.v_model_sync_activity_daily`
 
 RLS and Triggers are defined inline in the schema files. SECURITY DEFINER functions are intended for server-side use.
 

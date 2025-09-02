@@ -15,7 +15,7 @@ Chatbot todo:
 - [x] Console and terminal logs clean up, use logger.debug instead of console.log?
 - [ ] Landing page
 - [ ] Stripe payment? Account upgrade, billing.
-- [ ] Model sync not properly detecting “new” models.
+- [x] Model sync not properly detecting “new” models.
 - [ ] Upload images migration to UploadThings?
 - [ ] Brainstorm tokens/request. Very hard to estimate and enforce especially with reasoning, attachments, web search etc
 - [ ] Proper supabase setup, local + GitHub integration + supabase mcp?

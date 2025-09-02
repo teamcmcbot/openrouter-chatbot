@@ -260,20 +260,20 @@ SELECT
     COUNT(*) AS total_count
 FROM public.model_access;
 
--- Admin-only recent activity (last 30 days)
-CREATE OR REPLACE VIEW public.v_model_recent_activity_admin AS
-WITH changes AS (
-    SELECT
-        DATE_TRUNC('day', updated_at) AS day,
-        COUNT(*) FILTER (WHERE status='new') AS flagged_new,
-        COUNT(*) FILTER (WHERE status='active') AS flagged_active,
-        COUNT(*) FILTER (WHERE status='inactive') AS flagged_inactive,
-        COUNT(*) FILTER (WHERE status='disabled') AS flagged_disabled
-    FROM public.model_access
-    WHERE updated_at >= NOW() - INTERVAL '30 days'
-    GROUP BY 1
-)
-SELECT * FROM changes ORDER BY day DESC;
+-- Admin-only daily model sync activity (last 30 days)
+-- Supersedes v_model_recent_activity_admin
+CREATE OR REPLACE VIEW public.v_model_sync_activity_daily AS
+SELECT
+    DATE_TRUNC('day', COALESCE(sync_completed_at, sync_started_at)) AS day,
+    SUM(models_added) AS models_added,
+    SUM(models_marked_inactive) AS models_marked_inactive,
+    SUM(models_reactivated) AS models_reactivated,
+    COUNT(*) AS runs
+FROM public.model_sync_log
+WHERE sync_status = 'completed'
+    AND COALESCE(sync_completed_at, sync_started_at) >= NOW() - INTERVAL '30 days'
+GROUP BY 1
+ORDER BY day DESC;
 
 -- =============================================================================
 -- ADMIN AUDIT LOG (PHASE 4)
