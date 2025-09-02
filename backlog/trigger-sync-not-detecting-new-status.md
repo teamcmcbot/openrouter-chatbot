@@ -2,6 +2,30 @@
 
 Observed: The Models tab in Admin Analytics shows New = 0 consistently, and the "Recent changes (30d)" table shows 0 in the New column across days, despite OpenRouter adding new models in the last two weeks. Trigger sync is working and inserts rows into `model_access` with `status = 'new'` initially, but the analytics-derived "modelsAdded" appears to remain 0.
 
+## Response details
+
+```json
+{
+  "success": true,
+  "message": "Model synchronization completed successfully",
+  "data": {
+    "syncLogId": "ecf0b99f-b5f4-4d27-80a8-68af2ece3918",
+    "totalProcessed": 323,
+    "modelsAdded": 0,
+    "modelsUpdated": 323,
+    "modelsMarkedInactive": 0,
+    "durationMs": 0,
+    "triggeredBy": "f319ca56-4197-477c-92e7-e6e2d95884be",
+    "triggeredAt": "2025-09-02T03:07:52.450Z"
+  },
+  "previousSync": {
+    "lastSyncAt": "2025-09-01T17:12:32.445Z",
+    "lastSyncStatus": "completed",
+    "lastSyncDuration": 0
+  }
+}
+```
+
 ## TL;DR hypothesis
 
 - The analytics view counts final status among rows updated on a given day (by `updated_at`), not transitions or creations. If a model is inserted as `new` and then immediately updated to `active`/`disabled` in the same sync cycle (or later the same day), the final status on that day is not `new`, so the daily "New" count remains 0. Similarly, the top-level "New" metric we surface likely reflects current status counts, not "newly added" counts.
@@ -12,10 +36,11 @@ Observed: The Models tab in Admin Analytics shows New = 0 consistently, and the 
 - UI: `src/app/admin/AnalyticsPanel.tsx` → Models tab renders `ModelsResponse.recent` with columns New/Active/Inactive/Disabled/Total. Screenshot shows 0 for New across many days.
 - API: `src/app/api/admin/analytics/models/route.ts` fetches 2 sources:
   - `v_model_counts_public` for aggregate counts.
-  - `v_model_recent_activity_admin` for daily recent activity.
+  - (Deprecated) `v_model_recent_activity_admin` for daily recent activity.
+  - Replaced by `v_model_sync_activity_daily` which aggregates per-day sync metrics from `model_sync_log`.
 - DB views (schema): `database/schema/04-system.sql`
   - `v_model_counts_public`: counts current rows in `model_access` grouped by status.
-  - `v_model_recent_activity_admin`: groups by `DATE_TRUNC('day', updated_at)` and counts by `status` using FILTER. This counts the final status of rows that were updated on each day.
+  - `v_model_sync_activity_daily`: groups by `DATE_TRUNC('day', run_started_at)` in `model_sync_log` and sums `models_added`, `models_marked_inactive`, `models_reactivated` for completed runs.
 
 Therefore:
 
@@ -28,7 +53,7 @@ Therefore:
 - Expected creations vs analytics daily "New":
   1. Compare created vs daily flagged_new for a specific date (replace $DAY):
      - Creations: `SELECT COUNT(*) FROM public.model_access WHERE created_at::date = $DAY;`
-     - View: `SELECT flagged_new FROM v_model_recent_activity_admin WHERE day::date = $DAY;`
+  - View: `SELECT models_added FROM v_model_sync_activity_daily WHERE day::date = $DAY;`
   2. If the first query is > 0 and the second is 0, that confirms the mismatch.
 - Check if newly inserted rows quickly change status:
   - `SELECT model_id, status, created_at, updated_at FROM public.model_access WHERE created_at::date = $DAY ORDER BY updated_at DESC LIMIT 50;`
@@ -92,7 +117,7 @@ Therefore:
 
 - [ ] Add a new admin view `v_models_added_30d` grouped by `DATE_TRUNC('day', created_at)`.
 - [ ] Update `/api/admin/analytics/models` to also return `recent_added`.
-- [ ] Update UI to map the "New" column from `recent_added` while keeping the other columns from `v_model_recent_activity_admin`.
+- [x] Update UI to use `v_model_sync_activity_daily` (Added/Inactive/Reactivated per day) and compute daily total.
 - [ ] Tests: add a small DB test or mock verifying insert→same-day status flip still shows New=1 for that day.
 - [ ] Build passes and manual smoke test on Admin Analytics.
 - [ ] User verification: confirm "New" shows non-zero on days with known additions.

@@ -56,7 +56,7 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
   interface UsageDay { date: string; active_users: number; messages: number; tokens: number }
   interface UsageResponse { ok: boolean; total_messages: number; daily: UsageDay[] }
   interface ModelsCounts { total_count: number; new_count: number; active_count: number; inactive_count: number; disabled_count: number }
-  interface ModelsRecent { day: string; flagged_new: number; flagged_active: number; flagged_inactive: number; flagged_disabled: number }
+  interface ModelsRecent { day: string; models_added: number; models_marked_inactive: number; models_reactivated: number }
   interface ModelsResponse { ok: boolean; counts: ModelsCounts; recent: ModelsRecent[] }
 
   // Tab components (fetch only when mounted)
@@ -288,7 +288,7 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
             <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Inactive</div><div className="text-xl font-semibold">{models.data.counts?.inactive_count ?? 0}</div></div>
             <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Disabled</div><div className="text-xl font-semibold">{models.data.counts?.disabled_count ?? 0}</div></div>
             <div className="md:col-span-5 p-3 border rounded-md">
-              <div className="text-xs text-gray-500">Recent changes (30d)</div>
+        <div className="text-xs text-gray-500">Recent changes (30d)</div>
               {(() => {
                 // Sort most recent first for quick scanning
                 const recentSorted = [...(models.data?.recent || [])].sort((a, b) => b.day.localeCompare(a.day));
@@ -299,26 +299,24 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
                       <thead className="text-gray-500">
                         <tr>
                           <th className="text-left font-medium py-1 pr-2">Date</th>
-                          <th className="text-right font-medium py-1 pr-2">New</th>
-                          <th className="text-right font-medium py-1 pr-2">Active</th>
-                          <th className="text-right font-medium py-1 pr-2">Inactive</th>
-                          <th className="text-right font-medium py-1 pr-2">Disabled</th>
+              <th className="text-right font-medium py-1 pr-2">Added</th>
+              <th className="text-right font-medium py-1 pr-2">Inactive</th>
+              <th className="text-right font-medium py-1 pr-2">Reactivated</th>
                           <th className="text-right font-medium py-1">Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {recentSorted.map((r: ModelsRecent) => {
-                          const total = r.flagged_new + r.flagged_active + r.flagged_inactive + r.flagged_disabled;
+              const total = (r.models_added || 0) + (r.models_marked_inactive || 0) + (r.models_reactivated || 0);
                           const cell = (val: number) => (
                             <span className={val === 0 ? 'text-gray-400' : 'font-semibold'}>{val}</span>
                           );
                           return (
                             <tr key={r.day} className="border-t border-gray-100 dark:border-gray-800">
                               <td className="py-1 pr-2 font-mono text-gray-700 dark:text-gray-300" title={r.day}>{fmtIsoDate(r.day)}</td>
-                              <td className="py-1 pr-2 text-right">{cell(r.flagged_new)}</td>
-                              <td className="py-1 pr-2 text-right">{cell(r.flagged_active)}</td>
-                              <td className="py-1 pr-2 text-right">{cell(r.flagged_inactive)}</td>
-                              <td className="py-1 pr-2 text-right">{cell(r.flagged_disabled)}</td>
+                <td className="py-1 pr-2 text-right">{cell(r.models_added)}</td>
+                <td className="py-1 pr-2 text-right">{cell(r.models_marked_inactive)}</td>
+                <td className="py-1 pr-2 text-right">{cell(r.models_reactivated)}</td>
                               <td className="py-1 text-right">{cell(total)}</td>
                             </tr>
                           );

@@ -20,7 +20,7 @@ Run the four schema files from the repo in this order (Dashboard → SQL Editor)
 What you get:
 
 - Tables: profiles, chat_sessions, chat_messages, model_access, user_activity_log, user_usage_daily, model_sync_log, admin_audit_log, system_cache, system_stats
-- Views: api_user_summary, v_sync_stats, v_model_counts_public, v_model_recent_activity_admin
+- Views: api_user_summary, v_sync_stats, v_model_counts_public, v_model_sync_activity_daily
 - RLS policies + triggers
 
 ## 2) Create the storage bucket

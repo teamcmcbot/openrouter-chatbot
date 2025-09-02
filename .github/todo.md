@@ -5,7 +5,7 @@ Chatbot todo:
 - [x] Is active handling, remove is_active in db, client side cache for conversation/messages/is_active
 - [x] Chat messages is streaming db
 - [ ] Conversation syncing brainstorm, multi-sessions, multi-device, account sharing.. etc
-- [ ] Admin analytics, models usage, users usage, chat messages errors, new users sign up
+- [x] Admin analytics, models usage, users usage, chat messages errors, new users sign up
 - [ ] Anonymous user’s usage and analytics is not tracked.
 - [x] Attachments toast error when > ATTACHMENT_CAP
 - [x] Remove attachment without hover on mobile
@@ -15,7 +15,7 @@ Chatbot todo:
 - [x] Console and terminal logs clean up, use logger.debug instead of console.log?
 - [ ] Landing page
 - [ ] Stripe payment? Account upgrade, billing.
-- [ ] Model sync not properly detecting “new” models.
+- [x] Model sync not properly detecting “new” models.
 - [ ] Upload images migration to UploadThings?
 - [ ] Brainstorm tokens/request. Very hard to estimate and enforce especially with reasoning, attachments, web search etc
 - [ ] Proper supabase setup, local + GitHub integration + supabase mcp?

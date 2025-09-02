@@ -10,14 +10,14 @@ This page describes the available analytics aggregates and how to use them in th
   - runs_24h, failures_24h
 - v_model_counts_public (safe for public)
   - new_count, active_count, inactive_count, disabled_count, total_count
-- v_model_recent_activity_admin (admin only)
+- v_model_sync_activity_daily (admin only)
   - day, flagged_new, flagged_active, flagged_inactive, flagged_disabled (last 30 days)
 
 ## Usage
 
 - Display v_sync_stats on the Admin Analytics tab as quick KPIs.
 - Use v_model_counts_public to show model status distribution (safe to show anywhere).
-- Use v_model_recent_activity_admin to chart rolling activity for the last 30 days.
+- Use v_model_sync_activity_daily to chart rolling activity for the last 30 days.
 
 ## Security & RLS
 
@@ -42,7 +42,7 @@ See details and response shapes in `docs/api/admin-analytics.md`.
 
 ## Semantics note on "New" (Models)
 
-`v_model_recent_activity_admin` groups by `updated_at` day and counts final status among rows updated that day. This means daily "New" does not necessarily equal models added that day. If inserts are flipped to active/disabled within the same day, "New" can read as 0. Tracked in `backlog/trigger-sync-not-detecting-new-status.md` with proposed fixes (count by `created_at` or add a status-transition history).
+`v_model_sync_activity_daily` aggregates per-day sums from `model_sync_log` over the last 30 days: models_added, models_marked_inactive, models_reactivated. This reflects actual sync job results rather than final statuses by updated_at.
 
 ## Audit log (admin_audit_log)
 

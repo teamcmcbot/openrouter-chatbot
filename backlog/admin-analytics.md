@@ -32,7 +32,7 @@ Tables/views/functions directly usable today:
   - View: `public.user_model_costs_daily` (per user/day/model costs/tokens)
   - Function: `public.get_global_model_costs(start_date, end_date, granularity)` — admin-only global aggregation by day/week/month
   - `public.model_access` (catalog with pricing fields and tier flags)
-  - `public.model_sync_log` and views `public.v_sync_stats`, `public.v_model_counts_public`, `public.v_model_recent_activity_admin`
+  - `public.model_sync_log` and views `public.v_sync_stats`, `public.v_model_counts_public`, `public.v_model_sync_activity_daily`
 
 - System-wide stats and events
   - `public.system_stats` (daily rollups: users, messages, tokens, response time, error rate, db size) — can be scheduled to populate
@@ -74,7 +74,7 @@ Indexes are present on user_id/date, timestamps, tokens, model_id, etc., enablin
 6. Model portfolio health
 
 - Tables/charts: Active/inactive/disabled counts; Recent changes; Sync success rate and average duration
-- Sources: `model_access` + views `v_model_counts_public`, `v_model_recent_activity_admin`, and `v_sync_stats`
+- Sources: `model_access` + views `v_model_counts_public`, `v_model_sync_activity_daily`, and `v_sync_stats`
 
 7. Funnel & growth (top-of-funnel; anon-supported)
 
@@ -277,7 +277,7 @@ Add SECURITY DEFINER functions (admin-only) in SQL patches (no RLS policy change
 Endpoints:
 
 - GET /api/admin/analytics/usage → calls `get_admin_usage_aggregates`
-- GET /api/admin/analytics/models → reads views: `v_model_counts_public`, `v_model_recent_activity_admin`, `v_sync_stats`
+- GET /api/admin/analytics/models → reads views: `v_model_counts_public`, `v_model_sync_activity_daily`, `v_sync_stats`
 
 UI wiring (Phase 2)
 
@@ -489,7 +489,7 @@ Verify API
 - Status: 200.
 - JSON keys:
   - counts: from v_model_counts_public (e.g., active, inactive, disabled)
-  - recent_activity[]: from v_model_recent_activity_admin (id, model_id, action, at least a timestamp field)
+  - recent_activity[]: from v_model_sync_activity_daily (day, models_added, models_marked_inactive, models_reactivated)
   - sync_stats (optional): from v_sync_stats (last_run_at, success rates)
 
 Edge cases
@@ -523,11 +523,11 @@ Backed endpoints (all protected with `withAdminAuth` + tiered limits):
 - GET `/api/admin/analytics/performance` – avg latency (excludes 0 ms), total error count via `get_error_count`
 - GET `/api/admin/analytics/performance/errors` – last N errors via `get_recent_errors`
 - GET `/api/admin/analytics/usage` – DAU/messages/tokens per day (from `user_model_costs_daily` + `message_token_costs`)
-- GET `/api/admin/analytics/models` – model counts and recent activity via `v_model_counts_public` + `v_model_recent_activity_admin`
+- GET `/api/admin/analytics/models` – model counts and recent activity via `v_model_counts_public` + `v_model_sync_activity_daily`
 
 DB artifacts leveraged:
 
-- Views: `v_model_counts_public`, `v_model_recent_activity_admin`, `v_sync_stats`
+- Views: `v_model_counts_public`, `v_model_sync_activity_daily`, `v_sync_stats`
 - Functions: `get_global_model_costs`, `get_error_count`, `get_recent_errors`
 
 Data-quality notes:
