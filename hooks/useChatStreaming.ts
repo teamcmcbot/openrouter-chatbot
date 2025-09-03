@@ -1158,7 +1158,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
                     msg.id === messageId ? { ...updatedUserMessage, retry_available: undefined } : msg
                   ).concat(assistantMessage), // Update existing user message and add assistant
                   updatedAt: new Date().toISOString(),
-  isAuthenticated,
                 }
               : conv
           ),

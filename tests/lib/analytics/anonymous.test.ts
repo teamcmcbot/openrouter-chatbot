@@ -18,7 +18,9 @@ describe('anonymous analytics', () => {
     jest.resetModules();
     jest.clearAllMocks();
     localStorage.clear();
-  // In test env, postJSON is a no-op; ensure that behavior by asserting fetch NOT called
+  // Note: In NODE_ENV=test, lib/analytics/anonymous.ts short-circuits postJSON
+  // to avoid network calls during unit tests. That means emitAnonymousUsage/Error
+  // won't call global.fetch in tests. We assert that behavior below.
   });
 
   afterEach(() => {

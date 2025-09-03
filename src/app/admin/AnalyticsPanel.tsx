@@ -216,6 +216,21 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
   const errors = useFetch<ErrorsResponse>(`/api/admin/analytics/performance/errors${q}&segment=${segment}`, [q, segment]);
   // Local state for copy button feedback per message id
   const [copiedId, setCopiedId] = useState<string | null>(null);
+    // Derive metrics to reduce nested ternaries
+    const avgMs = useMemo(() => {
+      if (!performance.data) return 0;
+      if (!performance.data.segments) return performance.data.overall?.avg_ms ?? 0;
+      return segment === 'anonymous'
+        ? performance.data.segments.anonymous.overall.avg_ms
+        : performance.data.segments.authenticated.overall.avg_ms;
+    }, [performance.data, segment]);
+    const errorCount = useMemo(() => {
+      if (!performance.data) return 0;
+      if (!performance.data.segments) return performance.data.overall?.error_count ?? 0;
+      return segment === 'anonymous'
+        ? performance.data.segments.anonymous.overall.error_count
+        : performance.data.segments.authenticated.overall.error_count;
+    }, [performance.data, segment]);
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -232,11 +247,11 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 border rounded-md">
                 <div className="text-xs text-gray-500">Avg latency</div>
-                <div className="text-xl font-semibold">{(performance.data.segments ? (segment==='anonymous' ? performance.data.segments.anonymous.overall.avg_ms : performance.data.segments.authenticated.overall.avg_ms) : performance.data.overall?.avg_ms) ?? 0} ms</div>
+                <div className="text-xl font-semibold">{avgMs} ms</div>
               </div>
               <div className="p-3 border rounded-md">
                 <div className="text-xs text-gray-500">Errors</div>
-                <div className="text-xl font-semibold">{(performance.data.segments ? (segment==='anonymous' ? performance.data.segments.anonymous.overall.error_count : performance.data.segments.authenticated.overall.error_count) : performance.data.overall?.error_count) ?? 0}</div>
+                <div className="text-xl font-semibold">{errorCount}</div>
               </div>
             </div>
             <div className="p-3 border rounded-md">

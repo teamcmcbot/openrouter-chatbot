@@ -102,24 +102,67 @@ export const logger = <T>(
 /**
  * Create a simple logger for store debugging
  */
-export const createLogger = (storeName: string) => ({
-  debug: (message: string, data?: unknown) => {
-    if (STORE_CONFIG.DEVTOOLS_ENABLED) {
-      console.debug(`[${storeName}]`, message, data);
+export const createLogger = (storeName: string) => {
+  type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
+
+  const levelRank: Record<LogLevel, number> = {
+    debug: 10,
+    info: 20,
+    warn: 30,
+    error: 40,
+    silent: 100,
+  };
+
+  const parseLevel = (lvl: string | undefined): LogLevel | null => {
+    switch ((lvl || '').toLowerCase()) {
+      case 'debug':
+      case 'info':
+      case 'warn':
+      case 'error':
+      case 'silent':
+        return (lvl as LogLevel);
+      default:
+        return null;
     }
-  },
-  info: (message: string, data?: unknown) => {
-    if (STORE_CONFIG.DEVTOOLS_ENABLED) {
-      console.info(`[${storeName}]`, message, data);
-    }
-  },
-  warn: (message: string, data?: unknown) => {
-    console.warn(`[${storeName}]`, message, data);
-  },
-  error: (message: string, data?: unknown) => {
-    console.error(`[${storeName}]`, message, data);
-  },
-});
+  };
+
+  // Default: in tests, suppress debug/info unless explicitly enabled via LOG_LEVEL.
+  // In dev with devtools, default to debug; otherwise default to info.
+  const getCurrentLevel = (): LogLevel => {
+    const envLevel = parseLevel(process.env.LOG_LEVEL);
+    const defaultLevel: LogLevel = process.env.NODE_ENV === 'test'
+      ? 'warn'
+      : (STORE_CONFIG.DEVTOOLS_ENABLED ? 'debug' : 'info');
+    return envLevel ?? defaultLevel;
+  };
+
+  const shouldLog = (lvl: LogLevel) => levelRank[lvl] >= levelRank[getCurrentLevel()];
+
+  return {
+    debug: (message: string, data?: unknown) => {
+      if (shouldLog('debug')) {
+  // eslint-disable-next-line no-console
+        console.debug(`[${storeName}]`, message, data);
+      }
+    },
+    info: (message: string, data?: unknown) => {
+      if (shouldLog('info')) {
+  // eslint-disable-next-line no-console
+        console.info(`[${storeName}]`, message, data);
+      }
+    },
+    warn: (message: string, data?: unknown) => {
+      if (shouldLog('warn')) {
+        console.warn(`[${storeName}]`, message, data);
+      }
+    },
+    error: (message: string, data?: unknown) => {
+      if (shouldLog('error')) {
+        console.error(`[${storeName}]`, message, data);
+      }
+    },
+  };
+};
 
 /**
  * Utility to create a store with standard middleware
