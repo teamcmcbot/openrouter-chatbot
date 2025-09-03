@@ -22,6 +22,7 @@ import {
 } from "../lib/utils/tokens";
 import toast from 'react-hot-toast';
 import { checkRateLimitHeaders } from "../lib/utils/rateLimitNotifications";
+import { emitAnonymousError, emitAnonymousUsage } from "../lib/analytics/anonymous";
 
 const logger = createLogger("ChatStore");
 
@@ -441,6 +442,20 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   retryAfter: errorData.retryAfter,
                   timestamp: errorData.timestamp ?? new Date().toISOString(),
                 };
+                // Anonymous error emit
+                try {
+                  const { user } = useAuthStore.getState();
+                  if (!user?.id) {
+                    emitAnonymousError({
+                      timestamp: new Date().toISOString(),
+                      model: String(model || ''),
+                      http_status: response.status,
+                      error_code: typeof errorData.code === 'string' ? errorData.code : undefined,
+                      error_message: typeof errorData.error === 'string' ? errorData.error : `HTTP ${response.status}`,
+                      metadata: { streaming: false },
+                    });
+                  }
+                } catch {}
                 throw chatError;
               }
 
@@ -524,6 +539,28 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   isLoading: false,
                 };
               });
+
+              // Anonymous usage emit on success (best-effort)
+              try {
+                const { user } = useAuthStore.getState();
+                if (!user?.id) {
+                  // Find the updated user message in state if available
+                  const conv = get().conversations.find(c => c.id === currentConversationId);
+                  const updatedUserMsg = conv?.messages.find(m => m.id === (data.request_id as string));
+                  const inputTokens = (updatedUserMsg?.input_tokens as number) ?? (data.usage?.prompt_tokens ?? 0);
+                  emitAnonymousUsage([
+                    { timestamp: new Date().toISOString(), type: 'message_sent', model },
+                    {
+                      timestamp: new Date().toISOString(),
+                      type: 'completion_received',
+                      model: assistantMessage.model,
+                      input_tokens: inputTokens,
+                      output_tokens: assistantMessage.output_tokens,
+                      elapsed_ms: assistantMessage.elapsed_ms,
+                    },
+                  ]);
+                }
+              } catch {}
 
               // Auto-generate title from first user message if it's still "New Chat"
               const currentConv = get().conversations.find(c => c.id === currentConversationId);
@@ -1158,7 +1195,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 body: JSON.stringify(requestBody),
               });
 
-        if (!response.ok) {
+              if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 const chatError: ChatError = {
                   message: errorData.error ?? `HTTP error! status: ${response.status}`,
@@ -1169,6 +1206,20 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   retryAfter: errorData.retryAfter,
                   timestamp: errorData.timestamp ?? new Date().toISOString(),
                 };
+                // Anonymous error emit on retry
+                try {
+                  const { user } = useAuthStore.getState();
+                  if (!user?.id) {
+                    emitAnonymousError({
+                      timestamp: new Date().toISOString(),
+                      model: String(model || ''),
+                      http_status: response.status,
+                      error_code: typeof errorData.code === 'string' ? errorData.code : undefined,
+                      error_message: typeof errorData.error === 'string' ? errorData.error : `HTTP ${response.status}`,
+                      metadata: { streaming: false, retry: true },
+                    });
+                  }
+                } catch {}
                 throw chatError;
               }
 
@@ -1265,6 +1316,24 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   isLoading: false,
                 };
               });
+
+              // Anonymous usage emit on retry success (best-effort)
+              try {
+                const { user } = useAuthStore.getState();
+                if (!user?.id) {
+                  emitAnonymousUsage([
+                    { timestamp: new Date().toISOString(), type: 'message_sent', model },
+                    {
+                      timestamp: new Date().toISOString(),
+                      type: 'completion_received',
+                      model: assistantMessage.model,
+                      input_tokens: (data.usage?.prompt_tokens ?? 0),
+                      output_tokens: assistantMessage.output_tokens,
+                      elapsed_ms: assistantMessage.elapsed_ms,
+                    },
+                  ]);
+                }
+              } catch {}
 
               // Auto-generate title from first user message if conversation was 'New Chat'
               const currentConvAfterRetry = get().conversations.find(c => c.id === currentConversationId);

@@ -5,6 +5,7 @@ import { ChatMessage } from '../lib/types/chat';
 import { useChatStore } from '../stores/useChatStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useAuth, useAuthStore } from '../stores/useAuthStore';
+import { emitAnonymousError, emitAnonymousUsage } from '../lib/analytics/anonymous';
 import { createLogger } from '../stores/storeUtils';
 import { isStreamingDebugEnabled, streamDebug } from '../lib/utils/streamDebug';
 import { checkRateLimitHeaders } from '../lib/utils/rateLimitNotifications';
@@ -79,7 +80,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
   }
   
   // Get user authentication for request context (used for authenticated features)
-  useAuth();
+  const { isAuthenticated } = useAuth();
 
   // Streaming-specific state
   const [isStreaming, setIsStreaming] = useState(false);
@@ -147,7 +148,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       // Alert to force visibility
       // console.log('🔴 ALERT: Streaming path activated!');
       
-      // Streaming path
+  // Streaming path
       setIsStreaming(true);
       setStreamingContent('');
       setStreamingReasoning(''); // NEW: Reset reasoning state
@@ -193,7 +194,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           reasoning: options?.reasoning,
         };
 
-        const response = await fetch('/api/chat/stream', {
+  const response = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -210,6 +211,17 @@ export function useChatStreaming(): UseChatStreamingReturn {
           }
 
           const errorData = await response.json().catch(() => ({}));
+          // Anonymous error emit (best-effort)
+          if (!isAuthenticated) {
+            emitAnonymousError({
+              timestamp: new Date().toISOString(),
+              model: String(model || ''),
+              http_status: response.status,
+              error_code: typeof errorData.code === 'string' ? errorData.code : undefined,
+              error_message: typeof errorData.error === 'string' ? errorData.error : `HTTP ${response.status}`,
+              metadata: { streaming: true },
+            });
+          }
           throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
 
@@ -455,8 +467,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
   // Finalize annotations from accumulator map
   const mergedAnnotations = Array.from(annotationsMapRef.current.values());
         
-        // Create assistant message with metadata
-        const assistantMessage: ChatMessage = {
+  // Create assistant message with metadata
+  const assistantMessage: ChatMessage = {
           id: `msg_${Date.now() + 1}`,
           content: finalContent,
           role: "assistant",
@@ -489,6 +501,24 @@ export function useChatStreaming(): UseChatStreamingReturn {
           ...userMessage,
           input_tokens: finalMetadata?.usage?.prompt_tokens || 0,
         };
+
+        // Anonymous usage emit on success (best-effort)
+        try {
+          if (!isAuthenticated) {
+            const events = [
+              { timestamp: new Date().toISOString(), type: 'message_sent' as const, model },
+              {
+                timestamp: new Date().toISOString(),
+                type: 'completion_received' as const,
+                model: assistantMessage.model,
+                input_tokens: updatedUserMessage.input_tokens,
+                output_tokens: assistantMessage.output_tokens,
+                elapsed_ms: assistantMessage.elapsed_ms,
+              },
+            ];
+            emitAnonymousUsage(events);
+          }
+        } catch {}
 
         // Add both messages to store
         useChatStore.setState((state) => ({
@@ -597,6 +627,19 @@ export function useChatStreaming(): UseChatStreamingReturn {
         
         setStreamError(chatError);
         logger.error('Streaming error:', error);
+
+        // Anonymous error emit for network/exception path
+        try {
+          if (!isAuthenticated) {
+            emitAnonymousError({
+              timestamp: new Date().toISOString(),
+              model: String(model || ''),
+              error_code: 'stream_error',
+              error_message: chatError.message,
+              metadata: { streaming: true },
+            });
+          }
+        } catch {}
         
         // Mark user message as failed (consistent with non-streaming error handling)
         useChatStore.setState((state) => ({
@@ -803,7 +846,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           reasoning: options?.reasoning,
         };
 
-        const response = await fetch('/api/chat/stream', {
+  const response = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -819,6 +862,17 @@ export function useChatStreaming(): UseChatStreamingReturn {
           }
 
           const errorData = await response.json().catch(() => ({}));
+          // Anonymous error emit on retry failure
+          if (!isAuthenticated) {
+            emitAnonymousError({
+              timestamp: new Date().toISOString(),
+              model: String(model || ''),
+              http_status: response.status,
+              error_code: typeof errorData.code === 'string' ? errorData.code : undefined,
+              error_message: typeof errorData.error === 'string' ? errorData.error : `HTTP ${response.status}`,
+              metadata: { streaming: true, retry: true },
+            });
+          }
           throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
 
@@ -1030,8 +1084,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
         const finalContent = finalMetadata?.response || fullContent;
   const mergedAnnotations = Array.from(retryAnnotationsMap.values());
 
-        // Create assistant message with metadata
-        const assistantMessage: ChatMessage = {
+  // Create assistant message with metadata
+  const assistantMessage: ChatMessage = {
           id: `msg_${Date.now() + 1}`,
           content: finalContent,
           role: "assistant",
@@ -1060,6 +1114,24 @@ export function useChatStreaming(): UseChatStreamingReturn {
           input_tokens: finalMetadata?.usage?.prompt_tokens || 0,
         };
 
+        // Anonymous usage emit on retry success
+        try {
+          if (!isAuthenticated) {
+            const events = [
+              { timestamp: new Date().toISOString(), type: 'message_sent' as const, model },
+              {
+                timestamp: new Date().toISOString(),
+                type: 'completion_received' as const,
+                model: assistantMessage.model,
+                input_tokens: updatedUserMessage.input_tokens,
+                output_tokens: assistantMessage.output_tokens,
+                elapsed_ms: assistantMessage.elapsed_ms,
+              },
+            ];
+            emitAnonymousUsage(events);
+          }
+        } catch {}
+
         // Update existing user message and add assistant message
         useChatStore.setState((state) => ({
           conversations: state.conversations.map((conv) =>
@@ -1070,6 +1142,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
                     msg.id === messageId ? { ...updatedUserMessage, retry_available: undefined } : msg
                   ).concat(assistantMessage), // Update existing user message and add assistant
                   updatedAt: new Date().toISOString(),
+  isAuthenticated,
                 }
               : conv
           ),
@@ -1139,6 +1212,19 @@ export function useChatStreaming(): UseChatStreamingReturn {
         };
         setStreamError(chatError);
         logger.error('Streaming error:', error);
+
+        // Anonymous error on retry exception
+        try {
+          if (!isAuthenticated) {
+            emitAnonymousError({
+              timestamp: new Date().toISOString(),
+              model: String(model || ''),
+              error_code: 'stream_error',
+              error_message: chatError.message,
+              metadata: { streaming: true, retry: true },
+            });
+          }
+        } catch {}
 
         // Mark existing message as failed again
         useChatStore.setState((state) => ({
@@ -1210,6 +1296,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
     createConversation,
     getContextMessages,
     streamingDebug,
+  isAuthenticated,
   ]);
 
   const retryLastMessage = useCallback(async () => {

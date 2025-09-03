@@ -30,11 +30,11 @@ Goal: On every anonymous chat completion, call a backend API to persist success 
 
 Endpoints
 
-- POST `/api/usage/anonymous` (public, tierC)
+- POST `/api/chat/anonymous` (public, tierC)
   - Body: { anonymous_session_id, model, prompt_tokens, completion_tokens, elapsed_ms, features?: { reasoning_tokens?, image_units?, websearch_results? }, timestamp }
   - Server: derive anon_hash (HMAC), validate caps, call RPC public.ingest_anonymous_usage(payload)
   - Effect: upsert `anonymous_usage_daily` and `anonymous_model_usage_daily`; snapshot unit prices from model_access; compute estimated_cost (tokens ± future features)
-- POST `/api/usage/anonymous/error` (public, tierC)
+- POST `/api/chat/anonymous/error` (public, tierC)
   - Body: { anonymous_session_id, model, timestamp, http_status?, error_code?, error_message?, provider?, completion_id? }
   - Server: derive anon_hash, sanitize+truncate error_message (e.g., 300 chars), call RPC public.ingest_anonymous_error(payload)
   - Effect: insert into `anonymous_error_events` (append-only). Admins can inspect errors without user content.
@@ -110,8 +110,8 @@ Anonymous chat (not free/pro/enterprise)
 
 3. Completion
 
-- On success: POST /api/usage/anonymous with model/tokens/elapsed_ms (+ future feature fields) for that turn.
-- On error: POST /api/usage/anonymous/error with minimal error payload for admin diagnostics.
+- On success: POST /api/chat/anonymous with model/tokens/elapsed_ms (+ future feature fields) for that turn.
+- On error: POST /api/chat/anonymous/error with minimal error payload for admin diagnostics.
 
 4. Server ingestion (RPC)
 
@@ -131,8 +131,8 @@ Anonymous chat (not free/pro/enterprise)
 - [ ] Phase 1 — Schema & API
   - [x] Add tables for anonymous usage aggregates (by day, session) and per-model aggregates (by day, model).
   - [x] RPC to ingest anonymous usage (SECURITY DEFINER; anon+authenticated EXECUTE only).
-  - [x] Public API endpoint /api/usage/anonymous with tiered rate limit to call RPC.
-  - [ ] Add table anonymous_error_events + RPC ingest_anonymous_error + API /api/usage/anonymous/error.
+  - [x] Public API endpoint /api/chat/anonymous with tiered rate limit to call RPC.
+  - [ ] Add table anonymous_error_events + RPC ingest_anonymous_error + API /api/chat/anonymous/error.
   - [ ] Admin helper get_anonymous_errors(start, end, limit[, model]) and daily error rollup view.
   - [ ] User verification: rows appear; admin Usage and Errors tabs show expected fields.
 - [ ] Phase 2 — Client emitters
@@ -230,7 +230,7 @@ Indexes & RLS (high level)
 
 ## API endpoints
 
-POST /api/usage/anonymous
+POST /api/chat/anonymous
 
 - Auth: Public, tiered rate limit (Tier C)
 - Payload (JSON):
@@ -248,7 +248,7 @@ POST /api/usage/anonymous
   - Call supabase.rpc('ingest_anonymous_usage', { payload })
   - Do not log raw anonymous_session_id
 
-POST /api/usage/anonymous/error
+POST /api/chat/anonymous/error
 
 - Auth: Public, tiered rate limit (Tier C)
 - Payload (JSON):
