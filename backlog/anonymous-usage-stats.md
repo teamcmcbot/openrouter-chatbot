@@ -21,8 +21,38 @@ Track usage for non-authenticated sessions without a user ID, safely and without
 ## Approach (contract)
 
 - Inputs: anonymous session id (uuid stored in localStorage), event types (message_sent, completion_received), token counts, model id, timestamps.
-- Outputs: server-side aggregated records keyed by `anonymous_session_id`.
+- Outputs: server-side aggregated records keyed by `anon_hash` (HMAC of the `anonymous_session_id`).
 - Errors: rate limit abuse; ensure minimal data and no PII.
+
+## API and DB flow (v1)
+
+Goal: On every anonymous chat completion, call a backend API to persist success or error analytics via RPCs. Keep data aggregate-only for usage; store error events minimally for admin diagnostics.
+
+Endpoints
+
+- POST `/api/usage/anonymous` (public, tierC)
+  - Body: { anonymous_session_id, model, prompt_tokens, completion_tokens, elapsed_ms, features?: { reasoning_tokens?, image_units?, websearch_results? }, timestamp }
+  - Server: derive anon_hash (HMAC), validate caps, call RPC public.ingest_anonymous_usage(payload)
+  - Effect: upsert `anonymous_usage_daily` and `anonymous_model_usage_daily`; snapshot unit prices from model_access; compute estimated_cost (tokens ± future features)
+- POST `/api/usage/anonymous/error` (public, tierC)
+  - Body: { anonymous_session_id, model, timestamp, http_status?, error_code?, error_message?, provider?, completion_id? }
+  - Server: derive anon_hash, sanitize+truncate error_message (e.g., 300 chars), call RPC public.ingest_anonymous_error(payload)
+  - Effect: insert into `anonymous_error_events` (append-only). Admins can inspect errors without user content.
+
+Data captured
+
+- Success: model, prompt_tokens, completion_tokens, elapsed_ms, assistant_messages += 1, optional features (reasoning_tokens, image_units, websearch_results) default 0 for now; unit prices snapshot; estimated_cost stored.
+- Error: timestamp, model, http_status, error_code, truncated error_message, provider, completion_id (optional), anon_hash. No chat content stored.
+
+Admin queries
+
+- Costs/usage: use get_anonymous_model_costs(start, end, granularity) and show alongside authenticated totals.
+- Errors: add get_anonymous_errors(start, end, limit, model?) to fetch recent anon errors, and a daily rollup view for counts by model/date.
+
+Retention
+
+- Usage tables: 30 days via cleanup_anonymous_usage(30)
+- Error events: 30 days via cleanup_anonymous_errors(30)
 
 ## anonymous_session_id [CONFIRMED]
 
@@ -58,7 +88,7 @@ Agreed design for generating, persisting, and rotating the anonymous session ide
   - Client sends only the raw UUID over HTTPS; server derives anon_hash = HMAC-SHA256(k, uuid) with a regularly rotated key (e.g., 90 days) and never stores/logs the raw UUID.
   - Anonymous analytics remain aggregate-only; do not intentionally send or join IP/UA fingerprints.
 
-- Consent and controls
+  - Consent and controls
 
   - Provide an opt-out; when opted out, do not generate or send the ID; clear storage; operate in a non-identifying state.
   - Provide a “Reset anonymous session” action to force rotation.
@@ -78,170 +108,167 @@ Anonymous chat (not free/pro/enterprise)
 
 - If missing, client creates `anonymous_session_id` (crypto.randomUUID()), stores in `localStorage`, and reuses it.
 
-3. After response completes
+3. Completion
 
-- Client POSTs to `/api/usage/anonymous` with a minimal payload: `{ anonymous_session_id, events: [{ type, timestamp, model, input_tokens|output_tokens, elapsed_ms }] }`.
-- Endpoint protection: tiered rate limit only (`tierC`); no auth; strict validation + size caps.
+- On success: POST /api/usage/anonymous with model/tokens/elapsed_ms (+ future feature fields) for that turn.
+- On error: POST /api/usage/anonymous/error with minimal error payload for admin diagnostics.
 
 4. Server ingestion (RPC)
 
-- Handler calls `public.ingest_anonymous_usage(payload)` (SECURITY DEFINER).
-- DB upserts:
-  - `public.anonymous_usage_daily` (per-session/day messages/tokens/latency)
-  - `public.anonymous_model_usage_daily` (per-model/day prompt/completion tokens, assistant_messages, generation_ms)
-- Pricing snapshot: reads `public.model_access` to snapshot unit prices; increments `estimated_cost` at ingestion time.
-- RLS: admin-only SELECT; direct writes denied.
+- Success: public.ingest_anonymous_usage(payload) upserts anonymous_usage_daily and anonymous_model_usage_daily with pricing snapshot and estimated_cost.
+- Error: public.ingest_anonymous_error(payload) inserts an event row; optional daily error counts surface via view.
 
 5. Admin analytics
 
-- Admin endpoint queries `public.get_anonymous_model_costs(start, end, granularity)` and shows anonymous totals separately from authenticated totals. No user-facing changes.
+- Costs/usage via get_anonymous_model_costs; errors via get_anonymous_errors and/or daily rollups. Anonymous shown separately from authenticated.
 
 6. Retention
 
-- Scheduler/ops invokes `public.cleanup_anonymous_usage(30)` daily to purge rows older than 30 days.
-
-Authenticated chat (free/pro/enterprise)
-
-1. Client call
-
-- User persists via `/api/chat/messages` (protected auth middleware).
-
-2. DB pipeline (unchanged)
-
-- Triggers update `chat_sessions` stats and call `track_user_usage(...)` to maintain `public.user_usage_daily`.
-- Per-assistant-message cost snapshot goes into `public.message_token_costs`; `user_usage_daily.estimated_cost` updated by delta.
-- Admin/user analytics use `user_model_costs_daily` and `public.get_global_model_costs(...)`.
-
-Key guarantees (v1)
-
-- No PII in anonymous tables; no `user_id`; no linking in v1.
-- Anonymous usage is admin-only and displayed separately; chat performance is unaffected (best-effort logging after response).
+- Daily purge jobs keep only last 30 days.
 
 ## Phases
 
 - [ ] Phase 1 — Schema & API
-  - [x] Add table for anonymous usage aggregates (by day, session).
-  - [x] RPC to ingest anonymous usage in batches (SECURITY DEFINER; anon+authenticated EXECUTE only).
-  - [x] Public API endpoint `/api/usage/anonymous` with tiered rate limit to call RPC.
-  - [x] Extend admin usage endpoint to include anonymous aggregates (fields: `anonymous_messages`, `anonymous_tokens`).
-  - [ ] User verification: rows appear in `anonymous_usage_daily` without PII; admin Usage tab shows anonymous fields.
+  - [x] Add tables for anonymous usage aggregates (by day, session) and per-model aggregates (by day, model).
+  - [x] RPC to ingest anonymous usage (SECURITY DEFINER; anon+authenticated EXECUTE only).
+  - [x] Public API endpoint /api/usage/anonymous with tiered rate limit to call RPC.
+  - [ ] Add table anonymous_error_events + RPC ingest_anonymous_error + API /api/usage/anonymous/error.
+  - [ ] Admin helper get_anonymous_errors(start, end, limit[, model]) and daily error rollup view.
+  - [ ] User verification: rows appear; admin Usage and Errors tabs show expected fields.
 - [ ] Phase 2 — Client emitters
-  - [ ] Add lightweight client to emit metrics for anonymous sessions.
-  - [ ] User verification: metrics sent only when not authenticated.
+  - [ ] Emit success metrics on assistant finalize; emit error payload on failure paths; only when not authenticated.
 - [ ] Phase 3 — Link on auth (optional)
-  - [ ] On signup/login, optionally link last N hours of anonymous metrics to the new user, or keep separate per policy.
-  - [ ] User verification: linkage works as designed.
+  - [ ] Conversation-scoped adjustments (sidecar) on /api/chat/sync to avoid double counting.
 - [ ] Phase 4 — Docs
-  - [ ] `/docs/analytics/anonymous-usage.md` + privacy statement.
-
-## Clarifying questions
-
-1. Do we want to ever link anonymous stats to a later account? If so, what window?
-2. What exact metrics to collect for anonymous? Minimal set?
-3. Retention period and deletion policy?
+  - [ ] /docs/analytics/anonymous-usage.md + privacy statement.
 
 ## Risks
 
-- Privacy; ensure no content or PII is logged.
-- Abuse; enforce rate limits and size caps.
+- Privacy: ensure error messages are sanitized and truncated; no chat content stored.
+- Abuse: enforce rate limits and payload size caps on both endpoints.
 
-## Success criteria
+## Database changes (DDL summary)
 
-## Approaches evaluated
+Tables
 
-1. Store anonymous activity in the existing tables by making `user_id` nullable and revising RLS/triggers.
+| Table                              | Purpose                                                                          | Primary/Unique Keys         |
+| ---------------------------------- | -------------------------------------------------------------------------------- | --------------------------- |
+| public.anonymous_usage_daily       | Per-session daily aggregates for anonymous activity (messages/tokens/generation) | PK: (anon_hash, usage_date) |
+| public.anonymous_model_usage_daily | Per-model daily token aggregates and cost snapshot for anonymous usage           | PK: (usage_date, model_id)  |
+| public.anonymous_error_events      | Append-only anonymous error events for admin diagnostics                         | PK: id (uuid)               |
 
-   - Pros: Single pipeline; fewer new APIs.
-   - Cons: High risk to RLS and invariants; `message_token_costs.user_id` NOT NULL and all analytics assume user scope; triggers and policies would need overhaul; risk of data leakage and bugs.
+public.anonymous_usage_daily columns
 
-2. Parallel anonymous aggregates keyed by `anonymous_session_id` only (this patch).
-   - Pros: No changes to existing authenticated flows; very low PII risk (no user_id); clear separation; easy retention policy; safe to expose only via admin.
-   - Cons: Admin charts need to merge two sources; no per-user view of anon usage (by design).
+| Column            | Type        | Notes                                                           |
+| ----------------- | ----------- | --------------------------------------------------------------- |
+| anon_hash         | text        | Derived HMAC of session id; only stored key for anonymous joins |
+| usage_date        | date        | UTC day bucket                                                  |
+| messages_sent     | integer     | Count of user messages                                          |
+| messages_received | integer     | Count of assistant messages                                     |
+| input_tokens      | integer     | Sum of prompt tokens                                            |
+| output_tokens     | integer     | Sum of completion tokens                                        |
+| total_tokens      | integer     | Generated or computed as input+output                           |
+| generation_ms     | bigint      | Sum of assistant generation time                                |
+| created_at        | timestamptz | Default now()                                                   |
+| updated_at        | timestamptz | Default now(), maintained on upsert                             |
 
-Recommendation: Approach 2 (parallel aggregates). It preserves current guarantees, minimizes changes, and keeps privacy clear.
+public.anonymous_model_usage_daily columns
 
-## Proposed Phase 1 (pending sign-off)
+| Column                | Type          | Notes                                    |
+| --------------------- | ------------- | ---------------------------------------- |
+| usage_date            | date          | UTC day bucket                           |
+| model_id              | varchar(100)  | Model identifier                         |
+| prompt_tokens         | bigint        | Sum of prompt tokens                     |
+| completion_tokens     | bigint        | Sum of completion tokens                 |
+| total_tokens          | bigint        | Generated always as prompt+completion    |
+| assistant_messages    | bigint        | Assistant message count                  |
+| generation_ms         | bigint        | Sum generation latency                   |
+| prompt_unit_price     | numeric(12,8) | Snapshot at ingestion                    |
+| completion_unit_price | numeric(12,8) | Snapshot at ingestion                    |
+| image_units           | integer       | Optional, default 0 (future)             |
+| image_unit_price      | numeric(12,8) | Optional                                 |
+| websearch_results     | integer       | Optional, default 0 (future)             |
+| websearch_unit_price  | numeric(12,8) | Optional                                 |
+| reasoning_tokens      | bigint        | Optional, default 0 (future)             |
+| reasoning_unit_price  | numeric(12,8) | Optional                                 |
+| estimated_cost        | numeric(18,6) | Precomputed total cost for the day/model |
+| created_at            | timestamptz   | Default now()                            |
+| updated_at            | timestamptz   | Default now()                            |
 
-Scope: Implement anonymous usage as separate aggregates only; no linking in v1; admin-only visibility; keep user-facing analytics unchanged.
+public.anonymous_error_events columns
 
-- Data model (aggregates)
+| Column              | Type         | Notes                                                                          |
+| ------------------- | ------------ | ------------------------------------------------------------------------------ |
+| id                  | uuid         | Default gen_random_uuid()                                                      |
+| anon_hash           | text         | HMAC of anonymous_session_id; avoids storing raw session IDs                   |
+| event_timestamp     | timestamptz  | When error occurred                                                            |
+| model               | varchar(100) | Model at time of error                                                         |
+| http_status         | integer      | Optional HTTP status from provider or API                                      |
+| error_code          | text         | Categorical code (e.g., PROVIDER_TIMEOUT)                                      |
+| error_message       | text         | Sanitized+truncated (e.g., 300 chars)                                          |
+| provider            | text         | e.g., openrouter                                                               |
+| provider_request_id | text         | Optional upstream request/trace id                                             |
+| completion_id       | text         | Optional; often null for errors before completion is created                   |
+| metadata            | jsonb        | Optional upstream payload excerpt (sanitized), e.g., { provider_error: {...} } |
+| created_at          | timestamptz  | Default now()                                                                  |
 
-  - Table: anonymous_usage_daily(anonymous_session_id text, usage_date date, messages_sent int, messages_received int, input_tokens int, output_tokens int, models_used int, generation_ms bigint, created_at timestamptz, updated_at timestamptz).
-  - Unique: (anonymous_session_id, usage_date).
-  - RLS: admin-only SELECT; no user_id stored; no content/PII stored.
+Indexes & RLS (high level)
 
-- Ingestion RPC
+- Indexes for anon_hash/date and model/date for efficient admin queries
+- Admin-only SELECT policies; writes via SECURITY DEFINER RPCs only
 
-  - Function: ingest_anonymous_usage(payload jsonb) SECURITY DEFINER; EXECUTE granted to anon+authenticated roles.
-  - Validates payload and upserts via track_anonymous_usage(...).
-  - Idempotent per (anonymous_session_id, usage_date).
+## Functions (RPCs and helpers)
 
-- Public endpoint
+| Function                                                                          | Type                   | Purpose                                                                                                                                                     |
+| --------------------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| public.ingest_anonymous_usage(jsonb)                                              | RPC (SECURITY DEFINER) | Validate payload; aggregate to day; upsert anonymous_usage_daily and anonymous_model_usage_daily with pricing snapshot and estimated_cost; clamp/cap values |
+| public.get_anonymous_model_costs(start date, end date, granularity text='day')    | Admin helper           | Aggregate anonymous_model_usage_daily into periods; returns tokens, cost, assistant_messages by model                                                       |
+| public.cleanup_anonymous_usage(days int=30)                                       | Maintenance            | Delete anonymous\_\* rows older than N days                                                                                                                 |
+| public.ingest_anonymous_error(jsonb)                                              | RPC (SECURITY DEFINER) | Validate+sanitize error payload; insert into anonymous_error_events                                                                                         |
+| public.get_anonymous_errors(start date, end date, limit int=100, model text=null) | Admin helper           | Return recent error events (sanitized), optionally filtered by model                                                                                        |
+| public.cleanup_anonymous_errors(days int=30)                                      | Maintenance            | Delete error events older than N days                                                                                                                       |
 
-  - POST /api/usage/anonymous (rate-limited: tierC). Middleware: tiered rate limit only; no auth required.
-  - Calls RPC with minimal validated payload; enforces size caps; returns { ok: true }.
+## API endpoints
 
-- Admin analytics inclusion
+POST /api/usage/anonymous
 
-  - Extend /api/admin/analytics/usage to include anonymous_messages and anonymous_tokens as separate fields, not merged with user totals.
-  - No changes to user-facing endpoints (/api/usage/\*) or pages.
+- Auth: Public, tiered rate limit (Tier C)
+- Payload (JSON):
+  - anonymous_session_id: string (UUID-ish)
+  - model: string
+  - prompt_tokens: number (>=0)
+  - completion_tokens: number (>=0)
+  - elapsed_ms: number (>=0)
+  - features?: { reasoning_tokens?: number, image_units?: number, websearch_results?: number }
+  - timestamp: ISO8601
+- Response: { ok: true }
+- Backend logic:
+  - Derive anon_hash = HMAC-SHA256(secret, anonymous_session_id)
+  - Validate caps (e.g., tokens <= 200k, elapsed_ms <= 5m, features within bounds)
+  - Call supabase.rpc('ingest_anonymous_usage', { payload })
+  - Do not log raw anonymous_session_id
 
-- Retention
+POST /api/usage/anonymous/error
 
-  - Policy: 30 days retention for anonymous_usage_daily (to be enforced via a scheduled job during implementation).
+- Auth: Public, tiered rate limit (Tier C)
+- Payload (JSON):
+  - anonymous_session_id: string
+  - model: string
+  - timestamp: ISO8601
+  - http_status?: number
+  - error_code?: string
+  - error_message?: string (will be truncated server-side)
+  - provider?: string
+  - provider_request_id?: string
+  - completion_id?: string (optional; usually absent when errors occur pre-completion)
+  - metadata?: object (safe subset of upstream error; sanitized and size-capped)
+- Response: { ok: true }
+- Backend logic:
+  - Derive anon_hash; sanitize & truncate error_message (e.g., 300 chars)
+  - Strip secrets from metadata; cap to e.g., 2 KB
+  - Call supabase.rpc('ingest_anonymous_error', { payload })
+  - No chat content captured; admin-only read path for diagnostics
 
-- Out of scope (v1)
-  - Client emitter wiring, UI polish beyond admin columns, and any linking/de-dup RPCs.
+Rationale: anon_hash vs anonymous_session_id
 
----
-
-## Step 4 — Recommendation and plan (no code yet)
-
-Recommendation: Proceed with Approach 2, completing gaps with a linking workflow and client emitter.
-
-Phased plan (implementation pending approval):
-
-1. Finalize schema for de-dup
-
-   - Add linked_user_id UUID NULL, linked_at TIMESTAMPTZ, and optional linked_session_ids TEXT[] to anonymous_usage_daily.
-   - Add RPC link_anonymous_usage(p_session_id text, p_user_id uuid, p_since_ts timestamptz default null) that:
-     - Finds rows by anonymous_session_id (and optional date window)
-     - Sets linked_user_id, linked_at
-     - Returns counts linked for telemetry
-   - Update admin usage endpoint to exclude linked rows from “anonymous\_\*” fields.
-
-2. Client emitter for anonymous
-
-   - Generate/store anonymous_session_id in localStorage
-   - Emit events on message send and assistant finalization; debounce and POST to /api/usage/anonymous
-   - Only active when not authenticated
-
-3. Sync flow de-dup
-
-   - Extend /api/chat/sync to accept anonymous_session_id (optional)
-   - If provided, call link_anonymous_usage before inserts; record linkage in logs
-
-4. Docs and verification
-   - Update /docs/analytics/anonymous-usage.md with privacy/retention statement and linking behavior
-   - Admin Usage tab expectations: new columns already supported; ensure linked rows excluded
-
-Open questions (confirm before implementation): None for v1. All linking work is deferred.
-
----
-
-## Decision summary (final — analysis only)
-
-- Chosen approach: Approach 2 (separate anonymous aggregates), keep anonymous data fully separate from user-facing analytics in v1.
-- Linking: Not in v1. We will not link anonymous aggregates to user accounts initially; this avoids double-counting risks and any policy ambiguity. If needed later, prefer "link-and-exclude" via a lightweight RPC (out of scope for v1).
-- Retention (anon aggregates): 30 days (suggested) for admin-only trend visibility; can be tuned during implementation.
-- Admin display: Anonymous totals in a separate section/columns, not merged with user totals.
-- Scope control: No runtime code or schema changes until sign-off. This document captures the analysis and decision only.
-
-### Ready for sign-off
-
-- [ ] Approve Approach 2 (separate aggregates), no linking in v1
-  > - [ ] Approve anonymous retention window: 30 days (adjustable)
-- [ ] Approve admin-only display as a separate section/columns
-- [ ] Green-light Phase 1 implementation (DB objects + public ingest API + admin endpoint adjustments), behind standard auth/rate-limit middleware
-
-If approved, we will implement Phase 1 only and provide a verification guide before proceeding to any optional linking work.
+- We store anon_hash (HMAC of the client’s anonymous_session_id) to avoid persisting raw identifiers and enable periodic key rotation without breaking aggregation semantics. Raw IDs are never logged or stored.
