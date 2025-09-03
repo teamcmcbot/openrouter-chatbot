@@ -34,7 +34,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
     const endExclusive = toISODate(new Date(range.end.getTime() + 24*60*60*1000));
 
     // Parallel aggregate queries
-    const [profilesCount, sessionsCount, messagesCount, usageRows, globalCosts] = await Promise.all([
+  const [profilesCount, sessionsCount, messagesCount, usageRows, globalCosts] = await Promise.all([
       supabase.from('profiles').select('id', { count: 'exact', head: true }),
       supabase.from('chat_sessions').select('id', { count: 'exact', head: true }),
       supabase.from('chat_messages').select('id', { count: 'exact', head: true }),
@@ -62,8 +62,8 @@ async function handler(req: NextRequest, auth: AuthContext) {
     }
   const usageTotals = { total_tokens: totalTokens, messages: totalMsgs };
 
-    // Aggregate global costs by model across the range
-    const costsData = (globalCosts.data || []) as GlobalCostRow[];
+  // Aggregate global costs by model across the range (authenticated)
+  const costsData = (globalCosts.data || []) as GlobalCostRow[];
     const perModel: Record<string, { total_cost: number; total_tokens: number }> = {};
     let sumCost = 0, sumTokens = 0, sumAssistant = 0;
     for (const row of costsData) {
@@ -80,6 +80,51 @@ async function handler(req: NextRequest, auth: AuthContext) {
       .sort((a,b) => b.total_cost - a.total_cost)
       .slice(0,5);
     const costsTotals = { total_cost: sumCost, total_tokens: sumTokens, assistant_messages: sumAssistant };
+
+    // Anonymous aggregates in parallel
+    const [{ data: anonModelCosts, error: anonErr }, { data: anonUsageRows, error: anonUsageErr }] = await Promise.all([
+      supabase.rpc('get_anonymous_model_costs', {
+        p_start_date: startISO,
+        p_end_date: toISODate(range.end),
+        p_granularity: 'day'
+      }),
+      supabase
+        .from('anonymous_usage_daily')
+        .select('messages_sent, messages_received, total_tokens, anon_hash')
+        .gte('usage_date', startISO)
+        .lt('usage_date', endExclusive)
+    ]);
+    if (anonErr) throw anonErr;
+    if (anonUsageErr) throw anonUsageErr;
+
+    // Reduce anonymous usage rows
+    let anonTotalTokens = 0, anonTotalMsgs = 0;
+    const anonHashes = new Set<string>();
+    for (const r of (anonUsageRows || []) as Array<{ messages_sent: number|null; messages_received: number|null; total_tokens: number|null; anon_hash: string }>) {
+      anonTotalTokens += Number(r.total_tokens || 0);
+      anonTotalMsgs += Number(r.messages_sent || 0) + Number(r.messages_received || 0);
+      if (r.anon_hash) anonHashes.add(r.anon_hash);
+    }
+    const anonUsageTotals = { total_tokens: anonTotalTokens, messages: anonTotalMsgs, anon_sessions: anonHashes.size };
+
+    // Top anonymous models by estimated cost
+    type AnonCostRow = { model_id: string; estimated_cost: number; total_tokens: number };
+    const anonPerModel: Record<string, { total_cost: number; total_tokens: number }> = {};
+    let anonSumCost = 0, anonSumTokens = 0, anonAssistant = 0;
+    for (const row of (anonModelCosts || []) as unknown as Array<AnonCostRow & { assistant_messages: number }>) {
+      const key = row.model_id || 'unknown';
+      if (!anonPerModel[key]) anonPerModel[key] = { total_cost: 0, total_tokens: 0 };
+      anonPerModel[key].total_cost += Number(row.estimated_cost || 0);
+      anonPerModel[key].total_tokens += Number(row.total_tokens || 0);
+      anonSumCost += Number(row.estimated_cost || 0);
+      anonSumTokens += Number(row.total_tokens || 0);
+      anonAssistant += Number(row.assistant_messages || 0);
+    }
+    const anonTop = Object.entries(anonPerModel)
+      .map(([model_id, v]) => ({ model_id, total_cost: v.total_cost, total_tokens: v.total_tokens }))
+      .sort((a,b) => b.total_cost - a.total_cost)
+      .slice(0,5);
+    const anonCostsTotals = { total_cost: anonSumCost, total_tokens: anonSumTokens, assistant_messages: anonAssistant };
 
     // Sync stats and model counts (best-effort)
     const [syncStatsRes, modelCountsRes] = await Promise.all([
@@ -98,6 +143,19 @@ async function handler(req: NextRequest, auth: AuthContext) {
         costs_7d: costsTotals
       },
       top_models: top,
+      segments: {
+        authenticated: {
+          totals: { messages: totalMessagesCount },
+          usage_7d: usageTotals,
+          costs_7d: costsTotals,
+          top_models: top
+        },
+        anonymous: {
+          usage_7d: anonUsageTotals,
+          costs_7d: anonCostsTotals,
+          top_models: anonTop
+        }
+      },
       sync: (syncStatsRes.data && syncStatsRes.data[0]) || null,
       model_counts: (modelCountsRes.data && modelCountsRes.data[0]) || null
     });

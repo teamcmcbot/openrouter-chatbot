@@ -2,6 +2,27 @@
 
 This page describes the available analytics aggregates and how to use them in the dashboard.
 
+## Segment toggle (Authenticated vs Anonymous)
+
+- The Analytics dashboard now supports a segment toggle across Overview, Costs, Usage, and Performance tabs.
+- Choices: "Authenticated" and "Anonymous". Default is "Authenticated" to preserve prior behavior.
+- The toggle switches the data source to the corresponding `segments` field returned by the API.
+
+Anonymous metrics
+
+- Anonymous Usage aggregates privacy-preserving events from unauthenticated sessions.
+- Key fields:
+  - anon_sessions: estimated distinct anonymous sessions in range/day
+  - messages: assistant+user message counts inferred from events
+  - total_tokens: assistant output tokens attributed at completion time
+  - estimated_cost: based on model pricing joined at ingest time
+- No PII is collected; values are grouped by anon_hash and model/day.
+
+Performance errors
+
+- The Performance → Errors list supports a segment query.
+- When the toggle is set to Anonymous, the UI fetches with `?segment=anonymous` and displays normalized anonymous errors (no message_id/user_id/session_id).
+
 ## Views
 
 - v_sync_stats (admin only)
@@ -18,6 +39,13 @@ This page describes the available analytics aggregates and how to use them in th
 - Display v_sync_stats on the Admin Analytics tab as quick KPIs.
 - Use v_model_counts_public to show model status distribution (safe to show anywhere).
 - Use v_model_sync_activity_daily to chart rolling activity for the last 30 days.
+
+UI wiring notes
+
+- Overview: tiles and top models switch based on segment; Anonymous shows Anon Sessions, Messages 7d, and Est. Cost 7d.
+- Costs: totals and stacked charts switch to anonymous when selected.
+- Usage: daily series switches; anonymous shows anon_sessions instead of active_users.
+- Performance: average latency and error counts switch; Errors list uses the `segment` query parameter.
 
 ## Security & RLS
 
@@ -64,6 +92,10 @@ Query tips:
 - System-only (internal scheduler): `select * from admin_audit_log where actor_user_id is null order by created_at desc;`
 
 RLS:
+
+Changelog
+
+- 2025-09-03: Added segment toggle documentation and anonymous metrics semantics. Updated UI wiring notes and errors list behavior.
 
 - SELECT allowed for admins only via policy "Only admins can read audit logs".
 - INSERT denied by RLS; only `write_admin_audit` can insert (SECURITY DEFINER).

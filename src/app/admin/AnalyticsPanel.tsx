@@ -43,18 +43,35 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
     ok: boolean;
     totals: { users: number; conversations: number; messages: number; usage_7d: { total_tokens: number; messages: number }; costs_7d: { total_cost: number; total_tokens: number; assistant_messages: number } };
     top_models: OverviewTopModel[];
+    segments?: {
+      authenticated: {
+        totals: { messages: number };
+        usage_7d: { total_tokens: number; messages: number };
+        costs_7d: { total_cost: number; total_tokens: number; assistant_messages: number };
+        top_models: OverviewTopModel[];
+      };
+      anonymous: {
+        usage_7d: { total_tokens: number; messages: number; anon_sessions?: number };
+        costs_7d: { total_cost: number; total_tokens: number; assistant_messages: number };
+        top_models: OverviewTopModel[];
+      };
+    };
   }
   interface CostsResponse {
     ok: boolean;
     totals: { total_cost: number; total_tokens: number; assistant_messages: number };
     stacked_cost: StackedBarData;
     stacked_tokens: StackedBarData;
+    segments?: {
+      authenticated: { totals: { total_cost: number; total_tokens: number; assistant_messages: number }; stacked_cost: StackedBarData; stacked_tokens: StackedBarData };
+      anonymous: { totals: { total_cost: number; total_tokens: number; assistant_messages: number }; stacked_cost: StackedBarData; stacked_tokens: StackedBarData };
+    };
   }
-  interface PerformanceResponse { ok: boolean; overall: { avg_ms: number; error_count: number } }
+  interface PerformanceResponse { ok: boolean; overall: { avg_ms: number; error_count: number }; segments?: { authenticated: { overall: { avg_ms: number; error_count: number } }; anonymous: { overall: { avg_ms: number; error_count: number } } } }
   interface ErrorRow { message_id: string; session_id: string; user_id: string | null; model: string | null; message_timestamp: string; error_message: string | null; completion_id: string | null; user_message_id: string | null; elapsed_ms: number | null }
   interface ErrorsResponse { ok: boolean; range: { start: string; end: string }; errors: ErrorRow[] }
   interface UsageDay { date: string; active_users: number; messages: number; tokens: number }
-  interface UsageResponse { ok: boolean; total_messages: number; daily: UsageDay[] }
+  interface UsageResponse { ok: boolean; total_messages: number; daily: UsageDay[]; segments?: { authenticated: { daily: UsageDay[] }; anonymous: { daily: UsageDay[] } } }
   interface ModelsCounts { total_count: number; new_count: number; active_count: number; inactive_count: number; disabled_count: number }
   interface ModelsRecent { day: string; models_added: number; models_marked_inactive: number; models_reactivated: number }
   interface ModelsResponse { ok: boolean; counts: ModelsCounts; recent: ModelsRecent[] }
@@ -63,25 +80,56 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
   function OverviewTab({ range, setRange }: { range: RangeKey; setRange: (v: RangeKey)=>void }) {
     const q = useMemo(() => `?range=${range}`, [range]);
     const overview = useFetch<OverviewResponse>(`/api/admin/analytics/overview${q}`, [q]);
+    const [segment, setSegment] = useState<'authenticated'|'anonymous'>('authenticated');
+    const topModels = useMemo(() => {
+      if (!overview.data) return [] as OverviewTopModel[];
+      if (segment === 'anonymous' && overview.data.segments) return overview.data.segments.anonymous.top_models || [];
+      return overview.data.top_models || [];
+    }, [overview.data, segment]);
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between"><h3 className="font-semibold">Overview</h3><RangePicker value={range} onChange={setRange} /></div>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Overview</h3>
+          <div className="flex items-center gap-2">
+            {overview.data?.segments && <SegmentToggle value={segment} onChange={setSegment} />}
+            <RangePicker value={range} onChange={setRange} />
+          </div>
+        </div>
         {overview.loading && <div className="text-xs text-gray-500">Loading…</div>}
         {overview.error && <div className="text-xs text-red-600">{overview.error}</div>}
         {overview.data && (
           <div className="grid md:grid-cols-3 gap-3">
-            <div className="p-3 border rounded-md">
-              <div className="text-xs text-gray-500">Users</div>
-              <div className="text-xl font-semibold">{overview.data.totals?.users ?? 0}</div>
-            </div>
-            <div className="p-3 border rounded-md">
-              <div className="text-xs text-gray-500">Conversations</div>
-              <div className="text-xl font-semibold">{overview.data.totals?.conversations ?? 0}</div>
-            </div>
-            <div className="p-3 border rounded-md">
-              <div className="text-xs text-gray-500">Messages</div>
-              <div className="text-xl font-semibold">{overview.data.totals?.messages ?? 0}</div>
-            </div>
+            {segment === 'anonymous' && overview.data.segments ? (
+              <>
+                <div className="p-3 border rounded-md">
+                  <div className="text-xs text-gray-500">Anon sessions</div>
+                  <div className="text-xl font-semibold">{overview.data.segments.anonymous.usage_7d?.anon_sessions ?? 0}</div>
+                </div>
+                <div className="p-3 border rounded-md">
+                  <div className="text-xs text-gray-500">Messages (7d)</div>
+                  <div className="text-xl font-semibold">{overview.data.segments.anonymous.usage_7d?.messages ?? 0}</div>
+                </div>
+                <div className="p-3 border rounded-md">
+                  <div className="text-xs text-gray-500">Est. cost (7d)</div>
+                  <div className="text-xl font-semibold">${(overview.data.segments.anonymous.costs_7d?.total_cost ?? 0).toFixed(4)}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="p-3 border rounded-md">
+                  <div className="text-xs text-gray-500">Users</div>
+                  <div className="text-xl font-semibold">{overview.data.totals?.users ?? 0}</div>
+                </div>
+                <div className="p-3 border rounded-md">
+                  <div className="text-xs text-gray-500">Conversations</div>
+                  <div className="text-xl font-semibold">{overview.data.totals?.conversations ?? 0}</div>
+                </div>
+                <div className="p-3 border rounded-md">
+                  <div className="text-xs text-gray-500">Messages</div>
+                  <div className="text-xl font-semibold">{overview.data.totals?.messages ?? 0}</div>
+                </div>
+              </>
+            )}
             <div className="p-3 border rounded-md md:col-span-3">
               <div className="text-xs text-gray-500 mb-2">Top models (by cost)</div>
               <div className="overflow-x-auto">
@@ -94,7 +142,7 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
                     </tr>
                   </thead>
                   <tbody>
-                    {(overview.data.top_models || []).map((m: OverviewTopModel) => (
+                    {(topModels || []).map((m: OverviewTopModel) => (
                       <tr key={m.model_id} className="border-t border-gray-100 dark:border-gray-800">
                         <td className="py-1 pr-2 font-mono break-all">{m.model_id}</td>
                         <td className="py-1 pr-2 text-right">${(Number(m.total_cost ?? 0)).toFixed(4)}</td>
@@ -111,28 +159,49 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
     );
   }
 
+  function SegmentToggle({ value, onChange }: { value: 'authenticated'|'anonymous'; onChange: (v: 'authenticated'|'anonymous')=>void }) {
+    return (
+      <div className="flex gap-1 border rounded-md p-1 text-xs">
+        {(['authenticated','anonymous'] as const).map((s) => (
+          <button key={s} className={`px-2 py-0.5 rounded ${value===s? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900':''}`} onClick={()=>onChange(s)}>{s}</button>
+        ))}
+      </div>
+    );
+  }
+
   function CostsTab({ range, setRange }: { range: RangeKey; setRange: (v: RangeKey)=>void }) {
     const q = useMemo(() => `?range=${range}`, [range]);
     const costs = useFetch<CostsResponse>(`/api/admin/analytics/costs${q}`, [q]);
+    const [segment, setSegment] = useState<'authenticated'|'anonymous'>('authenticated');
+    const view = useMemo(() => {
+      if (!costs.data?.segments) return null;
+      return costs.data.segments[segment];
+    }, [costs.data, segment]);
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between"><h3 className="font-semibold">Costs</h3><RangePicker value={range} onChange={setRange} /></div>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Costs</h3>
+          <div className="flex items-center gap-2">
+            <SegmentToggle value={segment} onChange={setSegment} />
+            <RangePicker value={range} onChange={setRange} />
+          </div>
+        </div>
         {costs.loading && <div className="text-xs text-gray-500">Loading…</div>}
         {costs.error && <div className="text-xs text-red-600">{costs.error}</div>}
         {costs.data && (
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3">
-              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Total cost</div><div className="text-xl font-semibold">${(costs.data.totals?.total_cost ?? 0).toFixed(4)}</div></div>
-              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Tokens</div><div className="text-xl font-semibold">{costs.data.totals?.total_tokens ?? 0}</div></div>
-              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Assistant msgs</div><div className="text-xl font-semibold">{costs.data.totals?.assistant_messages ?? 0}</div></div>
+              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Total cost</div><div className="text-xl font-semibold">${(view?.totals?.total_cost ?? costs.data.totals?.total_cost ?? 0).toFixed(4)}</div></div>
+              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Tokens</div><div className="text-xl font-semibold">{view?.totals?.total_tokens ?? costs.data.totals?.total_tokens ?? 0}</div></div>
+              <div className="p-3 border rounded-md"><div className="text-xs text-gray-500">Assistant msgs</div><div className="text-xl font-semibold">{view?.totals?.assistant_messages ?? costs.data.totals?.assistant_messages ?? 0}</div></div>
             </div>
             <div>
               <div className="text-xs text-gray-500 mb-1">Cost by model</div>
-              <StackedBarChart data={costs.data.stacked_cost} metric="cost" height={260} hideSingleDay={true} />
+              <StackedBarChart data={view?.stacked_cost ?? costs.data.stacked_cost} metric="cost" height={260} hideSingleDay={true} />
             </div>
             <div>
               <div className="text-xs text-gray-500 mb-1">Tokens by model</div>
-              <StackedBarChart data={costs.data.stacked_tokens} metric="tokens" height={260} hideSingleDay={true} />
+              <StackedBarChart data={view?.stacked_tokens ?? costs.data.stacked_tokens} metric="tokens" height={260} hideSingleDay={true} />
             </div>
           </div>
         )}
@@ -142,13 +211,35 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
 
   function PerformanceTab({ range, setRange }: { range: RangeKey; setRange: (v: RangeKey)=>void }) {
     const q = useMemo(() => `?range=${range}`, [range]);
-    const performance = useFetch<PerformanceResponse>(`/api/admin/analytics/performance${q}`, [q]);
-    const errors = useFetch<ErrorsResponse>(`/api/admin/analytics/performance/errors${q}`, [q]);
+  const performance = useFetch<PerformanceResponse>(`/api/admin/analytics/performance${q}`, [q]);
+  const [segment, setSegment] = useState<'authenticated'|'anonymous'>('authenticated');
+  const errors = useFetch<ErrorsResponse>(`/api/admin/analytics/performance/errors${q}&segment=${segment}`, [q, segment]);
   // Local state for copy button feedback per message id
   const [copiedId, setCopiedId] = useState<string | null>(null);
+    // Derive metrics to reduce nested ternaries
+    const avgMs = useMemo(() => {
+      if (!performance.data) return 0;
+      if (!performance.data.segments) return performance.data.overall?.avg_ms ?? 0;
+      return segment === 'anonymous'
+        ? performance.data.segments.anonymous.overall.avg_ms
+        : performance.data.segments.authenticated.overall.avg_ms;
+    }, [performance.data, segment]);
+    const errorCount = useMemo(() => {
+      if (!performance.data) return 0;
+      if (!performance.data.segments) return performance.data.overall?.error_count ?? 0;
+      return segment === 'anonymous'
+        ? performance.data.segments.anonymous.overall.error_count
+        : performance.data.segments.authenticated.overall.error_count;
+    }, [performance.data, segment]);
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between"><h3 className="font-semibold">Performance</h3><RangePicker value={range} onChange={setRange} /></div>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Performance</h3>
+          <div className="flex items-center gap-2">
+            <SegmentToggle value={segment} onChange={setSegment} />
+            <RangePicker value={range} onChange={setRange} />
+          </div>
+        </div>
         {performance.loading && <div className="text-xs text-gray-500">Loading…</div>}
         {performance.error && <div className="text-xs text-red-600">{performance.error}</div>}
         {performance.data && (
@@ -156,11 +247,11 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 border rounded-md">
                 <div className="text-xs text-gray-500">Avg latency</div>
-                <div className="text-xl font-semibold">{performance.data.overall?.avg_ms ?? 0} ms</div>
+                <div className="text-xl font-semibold">{avgMs} ms</div>
               </div>
               <div className="p-3 border rounded-md">
                 <div className="text-xs text-gray-500">Errors</div>
-                <div className="text-xl font-semibold">{performance.data.overall?.error_count ?? 0}</div>
+                <div className="text-xl font-semibold">{errorCount}</div>
               </div>
             </div>
             <div className="p-3 border rounded-md">
@@ -228,21 +319,32 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
   function UsageTab({ range, setRange }: { range: RangeKey; setRange: (v: RangeKey)=>void }) {
     const q = useMemo(() => `?range=${range}`, [range]);
     const usage = useFetch<UsageResponse>(`/api/admin/analytics/usage${q}`, [q]);
+    const [segment, setSegment] = useState<'authenticated'|'anonymous'>('authenticated');
+    const daily = useMemo(() => {
+      if (!usage.data?.segments) return usage.data?.daily ?? [];
+      return segment==='anonymous' ? usage.data.segments.anonymous.daily : usage.data.segments.authenticated.daily;
+    }, [usage.data, segment]);
     // Ensure daily rows are ordered by date desc for readability
     const dailySorted = useMemo(() => {
-      const days = usage.data?.daily ?? [];
+      const days = daily ?? [] as UsageDay[];
       return [...days].sort((a: UsageDay, b: UsageDay) => b.date.localeCompare(a.date));
-    }, [usage.data]);
+    }, [daily]);
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between"><h3 className="font-semibold">Usage</h3><RangePicker value={range} onChange={setRange} /></div>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Usage</h3>
+          <div className="flex items-center gap-2">
+            <SegmentToggle value={segment} onChange={setSegment} />
+            <RangePicker value={range} onChange={setRange} />
+          </div>
+        </div>
         {usage.loading && <div className="text-xs text-gray-500">Loading…</div>}
         {usage.error && <div className="text-xs text-red-600">{usage.error}</div>}
         {usage.data && (
           <div className="grid grid-cols-3 gap-3">
             <div className="p-3 border rounded-md">
               <div className="text-xs text-gray-500">Messages (range)</div>
-              <div className="text-xl font-semibold">{usage.data.total_messages ?? 0}</div>
+              <div className="text-xl font-semibold">{segment==='anonymous' ? (usage.data.segments?.anonymous.daily.reduce((a, d) => a + (d.messages || 0), 0) ?? 0) : (usage.data.total_messages ?? 0)}</div>
             </div>
             <div className="p-3 border rounded-md col-span-2">
               <div className="text-xs text-gray-500">Daily active users (rough)</div>

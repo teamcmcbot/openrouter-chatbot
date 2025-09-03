@@ -22,6 +22,7 @@ import {
 } from "../lib/utils/tokens";
 import toast from 'react-hot-toast';
 import { checkRateLimitHeaders } from "../lib/utils/rateLimitNotifications";
+import { emitAnonymousError, emitAnonymousUsage } from "../lib/analytics/anonymous";
 
 const logger = createLogger("ChatStore");
 
@@ -165,13 +166,13 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             const { currentConversationId, conversations } = get();
             
             if (!currentConversationId) {
-              console.log('[Context Selection] No current conversation');
+              logger.debug('[Context Selection] No current conversation');
               return [];
             }
 
             const conversation = conversations.find(c => c.id === currentConversationId);
             if (!conversation) {
-              console.log('[Context Selection] No conversation found');
+              logger.debug('[Context Selection] No conversation found');
               return [];
             }
 
@@ -179,16 +180,16 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             const messages = conversation.messages.slice(0, -1);
             
             if (messages.length === 0) {
-              console.log('[Context Selection] No messages available for context');
+              logger.debug('[Context Selection] No messages available for context');
               return [];
             }
             
             // Get configuration from environment
             const maxMessagePairs = parseInt(process.env.CONTEXT_MESSAGE_PAIRS || '5', 10);
             
-            console.log(`[Context Selection] Starting selection from ${messages.length} available messages`);
-            console.log(`[Context Selection] Token budget: ${maxTokens} tokens`);
-            console.log(`[Context Selection] Max message pairs: ${maxMessagePairs} pairs`);
+            logger.debug(`[Context Selection] Starting selection from ${messages.length} available messages`);
+            logger.debug(`[Context Selection] Token budget: ${maxTokens} tokens`);
+            logger.debug(`[Context Selection] Max message pairs: ${maxMessagePairs} pairs`);
 
             // Strategy: Intelligent pair-based selection with fallback
             const selectedMessages: ChatMessage[] = [];
@@ -204,7 +205,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               
               // Check token budget first
               if (tokenCount + messageTokens > maxTokens) {
-                console.log(`[Context Selection] Would exceed token budget with message ${i}: ${messageTokens} tokens (total would be ${tokenCount + messageTokens})`);
+                logger.debug(`[Context Selection] Would exceed token budget with message ${i}: ${messageTokens} tokens (total would be ${tokenCount + messageTokens})`);
                 break;
               }
 
@@ -220,10 +221,10 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   selectedMessages.unshift(pendingUserMessage, message);
                   tokenCount += pairTokens;
                   pairCount++;
-                  console.log(`[Context Selection] Added pair ${pairCount}: user+assistant (${pairTokens} tokens, running total: ${tokenCount})`);
+                  logger.debug(`[Context Selection] Added pair ${pairCount}: user+assistant (${pairTokens} tokens, running total: ${tokenCount})`);
                   pendingUserMessage = null; // Reset
                 } else {
-                  console.log(`[Context Selection] Pair would exceed token budget: ${pairTokens} tokens`);
+                  logger.debug(`[Context Selection] Pair would exceed token budget: ${pairTokens} tokens`);
                   break;
                 }
               } else if (message.role === 'assistant' && !pendingUserMessage) {
@@ -231,7 +232,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 if (tokenCount + messageTokens <= maxTokens) {
                   selectedMessages.unshift(message);
                   tokenCount += messageTokens;
-                  console.log(`[Context Selection] Added orphaned assistant message: ${messageTokens} tokens (running total: ${tokenCount})`);
+                  logger.debug(`[Context Selection] Added orphaned assistant message: ${messageTokens} tokens (running total: ${tokenCount})`);
                 }
               }
             }
@@ -240,7 +241,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             if (pendingUserMessage && tokenCount + estimateTokenCount(pendingUserMessage.content) + 4 <= maxTokens) {
               selectedMessages.unshift(pendingUserMessage);
               tokenCount += estimateTokenCount(pendingUserMessage.content) + 4;
-              console.log(`[Context Selection] Added unpaired user message: ${estimateTokenCount(pendingUserMessage.content) + 4} tokens (running total: ${tokenCount})`);
+              logger.debug(`[Context Selection] Added unpaired user message: ${estimateTokenCount(pendingUserMessage.content) + 4} tokens (running total: ${tokenCount})`);
             }
             
             // If we still have budget and fewer than maxMessagePairs, add older messages individually
@@ -256,14 +257,14 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   break;
                 }
                 
-                selectedMessages.unshift(message);
-                tokenCount += messageTokens;
-                console.log(`[Context Selection] Added individual message ${i}: ${messageTokens} tokens (running total: ${tokenCount})`);
+        selectedMessages.unshift(message);
+        tokenCount += messageTokens;
+        logger.debug(`[Context Selection] Added individual message ${i}: ${messageTokens} tokens (running total: ${tokenCount})`);
               }
             }
 
-            console.log(`[Context Selection] Final: ${selectedMessages.length} messages, ${pairCount} complete pairs, ${tokenCount}/${maxTokens} tokens`);
-            console.log(`[Context Selection] Message breakdown: ${selectedMessages.map(m => m.role).join(' → ')}`);
+      logger.debug(`[Context Selection] Final: ${selectedMessages.length} messages, ${pairCount} complete pairs, ${tokenCount}/${maxTokens} tokens`);
+      logger.debug(`[Context Selection] Message breakdown: ${selectedMessages.map(m => m.role).join(' → ')}`);
             
             return selectedMessages;
           },
@@ -318,15 +319,15 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               // Phase 3: Check if context-aware mode is enabled
               const isContextAwareEnabled = process.env.NEXT_PUBLIC_ENABLE_CONTEXT_AWARE === 'true';
               
-              console.log(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
-              console.log(`[Send Message] Model: ${model || 'default'}`);
+              logger.debug(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
+              logger.debug(`[Send Message] Model: ${model || 'default'}`);
 
               let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
                 const strategy = await getModelTokenLimits(model);
-                console.log(`[Send Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
+                logger.debug(`[Send Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
 
                 // Get context messages within token budget
                 const contextMessagesRaw = get().getContextMessages(strategy.maxInputTokens);
@@ -345,11 +346,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 
                 // Calculate total token usage
                 const totalTokens = estimateMessagesTokens(allMessages);
-                console.log(`[Send Message] Total message tokens: ${totalTokens}/${strategy.maxInputTokens}`);
+                logger.debug(`[Send Message] Total message tokens: ${totalTokens}/${strategy.maxInputTokens}`);
                 
                 // Validate budget
                 if (!isWithinInputBudget(totalTokens, strategy)) {
-                  console.log(`[Send Message] Token budget exceeded, falling back to progressive reduction`);
+                  logger.debug(`[Send Message] Token budget exceeded, falling back to progressive reduction`);
                   
                   // Progressive fallback: try smaller context
                   const fallbackSizes = [
@@ -367,7 +368,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     
                     if (reducedTotal <= strategy.maxInputTokens) {
                       finalContextMessages = reducedContext;
-                      console.log(`[Send Message] Using fallback context: ${reducedContext.length} messages, ${reducedTotal} tokens`);
+                      logger.debug(`[Send Message] Using fallback context: ${reducedContext.length} messages, ${reducedTotal} tokens`);
                       break;
                     }
                   }
@@ -401,14 +402,14 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   requestBody.model = model;
                 }
                 
-                console.log(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
+                logger.debug(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
                 requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch, webMaxResults: options?.webMaxResults, reasoning: options?.reasoning };
                 if (model) {
                   requestBody.model = model;
                 }
-                console.log(`[Send Message] Sending LEGACY format (single message)`);
+                logger.debug(`[Send Message] Sending LEGACY format (single message)`);
               }
 
               // Ensure chronological ordering & stability
@@ -441,6 +442,29 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   retryAfter: errorData.retryAfter,
                   timestamp: errorData.timestamp ?? new Date().toISOString(),
                 };
+                // Anonymous error emit
+                try {
+                  const { user } = useAuthStore.getState();
+                  if (!user?.id) {
+                    emitAnonymousError({
+                      timestamp: new Date().toISOString(),
+                      model: String(model || ''),
+                      http_status: response.status,
+                      error_code: typeof errorData.code === 'string' ? errorData.code : undefined,
+                      error_message: typeof errorData.error === 'string' ? errorData.error : `HTTP ${response.status}`,
+                      // Upstream provider metadata when available
+                      provider: typeof errorData.upstreamProvider === 'string' ? errorData.upstreamProvider : undefined,
+                      provider_request_id: typeof errorData.upstreamProviderRequestId === 'string' ? errorData.upstreamProviderRequestId : undefined,
+                      metadata: {
+                        streaming: false,
+                        ...(errorData.upstreamErrorCode !== undefined ? { upstreamErrorCode: errorData.upstreamErrorCode } : {}),
+                        ...(errorData.upstreamErrorMessage ? { upstreamErrorMessage: errorData.upstreamErrorMessage } : {}),
+                        // Correlate with our API request id if provided
+                        ...(response.headers.get('x-request-id') ? { api_request_id: response.headers.get('x-request-id') as string } : {}),
+                      },
+                    });
+                  }
+                } catch {}
                 throw chatError;
               }
 
@@ -524,6 +548,28 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   isLoading: false,
                 };
               });
+
+              // Anonymous usage emit on success (best-effort)
+              try {
+                const { user } = useAuthStore.getState();
+                if (!user?.id) {
+                  // Find the updated user message in state if available
+                  const conv = get().conversations.find(c => c.id === currentConversationId);
+                  const updatedUserMsg = conv?.messages.find(m => m.id === (data.request_id as string));
+                  const inputTokens = (updatedUserMsg?.input_tokens as number) ?? (data.usage?.prompt_tokens ?? 0);
+                  emitAnonymousUsage([
+                    { timestamp: new Date().toISOString(), type: 'message_sent', model },
+                    {
+                      timestamp: new Date().toISOString(),
+                      type: 'completion_received',
+                      model: assistantMessage.model,
+                      input_tokens: inputTokens,
+                      output_tokens: assistantMessage.output_tokens,
+                      elapsed_ms: assistantMessage.elapsed_ms,
+                    },
+                  ]);
+                }
+              } catch {}
 
               // Auto-generate title from first user message if it's still "New Chat"
               const currentConv = get().conversations.find(c => c.id === currentConversationId);
@@ -1043,15 +1089,15 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               // Phase 3: Check if context-aware mode is enabled
               const isContextAwareEnabled = process.env.NEXT_PUBLIC_ENABLE_CONTEXT_AWARE === 'true';
               
-              console.log(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
-              console.log(`[Retry Message] Model: ${model || 'default'}`);
+              logger.debug(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
+              logger.debug(`[Retry Message] Model: ${model || 'default'}`);
 
               let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
                 const strategy = await getModelTokenLimits(model);
-                console.log(`[Retry Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
+                logger.debug(`[Retry Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
 
                 // Get context messages within token budget (excluding the message being retried)
                 const contextMessagesRaw = get().getContextMessages(strategy.maxInputTokens)
@@ -1081,11 +1127,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 
                 // Calculate total token usage
                 const totalTokens = estimateMessagesTokens(allMessages);
-                console.log(`[Retry Message] Total message tokens: ${totalTokens}/${strategy.maxInputTokens}`);
+                logger.debug(`[Retry Message] Total message tokens: ${totalTokens}/${strategy.maxInputTokens}`);
                 
                 // Validate budget with fallback logic (same as sendMessage)
                 if (!isWithinInputBudget(totalTokens, strategy)) {
-                  console.log(`[Retry Message] Token budget exceeded, falling back to progressive reduction`);
+                  logger.debug(`[Retry Message] Token budget exceeded, falling back to progressive reduction`);
                   
                   const fallbackSizes = [
                     Math.floor(strategy.maxInputTokens * 0.8),
@@ -1103,7 +1149,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     
                     if (reducedTotal <= strategy.maxInputTokens) {
                       finalContextMessages = reducedContext;
-                      console.log(`[Retry Message] Using fallback context: ${reducedContext.length} messages, ${reducedTotal} tokens`);
+                      logger.debug(`[Retry Message] Using fallback context: ${reducedContext.length} messages, ${reducedTotal} tokens`);
                       break;
                     }
                   }
@@ -1133,14 +1179,14 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   requestBody.model = model;
                 }
                 
-                console.log(`[Retry Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
+                logger.debug(`[Retry Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
                 requestBody = { message: content, current_message_id: messageId };
                 if (model) {
                   requestBody.model = model;
                 }
-                console.log(`[Retry Message] Sending LEGACY format (single message)`);
+                logger.debug(`[Retry Message] Sending LEGACY format (single message)`);
               }
 
               if (requestBody.messages) {
@@ -1158,7 +1204,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 body: JSON.stringify(requestBody),
               });
 
-        if (!response.ok) {
+              if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 const chatError: ChatError = {
                   message: errorData.error ?? `HTTP error! status: ${response.status}`,
@@ -1169,6 +1215,28 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   retryAfter: errorData.retryAfter,
                   timestamp: errorData.timestamp ?? new Date().toISOString(),
                 };
+                // Anonymous error emit on retry
+                try {
+                  const { user } = useAuthStore.getState();
+                  if (!user?.id) {
+                    emitAnonymousError({
+                      timestamp: new Date().toISOString(),
+                      model: String(model || ''),
+                      http_status: response.status,
+                      error_code: typeof errorData.code === 'string' ? errorData.code : undefined,
+                      error_message: typeof errorData.error === 'string' ? errorData.error : `HTTP ${response.status}`,
+                      provider: typeof errorData.upstreamProvider === 'string' ? errorData.upstreamProvider : undefined,
+                      provider_request_id: typeof errorData.upstreamProviderRequestId === 'string' ? errorData.upstreamProviderRequestId : undefined,
+                      metadata: {
+                        streaming: false,
+                        retry: true,
+                        ...(errorData.upstreamErrorCode !== undefined ? { upstreamErrorCode: errorData.upstreamErrorCode } : {}),
+                        ...(errorData.upstreamErrorMessage ? { upstreamErrorMessage: errorData.upstreamErrorMessage } : {}),
+                        ...(response.headers.get('x-request-id') ? { api_request_id: response.headers.get('x-request-id') as string } : {}),
+                      },
+                    });
+                  }
+                } catch {}
                 throw chatError;
               }
 
@@ -1265,6 +1333,24 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   isLoading: false,
                 };
               });
+
+              // Anonymous usage emit on retry success (best-effort)
+              try {
+                const { user } = useAuthStore.getState();
+                if (!user?.id) {
+                  emitAnonymousUsage([
+                    { timestamp: new Date().toISOString(), type: 'message_sent', model },
+                    {
+                      timestamp: new Date().toISOString(),
+                      type: 'completion_received',
+                      model: assistantMessage.model,
+                      input_tokens: (data.usage?.prompt_tokens ?? 0),
+                      output_tokens: assistantMessage.output_tokens,
+                      elapsed_ms: assistantMessage.elapsed_ms,
+                    },
+                  ]);
+                }
+              } catch {}
 
               // Auto-generate title from first user message if conversation was 'New Chat'
               const currentConvAfterRetry = get().conversations.find(c => c.id === currentConversationId);

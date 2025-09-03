@@ -464,8 +464,8 @@ rate_limit:tierC:user:123
 | `/api/user/data`                           | PUT    | B     | ❌          | 10/hour     | 50/hour      | 200/hour        | UNLIMITED        | Protected | 👤 Profile updates                 |
 | `/api/attachments/[id]`                    | DELETE | B     | ❌          | 10/hour     | 50/hour      | 200/hour        | UNLIMITED        | Protected | �️ File deletion                   |
 | **TIER C - LOW COST (CRUD Operations)**    |        |       |             |             |              |                 |                  |           |
-| `/api/analytics/cta`                       | POST   | C     | 100/hour    | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Enhanced  | 📊 Landing page button clicks      |
-| `/api/models`                              | GET    | C     | 100/hour    | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Enhanced  | 📋 Cached model list               |
+| `/api/analytics/cta`                       | POST   | C     | 50/hour     | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Enhanced  | 📊 Landing page button clicks      |
+| `/api/models`                              | GET    | C     | 50/hour     | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Enhanced  | 📋 Cached model list               |
 | `/api/chat/sessions`                       | GET    | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 📋 List sessions                   |
 | `/api/chat/sessions`                       | POST   | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | ➕ Create session                  |
 | `/api/chat/sessions`                       | DELETE | C     | ❌          | 200/hour    | 1000/hour    | 2000/hour       | UNLIMITED        | Protected | 🗑️ Delete session                  |

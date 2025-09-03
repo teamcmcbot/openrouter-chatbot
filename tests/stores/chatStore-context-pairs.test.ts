@@ -256,8 +256,11 @@ describe('Phase 3.5: Context Pair Selection', () => {
 
   test('should log detailed pair selection process', () => {
     console.log('Testing detailed logging');
+  // Temporarily enable debug logs for this test only
+  const prev = process.env.LOG_LEVEL;
+  process.env.LOG_LEVEL = 'debug';
     
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    const consoleSpy = jest.spyOn(console, 'debug').mockImplementation();
     
     const store = useChatStore.getState();
     store.createConversation('Test Chat');
@@ -280,14 +283,18 @@ describe('Phase 3.5: Context Pair Selection', () => {
       )
     }));
     
-    store.getContextMessages(1000);
+  store.getContextMessages(1000);
     
-    // Check that proper logging occurred
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[Context Selection] Max message pairs:'));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('pairs'));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Message breakdown:'));
+  // Check that proper logging occurred (logger.debug prefixes with [ChatStore] and message is the second arg)
+  const calls = (consoleSpy as unknown as jest.Mock).mock.calls as unknown[][];
+  const flattened = calls.flat();
+  expect(flattened.some(arg => typeof arg === 'string' && arg.includes('[Context Selection] Max message pairs:'))).toBe(true);
+  expect(flattened.some(arg => typeof arg === 'string' && arg.includes('pairs'))).toBe(true);
+  expect(flattened.some(arg => typeof arg === 'string' && arg.includes('Message breakdown:'))).toBe(true);
     
-    consoleSpy.mockRestore();
+  consoleSpy.mockRestore();
+  // Restore log level
+  process.env.LOG_LEVEL = prev;
   });
 });
 

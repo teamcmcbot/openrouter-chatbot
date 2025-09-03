@@ -71,6 +71,8 @@ These endpoints require user authentication and implement full rate limiting:
 These endpoints work for both anonymous and authenticated users with graceful degradation:
 
 - [`/api/chat`](./chat.md) - Chat completions (basic for anonymous, enhanced for authenticated)
+- [`/api/chat/anonymous`](./chat-anonymous.md) - Ingest anonymous usage events
+- [`/api/chat/anonymous/error`](./chat-anonymous-error.md) - Ingest anonymous error events
 - [`/api/models`](./models.md) - Available models (filtered by tier, with **default model prioritization** for authenticated users)
 - [`/api/generation/[id]`](./generation-id.md) - Generation status checking
 - [`/api/admin/sync-models`](./admin-sync-models.md) - Admin model sync (admin only)
@@ -84,6 +86,7 @@ These endpoints work for both anonymous and authenticated users with graceful de
   - `/api/admin/analytics/performance/errors`
   - `/api/admin/analytics/usage`
   - `/api/admin/analytics/models`
+  - Note: These endpoints return a `segments` object with `authenticated` and `anonymous` aggregates. The errors endpoint accepts `?segment=anonymous`.
 - [Admin Attachments Overview](./admin-attachments.md)
 - [`/api/admin/model-access`](./admin-model-access.md) — protected via `withAdminAuth`
 - [`/api/admin/users`](./admin-users.md) — protected via `withAdminAuth`
@@ -109,6 +112,8 @@ These endpoints are intentionally public and have no rate limiting:
   - `/api/chat`
   - `/api/chat/stream`
   - `/api/chat/messages`
+  - `/api/chat/anonymous`
+  - `/api/chat/anonymous/error`
   - `/api/chat/sync` (initial sign-in only)
   - `/api/chat/session`
   - `/api/chat/sessions`
