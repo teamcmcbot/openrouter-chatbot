@@ -41,18 +41,20 @@ Endpoints
 
 Data captured
 
-- Success: model, prompt_tokens, completion_tokens, elapsed_ms, assistant_messages += 1, optional features (reasoning_tokens, image_units, websearch_results) default 0 for now; unit prices snapshot; estimated_cost stored.
+- Success: model, prompt_tokens, completion_tokens, elapsed_ms, assistant_messages += 1, optional features (reasoning_tokens, image_units, websearch_results) default 0 for now; unit prices snapshot; estimated_cost stored (anonymous costs are estimated and surfaced alongside tokens in admin UI).
 - Error: timestamp, model, http_status, error_code, truncated error_message, provider, completion_id (optional), anon_hash. No chat content stored.
 
 Admin queries
 
-- Costs/usage: use get_anonymous_model_costs(start, end, granularity) and show alongside authenticated totals.
-- Errors: add get_anonymous_errors(start, end, limit, model?) to fetch recent anon errors, and a daily rollup view for counts by model/date.
+- Costs/usage: use get_anonymous_model_costs(start, end, granularity) and display alongside authenticated totals within the existing Admin Analytics tabs (Overview, Costs, Performance, Usage). Present anonymous metrics as a segmented series/section (Anonymous vs Authenticated), not on a new page.
+- Errors: add get_anonymous_errors(start, end, limit, model?) to fetch recent anon errors; surface them in existing views as a segmented table/chart where applicable. A daily rollup by model/date is sufficient; no extra sampling beyond daily buckets is required for our horizons.
+  - Date filters: Apply the existing presets (Today, 7D, 30D) consistently across all anonymous analytics queries.
 
 Retention
 
 - Usage tables: 30 days via cleanup_anonymous_usage(30)
 - Error events: 30 days via cleanup_anonymous_errors(30)
+- Date filters: Keep the current Admin Analytics presets (Today, 7D, 30D). Daily tables are sufficient for these windows; no additional sampling/rollups needed.
 
 ## anonymous_session_id [CONFIRMED]
 
@@ -120,7 +122,8 @@ Anonymous chat (not free/pro/enterprise)
 
 5. Admin analytics
 
-- Costs/usage via get_anonymous_model_costs; errors via get_anonymous_errors and/or daily rollups. Anonymous shown separately from authenticated.
+- Costs/usage via get_anonymous_model_costs; errors via get_anonymous_errors and/or daily rollups. Anonymous shown alongside authenticated with a segmentation toggle/legend. No new pages or tabs; integrated into existing Analytics sections.
+  - Cost presentation: Display anonymous estimated_cost in the same currency/format as authenticated costs, with clear labeling. Where charts summarize totals, include both tokens and estimated cost series for anonymous.
 
 6. Retention
 
@@ -132,15 +135,25 @@ Anonymous chat (not free/pro/enterprise)
   - [x] Add tables for anonymous usage aggregates (by day, session) and per-model aggregates (by day, model).
   - [x] RPC to ingest anonymous usage (SECURITY DEFINER; anon+authenticated EXECUTE only).
   - [x] Public API endpoint /api/chat/anonymous with tiered rate limit to call RPC.
-  - [ ] Add table anonymous_error_events + RPC ingest_anonymous_error + API /api/chat/anonymous/error.
+  - [x] Add table anonymous_error_events + RPC ingest_anonymous_error + API /api/chat/anonymous/error.
   - [ ] Admin helper get_anonymous_errors(start, end, limit[, model]) and daily error rollup view.
-  - [ ] User verification: rows appear; admin Usage and Errors tabs show expected fields.
+  - [ ] User verification: rows appear; existing Admin Analytics tabs show expected segmented fields.
 - [ ] Phase 2 — Client emitters
-  - [ ] Emit success metrics on assistant finalize; emit error payload on failure paths; only when not authenticated.
-- [ ] Phase 3 — Link on auth (optional)
+  - [x] Emit success metrics on assistant finalize; emit error payload on failure paths; only when not authenticated.
+- [ ] Phase 3 — Admin analytics integration (no new pages)
+  - [ ] Reuse existing admin gating (same middleware as current Admin Analytics endpoints; do not introduce a new wrapper unless a `withAdminAuth` already exists).
+  - [ ] Overview: include anonymous metrics as separate series/sections in the existing cards and charts (e.g., users/messages/tokens/cost). Provide a toggle/legend segment for Anonymous vs Authenticated.
+  - [ ] Costs: merge anonymous model cost series into current charts/tables using the same date filters (Today/7D/30D). Display tokens and estimated_cost.
+  - [ ] Performance: add anonymous generation_ms/assistant_messages series; maintain shared axes and legends.
+  - [ ] Usage: add anonymous messages_sent/messages_received and total_tokens series.
+  - [ ] Errors: surface recent anonymous errors via segmented table with model/provider/status; link to details if available.
+  - [ ] API: extend existing admin analytics endpoints to fetch anonymous aggregates in parallel (no new endpoints unless necessary for clarity). Keep Tiered Rate Limiting aligned with current admin tiers.
+  - [ ] UI: add segmented legend/toggle (Anonymous vs Authenticated); tooltips explain that anonymous metrics are aggregate-only and privacy-preserving.
+  - [ ] Date filters: keep Today/7D/30D.
+- [ ] Phase 4 — Link on auth (optional)
   - [ ] Conversation-scoped adjustments (sidecar) on /api/chat/sync to avoid double counting.
-- [ ] Phase 4 — Docs
-  - [ ] /docs/analytics/anonymous-usage.md + privacy statement.
+- [ ] Phase 5 — Docs
+  - [ ] /docs/analytics/anonymous-usage.md + privacy statement; note merged presentation and date filters.
 
 ## Risks
 
@@ -272,3 +285,10 @@ POST /api/chat/anonymous/error
 Rationale: anon_hash vs anonymous_session_id
 
 - We store anon_hash (HMAC of the client’s anonymous_session_id) to avoid persisting raw identifiers and enable periodic key rotation without breaking aggregation semantics. Raw IDs are never logged or stored.
+
+## Admin gating & placement decisions
+
+- Gating: Reuse the same protection as existing Admin Analytics endpoints. If a `withAdminAuth` middleware already exists in the codebase, use it; otherwise, continue with the current admin protection wrapper. Do not introduce a new pattern.
+- Placement: Do not add new pages or tabs. Integrate anonymous analytics into the existing Admin Analytics tabs (Overview, Costs, Performance, Usage) as segmented series/sections with a clear Anonymous vs Authenticated legend/toggle.
+- Date range: Keep the current date presets (Today, 7D, 30D). Daily tables are sufficient for these windows; no extra sampling beyond daily rollups.
+- Cost estimates: Yes—estimate and display anonymous costs using pricing snapshots captured in `anonymous_model_usage_daily.estimated_cost`, alongside tokens.

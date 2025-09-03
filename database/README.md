@@ -18,6 +18,7 @@ Canonical SQL lives in `database/schema/`. Run these files in order from the Sup
 2. `02-chat.sql`
 3. `03-models.sql`
 4. `04-system.sql`
+5. `06-anonymous.sql`
 
 What this creates (high level):
 
@@ -25,6 +26,8 @@ What this creates (high level):
 - Views: `api_user_summary`, `v_sync_stats`, `v_model_counts_public`, `v_model_sync_activity_daily`
 - RLS: Enabled on user-facing tables with safe SECURITY DEFINER helpers
 - Triggers: Profile sync from `auth.users`, chat session stats maintenance
+
+Anonymous analytics (merged): `anonymous_usage_daily`, `anonymous_model_usage_daily`, `anonymous_error_events`; helpers `ingest_anonymous_usage`, `get_anonymous_model_costs`, `ingest_anonymous_error`, `get_anonymous_errors`, `cleanup_anonymous_usage`, `cleanup_anonymous_errors`.
 
 ## 2) Create storage bucket
 
