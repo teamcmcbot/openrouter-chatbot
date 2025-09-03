@@ -86,6 +86,7 @@ These endpoints work for both anonymous and authenticated users with graceful de
   - `/api/admin/analytics/performance/errors`
   - `/api/admin/analytics/usage`
   - `/api/admin/analytics/models`
+  - Note: These endpoints return a `segments` object with `authenticated` and `anonymous` aggregates. The errors endpoint accepts `?segment=anonymous`.
 - [Admin Attachments Overview](./admin-attachments.md)
 - [`/api/admin/model-access`](./admin-model-access.md) — protected via `withAdminAuth`
 - [`/api/admin/users`](./admin-users.md) — protected via `withAdminAuth`
