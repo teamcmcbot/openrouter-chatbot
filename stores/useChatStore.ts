@@ -452,7 +452,16 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                       http_status: response.status,
                       error_code: typeof errorData.code === 'string' ? errorData.code : undefined,
                       error_message: typeof errorData.error === 'string' ? errorData.error : `HTTP ${response.status}`,
-                      metadata: { streaming: false },
+                      // Upstream provider metadata when available
+                      provider: typeof errorData.upstreamProvider === 'string' ? errorData.upstreamProvider : undefined,
+                      provider_request_id: typeof errorData.upstreamProviderRequestId === 'string' ? errorData.upstreamProviderRequestId : undefined,
+                      metadata: {
+                        streaming: false,
+                        ...(errorData.upstreamErrorCode !== undefined ? { upstreamErrorCode: errorData.upstreamErrorCode } : {}),
+                        ...(errorData.upstreamErrorMessage ? { upstreamErrorMessage: errorData.upstreamErrorMessage } : {}),
+                        // Correlate with our API request id if provided
+                        ...(response.headers.get('x-request-id') ? { api_request_id: response.headers.get('x-request-id') as string } : {}),
+                      },
                     });
                   }
                 } catch {}
@@ -1080,15 +1089,15 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               // Phase 3: Check if context-aware mode is enabled
               const isContextAwareEnabled = process.env.NEXT_PUBLIC_ENABLE_CONTEXT_AWARE === 'true';
               
-              console.log(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
-              console.log(`[Retry Message] Model: ${model || 'default'}`);
+              logger.debug(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
+              logger.debug(`[Retry Message] Model: ${model || 'default'}`);
 
               let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
                 const strategy = await getModelTokenLimits(model);
-                console.log(`[Retry Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
+                logger.debug(`[Retry Message] Token strategy - Input: ${strategy.maxInputTokens}, Output: ${strategy.maxOutputTokens}`);
 
                 // Get context messages within token budget (excluding the message being retried)
                 const contextMessagesRaw = get().getContextMessages(strategy.maxInputTokens)
@@ -1118,11 +1127,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 
                 // Calculate total token usage
                 const totalTokens = estimateMessagesTokens(allMessages);
-                console.log(`[Retry Message] Total message tokens: ${totalTokens}/${strategy.maxInputTokens}`);
+                logger.debug(`[Retry Message] Total message tokens: ${totalTokens}/${strategy.maxInputTokens}`);
                 
                 // Validate budget with fallback logic (same as sendMessage)
                 if (!isWithinInputBudget(totalTokens, strategy)) {
-                  console.log(`[Retry Message] Token budget exceeded, falling back to progressive reduction`);
+                  logger.debug(`[Retry Message] Token budget exceeded, falling back to progressive reduction`);
                   
                   const fallbackSizes = [
                     Math.floor(strategy.maxInputTokens * 0.8),
@@ -1140,7 +1149,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     
                     if (reducedTotal <= strategy.maxInputTokens) {
                       finalContextMessages = reducedContext;
-                      console.log(`[Retry Message] Using fallback context: ${reducedContext.length} messages, ${reducedTotal} tokens`);
+                      logger.debug(`[Retry Message] Using fallback context: ${reducedContext.length} messages, ${reducedTotal} tokens`);
                       break;
                     }
                   }
@@ -1170,14 +1179,14 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   requestBody.model = model;
                 }
                 
-                console.log(`[Retry Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
+                logger.debug(`[Retry Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
                 requestBody = { message: content, current_message_id: messageId };
                 if (model) {
                   requestBody.model = model;
                 }
-                console.log(`[Retry Message] Sending LEGACY format (single message)`);
+                logger.debug(`[Retry Message] Sending LEGACY format (single message)`);
               }
 
               if (requestBody.messages) {
@@ -1216,7 +1225,15 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                       http_status: response.status,
                       error_code: typeof errorData.code === 'string' ? errorData.code : undefined,
                       error_message: typeof errorData.error === 'string' ? errorData.error : `HTTP ${response.status}`,
-                      metadata: { streaming: false, retry: true },
+                      provider: typeof errorData.upstreamProvider === 'string' ? errorData.upstreamProvider : undefined,
+                      provider_request_id: typeof errorData.upstreamProviderRequestId === 'string' ? errorData.upstreamProviderRequestId : undefined,
+                      metadata: {
+                        streaming: false,
+                        retry: true,
+                        ...(errorData.upstreamErrorCode !== undefined ? { upstreamErrorCode: errorData.upstreamErrorCode } : {}),
+                        ...(errorData.upstreamErrorMessage ? { upstreamErrorMessage: errorData.upstreamErrorMessage } : {}),
+                        ...(response.headers.get('x-request-id') ? { api_request_id: response.headers.get('x-request-id') as string } : {}),
+                      },
                     });
                   }
                 } catch {}

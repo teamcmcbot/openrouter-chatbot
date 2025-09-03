@@ -61,6 +61,16 @@ async function handler(req: NextRequest) {
     metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : undefined,
   };
 
+  // Minimal server-side enrichment from incoming headers if client couldn't pass provider info
+  try {
+    if (!safePayload.provider || !safePayload.provider_request_id) {
+      const reqId = req.headers.get('x-request-id') || req.headers.get('x-correlation-id') || undefined;
+      const augmented = { ...(safePayload.metadata || {}) } as Record<string, unknown>;
+      if (reqId) augmented.api_request_id = reqId;
+      safePayload.metadata = augmented;
+    }
+  } catch {}
+
   try {
     const sb = await createServerSupabaseClient();
     const { data, error } = await sb.rpc('ingest_anonymous_error', {

@@ -219,7 +219,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
               http_status: response.status,
               error_code: typeof errorData.code === 'string' ? errorData.code : undefined,
               error_message: typeof errorData.error === 'string' ? errorData.error : `HTTP ${response.status}`,
-              metadata: { streaming: true },
+              provider: typeof errorData.upstreamProvider === 'string' ? errorData.upstreamProvider : undefined,
+              provider_request_id: typeof errorData.upstreamProviderRequestId === 'string' ? errorData.upstreamProviderRequestId : undefined,
+              metadata: {
+                streaming: true,
+                ...(errorData.upstreamErrorCode !== undefined ? { upstreamErrorCode: errorData.upstreamErrorCode } : {}),
+                ...(errorData.upstreamErrorMessage ? { upstreamErrorMessage: errorData.upstreamErrorMessage } : {}),
+                ...(response.headers.get('x-request-id') ? { api_request_id: response.headers.get('x-request-id') as string } : {}),
+              },
             });
           }
           throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
@@ -723,6 +730,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
     streamingReasoning,
     streamingReasoningDetails,
     streamingAnnotations,
+  isAuthenticated,
   ]);
 
   const clearMessages = useCallback(() => {
@@ -870,7 +878,15 @@ export function useChatStreaming(): UseChatStreamingReturn {
               http_status: response.status,
               error_code: typeof errorData.code === 'string' ? errorData.code : undefined,
               error_message: typeof errorData.error === 'string' ? errorData.error : `HTTP ${response.status}`,
-              metadata: { streaming: true, retry: true },
+              provider: typeof errorData.upstreamProvider === 'string' ? errorData.upstreamProvider : undefined,
+              provider_request_id: typeof errorData.upstreamProviderRequestId === 'string' ? errorData.upstreamProviderRequestId : undefined,
+              metadata: {
+                streaming: true,
+                retry: true,
+                ...(errorData.upstreamErrorCode !== undefined ? { upstreamErrorCode: errorData.upstreamErrorCode } : {}),
+                ...(errorData.upstreamErrorMessage ? { upstreamErrorMessage: errorData.upstreamErrorMessage } : {}),
+                ...(response.headers.get('x-request-id') ? { api_request_id: response.headers.get('x-request-id') as string } : {}),
+              },
             });
           }
           throw new Error(errorData.error || `HTTP error! status: ${response.status}`);

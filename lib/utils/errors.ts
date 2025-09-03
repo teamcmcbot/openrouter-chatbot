@@ -107,12 +107,21 @@ export function handleError(error: unknown, requestId?: string): NextResponse<Ap
     // Attempt to parse upstream error JSON envelope
     let upstreamCode: number | string | undefined;
     let upstreamMessage: string | undefined;
+    let upstreamProvider: string | undefined;
+    let upstreamProviderRequestId: string | undefined;
     try {
       if (error.details && typeof error.details === 'string' && error.details.trim().startsWith('{')) {
-        const parsed = JSON.parse(error.details) as { error?: { code?: number; message?: string } };
+        const parsed = JSON.parse(error.details) as { error?: { code?: number; message?: string; metadata?: Record<string, unknown> } };
         if (parsed && parsed.error) {
           upstreamCode = parsed.error.code;
           upstreamMessage = parsed.error.message;
+          const meta = parsed.error.metadata as Record<string, unknown> | undefined;
+          if (meta && typeof meta === 'object') {
+            const provider = (meta['provider_name'] as string) || (meta['provider'] as string);
+            if (provider && typeof provider === 'string') upstreamProvider = provider;
+            const reqId = (meta['provider_request_id'] as string) || (meta['request_id'] as string) || (meta['x-request-id'] as string);
+            if (reqId && typeof reqId === 'string') upstreamProviderRequestId = reqId;
+          }
         }
       }
     } catch {}
@@ -126,6 +135,8 @@ export function handleError(error: unknown, requestId?: string): NextResponse<Ap
       suggestions: error.suggestions,
       ...(upstreamCode !== undefined ? { upstreamErrorCode: upstreamCode } : {}),
       ...(upstreamMessage ? { upstreamErrorMessage: upstreamMessage } : {}),
+      ...(upstreamProvider ? { upstreamProvider } : {}),
+      ...(upstreamProviderRequestId ? { upstreamProviderRequestId } : {}),
     };
     status = errorStatusMap[error.code];
   } else {
