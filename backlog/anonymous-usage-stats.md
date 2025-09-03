@@ -24,6 +24,99 @@ Track usage for non-authenticated sessions without a user ID, safely and without
 - Outputs: server-side aggregated records keyed by `anonymous_session_id`.
 - Errors: rate limit abuse; ensure minimal data and no PII.
 
+## anonymous_session_id [CONFIRMED]
+
+Agreed design for generating, persisting, and rotating the anonymous session identifier used for anonymous analytics. This is a short-lived, privacy-preserving “anonymous persona” identifier, not a durable user ID.
+
+- Generation
+
+  - Client generates a v4 UUID via crypto.randomUUID(); never includes PII; not reused across devices/browsers.
+
+- Storage
+
+  - Primary: localStorage key app:anon_session
+  - Mirrors: sessionStorage app:anon_session and an in-memory singleton for early reads and private-browsing quirks
+  - Value (JSON): { id: string, createdAt: ISO8601, lastUsedAt: ISO8601, ttlHours: number, version: 1 }
+
+- TTL and rotation
+
+  - Sliding inactivity TTL: default 24 hours (configurable to 12h). On use, update lastUsedAt and extend.
+  - Rotate when: (1) expired (no activity for ttlHours), (2) user resets via UI, (3) storage is denied/corrupted, or (4) significant privacy mode is detected.
+  - Pre-rotate guard: if inactivity exceeds ~90% of ttlHours (≈22h for 24h, ≈11h for 12h), schedule rotation on next send or rotate immediately per policy.
+
+- Cross-tab behavior
+
+  - Use window 'storage' events on app:anon_session to sync updates across tabs and prevent duplicate rotations.
+  - Optional mutex: app:anon_session:lock with a short TTL (e.g., ~2s) so only one tab rotates at a time; others back off.
+
+- Fallbacks
+
+  - If localStorage write fails, attempt sessionStorage; if that fails, use an in-memory ephemeral ID for the page lifetime.
+
+- Transport and server privacy
+
+  - Client sends only the raw UUID over HTTPS; server derives anon_hash = HMAC-SHA256(k, uuid) with a regularly rotated key (e.g., 90 days) and never stores/logs the raw UUID.
+  - Anonymous analytics remain aggregate-only; do not intentionally send or join IP/UA fingerprints.
+
+- Consent and controls
+
+  - Provide an opt-out; when opted out, do not generate or send the ID; clear storage; operate in a non-identifying state.
+  - Provide a “Reset anonymous session” action to force rotation.
+
+- Notes
+  - If “entire session” is interpreted as a single browser tab/window, sessionStorage-only can be used (no TTL). Our confirmed approach uses localStorage + sliding TTL for short-lived continuity (24h default, 12h optional).
+
+## End-to-end flow
+
+Anonymous chat (not free/pro/enterprise)
+
+1. Client call
+
+- User chats via `/api/chat` or `/api/chat/stream` (enhanced auth allows anonymous). These do not persist messages/sessions to DB.
+
+2. Generate/keep anonymous_session_id
+
+- If missing, client creates `anonymous_session_id` (crypto.randomUUID()), stores in `localStorage`, and reuses it.
+
+3. After response completes
+
+- Client POSTs to `/api/usage/anonymous` with a minimal payload: `{ anonymous_session_id, events: [{ type, timestamp, model, input_tokens|output_tokens, elapsed_ms }] }`.
+- Endpoint protection: tiered rate limit only (`tierC`); no auth; strict validation + size caps.
+
+4. Server ingestion (RPC)
+
+- Handler calls `public.ingest_anonymous_usage(payload)` (SECURITY DEFINER).
+- DB upserts:
+  - `public.anonymous_usage_daily` (per-session/day messages/tokens/latency)
+  - `public.anonymous_model_usage_daily` (per-model/day prompt/completion tokens, assistant_messages, generation_ms)
+- Pricing snapshot: reads `public.model_access` to snapshot unit prices; increments `estimated_cost` at ingestion time.
+- RLS: admin-only SELECT; direct writes denied.
+
+5. Admin analytics
+
+- Admin endpoint queries `public.get_anonymous_model_costs(start, end, granularity)` and shows anonymous totals separately from authenticated totals. No user-facing changes.
+
+6. Retention
+
+- Scheduler/ops invokes `public.cleanup_anonymous_usage(30)` daily to purge rows older than 30 days.
+
+Authenticated chat (free/pro/enterprise)
+
+1. Client call
+
+- User persists via `/api/chat/messages` (protected auth middleware).
+
+2. DB pipeline (unchanged)
+
+- Triggers update `chat_sessions` stats and call `track_user_usage(...)` to maintain `public.user_usage_daily`.
+- Per-assistant-message cost snapshot goes into `public.message_token_costs`; `user_usage_daily.estimated_cost` updated by delta.
+- Admin/user analytics use `user_model_costs_daily` and `public.get_global_model_costs(...)`.
+
+Key guarantees (v1)
+
+- No PII in anonymous tables; no `user_id`; no linking in v1.
+- Anonymous usage is admin-only and displayed separately; chat performance is unaffected (best-effort logging after response).
+
 ## Phases
 
 - [ ] Phase 1 — Schema & API
