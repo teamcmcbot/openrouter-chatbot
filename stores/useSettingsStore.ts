@@ -5,6 +5,7 @@ import { persist, devtools } from 'zustand/middleware';
 import { STORAGE_KEYS } from '../lib/constants';
 import { createDevtoolsOptions } from './storeUtils';
 import { BaseStoreState, BaseStoreActions } from './types';
+import { logger } from '../lib/utils/logger';
 
 /**
  * Settings store state interface
@@ -133,7 +134,7 @@ export const useSettingsStore = create<SettingsStore>()(
             try {
               localStorage.setItem(name, JSON.stringify(value));
             } catch (error) {
-              console.warn(`Failed to save settings:`, error);
+              logger.warn('settings.persist.setItem.failed', { error });
             }
           },
           removeItem: (name: string) => {
@@ -141,7 +142,7 @@ export const useSettingsStore = create<SettingsStore>()(
             try {
               localStorage.removeItem(name);
             } catch (error) {
-              console.warn(`Failed to remove settings:`, error);
+              logger.warn('settings.persist.removeItem.failed', { error });
             }
           },
         },
@@ -180,7 +181,7 @@ export function useLocalStorage<T>(
       const valueToStore = value instanceof Function ? value(storedValue) : value;
       setSetting(key, valueToStore);
     } catch (error) {
-      console.warn(`Error setting localStorage key "${key}":`, error);
+      logger.warn('settings.useLocalStorage.setValue.failed', { key, error });
     }
   };
 

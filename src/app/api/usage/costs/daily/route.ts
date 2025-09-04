@@ -6,10 +6,14 @@ import { createClient } from '../../../../../../lib/supabase/server';
 import { parseQuery, round6 } from '../../../../../../lib/utils/usageCosts';
 import { logger } from '../../../../../../lib/utils/logger';
 import { handleError } from '../../../../../../lib/utils/errors';
+import { deriveRequestIdFromHeaders } from '../../../../../../lib/utils/headers';
 
 export const dynamic = 'force-dynamic';
 
 async function getDailyHandler(req: NextRequest, auth: AuthContext) {
+  const route = '/api/usage/costs/daily';
+  const requestId = deriveRequestIdFromHeaders((req as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = auth;
@@ -56,7 +60,7 @@ async function getDailyHandler(req: NextRequest, auth: AuthContext) {
         assistant_messages: v.messages
       }));
 
-    return NextResponse.json({
+    const json = {
       items,
       summary: {
         prompt_tokens: aggPrompt,
@@ -69,10 +73,21 @@ async function getDailyHandler(req: NextRequest, auth: AuthContext) {
         end: range.end.toISOString().slice(0,10),
         key: range.rangeKey
       }
-    });
+    };
+
+  const durationMs = Date.now() - t0;
+  const headers = { 'x-request-id': requestId, 'X-Response-Time': String(durationMs) } as Record<string,string>;
+  const loggerLike = logger as unknown as { info?: (message: string, ...args: unknown[]) => void; debug: (message: string, ...args: unknown[]) => void };
+  if (typeof loggerLike.info === 'function') loggerLike.info('usage.costs.daily.done', {
+      requestId,
+      route,
+      durationMs,
+      itemCount: items.length,
+  }); else logger.debug('usage.costs.daily.done', { requestId, route, durationMs, itemCount: items.length });
+  return NextResponse.json(json, { headers });
   } catch (err) {
-    logger.error('usage.costs.daily endpoint error', err);
-    return handleError(err);
+    logger.error('usage.costs.daily.fail', { error: err, requestId, route });
+    return handleError(err, requestId);
   }
 }
 

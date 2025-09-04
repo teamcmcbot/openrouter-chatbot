@@ -6,15 +6,26 @@ import { createClient } from '../../../../../lib/supabase/server';
 import { parseQuery, round6, buildTopModels } from '../../../../../lib/utils/usageCosts';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 export const dynamic = 'force-dynamic';
 
+type LoggerLike = { info?: (message: string, ...args: unknown[]) => void; debug: (message: string, ...args: unknown[]) => void };
+const loggerLike: LoggerLike = logger as unknown as LoggerLike;
+const logInfo = (message: string, ...args: unknown[]) => {
+  if (typeof loggerLike.info === 'function') return loggerLike.info(message, ...args);
+  return loggerLike.debug(message, ...args);
+};
+
 async function getCostsHandler(req: NextRequest, auth: AuthContext) {
+  const route = '/api/usage/costs';
+  const requestId = deriveRequestIdFromHeaders((req as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = auth;
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'x-request-id': requestId } });
     }
 
     const { range, modelId, page, pageSize } = parseQuery(req);
@@ -63,6 +74,20 @@ async function getCostsHandler(req: NextRequest, auth: AuthContext) {
     const topModels = buildTopModels(modelArray, 3);
     const costPer1k = sumTokens > 0 ? round6(sumCost * 1000 / sumTokens) : 0;
 
+    // Single INFO summary (sampled via logger config if needed)
+  logInfo('usage.costs.request.end', {
+      requestId,
+      route,
+      ctx: {
+        durationMs: Date.now() - t0,
+        items: items?.length || 0,
+        page,
+        pageSize,
+        total: count || 0,
+        filteredModel: modelId || null,
+      }
+    });
+
     return NextResponse.json({
       items: items || [],
       pagination: {
@@ -84,10 +109,10 @@ async function getCostsHandler(req: NextRequest, auth: AuthContext) {
         end: range.end.toISOString().slice(0,10),
         key: range.rangeKey
       }
-    });
+    }, { headers: { 'x-request-id': requestId } });
   } catch (err) {
     logger.error('usage.costs endpoint error', err);
-    return handleError(err);
+    return handleError(err, requestId);
   }
 }
 

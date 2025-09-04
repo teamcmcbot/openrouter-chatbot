@@ -12,17 +12,21 @@ import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimi
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { validateSystemPrompt } from '../../../../../lib/utils/validation/systemPrompt';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 /**
  * GET /api/user/data
  * Retrieves comprehensive user data including analytics, profile, and preferences
  */
 async function getUserDataHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse<UserDataResponse | UserDataError>> {
+  const route = '/api/user/data';
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = authContext;
 
-    logger.info('Get user data request', { userId: user!.id });
+    logger.info('user.data.get.start', { userId: user!.id, requestId, route });
 
     // Call the enhanced database function to get complete user profile
     const { data: profileData, error: profileError } = await supabase
@@ -30,7 +34,7 @@ async function getUserDataHandler(request: NextRequest, authContext: AuthContext
 
     if (profileError) {
       logger.error('Database error fetching user profile:', profileError);
-      return NextResponse.json(
+  return NextResponse.json(
         { error: 'Internal server error', message: 'Database connection failed' },
         { status: 500 }
       );
@@ -86,13 +90,15 @@ async function getUserDataHandler(request: NextRequest, authContext: AuthContext
       }
     };
 
-    return NextResponse.json(response);
+  const headers = { 'x-request-id': requestId, 'X-Response-Time': String(Date.now() - t0) } as Record<string,string>;
+    logger.info('user.data.get.done', { requestId, route, durationMs: Date.now() - t0 });
+    return NextResponse.json(response, { headers });
 
   } catch (error) {
-    logger.error('Get user data error:', error);
+    logger.error('user.data.get.fail', { error, requestId, route });
     return NextResponse.json(
       { error: 'Internal server error', message: 'Unexpected server error' },
-      { status: 500 }
+      { status: 500, headers: { 'x-request-id': requestId } }
     );
   }
 }
@@ -102,11 +108,14 @@ async function getUserDataHandler(request: NextRequest, authContext: AuthContext
  * Updates user preferences (UI, session, model settings)
  */
 async function putUserDataHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse<UserDataResponse | UserDataError>> {
+  const route = '/api/user/data';
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = authContext;
 
-    logger.info('Update user preferences request', { userId: user!.id });
+    logger.info('user.data.put.start', { userId: user!.id, requestId, route });
 
     // Parse request body
     let preferencesUpdate: UserPreferencesUpdate;
@@ -115,7 +124,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
     } catch {
       return NextResponse.json(
         { error: 'Invalid request', message: 'Invalid JSON in request body' },
-        { status: 400 }
+        { status: 400, headers: { 'x-request-id': requestId } }
       );
     }
 
@@ -125,7 +134,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
       if (typeof temp !== 'number' || temp < 0 || temp > 2) {
         return NextResponse.json(
           { error: 'Invalid request', message: 'Temperature must be a number between 0 and 2' },
-          { status: 400 }
+          { status: 400, headers: { 'x-request-id': requestId } }
         );
       }
     }
@@ -137,7 +146,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
       if (model !== null && model !== '' && (typeof model !== 'string' || model.trim().length === 0)) {
         return NextResponse.json(
           { error: 'Invalid request', message: 'Default model must be a valid string, empty string, or null' },
-          { status: 400 }
+          { status: 400, headers: { 'x-request-id': requestId } }
         );
       }
     }
@@ -156,7 +165,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
               error: 'Validation failed', 
               message: validation.error || 'System prompt validation failed'
             },
-            { status: 400 }
+            { status: 400, headers: { 'x-request-id': requestId } }
           );
         }
         
@@ -165,7 +174,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
       } else if (systemPrompt !== null) {
         return NextResponse.json(
           { error: 'Invalid request', message: 'System prompt must be a string or null' },
-          { status: 400 }
+          { status: 400, headers: { 'x-request-id': requestId } }
         );
       }
     }
@@ -206,7 +215,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
       logger.error('Database error updating preferences:', updateError);
       return NextResponse.json(
         { error: 'Internal server error', message: 'Failed to update preferences' },
-        { status: 500 }
+        { status: 500, headers: { 'x-request-id': requestId } }
       );
     }
 
@@ -218,7 +227,7 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
       logger.error('Database error fetching updated profile:', profileError);
       return NextResponse.json(
         { error: 'Internal server error', message: 'Failed to fetch updated profile' },
-        { status: 500 }
+        { status: 500, headers: { 'x-request-id': requestId } }
       );
     }
 
@@ -265,13 +274,15 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
       }
     };
 
-    return NextResponse.json(response);
+  const headers = { 'x-request-id': requestId, 'X-Response-Time': String(Date.now() - t0) } as Record<string,string>;
+    logger.info('user.data.put.done', { requestId, route, durationMs: Date.now() - t0 });
+    return NextResponse.json(response, { headers });
 
   } catch (error) {
-    logger.error('Update user preferences error:', error);
+    logger.error('user.data.put.fail', { error, requestId, route });
     return NextResponse.json(
       { error: 'Internal server error', message: 'Unexpected server error' },
-      { status: 500 }
+      { status: 500, headers: { 'x-request-id': requestId } }
     );
   }
 }

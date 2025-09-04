@@ -79,9 +79,17 @@ function log(level: Level, message: string, ...args: unknown[]) {
   if (isTest) {
     const hasArgs = Array.isArray(args) && args.length > 0;
     const output = hasArgs ? `${message} ${JSON.stringify(args)}` : message;
-    if (level === 'error') console.error(output);
-    else if (level === 'warn') console.warn(output);
-    else console.log(output);
+    if (level === 'error') {
+      console.error(output);
+    } else if (level === 'warn') {
+      console.warn(output);
+    } else if (level === 'debug') {
+      // In test, emit to both debug and log so tests spying on either pick it up
+      console.debug(output);
+      console.log(output);
+    } else {
+      console.log(output);
+    }
     return;
   }
 

@@ -6,6 +6,7 @@ import { createClient } from '../../../../../../../lib/supabase/server';
 import { parseQuery } from '../../../../../../../lib/utils/usageCosts';
 import { logger } from '../../../../../../../lib/utils/logger';
 import { handleError } from '../../../../../../../lib/utils/errors';
+import { deriveRequestIdFromHeaders } from '../../../../../../../lib/utils/headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,9 @@ interface ViewRow { usage_date: string; model_id: string; total_tokens: number; 
 
 
 async function handler(req: NextRequest, auth: AuthContext) {
+  const route = '/api/usage/costs/models/daily';
+  const requestId = deriveRequestIdFromHeaders((req as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = auth; if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -57,17 +61,17 @@ async function handler(req: NextRequest, auth: AuthContext) {
       Object.entries(map).forEach(([d, inner]) => {
         Object.entries(inner).forEach(([m, v]) => rows.push({ usage_date: d, model_id: m, total_tokens: v.tokens, total_cost: v.cost }));
       });
-      return buildResponse(rows, range.start, range.end, topN, modelId);
+      return buildResponse(rows, range.start, range.end, topN, modelId, { requestId, route, t0 });
     }
     if (viewErr) throw viewErr;
-    return buildResponse((viewRows||[]) as ViewRow[], range.start, range.end, topN, modelId);
+    return buildResponse((viewRows||[]) as ViewRow[], range.start, range.end, topN, modelId, { requestId, route, t0 });
   } catch (err) {
-    logger.error('usage.costs.models.daily endpoint error', err);
-    return handleError(err);
+    logger.error('usage.costs.models.daily.fail', { error: err, requestId, route });
+    return handleError(err, requestId);
   }
 }
 
-function buildResponse(rows: ViewRow[], startDate: Date, endDate: Date, topN: number, filterModelId?: string | null) {
+function buildResponse(rows: ViewRow[], startDate: Date, endDate: Date, topN: number, filterModelId: string | null | undefined, meta?: { requestId: string; route: string; t0: number }) {
   // Filter single model if provided (affects model ordering & others)
   if (filterModelId) rows = rows.filter(r => r.model_id === filterModelId);
   // Aggregate totals per model
@@ -104,13 +108,19 @@ function buildResponse(rows: ViewRow[], startDate: Date, endDate: Date, topN: nu
   for (const row of tokensDayData) { row.total = row.others + Object.values(row.segments).reduce((a,b)=>a+b,0); }
   for (const row of costDayData) { row.total = row.others + Object.values(row.segments).reduce((a,b)=>a+b,0); }
 
-  return NextResponse.json({
+  const body = {
     range: { start: startDate.toISOString().slice(0,10), end: endDate.toISOString().slice(0,10) },
     charts: {
       tokens: { models: topByTokens, days: tokensDayData },
       cost: { models: topByCost, days: costDayData }
     }
-  });
+  };
+  const durationMs = meta ? (Date.now() - meta.t0) : 0;
+  const headers = meta ? ({ 'x-request-id': meta.requestId } as Record<string,string>) : undefined;
+  if (meta) {
+    logger.info('usage.costs.models.daily.done', { requestId: meta.requestId, route: meta.route, durationMs, days: dayList.length, topN });
+  }
+  return NextResponse.json(body, { headers });
 }
 
 export const GET = withProtectedAuth(

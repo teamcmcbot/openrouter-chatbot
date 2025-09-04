@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { logger } from "../lib/utils/logger";
 
 type StoredValue = string | number | boolean | object | null;
 
@@ -18,7 +19,7 @@ export function useLocalStorage<T extends StoredValue>(
       const item = window.localStorage.getItem(key);
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
-      console.warn(`Error reading localStorage key "${key}":`, error);
+      logger.warn('localStorage.read.failed', { key, err: (error as Error)?.message });
       return initialValue;
     }
   });
@@ -37,7 +38,7 @@ export function useLocalStorage<T extends StoredValue>(
         window.localStorage.setItem(key, JSON.stringify(valueToStore));
       }
     } catch (error) {
-      console.warn(`Error setting localStorage key "${key}":`, error);
+      logger.warn('localStorage.write.failed', { key, err: (error as Error)?.message });
     }
   };
 

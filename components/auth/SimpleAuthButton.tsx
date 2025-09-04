@@ -13,6 +13,7 @@ import ClientPortal from '../ui/ClientPortal'
 import { createClient } from '../../lib/supabase/client'
 import { useTheme } from '../../stores/useUIStore'
 import { useUserData } from '../../hooks/useUserData'
+import { logger } from '../../lib/utils/logger'
 
 export function SimpleAuthButton() {
   const [showModal, setShowModal] = useState(false)
@@ -66,13 +67,13 @@ export function SimpleAuthButton() {
           .eq('id', user.id)
           .single()
         if (error) {
-          console.warn('Failed to fetch account_type:', error.message)
+          logger.warn('auth.simpleButton.fetchAccountType.failed', { message: error.message })
           if (isMounted) setIsAdmin(false)
           return
         }
         if (isMounted) setIsAdmin((data?.account_type as string) === 'admin')
       } catch (e) {
-        console.warn('Error checking admin role:', e)
+        logger.warn('auth.simpleButton.checkAdmin.exception', { err: (e as Error)?.message })
         if (isMounted) setIsAdmin(false)
       }
     }
@@ -107,7 +108,7 @@ export function SimpleAuthButton() {
       await signOut()
       // signOut already handles redirect, so no need to do anything else
     } catch (err) {
-      console.error('Sign out failed:', err)
+      logger.error('auth.signOut.failed', { err: (err as Error)?.message })
       // Error is handled in the store
     }
   }
@@ -118,7 +119,7 @@ export function SimpleAuthButton() {
       await signInWithGoogle()
       setShowModal(false) // Close modal as redirect will happen
     } catch (err) {
-      console.error('Sign in failed:', err)
+      logger.error('auth.signIn.failed', { err: (err as Error)?.message })
       // Error is handled in the store and displayed via error state
       // Keep modal open to show error
     }

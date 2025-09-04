@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { logger } from "../../lib/utils/logger";
 import Button from "./Button";
 
 interface ErrorBoundaryState {
@@ -24,7 +25,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+  logger.error('ui.errorBoundary', { error: error.message, stack: error.stack, componentStack: errorInfo?.componentStack });
   }
 
   retry = () => {

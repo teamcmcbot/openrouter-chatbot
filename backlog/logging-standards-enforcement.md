@@ -18,20 +18,21 @@ Key standards (summary):
 
 ## Current status (quick audit)
 
-- ESLint: allows `console.warn/error` globally in app code → should be disallowed with overrides.
+- ESLint: no-console enforced in app code; tests/scripts and `lib/utils/logger.ts` exempt. (DONE)
 - API/server: largely compliant; requestId present and returned via `x-request-id`.
-- UI/hooks/stores: many `console.*` usages remain (see below).
-- Commented debug prints: present in `hooks/useChatStreaming.ts`.
+- UI/hooks/stores: migrated to shared `logger`; ESLint clean.
+- Commented debug prints: removed in `hooks/useChatStreaming.ts`.
+- Tests: all green; Build: passes.
 - Sentry: not configured (optional).
 
 ## Checklist (must pass)
 
-- [ ] No `console.*` in app code (components/**, hooks/**, stores/**, lib/**, src/app/\*\*); tests/scripts allowed.
+- [x] No `console.*` in app code (components/**, hooks/**, stores/**, lib/**, src/app/\*\*); tests/scripts allowed.
 - [ ] Server/API logging uses `logger` with structured JSON and `requestId`.
 - [ ] Add/keep `route` in server logs for filtering.
 - [ ] Streaming/token debug via `streamDebug()` and flags; single INFO summary per request; sampling on hot paths.
-- [ ] No commented-out debug lines.
-- [ ] ESLint enforces no-console in app code with overrides for tests/scripts and `lib/utils/logger.ts`.
+- [x] No commented-out debug lines.
+- [x] ESLint enforces no-console in app code with overrides for tests/scripts and `lib/utils/logger.ts`.
 - [ ] Optional: Sentry wired for errors only (no PII, traces disabled).
 
 ## Required changes (files and actions)
@@ -79,11 +80,11 @@ Key standards (summary):
 
 ### Phase 1 – Tooling enforcement
 
-- [ ] Update ESLint rule: disallow all `console.*` for `**/*.{ts,tsx,js,jsx}`.
-- [ ] Add overrides:
+- [x] Update ESLint rule: disallow all `console.*` for `**/*.{ts,tsx,js,jsx}`.
+- [x] Add overrides:
   - `tests/**`, `scripts/**`: no-console off.
   - `lib/utils/logger.ts`: no-console off (logger implementation only).
-- [ ] Run lint; list violations.
+- [x] Run lint; list violations.
 
 User verification
 
@@ -91,9 +92,9 @@ User verification
 
 ### Phase 2 – UI/hooks/stores cleanup
 
-- [ ] Replace `console.warn/error` with `logger.warn/error` for actual failures.
-- [ ] Remove `console.log/debug/info` and interaction breadcrumbs.
-- [ ] Remove commented-out debug prints.
+- [x] Replace `console.warn/error` with `logger.warn/error` for actual failures.
+- [x] Remove `console.log/debug/info` and interaction breadcrumbs.
+- [x] Remove commented-out debug prints.
 
 User verification
 

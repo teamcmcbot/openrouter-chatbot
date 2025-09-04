@@ -6,6 +6,7 @@ import { GenerationData } from "../../lib/types/generation";
 import { getGenerationFromCache, setGenerationInCache } from "../../lib/utils/generationCache";
 import Button from "./Button";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
+import { logger } from "../../lib/utils/logger";
 
 interface ModelDetailsSidebarProps {
   model: ModelInfo | null;
@@ -159,7 +160,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
           setLoadingGeneration(false);
         })
         .catch(error => {
-          console.error('Error fetching generation data:', error);
+          logger.warn('ui.modelDetails.fetchFailed', { err: (error as Error)?.message, generationId });
           setGenerationError(error.message);
           setLoadingGeneration(false);
         });
