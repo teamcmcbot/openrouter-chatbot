@@ -23,6 +23,8 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 - **[redis-rate-limiting-setup.md](./ops/redis-rate-limiting-setup.md)** - Redis setup guide for development and production
 - **[redis-rate-limiting-troubleshooting.md](./ops/redis-rate-limiting-troubleshooting.md)** - Troubleshooting guide for Redis rate limiting
 - **[supabase-setup.md](./ops/supabase-setup.md)** - Supabase setup: apply schema, create bucket, expose `storage` schema
+- **[sentry-setup.md](./ops/sentry-setup.md)** - Server-only errors with tags (`route`, `requestId`, `model` for chat)
+- **[sentry-troubleshooting.md](./ops/sentry-troubleshooting.md)** - Troubleshooting Sentry setup and missing events
 - Deployment guides and operational procedures
 
 ### Component Documentation (`/components/`)
@@ -38,6 +40,7 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 
 - **[feature-matrix.md](./feature-matrix.md)** - Comprehensive feature comparison and capabilities overview
 - **[streaming-implementation-summary.md](./streaming-implementation-summary.md)** - Streaming feature implementation status and testing guide
+- **[sentry-implementation-summary.md](./updates/sentry-implementation-summary.md)** - Server-only Sentry integration with model tagging
 - **[tiered-rate-limiting-completion-summary.md](./tiered-rate-limiting-completion-summary.md)** - Tiered rate limiting rollout summary
 - **[reasoning-fixes-summary.md](./reasoning-fixes-summary.md)** - Reasoning data flow fixes and validation
 - **[reasoning-empty-array-fix.md](./reasoning-empty-array-fix.md)** - Fix for reasoning display with empty arrays
