@@ -6,11 +6,14 @@ import { withAdminAuth } from '../../../../../lib/middleware/auth';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { logger } from '../../../../../lib/utils/logger';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 type StatusType = 'new' | 'active' | 'disabled' | 'inactive' | string;
 
 // GET: list model_access rows with optional status filter
 async function getHandler(req: NextRequest, _ctx: AuthContext) {
+  const t0 = Date.now();
+  const requestId = deriveRequestIdFromHeaders(req.headers);
   try {
   void _ctx;
     const { searchParams } = new URL(req.url);
@@ -24,11 +27,16 @@ async function getHandler(req: NextRequest, _ctx: AuthContext) {
         .not('status', 'is', null)
         .range(0, 9999);
       if (error) {
-        logger.error('Error fetching distinct statuses', error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        logger.error('Error fetching distinct statuses', error, { requestId, route: '/api/admin/model-access' });
+        return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: { 'x-request-id': requestId } });
       }
       const statuses = Array.from(new Set((data || []).map((r: { status: string }) => r.status))).sort();
-      return NextResponse.json({ success: true, statuses });
+      const resMeta = NextResponse.json({ success: true, statuses }, { headers: { 'x-request-id': requestId } });
+      {
+        const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
+        (lg.info ?? lg.debug)('admin.model-access.meta.complete', { requestId, route: '/api/admin/model-access', ctx: { durationMs: Date.now() - t0, statuses: statuses.length } });
+      }
+      return resMeta;
     }
   // Default to 'all' so no filter is applied unless explicitly requested
   const statusParam = (searchParams.get('status') || 'all').toLowerCase();
@@ -56,15 +64,20 @@ async function getHandler(req: NextRequest, _ctx: AuthContext) {
       supabase.from('model_access').select('model_id', { count: 'exact', head: true })
     ]);
     if (error) {
-      logger.error('Error fetching model_access rows', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      logger.error('Error fetching model_access rows', error, { requestId, route: '/api/admin/model-access' });
+      return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: { 'x-request-id': requestId } });
     }
 
   const totalCount = totalCountRes.count ?? null;
-  return NextResponse.json({ success: true, items: data ?? [], totalCount, filteredCount: filteredCount ?? (data?.length || 0) });
+  const res = NextResponse.json({ success: true, items: data ?? [], totalCount, filteredCount: filteredCount ?? (data?.length || 0) }, { headers: { 'x-request-id': requestId } });
+  {
+    const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
+    (lg.info ?? lg.debug)('admin.model-access.get.complete', { requestId, route: '/api/admin/model-access', ctx: { durationMs: Date.now() - t0, count: data?.length || 0 } });
+  }
+  return res;
   } catch (err) {
-    logger.error('Unhandled GET /admin/model-access error', err);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    logger.error('Unhandled GET /admin/model-access error', err, { requestId, route: '/api/admin/model-access' });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: { 'x-request-id': requestId } });
   }
 }
 
@@ -78,12 +91,14 @@ type UpdateItem = {
 
 // PATCH: batch update flags/status for specific rows
 async function patchHandler(req: NextRequest, ctx: AuthContext) {
+  const t0 = Date.now();
+  const requestId = deriveRequestIdFromHeaders(req.headers);
   try {
   // actor context available via withAdminAuth
     const body = (await req.json()) as { updates?: UpdateItem[] } | null;
     const updates = body?.updates;
     if (!updates || !Array.isArray(updates) || updates.length === 0) {
-      return NextResponse.json({ success: false, error: 'No updates provided' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'No updates provided' }, { status: 400, headers: { 'x-request-id': requestId } });
     }
 
     const supabase = await createClient();
@@ -141,11 +156,15 @@ async function patchHandler(req: NextRequest, ctx: AuthContext) {
     } catch (auditErr) {
       logger.warn('Audit log write failed for /admin/model-access PATCH', auditErr);
     }
-    const status = okCount === results.length ? 200 : okCount > 0 ? 207 : 400;
-    return NextResponse.json({ success: okCount > 0, results }, { status });
+  const status = okCount === results.length ? 200 : okCount > 0 ? 207 : 400;
+  {
+    const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
+    (lg.info ?? lg.debug)('admin.model-access.patch.complete', { requestId, route: '/api/admin/model-access', ctx: { durationMs: Date.now() - t0, okCount, total: results.length } });
+  }
+  return NextResponse.json({ success: okCount > 0, results }, { status, headers: { 'x-request-id': requestId } });
   } catch (err) {
-    logger.error('Unhandled PATCH /admin/model-access error', err);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+  logger.error('Unhandled PATCH /admin/model-access error', err, { requestId, route: '/api/admin/model-access' });
+  return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: { 'x-request-id': requestId } });
   }
 }
 

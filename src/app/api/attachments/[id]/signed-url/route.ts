@@ -6,11 +6,14 @@ import { AuthContext } from '../../../../../../lib/types/auth';
 import { createClient } from '../../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../../lib/utils/errors';
 import { logger } from '../../../../../../lib/utils/logger';
+import { deriveRequestIdFromHeaders } from '../../../../../../lib/utils/headers';
 
 const BUCKET = 'attachments-images';
 const URL_TTL_SECONDS = 300; // ~5 minutes
 
 async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  const requestId = deriveRequestIdFromHeaders((req as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = authContext;
@@ -45,7 +48,8 @@ async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): 
       throw new ApiErrorResponse('Failed to create signed URL', ErrorCode.INTERNAL_SERVER_ERROR);
     }
 
-    logger.info('Minted signed URL for attachment', {
+    const durationMs = Date.now() - t0;
+  logger.info('Minted signed URL for attachment', {
       userId: user.id,
       attachmentId: id,
       ttl: URL_TTL_SECONDS,
@@ -54,13 +58,15 @@ async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): 
       session_id: attachment.session_id,
       message_id: attachment.message_id,
       draft_id: attachment.draft_id,
+      requestId,
+      durationMs,
     });
 
     return NextResponse.json({ id, signedUrl: signed.signedUrl, ttlSeconds: URL_TTL_SECONDS }, {
-      headers: { 'Cache-Control': 'no-store' },
+      headers: { 'Cache-Control': 'no-store', 'x-request-id': requestId },
     });
   } catch (error) {
-    return handleError(error);
+    return handleError(error, requestId);
   }
 }
 

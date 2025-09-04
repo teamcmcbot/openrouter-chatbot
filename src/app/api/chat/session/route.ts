@@ -3,6 +3,7 @@
 import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '../../../../../lib/utils/logger';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
@@ -19,24 +20,26 @@ interface SessionUpdateData {
 }
 
 async function getSessionHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = authContext;
 
-    logger.info('[GET] /api/chat/session - Request received', { 
+  logger.debug('[GET] /api/chat/session - Request received', { 
       url: request.url, 
       userId: user!.id 
     });
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('id');
-    logger.info('[GET] Session ID param', { sessionId });
+  logger.debug('[GET] Session ID param', { sessionId });
 
     if (!sessionId) {
       logger.warn('[GET] Missing session ID');
       return NextResponse.json(
         { error: 'Session ID required' },
-        { status: 400 }
+        { status: 400, headers: { 'x-request-id': requestId } }
       );
     }
 
@@ -55,27 +58,30 @@ async function getSessionHandler(request: NextRequest, authContext: AuthContext)
       logger.warn('[GET] Session not found or access denied', { userId: user!.id, sessionId });
       return NextResponse.json(
         { error: 'Session not found or access denied' },
-        { status: 404 }
+        { status: 404, headers: { 'x-request-id': requestId } }
       );
     }
 
-    logger.info('[GET] Session found', { sessionId: session.id });
+    const durationMs = Date.now() - t0;
+    logger.info('[GET] Session found', { sessionId: session.id, requestId, durationMs });
     return NextResponse.json({
       session: session
-    });
+    }, { headers: { 'x-request-id': requestId } });
 
   } catch (error) {
-    logger.error('[GET] Get session error', { error });
-    return handleError(error);
+  logger.error('[GET] Get session error', { error, requestId });
+  return handleError(error, requestId);
   }
 }
 
 async function postSessionHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = authContext;
 
-    logger.info('[POST] /api/chat/session - Request received', { userId: user!.id });
+  logger.debug('[POST] /api/chat/session - Request received', { userId: user!.id });
 
     const sessionData = await request.json();
     const { id: sessionId, title, ...otherFields } = sessionData;
@@ -86,13 +92,13 @@ async function postSessionHandler(request: NextRequest, authContext: AuthContext
         userId: user!.id,
       });
     }
-    logger.info('[POST] Session update payload', { sessionData });
+  logger.debug('[POST] Session update payload', { sessionData });
 
     if (!sessionId) {
       logger.warn('[POST] Missing session ID');
       return NextResponse.json(
         { error: 'Session ID required' },
-        { status: 400 }
+        { status: 400, headers: { 'x-request-id': requestId } }
       );
     }
 
@@ -111,7 +117,7 @@ async function postSessionHandler(request: NextRequest, authContext: AuthContext
       logger.warn('[POST] Session not found or access denied', { userId: user!.id, sessionId });
       return NextResponse.json(
         { error: 'Session not found or access denied' },
-        { status: 404 }
+        { status: 404, headers: { 'x-request-id': requestId } }
       );
     }
 
@@ -159,15 +165,16 @@ async function postSessionHandler(request: NextRequest, authContext: AuthContext
       throw updateError;
     }
 
-    logger.info('[POST] Session updated successfully', { sessionId: updatedSession?.id });
+    const durationMs = Date.now() - t0;
+  logger.info('[POST] Session updated successfully', { requestId, durationMs });
     return NextResponse.json({
       session: updatedSession,
       success: true
-    });
+    }, { headers: { 'x-request-id': requestId } });
 
   } catch (error) {
-    logger.error('[POST] Update session error', { error });
-    return handleError(error);
+  logger.error('[POST] Update session error', { error, requestId });
+  return handleError(error, requestId);
   }
 }
 

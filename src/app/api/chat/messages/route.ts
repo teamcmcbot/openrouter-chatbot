@@ -37,11 +37,12 @@ interface DbMessage {
 async function getMessagesHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   // Generate or forward a request id for correlation
   const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = authContext;
 
-    logger.info('Get messages request', { userId: user!.id, requestId });
+  logger.debug('Get messages request', { userId: user!.id, requestId });
 
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get('session_id');
@@ -205,6 +206,12 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
 
     // When since_ts is provided, return quick up_to_date signal when no new messages
     if (sinceTs) {
+      const durationMs = Date.now() - t0;
+      logger.info('chat.messages.get.complete', {
+        requestId,
+        route: '/api/chat/messages',
+        ctx: { sinceTs: true, count: formattedMessages.length, durationMs },
+      });
       return NextResponse.json({
         up_to_date: formattedMessages.length === 0,
         messages: formattedMessages,
@@ -212,6 +219,12 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
       }, { headers: { 'x-request-id': requestId } });
     }
 
+    const durationMs = Date.now() - t0;
+    logger.info('chat.messages.get.complete', {
+      requestId,
+      route: '/api/chat/messages',
+      ctx: { sinceTs: false, count: formattedMessages.length, durationMs },
+    });
     return NextResponse.json({
       messages: formattedMessages,
       count: formattedMessages.length,
@@ -226,11 +239,12 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
 async function postMessagesHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   // Generate or forward a request id for correlation
   const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = authContext;
 
-    logger.info('Create messages request', { userId: user!.id, requestId });
+  logger.debug('Create messages request', { userId: user!.id, requestId });
 
     const requestData = await request.json() as {
       message?: ChatMessage; // Single message (backward compatibility)
@@ -540,6 +554,12 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       logger.warn('Annotations insert skipped due to error', annEx);
     }
 
+    const durationMs = Date.now() - t0;
+    logger.info('chat.messages.post.complete', {
+      requestId,
+      route: '/api/chat/messages',
+      ctx: { insertedCount: insertedMessages.length, durationMs },
+    });
     return NextResponse.json({
       messages: insertedMessages,
       count: insertedMessages.length,

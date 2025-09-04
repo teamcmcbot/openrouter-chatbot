@@ -6,12 +6,15 @@ import { createClient } from '../../../../../../lib/supabase/server';
 import { resolveDateRange } from '../../../../../../lib/utils/usageCosts';
 import { logger } from '../../../../../../lib/utils/logger';
 import { handleError } from '../../../../../../lib/utils/errors';
+import { deriveRequestIdFromHeaders } from '../../../../../../lib/utils/headers';
 
 export const dynamic = 'force-dynamic';
 
 function toISODate(d: Date): string { return d.toISOString().slice(0,10); }
 
 async function handler(req: NextRequest, auth: AuthContext) {
+  const t0 = Date.now();
+  const requestId = deriveRequestIdFromHeaders(req.headers);
   try {
     void auth;
     const supabase = await createClient();
@@ -81,7 +84,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
     const anonDays = Object.keys(anonPerDay).sort();
     const anonSeries = anonDays.map(d => ({ date: d, active_users: anonPerDay[d].sessions.size, messages: anonPerDay[d].messages, tokens: anonPerDay[d].tokens }));
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       ok: true,
       range: { start: toISODate(range.start), end: toISODate(range.end), key: range.rangeKey },
   total_messages: totalMsgRows.count || 0,
@@ -90,10 +93,20 @@ async function handler(req: NextRequest, auth: AuthContext) {
         authenticated: { total_messages: totalMsgRows.count || 0, daily: series },
         anonymous: { daily: anonSeries }
       }
-    });
+    }, { headers: { 'x-request-id': requestId } });
+
+    {
+      const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
+      (lg.info ?? lg.debug)('admin.analytics.usage.complete', {
+        requestId,
+        route: '/api/admin/analytics/usage',
+        ctx: { durationMs: Date.now() - t0, days: series.length, total_messages: totalMsgRows.count || 0 }
+      });
+    }
+    return res;
   } catch (err) {
-    logger.error('admin.analytics.usage error', err);
-    return handleError(err);
+    logger.error('admin.analytics.usage error', err, { requestId, route: '/api/admin/analytics/usage' });
+    return handleError(err, requestId);
   }
 }
 

@@ -7,17 +7,20 @@ import { GenerationResponse } from '../../../../../lib/types/generation';
 import { withEnhancedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 async function generationHandler(
   req: NextRequest,
   authContext: AuthContext
 ) {
+  const requestId = deriveRequestIdFromHeaders((req as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   // Extract the ID from the URL path
   const url = new URL(req.url);
   const pathSegments = url.pathname.split('/');
   const id = pathSegments[pathSegments.length - 1];
   
-  logger.info('Generation details request received', { 
+  logger.debug('Generation details request received', { 
     id,
     isAuthenticated: authContext.isAuthenticated,
     userId: authContext.user?.id,
@@ -60,15 +63,16 @@ async function generationHandler(
     }
 
     const data: GenerationResponse = await response.json();
+    const durationMs = Date.now() - t0;
     logger.info('Generation details retrieved successfully', { 
-      id,
-      userId: authContext.user?.id
+      requestId,
+      durationMs,
     });
     
-    return createSuccessResponse(data);
+    return createSuccessResponse(data, 200, { 'x-request-id': requestId });
   } catch (error) {
     logger.error('Error fetching generation details:', error);
-    return handleError(error);
+    return handleError(error, requestId);
   }
 }
 
