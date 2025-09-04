@@ -29,14 +29,11 @@ async function handler(req: NextRequest, auth: AuthContext) {
   recent: recentRes.data || []
     }, { headers: { 'x-request-id': requestId } });
 
-    {
-      const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-      (lg.info ?? lg.debug)('admin.analytics.models.complete', {
-        requestId,
-        route: '/api/admin/analytics/models',
-        ctx: { durationMs: Date.now() - t0 }
-      });
-    }
+    logger.infoOrDebug('admin.analytics.models.complete', {
+      requestId,
+      route: '/api/admin/analytics/models',
+      ctx: { durationMs: Date.now() - t0 }
+    });
     return res;
   } catch (err) {
     logger.error('admin.analytics.models error', err, { requestId, route: '/api/admin/analytics/models' });

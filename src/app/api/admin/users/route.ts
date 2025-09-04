@@ -38,10 +38,7 @@ async function getHandler(req: NextRequest, _ctx: AuthContext) {
         tiers: ['free', 'pro', 'enterprise'],
         account_types: ['user', 'admin'],
   }, { headers: { 'x-request-id': requestId } });
-  {
-    const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-    (lg.info ?? lg.debug)('admin.users.meta.complete', { requestId, route: '/api/admin/users', ctx: { durationMs: Date.now() - t0 } });
-  }
+  logger.infoOrDebug('admin.users.meta.complete', { requestId, route: '/api/admin/users', ctx: { durationMs: Date.now() - t0 } });
   return resMeta;
     }
 
@@ -93,14 +90,11 @@ async function getHandler(req: NextRequest, _ctx: AuthContext) {
       totalCount,
       filteredCount: filteredCount ?? (data?.length || 0),
     }, { headers: { 'x-request-id': requestId } });
-    {
-      const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-      (lg.info ?? lg.debug)('admin.users.get.complete', {
-        requestId,
-        route: '/api/admin/users',
-        ctx: { durationMs: Date.now() - t0, count: data?.length || 0 }
-      });
-    }
+    logger.infoOrDebug('admin.users.get.complete', {
+      requestId,
+      route: '/api/admin/users',
+      ctx: { durationMs: Date.now() - t0, count: data?.length || 0 }
+    });
     return res;
   } catch (err) {
     logger.error('Unhandled GET /admin/users error', err, { requestId, route: '/api/admin/users' });
@@ -212,14 +206,11 @@ async function patchHandler(req: NextRequest, ctx: AuthContext) {
       logger.warn('Audit log write failed for /admin/users PATCH', auditErr);
     }
     const status = okCount === results.length ? 200 : okCount > 0 ? 207 : 400;
-    {
-      const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-      (lg.info ?? lg.debug)('admin.users.patch.complete', {
-        requestId,
-        route: '/api/admin/users',
-        ctx: { durationMs: Date.now() - t0, okCount, total: results.length }
-      });
-    }
+    logger.infoOrDebug('admin.users.patch.complete', {
+      requestId,
+      route: '/api/admin/users',
+      ctx: { durationMs: Date.now() - t0, okCount, total: results.length }
+    });
     return NextResponse.json({ success: okCount > 0, results }, { status, headers: { 'x-request-id': requestId } });
   } catch (err) {
     logger.error('Unhandled PATCH /admin/users error', err, { requestId, route: '/api/admin/users' });

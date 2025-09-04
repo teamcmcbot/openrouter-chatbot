@@ -42,7 +42,16 @@ jest.mock('../../lib/middleware/redisRateLimitMiddleware', () => ({
 }));
 
 // Minimal logger + error utils
-jest.mock('../../lib/utils/logger', () => ({ logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn() } }));
+jest.mock('../../lib/utils/logger', () => ({
+  logger: {
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    // New helper used by routes; mock as no-op to keep tests stable
+    infoOrDebug: jest.fn(),
+  }
+}));
 jest.mock('../../lib/utils/errors', () => ({
   handleError: (err: unknown) => ({ status: 500, json: async () => ({ error: (err as Error).message || 'error' }), headers: new Map<string,string>() }),
 }));

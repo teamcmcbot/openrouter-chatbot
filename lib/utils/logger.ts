@@ -117,4 +117,15 @@ export const logger = {
   info: (message: string, ...args: unknown[]) => log('info', message, ...args),
   warn: (message: string, ...args: unknown[]) => log('warn', message, ...args),
   error: (message: string, ...args: unknown[]) => log('error', message, ...args),
+  // Helper: prefer info-level summary when enabled; otherwise fall back to debug.
+  // Keeps tests from crashing if a mock omits .info and reduces inline guard code.
+  infoOrDebug: (message: string, ...args: unknown[]) => {
+    try {
+      // Reuse the same enabled() gate implicitly via log()
+      log('info', message, ...args);
+    } catch {
+      // Extremely defensive: if info path throws in a mock, fall back to debug
+      log('debug', message, ...args);
+    }
+  },
 };

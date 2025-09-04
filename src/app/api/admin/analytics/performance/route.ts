@@ -108,14 +108,11 @@ async function handler(req: NextRequest, auth: AuthContext) {
       }
     }, { headers: { 'x-request-id': requestId } });
 
-    {
-      const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-      (lg.info ?? lg.debug)('admin.analytics.performance.complete', {
-        requestId,
-        route: '/api/admin/analytics/performance',
-        ctx: { durationMs: Date.now() - t0, overall_avg_ms, error_count }
-      });
-    }
+    logger.infoOrDebug('admin.analytics.performance.complete', {
+      requestId,
+      route: '/api/admin/analytics/performance',
+      ctx: { durationMs: Date.now() - t0, overall_avg_ms, error_count }
+    });
     return res;
   } catch (err) {
     logger.error('admin.analytics.performance error', err, { requestId, route: '/api/admin/analytics/performance' });

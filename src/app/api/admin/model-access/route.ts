@@ -32,10 +32,7 @@ async function getHandler(req: NextRequest, _ctx: AuthContext) {
       }
       const statuses = Array.from(new Set((data || []).map((r: { status: string }) => r.status))).sort();
       const resMeta = NextResponse.json({ success: true, statuses }, { headers: { 'x-request-id': requestId } });
-      {
-        const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-        (lg.info ?? lg.debug)('admin.model-access.meta.complete', { requestId, route: '/api/admin/model-access', ctx: { durationMs: Date.now() - t0, statuses: statuses.length } });
-      }
+  logger.infoOrDebug('admin.model-access.meta.complete', { requestId, route: '/api/admin/model-access', ctx: { durationMs: Date.now() - t0, statuses: statuses.length } });
       return resMeta;
     }
   // Default to 'all' so no filter is applied unless explicitly requested
@@ -70,10 +67,7 @@ async function getHandler(req: NextRequest, _ctx: AuthContext) {
 
   const totalCount = totalCountRes.count ?? null;
   const res = NextResponse.json({ success: true, items: data ?? [], totalCount, filteredCount: filteredCount ?? (data?.length || 0) }, { headers: { 'x-request-id': requestId } });
-  {
-    const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-    (lg.info ?? lg.debug)('admin.model-access.get.complete', { requestId, route: '/api/admin/model-access', ctx: { durationMs: Date.now() - t0, count: data?.length || 0 } });
-  }
+  logger.infoOrDebug('admin.model-access.get.complete', { requestId, route: '/api/admin/model-access', ctx: { durationMs: Date.now() - t0, count: data?.length || 0 } });
   return res;
   } catch (err) {
     logger.error('Unhandled GET /admin/model-access error', err, { requestId, route: '/api/admin/model-access' });
@@ -157,10 +151,7 @@ async function patchHandler(req: NextRequest, ctx: AuthContext) {
       logger.warn('Audit log write failed for /admin/model-access PATCH', auditErr);
     }
   const status = okCount === results.length ? 200 : okCount > 0 ? 207 : 400;
-  {
-    const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-    (lg.info ?? lg.debug)('admin.model-access.patch.complete', { requestId, route: '/api/admin/model-access', ctx: { durationMs: Date.now() - t0, okCount, total: results.length } });
-  }
+  logger.infoOrDebug('admin.model-access.patch.complete', { requestId, route: '/api/admin/model-access', ctx: { durationMs: Date.now() - t0, okCount, total: results.length } });
   return NextResponse.json({ success: okCount > 0, results }, { status, headers: { 'x-request-id': requestId } });
   } catch (err) {
   logger.error('Unhandled PATCH /admin/model-access error', err, { requestId, route: '/api/admin/model-access' });

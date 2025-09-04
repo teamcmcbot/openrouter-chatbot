@@ -92,10 +92,7 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
     const lastSyncStatus = await modelSyncService.getLastSyncStatus();
 
     // Step 6: Trigger the sync
-    {
-      const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-      (lg.info ?? lg.debug)('Starting manual model sync');
-    }
+  logger.infoOrDebug('Starting manual model sync');
   const syncResult = await modelSyncService.syncModels(userId);
 
     const responseTime = Date.now() - startTime;
@@ -120,19 +117,16 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
       } catch (auditErr) {
         logger.warn('Audit log write failed for manual sync success', auditErr);
       }
-      {
-        const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-        (lg.info ?? lg.debug)('admin.sync-models.post.complete', {
-          requestId,
-          syncLogId: syncResult.syncLogId,
-          totalProcessed: syncResult.totalProcessed,
-          modelsAdded: syncResult.modelsAdded,
-          modelsUpdated: syncResult.modelsUpdated,
-          modelsMarkedInactive: syncResult.modelsMarkedInactive,
-          userId,
-          durationMs: responseTime
-        });
-      }
+      logger.infoOrDebug('admin.sync-models.post.complete', {
+        requestId,
+        syncLogId: syncResult.syncLogId,
+        totalProcessed: syncResult.totalProcessed,
+        modelsAdded: syncResult.modelsAdded,
+        modelsUpdated: syncResult.modelsUpdated,
+        modelsMarkedInactive: syncResult.modelsMarkedInactive,
+        userId,
+        durationMs: responseTime
+      });
 
       return NextResponse.json(
         {

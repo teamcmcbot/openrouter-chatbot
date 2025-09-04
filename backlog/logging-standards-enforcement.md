@@ -19,7 +19,7 @@ Key standards (summary):
 ## Current status (quick audit)
 
 - ESLint: no-console enforced in app code; tests/scripts and `lib/utils/logger.ts` exempt. (DONE)
-- API/server: largely compliant; requestId present and returned via `x-request-id`.
+- API/server: compliant on chat + admin routes; requestId present and returned via `x-request-id`; INFO summaries added; test mocks hardened.
 - UI/hooks/stores: migrated to shared `logger`; ESLint clean.
 - Commented debug prints: removed in `hooks/useChatStreaming.ts`.
 - Tests: all green; Build: passes.
@@ -28,8 +28,8 @@ Key standards (summary):
 ## Checklist (must pass)
 
 - [x] No `console.*` in app code (components/**, hooks/**, stores/**, lib/**, src/app/\*\*); tests/scripts allowed.
-- [ ] Server/API logging uses `logger` with structured JSON and `requestId`.
-- [ ] Add/keep `route` in server logs for filtering.
+- [x] Server/API logging uses `logger` with structured JSON and `requestId`.
+- [x] Add/keep `route` in server logs for filtering.
 - [ ] Streaming/token debug via `streamDebug()` and flags; single INFO summary per request; sampling on hot paths.
 - [x] No commented-out debug lines.
 - [x] ESLint enforces no-console in app code with overrides for tests/scripts and `lib/utils/logger.ts`.
@@ -98,17 +98,19 @@ User verification
 
 User verification
 
-- [ ] Run lint → zero console violations.
-- [ ] App smoke test: copy/share actions, auth flows, and sidebar operations still work.
+- [x] Run lint → zero console violations.
+- [x] App smoke test: copy/share actions, auth flows, and sidebar operations still work.
 
 ### Phase 3 – Server/API consistency
 
-- [ ] Ensure each handler includes `requestId` and `route` in logs.
-- [ ] Keep a single INFO summary (sampled when needed) and avoid verbose debug in prod.
+– Status: Applied to chat endpoints previously; extended to admin analytics and admin endpoints (users, model-access, sync-models). Tests green.
+
+- [x] Ensure each handler includes `requestId` and `route` in logs.
+- [x] Keep a single INFO summary (sampled when needed) and avoid verbose debug in prod.
 
 User verification
 
-- [ ] Hit endpoints locally; inspect logs for `requestId` and `route`.
+- [x] Hit endpoints locally; inspect logs for `requestId` and `route`.
 
 ### Phase 4 – Optional Sentry
 
@@ -122,7 +124,13 @@ User verification
 ### Phase 5 – Docs and CI
 
 - [ ] Update docs if behavior changes.
-- [ ] Ensure CI runs lint and fails on new `console.*`.
+- [x] Ensure CI runs lint and fails on new `console.*`.
+
+Next steps
+
+- Add minimal Sentry config (errors only, no traces) if approved.
+- Consider tiny logger helper for "info-or-debug" emission to avoid inline guards.
+- Monitor logs for noise; adjust sampling or tiers if needed.
 
 ## Manual testing notes
 
@@ -134,3 +142,11 @@ User verification
 
 - Link to `.github/copilot-instructions.md` → Logging & Observability Standards.
 - This backlog item closes when all checklist boxes are ticked and lint passes with zero app-code `console.*` instances.
+
+---
+
+### Update (2025-09-04)
+
+- Added DRY helper `logger.infoOrDebug` and refactored admin analytics/admin routes to use it.
+- Updated test logger mocks to include `info`/`infoOrDebug` to prevent TypeErrors.
+- Targeted tests PASS: tests/api/adminAnalytics.test.ts, tests/api/adminAnalytics.segments.test.ts (11/11).

@@ -95,14 +95,11 @@ async function handler(req: NextRequest, auth: AuthContext) {
       }
     }, { headers: { 'x-request-id': requestId } });
 
-    {
-      const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-      (lg.info ?? lg.debug)('admin.analytics.usage.complete', {
-        requestId,
-        route: '/api/admin/analytics/usage',
-        ctx: { durationMs: Date.now() - t0, days: series.length, total_messages: totalMsgRows.count || 0 }
-      });
-    }
+    logger.infoOrDebug('admin.analytics.usage.complete', {
+      requestId,
+      route: '/api/admin/analytics/usage',
+      ctx: { durationMs: Date.now() - t0, days: series.length, total_messages: totalMsgRows.count || 0 }
+    });
     return res;
   } catch (err) {
     logger.error('admin.analytics.usage error', err, { requestId, route: '/api/admin/analytics/usage' });

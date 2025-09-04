@@ -54,14 +54,11 @@ async function handler(req: NextRequest, _auth: AuthContext) {
     }
 
     const res = NextResponse.json({ ok: true, range: { start: startISO, end: endISO }, errors: rows }, { headers: { 'x-request-id': requestId } });
-    {
-      const lg = logger as { info?: (msg: string, ctx?: unknown) => void; debug: (msg: string, ctx?: unknown) => void };
-      (lg.info ?? lg.debug)('admin.analytics.performance.errors.complete', {
-        requestId,
-        route: '/api/admin/analytics/performance/errors',
-        ctx: { durationMs: Date.now() - t0, count: Array.isArray(rows) ? rows.length : 0 }
-      });
-    }
+    logger.infoOrDebug('admin.analytics.performance.errors.complete', {
+      requestId,
+      route: '/api/admin/analytics/performance/errors',
+      ctx: { durationMs: Date.now() - t0, count: Array.isArray(rows) ? rows.length : 0 }
+    });
     return res;
   } catch (err) {
     logger.error('admin.analytics.performance.errors error', err, { requestId, route: '/api/admin/analytics/performance/errors' });
