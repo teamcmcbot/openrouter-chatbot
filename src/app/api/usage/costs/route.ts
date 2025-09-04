@@ -10,12 +10,20 @@ import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 export const dynamic = 'force-dynamic';
 
-type LoggerLike = { info?: (message: string, ...args: unknown[]) => void; debug: (message: string, ...args: unknown[]) => void };
-const loggerLike: LoggerLike = logger as unknown as LoggerLike;
-const logInfo = (message: string, ...args: unknown[]) => {
-  if (typeof loggerLike.info === 'function') return loggerLike.info(message, ...args);
-  return loggerLike.debug(message, ...args);
-};
+// Helper: safely await Supabase-like thenables used by tests (which provide a custom then(resolve)).
+type ThenableResult<T> = { data: T[] | null; error: unknown };
+async function awaitSelect<T>(q: unknown): Promise<ThenableResult<T>> {
+  try {
+    const maybe = q as { then?: (cb: (arg: ThenableResult<T>) => void) => void } | undefined;
+    if (maybe && typeof maybe.then === 'function') {
+      return await new Promise<ThenableResult<T>>((resolve) => maybe.then!(resolve));
+    }
+    const fallback = (q as ThenableResult<T>) ?? ({ data: null, error: null } as ThenableResult<T>);
+    return fallback;
+  } catch (e) {
+    return { data: null, error: e } as ThenableResult<T>;
+  }
+}
 
 async function getCostsHandler(req: NextRequest, auth: AuthContext) {
   const route = '/api/usage/costs';
@@ -55,7 +63,7 @@ async function getCostsHandler(req: NextRequest, auth: AuthContext) {
       .gte('message_timestamp', startISO)
       .lt('message_timestamp', endExclusive);
     if (modelId) aggQuery.eq('model_id', modelId);
-    const { data: allRows, error: aggError } = await aggQuery;
+  const { data: allRows, error: aggError } = await awaitSelect<{ prompt_tokens: number; completion_tokens: number; total_cost: number; model_id: string | null; total_tokens: number }>(aggQuery);
     if (aggError) throw aggError;
 
     let sumPrompt = 0, sumCompletion = 0, sumTokens = 0, sumCost = 0;
@@ -75,18 +83,33 @@ async function getCostsHandler(req: NextRequest, auth: AuthContext) {
     const costPer1k = sumTokens > 0 ? round6(sumCost * 1000 / sumTokens) : 0;
 
     // Single INFO summary (sampled via logger config if needed)
-  logInfo('usage.costs.request.end', {
+  if ((logger as unknown as { infoOrDebug?: (msg: string, ...args: unknown[]) => void }).infoOrDebug) {
+      logger.infoOrDebug('usage.costs.request.end', {
+        requestId,
+        route,
+        ctx: {
+          durationMs: Date.now() - t0,
+          items: items?.length || 0,
+          page,
+          pageSize,
+          total: count || 0,
+          filteredModel: modelId || null,
+        }
+      });
+    } else {
+      logger.debug('usage.costs.request.end', {
       requestId,
       route,
-      ctx: {
-        durationMs: Date.now() - t0,
-        items: items?.length || 0,
-        page,
-        pageSize,
-        total: count || 0,
-        filteredModel: modelId || null,
-      }
-    });
+        ctx: {
+          durationMs: Date.now() - t0,
+          items: items?.length || 0,
+          page,
+          pageSize,
+          total: count || 0,
+          filteredModel: modelId || null,
+        }
+      });
+    }
 
     return NextResponse.json({
       items: items || [],

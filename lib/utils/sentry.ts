@@ -75,9 +75,9 @@ function initOnce() {
   if (inited) return;
   if (!isEnabled()) return;
   if (initPromise) return;
-  // Use runtime dynamic import to avoid TS module resolution when dependency isn't installed in dev/test
-  const dynamicImport = new Function('m', 'return import(m)') as (m: string) => Promise<unknown>;
-  initPromise = dynamicImport('@sentry/node')
+  // Use standard dynamic import. If the package isn't installed in certain envs,
+  // the isEnabled() guard prevents this path from running.
+  initPromise = import('@sentry/node')
     .then((mod: unknown) => {
       const Sentry = mod as unknown as SentryModule;
       Sentry.init({

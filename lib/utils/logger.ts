@@ -79,6 +79,10 @@ function log(level: Level, message: string, ...args: unknown[]) {
   if (isTest) {
     const hasArgs = Array.isArray(args) && args.length > 0;
     const output = hasArgs ? `${message} ${JSON.stringify(args)}` : message;
+    // Note: Some tests spy on console.debug while others spy on console.log.
+    // To avoid brittle tests and missed assertions, we intentionally emit
+    // debug-level messages to BOTH console.debug and console.log in test mode.
+    // For warn/error, we use their respective streams for accuracy.
     if (level === 'error') {
       console.error(output);
     } else if (level === 'warn') {
