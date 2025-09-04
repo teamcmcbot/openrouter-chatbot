@@ -271,7 +271,7 @@ async function syncHandler(request: NextRequest, authContext: AuthContext): Prom
 
   } catch (error) {
   logger.error('Sync endpoint error:', error);
-  return handleError(error, requestId);
+  return handleError(error, requestId, '/api/chat/sync');
   }
 }
 
@@ -508,7 +508,7 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
 
   } catch (error) {
   logger.error('Get conversations error:', error);
-  return handleError(error, requestId);
+  return handleError(error, requestId, '/api/chat/sync');
   }
 }
 

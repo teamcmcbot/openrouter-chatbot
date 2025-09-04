@@ -112,7 +112,7 @@ async function getCostsHandler(req: NextRequest, auth: AuthContext) {
     }, { headers: { 'x-request-id': requestId } });
   } catch (err) {
     logger.error('usage.costs endpoint error', err);
-    return handleError(err, requestId);
+  return handleError(err, requestId, route);
   }
 }
 

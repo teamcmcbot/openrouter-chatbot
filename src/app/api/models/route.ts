@@ -226,7 +226,7 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
 
   } catch (error) {
     logger.error("Critical error in models API:", { error, requestId, route });
-    return handleError(error, requestId);
+  return handleError(error, requestId, route);
   }
 }
 

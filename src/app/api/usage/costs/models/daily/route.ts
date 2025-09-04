@@ -67,7 +67,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
     return buildResponse((viewRows||[]) as ViewRow[], range.start, range.end, topN, modelId, { requestId, route, t0 });
   } catch (err) {
     logger.error('usage.costs.models.daily.fail', { error: err, requestId, route });
-    return handleError(err, requestId);
+  return handleError(err, requestId, route);
   }
 }
 

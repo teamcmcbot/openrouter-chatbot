@@ -70,7 +70,7 @@ async function getSessionHandler(request: NextRequest, authContext: AuthContext)
 
   } catch (error) {
   logger.error('[GET] Get session error', { error, requestId });
-  return handleError(error, requestId);
+  return handleError(error, requestId, '/api/chat/session');
   }
 }
 
@@ -174,7 +174,7 @@ async function postSessionHandler(request: NextRequest, authContext: AuthContext
 
   } catch (error) {
   logger.error('[POST] Update session error', { error, requestId });
-  return handleError(error, requestId);
+  return handleError(error, requestId, '/api/chat/session');
   }
 }
 

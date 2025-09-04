@@ -87,7 +87,7 @@ async function getDailyHandler(req: NextRequest, auth: AuthContext) {
   return NextResponse.json(json, { headers });
   } catch (err) {
     logger.error('usage.costs.daily.fail', { error: err, requestId, route });
-    return handleError(err, requestId);
+  return handleError(err, requestId, route);
   }
 }
 

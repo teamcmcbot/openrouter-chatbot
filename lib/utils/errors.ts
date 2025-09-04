@@ -4,6 +4,9 @@ import type { NextResponse } from 'next/server';
 import { ApiError } from '../types';
 import { AuthErrorCode, AuthError } from '../types/auth';
 import { logger } from './logger';
+import { capture as sentryCapture } from './sentry';
+
+type ErrorContext = { model?: string };
 
 export enum ErrorCode {
   // Client Errors
@@ -96,9 +99,10 @@ export class ApiErrorResponse extends Error {
   }
 }
 
-export function handleError(error: unknown, requestId?: string): NextResponse<ApiError> {
+export function handleError(error: unknown, requestId?: string, route?: string, ctx?: ErrorContext): NextResponse<ApiError> {
   // Centralized error logging with optional correlation id
-  logger.error('[API_ERROR]', { error, requestId });
+  const eventId = sentryCapture(error, { requestId, route, model: ctx?.model });
+  logger.error('[API_ERROR]', { error, requestId, route, model: ctx?.model, ...(eventId ? { eventId } : {}) });
 
   let errorResponse: ApiError;
   let status: number;
@@ -153,7 +157,11 @@ export function handleError(error: unknown, requestId?: string): NextResponse<Ap
   // Return a standard Response in non-Next runtimes (e.g., unit tests)
   const res = new Response(JSON.stringify(errorResponse), {
     status,
-    headers: { 'Content-Type': 'application/json', ...(requestId ? { 'x-request-id': requestId } : {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(requestId ? { 'x-request-id': requestId } : {}),
+      ...(ctx?.model ? { 'X-Model': ctx.model } : {}),
+    },
   });
   return res as unknown as NextResponse<ApiError>;
 }

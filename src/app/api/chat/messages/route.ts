@@ -232,7 +232,7 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
 
   } catch (error) {
     logger.error('Get messages error:', { error, requestId });
-    return handleError(error, requestId);
+  return handleError(error, requestId, '/api/chat/messages');
   }
 }
 
@@ -568,7 +568,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
 
   } catch (error) {
     logger.error('Create message error:', { error, requestId });
-    return handleError(error, requestId);
+  return handleError(error, requestId, '/api/chat/messages');
   }
 }
 

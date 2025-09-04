@@ -66,7 +66,7 @@ async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): 
       headers: { 'Cache-Control': 'no-store', 'x-request-id': requestId },
     });
   } catch (error) {
-    return handleError(error, requestId);
+  return handleError(error, requestId, '/api/attachments/[id]/signed-url');
   }
 }
 

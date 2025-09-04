@@ -175,7 +175,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
     return res;
   } catch (err) {
     logger.error('admin.analytics.costs error', err, { requestId, route: '/api/admin/analytics/costs' });
-    return handleError(err, requestId);
+  return handleError(err, requestId, '/api/admin/analytics/costs');
   }
 }
 

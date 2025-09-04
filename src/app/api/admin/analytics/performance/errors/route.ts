@@ -62,7 +62,7 @@ async function handler(req: NextRequest, _auth: AuthContext) {
     return res;
   } catch (err) {
     logger.error('admin.analytics.performance.errors error', err, { requestId, route: '/api/admin/analytics/performance/errors' });
-    return handleError(err, requestId);
+  return handleError(err, requestId, '/api/admin/analytics/performance/errors');
   }
 }
 

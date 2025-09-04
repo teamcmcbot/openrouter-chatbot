@@ -72,7 +72,7 @@ async function generationHandler(
     return createSuccessResponse(data, 200, { 'x-request-id': requestId });
   } catch (error) {
     logger.error('Error fetching generation details:', error);
-    return handleError(error, requestId);
+  return handleError(error, requestId, '/api/generation/[id]');
   }
 }
 

@@ -152,7 +152,7 @@ async function uploadImageHandler(req: NextRequest, authContext: AuthContext): P
     }, { headers });
   } catch (error) {
     logger.error('uploads.images.fail', { error, requestId, route });
-    return handleError(error, requestId);
+  return handleError(error, requestId, route);
   }
 }
 

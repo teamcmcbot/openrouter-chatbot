@@ -211,7 +211,7 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
     const responseTime = Date.now() - startTime;
     logger.error('Error in admin sync endpoint:', error, { requestId });
     
-    const errorResponse = handleError(error, requestId);
+  const errorResponse = handleError(error, requestId, '/api/admin/sync-models');
     // Add custom headers to the error response
     errorResponse.headers.set('X-Response-Time', responseTime.toString());
     return errorResponse;
@@ -289,7 +289,7 @@ async function getSyncStatusHandler(request: NextRequest, authContext: AuthConte
     const responseTime = Date.now() - startTime;
     logger.error('Error in admin sync status endpoint:', error, { requestId });
     
-    const errorResponse = handleError(error, requestId);
+  const errorResponse = handleError(error, requestId, '/api/admin/sync-models');
     // Add custom headers to the error response
     errorResponse.headers.set('X-Response-Time', responseTime.toString());
     return errorResponse;

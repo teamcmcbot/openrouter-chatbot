@@ -86,7 +86,7 @@ async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContex
     return new NextResponse(null, { status: 204, headers: { 'x-request-id': requestId } });
   } catch (error) {
     logger.error('attachments.delete.fail', { error, requestId, route });
-    return handleError(error, requestId);
+  return handleError(error, requestId, route);
   }
 }
 

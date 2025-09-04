@@ -120,7 +120,7 @@ export const POST = withInternalAuth(async (): Promise<NextResponse> => {
   } catch (error) {
     const responseTime = Date.now() - start;
     logger.error('Error in internal sync endpoint:', error);
-    const err = handleError(error);
+  const err = handleError(error, undefined, '/api/internal/sync-models');
     err.headers.set('X-Response-Time', responseTime.toString());
     return err;
   }

@@ -78,7 +78,7 @@ async function clearAllHandler(request: NextRequest, authContext: AuthContext): 
 
   } catch (error) {
   logger.error('Clear all conversations error:', error);
-  return handleError(error, requestId);
+  return handleError(error, requestId, '/api/chat/clear-all');
   }
 }
 

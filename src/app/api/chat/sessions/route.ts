@@ -42,7 +42,7 @@ async function getSessionsHandler(request: NextRequest, authContext: AuthContext
 
   } catch (error) {
   logger.error('Get sessions error:', error);
-  return handleError(error, requestId);
+  return handleError(error, requestId, '/api/chat/sessions');
   }
 }
 
@@ -89,7 +89,7 @@ async function postSessionsHandler(request: NextRequest, authContext: AuthContex
 
   } catch (error) {
   logger.error('Create session error:', error);
-  return handleError(error, requestId);
+  return handleError(error, requestId, '/api/chat/sessions');
   }
 }
 
@@ -146,7 +146,7 @@ async function deleteSessionsHandler(request: NextRequest, authContext: AuthCont
 
   } catch (error) {
   logger.error('Delete session error:', error);
-  return handleError(error, requestId);
+  return handleError(error, requestId, '/api/chat/sessions');
   }
 }
 
