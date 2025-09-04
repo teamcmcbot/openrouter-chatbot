@@ -70,14 +70,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
   const streamingEnabled = Boolean(settings.getSetting('streamingEnabled', false));
   const streamingDebug = isStreamingDebugEnabled();
   
-  // console.log('🔴 STREAMING HOOK: streamingEnabled =', streamingEnabled);
-  
-  // Force debug alert to check if streaming is working
-  if (streamingEnabled) {
-    // console.log('🟢 STREAMING IS ENABLED - checking further');
-  } else {
-    // console.log('🔴 STREAMING IS DISABLED - will use non-streaming path');
-  }
+  // Debug markers removed; use logger + streamDebug when needed
   
   // Get user authentication for request context (used for authenticated features)
   const { isAuthenticated } = useAuth();
@@ -143,10 +136,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
     };
 
     if (streamingEnabled) {
-      if (streamingDebug) streamDebug('sendMessage: streaming path', { model, hasAttachments: !!options?.attachmentIds, web: options?.webSearch, max: options?.webMaxResults, effort: options?.reasoning?.effort });
-      // console.log('🟢 STREAMING PATH: Taking streaming path - should see more logs');
-      // Alert to force visibility
-      // console.log('🔴 ALERT: Streaming path activated!');
+  if (streamingDebug) streamDebug('sendMessage: streaming path', { model, hasAttachments: !!options?.attachmentIds, web: options?.webSearch, max: options?.webMaxResults, effort: options?.reasoning?.effort });
       
   // Streaming path
       setIsStreaming(true);
@@ -549,7 +539,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
         if (currentConv && currentConv.title === "New Chat" && currentConv.messages.length === 2) {
           const autoTitle = content.length > 50 ? content.substring(0, 50) + "..." : content;
           useChatStore.getState().updateConversationTitle(conversationId, autoTitle, true); // Mark as auto-generated
-          // console.log('🟢 STREAMING TITLE: Auto-generated title from user message:', autoTitle);
         }
 
         // Trigger database sync (same format as non-streaming implementation)
@@ -577,14 +566,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
           // Include title for newly titled conversations
           if (shouldIncludeTitle) {
             syncPayload.sessionTitle = updatedConv?.title;
-            // console.log('🟢 STREAMING SYNC: Including session title:', updatedConv?.title);
           } else {
-            // console.log('🟡 STREAMING SYNC: No title needed:', {
-            //   hasConv: !!updatedConv,
-            //   title: updatedConv?.title,
-            //   messageCount: updatedConv?.messages.length,
-            //   shouldInclude: shouldIncludeTitle
-            // });
+            // no title needed
           }
 
           // Only persist for authenticated users; skip for anonymous

@@ -4,6 +4,7 @@ import { withRedisRateLimitEnhanced } from "../../../../../lib/middleware/redisR
 import { logger } from "../../../../../lib/utils/logger";
 import { createClient as createServerSupabaseClient } from "../../../../../lib/supabase/server";
 import type { AuthContext } from "../../../../../lib/types/auth";
+import { deriveRequestIdFromHeaders } from "../../../../../lib/utils/headers";
 
 type CtaEvent = {
   event?: string; // default: 'cta_click'
@@ -14,18 +15,22 @@ type CtaEvent = {
 };
 
 async function ctaHandler(req: NextRequest, authContext: AuthContext) {
+  const route = "/api/analytics/cta";
+  const requestId = deriveRequestIdFromHeaders((req as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
+
   if (req.method !== "POST") {
-    return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
+    return NextResponse.json({ error: "Method not allowed" }, { status: 405, headers: { "x-request-id": requestId } });
   }
   let payload: CtaEvent | null = null;
   try {
     payload = (await req.json()) as CtaEvent;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: { "x-request-id": requestId } });
   }
 
   if (!payload || typeof payload.cta_id !== "string" || typeof payload.page !== "string") {
-    return NextResponse.json({ error: "Missing required fields: cta_id, page" }, { status: 400 });
+    return NextResponse.json({ error: "Missing required fields: cta_id, page" }, { status: 400, headers: { "x-request-id": requestId } });
   }
 
   const authFlag = !!authContext?.isAuthenticated && !!authContext?.user;
@@ -43,6 +48,8 @@ async function ctaHandler(req: NextRequest, authContext: AuthContext) {
     auth: authFlag,
     ip,
     meta: payload.meta,
+    requestId,
+    route,
   });
 
   // Persist to DB (best-effort, non-blocking response semantics)
@@ -59,13 +66,16 @@ async function ctaHandler(req: NextRequest, authContext: AuthContext) {
       p_meta: payload.meta ?? null,
     });
     if (error) {
-      logger.warn("CTA event DB insert failed", { error: String(error?.message || error) });
+      logger.warn("CTA event DB insert failed", { error: String(error?.message || error), requestId, route });
     }
   } catch (e) {
-    logger.warn("CTA event DB insert exception", { error: String(e) });
+    logger.warn("CTA event DB insert exception", { error: String(e), requestId, route });
   }
 
-  return NextResponse.json({ ok: true, auth: authFlag });
+  // Single INFO summary with duration (sample at logger level if needed)
+  logger.info("analytics.cta.request.end", { requestId, route, ctx: { durationMs: Date.now() - t0 } });
+
+  return NextResponse.json({ ok: true, auth: authFlag }, { headers: { "x-request-id": requestId } });
 }
 
 export const POST = withEnhancedAuth(

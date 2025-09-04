@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { ChevronDownIcon, UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
+import { logger } from '../../lib/utils/logger'
 
 export function UserMenu() {
   const { user, signOut } = useAuth()
@@ -29,7 +30,7 @@ export function UserMenu() {
       await signOut()
       setIsOpen(false)
     } catch (error) {
-      console.error('Sign out error:', error)
+  logger.error('auth.userMenu.signOut.failed', { err: (error as Error)?.message })
     }
   }
 

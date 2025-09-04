@@ -487,3 +487,133 @@ Inline mocks should be used for component-specific dependencies.
 ---
 
 _End of Copilot custom instructions._
+
+## 9. Logging & Observability Standards
+
+These rules keep production logs quiet, safe, and useful. Follow them for all new and changed code.
+
+### Core rules
+
+- Use the shared logger only
+
+  - Always use `lib/utils/logger.ts` for server/API logs. Do not call `console.*` in app code.
+  - Default levels: production → `warn` (WARN/ERROR only), development → `debug`.
+  - Respect `LOG_LEVEL=error|warn|info|debug`.
+
+- No `console.*` in app code
+
+  - UI/components/hooks/stores/lib/src/app: `console.*` is disallowed.
+  - Tests and scripts may use `console.*` freely.
+  - ESLint and CI should fail on new `console.*` usages outside `tests/**` and `scripts/**`.
+
+- Structured, minimal, privacy-safe
+
+  - Emit single-line JSON with: `ts`, `level`, `msg`, `requestId`, `route`, and a small `ctx` object.
+  - Do not log PII or sensitive data (no prompts, responses, headers, tokens, raw user IDs). Redact or omit.
+  - Cap context sizes; prefer booleans, enums, counts, and durations over payloads.
+
+- Request correlation
+
+  - Generate a `requestId` per request in API handlers and include it in all related logs.
+  - If practical, add `requestId` to response headers for cross-correlation during incident review.
+
+- Keep noise down; keep signal strong
+  - UI/stores: remove render-time and interaction breadcrumbs (“rendered”, “clicked”, etc.).
+  - Server/API: keep WARN/ERROR; INFO/DEBUG only when necessary and controllable via level or sampling.
+  - Delete commented-out debug prints instead of keeping them in code.
+
+### Streaming and token logs
+
+- Streaming traces
+
+  - Use `lib/utils/streamDebug.ts` for step-by-step streaming traces.
+  - Gate with `NEXT_PUBLIC_DEBUG_STREAMING` (or localStorage flag). Default off in production.
+
+- Token usage
+  - Collapse to a single INFO summary per request when helpful: `{ model, durationMs, inputTokens, outputTokens }`.
+  - Use sampling for hot paths in production (1–5% typical). Keep full details at `debug` level only.
+
+### Errors and operational events
+
+- Errors
+
+  - Log exactly one structured `logger.error` per failure with minimal context and `requestId`.
+  - Convert any `console.error` to `logger.error`. Avoid duplicate logs for the same error.
+
+- Operational warnings
+  - Use `logger.warn` for recoverable conditions (e.g., missing optional envs at cold start, transient rate-limit backoffs) with small context.
+
+### Optional integrations
+
+- Sentry (errors only)
+
+  - Use `@sentry/nextjs` for exception capture in production environments.
+  - Disable performance tracing by default; set `tracesSampleRate: 0` to control costs.
+  - Scrub sensitive data in `beforeSend`; do not attach prompts/responses/headers/tokens.
+  - In catch blocks, do both: `Sentry.captureException(err)` and `logger.error('event', err, { requestId, route, eventId })`.
+
+- HTTP log drain (server-only, optional)
+  - Support `LOG_HTTP_DRAIN_URL` and `LOG_HTTP_DRAIN_TOKEN` to forward sampled JSON logs from the server.
+  - Never forward from the browser. Always sample aggressively (e.g., ≤1% for INFO; ERROR can be unsampled).
+
+### Do / Don’t
+
+- Do
+
+  - Use levels consistently: ERROR for failures, WARN for recoverable, INFO for concise summaries, DEBUG for deep details.
+  - Include `requestId`, `route`, and small, redacted `ctx`.
+  - Prefer counts, durations, and flags over raw payloads.
+  - Use `streamDebug()` for chat streaming traces instead of ad-hoc logs.
+
+- Don’t
+  - Don’t log prompts, responses, headers, tokens, or full user identifiers.
+  - Don’t add `console.log` in components, stores, or server code.
+  - Don’t leave commented-out debug logs in the codebase.
+
+### Example patterns
+
+Server/API summary (sampled INFO):
+
+```ts
+// inside an API handler
+const t0 = Date.now();
+const requestId = crypto.randomUUID();
+// ... handler work ...
+logger.info("chat.request.end", {
+  requestId,
+  route: "/api/chat",
+  ctx: { model, durationMs: Date.now() - t0, inputTokens, outputTokens },
+});
+```
+
+Error with Sentry and logger:
+
+```ts
+try {
+  // ...
+} catch (err) {
+  const eventId = Sentry.captureException(err);
+  logger.error("chat.request.fail", err, {
+    requestId,
+    route: "/api/chat",
+    ctx: { eventId },
+  });
+  // ... return 500 ...
+}
+```
+
+Streaming debug (client or server):
+
+```ts
+import { streamDebug } from "@/lib/utils/streamDebug";
+streamDebug("delta", { chunkBytes: 128 }); // only prints when flag enabled
+```
+
+### PR checklist for logging
+
+- No new `console.*` in app code; tests/scripts only.
+- All server/API logs use `lib/utils/logger.ts` with structured JSON.
+- No sensitive data in logs; context is small and redacted.
+- Errors produce one `logger.error` with `requestId` (and Sentry event if enabled).
+- Streaming/token verbosity is gated behind flags and/or level. INFO summaries are sampled in prod.
+- ESLint passes `no-console` rule for app code; CI is green.

@@ -6,9 +6,12 @@ import { withProtectedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 import { handleError } from '../../../../../lib/utils/errors';
 
 async function clearAllHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = authContext;
@@ -29,11 +32,13 @@ async function clearAllHandler(request: NextRequest, authContext: AuthContext): 
     const sessionIds = userSessions?.map(session => session.id) || [];
 
     if (sessionIds.length === 0) {
+      const durationMs = Date.now() - t0;
+      logger.info('chat.clear-all.complete', { requestId, route: '/api/chat/clear-all', ctx: { deletedCount: 0, durationMs } });
       return NextResponse.json({
         success: true,
         message: 'No conversations to clear',
         deletedCount: 0
-      });
+      }, { headers: { 'x-request-id': requestId } });
     }
 
     // Delete all messages for the user's sessions
@@ -58,20 +63,22 @@ async function clearAllHandler(request: NextRequest, authContext: AuthContext): 
       throw sessionsError;
     }
 
+    const durationMs = Date.now() - t0;
     logger.info('All conversations cleared successfully', { 
-      userId: user!.id, 
-      deletedCount: sessionIds.length 
+      deletedCount: sessionIds.length,
+      requestId,
+      durationMs,
     });
 
     return NextResponse.json({
       success: true,
       message: 'All conversations cleared successfully',
       deletedCount: sessionIds.length
-    });
+    }, { headers: { 'x-request-id': requestId } });
 
   } catch (error) {
-    logger.error('Clear all conversations error:', error);
-    return handleError(error);
+  logger.error('Clear all conversations error:', error);
+  return handleError(error, requestId, '/api/chat/clear-all');
   }
 }
 

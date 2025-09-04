@@ -6,6 +6,7 @@ import { createClient } from '../lib/supabase/client';
 import { createDevtoolsOptions } from './storeUtils';
 import { STORAGE_KEYS } from '../lib/constants';
 import { AuthStore, AuthState } from './types/auth';
+import { logger } from '../lib/utils/logger';
 
 /**
  * Default state for auth store
@@ -60,7 +61,7 @@ export const useAuthStore = create<AuthStore>()(
       signInWithGoogle: async () => {
         try {
           set({ isLoading: true, error: null });
-          console.log('Starting Google sign-in...');
+          logger.info('auth.google.signIn.start');
           
           const supabase = createClient();
           const { data, error } = await supabase.auth.signInWithOAuth({
@@ -71,15 +72,15 @@ export const useAuthStore = create<AuthStore>()(
           });
 
           if (error) {
-            console.error('Google sign-in error:', error);
+            logger.error('auth.google.signIn.error', { error });
             set({ error: error.message, isLoading: false });
             throw error;
           } else {
-            console.log('Google sign-in initiated:', data);
+            logger.info('auth.google.signIn.initiated', { hasData: !!data });
             // Don't set isLoading to false here as we'll redirect
           }
         } catch (err) {
-          console.error('Unexpected error during sign-in:', err);
+          logger.error('auth.signIn.unexpected', { err });
           set({ 
             error: err instanceof Error ? err.message : 'An unexpected error occurred',
             isLoading: false 
@@ -91,13 +92,13 @@ export const useAuthStore = create<AuthStore>()(
       signOut: async () => {
         try {
           set({ isLoading: true, error: null });
-          console.log('Starting sign out...');
+          logger.info('auth.signOut.start');
           
           const supabase = createClient();
           const { error } = await supabase.auth.signOut();
           
           if (error) {
-            console.error('Sign out error:', error);
+            logger.error('auth.signOut.error', { error });
             set({ error: error.message, isLoading: false });
             throw error;
           }
@@ -108,12 +109,12 @@ export const useAuthStore = create<AuthStore>()(
           // Clear all other stores
           await get().clearAllStores();
           
-          console.log('Sign out completed');
+          logger.info('auth.signOut.completed');
           
           // Redirect to home page
           window.location.href = '/';
         } catch (err) {
-          console.error('Unexpected error during sign out:', err);
+          logger.error('auth.signOut.unexpected', { err });
           set({ 
             error: err instanceof Error ? err.message : 'An unexpected error occurred',
             isLoading: false 
@@ -130,7 +131,7 @@ export const useAuthStore = create<AuthStore>()(
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
           
           if (sessionError) {
-            console.error('Session error:', sessionError);
+            logger.error('auth.session.error', { sessionError });
             set({ error: sessionError.message, isInitialized: true });
             return;
           }
@@ -144,7 +145,7 @@ export const useAuthStore = create<AuthStore>()(
                 const maskedEmail = session?.user?.email
                   ? session.user.email.replace(/(.{2}).+(@.+)/, '$1***$2')
                   : undefined;
-                console.log('Auth state changed:', event, maskedEmail, 'at', new Date().toISOString());
+                logger.info('auth.state.changed', { event, maskedEmail: maskedEmail ?? null });
               
               get().setSession(session);
               
@@ -160,7 +161,7 @@ export const useAuthStore = create<AuthStore>()(
           // Return cleanup function
           return () => subscription.unsubscribe();
         } catch (err) {
-          console.error('Auth initialization error:', err);
+          logger.error('auth.initialize.error', { err });
           set({ 
             error: err instanceof Error ? err.message : 'Failed to initialize auth',
             isInitialized: true 
@@ -214,11 +215,11 @@ export const useAuthStore = create<AuthStore>()(
             'auth-store'
           ];
 
-          keysToRemove.forEach((key) => {
+      keysToRemove.forEach((key) => {
             try {
               localStorage.removeItem(key);
             } catch (error) {
-              console.warn(`Failed to remove localStorage key "${key}":`, error);
+        logger.warn('auth.clear.localStorage.remove.failed', { key, error });
             }
           });
 
@@ -237,12 +238,12 @@ export const useAuthStore = create<AuthStore>()(
               try { sessionStorage.removeItem(k); } catch {}
             });
           } catch (error) {
-            console.warn('Failed to clear sessionStorage items', error);
+            logger.warn('auth.clear.sessionStorage.failed', { error });
           }
 
-          console.log('All stores, localStorage, and sessionStorage cleared');
+          logger.info('auth.clear.completed');
         } catch (error) {
-          console.error('Error clearing stores:', error);
+          logger.error('auth.clear.error', { error });
         }
       },
 

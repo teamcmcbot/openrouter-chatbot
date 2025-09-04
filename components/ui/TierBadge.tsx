@@ -7,6 +7,7 @@ import { TIER_LABELS, TIER_LIMITS, TIER_FEATURES, Tier } from "../../lib/constan
 import { useAuth } from "../../stores/useAuthStore";
 import { createClient } from "../../lib/supabase/client";
 import { useHydration } from "../../hooks/useHydration";
+import { logger } from "../../lib/utils/logger";
 
 interface TierBadgeProps {
   tier: Tier | string; // tolerate unknown strings, fallback to gray style
@@ -55,7 +56,7 @@ export default function TierBadge({
           .single();
         
         if (error) {
-          console.warn('TierBadge: Failed to fetch account_type:', error.message);
+          logger.warn('ui.tierBadge.fetchAccountType.failed', { message: error.message });
           if (isMounted) setActualAccountType("user");
           return;
         }
@@ -64,7 +65,7 @@ export default function TierBadge({
           setActualAccountType((data?.account_type as "user" | "admin") || "user");
         }
       } catch (e) {
-        console.warn('TierBadge: Error checking account type:', e);
+        logger.warn('ui.tierBadge.fetchAccountType.exception', { err: (e as Error)?.message });
         if (isMounted) setActualAccountType("user");
       }
     }

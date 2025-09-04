@@ -9,6 +9,7 @@ import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimi
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { logger } from '../../../../../lib/utils/logger';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
 
 interface SyncResult {
@@ -71,8 +72,10 @@ interface DatabaseSession {
 }
 
 async function syncHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
-    logger.info('Chat sync request received', { userId: authContext.user?.id });
+  logger.debug('Chat sync request received', { userId: authContext.user?.id, requestId });
     
     const supabase = await createClient();
     const { user } = authContext;
@@ -251,10 +254,12 @@ async function syncHandler(request: NextRequest, authContext: AuthContext): Prom
       }
     }
 
+    const durationMs = Date.now() - t0;
     logger.info('Chat sync completed', {
       synced: syncResults.synced,
       errors: syncResults.errors,
-      userId: user?.id
+      requestId,
+      durationMs,
     });
 
     // Return sync results directly (not wrapped in data object) to match frontend expectations
@@ -262,17 +267,19 @@ async function syncHandler(request: NextRequest, authContext: AuthContext): Prom
       success: true,
       results: syncResults,
       syncTime: new Date().toISOString()
-    });
+    }, { headers: { 'x-request-id': requestId } });
 
   } catch (error) {
-    logger.error('Sync endpoint error:', error);
-    return handleError(error);
+  logger.error('Sync endpoint error:', error);
+  return handleError(error, requestId, '/api/chat/sync');
   }
 }
 
 async function getConversationsHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
-    logger.info('Get conversations request received', { userId: authContext.user?.id });
+  logger.debug('Get conversations request received', { userId: authContext.user?.id, requestId });
     
     const supabase = await createClient();
     const { user } = authContext;
@@ -485,21 +492,23 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
       ...(withTotal && totalCount !== null ? { totalCount: totalCount } : {}),
     };
 
+    const durationMs = Date.now() - t0;
     logger.info('Get conversations completed', {
       conversationCount: conversations.length,
       hasMore,
-      userId: user?.id
+      requestId,
+      durationMs,
     });
 
     return NextResponse.json({
       conversations,
       meta,
       syncTime: new Date().toISOString()
-    });
+    }, { headers: { 'x-request-id': requestId } });
 
   } catch (error) {
-    logger.error('Get conversations error:', error);
-    return handleError(error);
+  logger.error('Get conversations error:', error);
+  return handleError(error, requestId, '/api/chat/sync');
   }
 }
 

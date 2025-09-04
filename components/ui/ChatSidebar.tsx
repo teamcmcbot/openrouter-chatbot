@@ -10,6 +10,7 @@ import UserSettings from "./UserSettings";
 import { useChatStore } from "../../stores";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { formatConversationTimestamp } from "../../lib/utils/dateFormat";
+import { logger } from "../../lib/utils/logger";
 
 interface ChatSidebarProps {
   isOpen: boolean;
@@ -108,7 +109,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
       try {
         await updateConversationTitle(id, editTitle.trim());
       } catch (error) {
-        console.error('Failed to update conversation title:', error);
+  logger.warn('ui.sidebar.updateTitle.failed', { id, err: (error as Error)?.message });
         // Could show a toast notification here
       }
     }
@@ -126,7 +127,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
       await deleteConversation(id);
   toast.success('Conversation deleted successfully.');
     } catch (error) {
-      console.error('Failed to delete conversation:', error);
+  logger.warn('ui.sidebar.deleteConversation.failed', { id, err: (error as Error)?.message });
       alert('Failed to delete conversation. Please try again.');
     }
   };
@@ -148,7 +149,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     try {
       await clearAllConversations();
     } catch (error) {
-      console.error('Failed to clear all conversations:', error);
+  logger.warn('ui.sidebar.clearAll.failed', { err: (error as Error)?.message });
       alert('Failed to clear conversations. Please try again.');
     } finally {
       setShowConfirmModal(false);
@@ -561,7 +562,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
                     setEditingInSheet(false);
                     setSheetOpenFor(null);
                   } catch (err) {
-                    console.error('Failed to update conversation title:', err);
+                    logger.warn('ui.sidebar.sheet.updateTitle.failed', { id: sheetOpenFor, err: (err as Error)?.message });
                   }
                 }}
                 className="text-sm px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700"

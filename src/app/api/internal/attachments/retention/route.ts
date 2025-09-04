@@ -30,7 +30,7 @@ export const POST = withInternalCleanupAuth(async (req: NextRequest): Promise<Ne
     );
   } catch (error) {
     const responseTime = Date.now() - start;
-    const err = handleError(error);
+  const err = handleError(error, undefined, '/api/internal/attachments/retention');
     err.headers.set('X-Response-Time', responseTime.toString());
     return err;
   }

@@ -6,6 +6,7 @@ import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
 import { logger } from '../../../../../lib/utils/logger';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const BUCKET = 'attachments-images';
@@ -30,6 +31,9 @@ function getTierMaxBytes(tier: 'free' | 'pro' | 'enterprise'): number {
 }
 
 async function uploadImageHandler(req: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  const route = '/api/uploads/images';
+  const requestId = deriveRequestIdFromHeaders((req as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user, profile } = authContext;
@@ -126,24 +130,29 @@ async function uploadImageHandler(req: NextRequest, authContext: AuthContext): P
       throw new ApiErrorResponse('Failed to record attachment', ErrorCode.INTERNAL_SERVER_ERROR);
     }
 
-    logger.info('Image uploaded', {
+    logger.info('uploads.images.done', {
       userId: user.id,
       attachmentId: inserted.id,
       mime,
       size_bytes: size,
       session_id: sessionId,
       draft_id: draftId,
+      durationMs: Date.now() - t0,
+      requestId,
+      route,
     });
 
+  const headers = { 'x-request-id': requestId, 'X-Response-Time': String(Date.now() - t0) } as Record<string,string>;
     return NextResponse.json({
       id: inserted.id,
       mime,
       size,
       storagePath: path,
       originalName,
-    });
+    }, { headers });
   } catch (error) {
-    return handleError(error);
+    logger.error('uploads.images.fail', { error, requestId, route });
+  return handleError(error, requestId, route);
   }
 }
 

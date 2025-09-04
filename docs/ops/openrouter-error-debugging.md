@@ -39,3 +39,8 @@ You can query `GET https://openrouter.ai/api/v1/key` (auth required) to see cred
 ## Streaming edge cases
 
 If the HTTP status is 200 but the stream carries error events, check for `choices[0].error` fields in SSE chunks (future enhancement will log these automatically).
+
+## Headers for on-call correlation
+
+- `X-Request-ID`: Returned on error responses and visible in logs. Search this in Sentry to correlate.
+- `X-Model`: Returned by chat endpoints on both success and error. This value also appears as the `model` tag on Sentry events for `/api/chat` and `/api/chat/stream` failures.

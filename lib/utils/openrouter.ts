@@ -45,10 +45,10 @@ function loadRootSystemPrompt(brand: string): string {
       try {
         cachedRootPrompt = fs.readFileSync(abs, 'utf8');
       } catch (e) {
-        console.warn(`[rootPrompt] Failed to read file '${abs}', falling back to minimal prompt:`, (e as Error).message);
+        logger.warn(`[rootPrompt] Failed to read file '${abs}', falling back to minimal prompt:`, { message: (e as Error).message });
       }
     } else {
-      console.warn(`[rootPrompt] File '${abs}' not found. Falling back to minimal prompt.`);
+      logger.warn(`[rootPrompt] File '${abs}' not found. Falling back to minimal prompt.`);
     }
   }
   if (!cachedRootPrompt) {

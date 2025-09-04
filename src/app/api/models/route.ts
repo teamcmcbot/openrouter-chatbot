@@ -9,25 +9,30 @@ import { ModelInfo, ModelsResponse } from "../../../../lib/types/openrouter";
 import { AuthContext } from "../../../../lib/types/auth";
 import { withEnhancedAuth } from "../../../../lib/middleware/auth";
 import { withRedisRateLimitEnhanced } from "../../../../lib/middleware/redisRateLimitMiddleware";
+import { deriveRequestIdFromHeaders } from "../../../../lib/utils/headers";
 
 async function modelsHandler(request: NextRequest, authContext: AuthContext) {
+  const route = "/api/models";
+  const requestId = deriveRequestIdFromHeaders((request as unknown as { headers?: unknown })?.headers);
   const startTime = Date.now();
   // Log authentication context for monitoring (similar to chat endpoint)
   logger.info('Models request received', {
     isAuthenticated: authContext.isAuthenticated,
     userId: authContext.user?.id,
-    tier: authContext.profile?.subscription_tier
+    tier: authContext.profile?.subscription_tier,
+    requestId,
+    route,
   });
   try {
   // Enhanced-only endpoint: ignore any legacy query params
-  logger.info(`Models API called - Enhanced mode only`);
+  logger.info(`Models API called - Enhanced mode only`, { requestId, route });
 
     // Get allowed models from database (model_access) using latest schema
     const supabase = await createClient();
     
     // Determine user tier for query optimization
     const tier = authContext.profile?.subscription_tier || 'free';
-    logger.info(`User subscription tier: ${tier}`);
+    logger.info(`User subscription tier: ${tier}`, { requestId, route });
     
     // Build dynamic query based on subscription tier
     let query = supabase
@@ -87,7 +92,7 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
     const { data, error } = await query;
     
     if (error) {
-      logger.error('Error fetching models from database', error);
+      logger.error('Error fetching models from database', { error, requestId, route });
       throw error;
     }
     
@@ -127,7 +132,7 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
     };
     
     const allowedModels = (data as ModelRow[]) || [];
-    logger.info(`Allowed models for tier ${tier}: ${allowedModels.length}`);
+    logger.info(`Allowed models for tier ${tier}: ${allowedModels.length}`, { requestId, route });
 
     // Transform database rows to ModelInfo format for frontend
     // eslint-disable-next-line prefer-const
@@ -145,7 +150,9 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
           defaultModelId,
           totalAvailableModels: totalModels,
           userTier: authContext.profile?.subscription_tier,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          requestId,
+          route,
         });
 
         if (defaultModelId && typeof defaultModelId === 'string' && defaultModelId.length > 0) {
@@ -161,7 +168,9 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
                 newPosition: 0,
                 totalModels,
                 action: 'reordered',
-                performance: 'optimal'
+                performance: 'optimal',
+                requestId,
+                route,
               });
             }
           } else if (defaultModelIndex === 0) {
@@ -170,7 +179,9 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
               defaultModelId,
               position: 'first',
               action: 'no_change_required',
-              totalModels
+              totalModels,
+              requestId,
+              route,
             });
           } else {
             logger.warn('Default model not accessible to user', {
@@ -179,7 +190,9 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
               userTier: authContext.profile?.subscription_tier,
               totalAvailableModels: totalModels,
               action: 'model_not_found',
-              suggestion: 'user_should_update_default'
+              suggestion: 'user_should_update_default',
+              requestId,
+              route,
             });
           }
         }
@@ -187,6 +200,8 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
         logger.error('Default model prioritization failed', {
           userId: authContext.user?.id,
           error: error instanceof Error ? error.message : 'Unknown error',
+          requestId,
+          route,
         });
       }
     }
@@ -197,7 +212,7 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
 
     // Log metrics for monitoring
     const responseTime = Date.now() - startTime;
-    logger.info(`Models API response - Models: ${transformedModels.length}, Tier: ${tier}, Time: ${responseTime}ms, Source: database`);
+    logger.info(`Models API response - Models: ${transformedModels.length}, Tier: ${tier}, Time: ${responseTime}ms, Source: database`, { requestId, route });
 
     // Add headers for monitoring
     const headers = new Headers();
@@ -205,12 +220,13 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
     headers.set('X-Models-Count', transformedModels.length.toString());
     headers.set('X-User-Tier', tier);
     headers.set('X-Models-Source', 'database');
+    headers.set('x-request-id', requestId);
 
     return NextResponse.json(enhancedResponse, { headers });
 
   } catch (error) {
-    logger.error("Critical error in models API:", error);
-    return handleError(error);
+    logger.error("Critical error in models API:", { error, requestId, route });
+  return handleError(error, requestId, route);
   }
 }
 

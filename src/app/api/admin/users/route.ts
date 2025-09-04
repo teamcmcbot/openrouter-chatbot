@@ -4,6 +4,7 @@ import { withAdminAuth } from '../../../../../lib/middleware/auth';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { logger } from '../../../../../lib/utils/logger';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 type Tier = 'free' | 'pro' | 'enterprise';
 type AccountType = 'user' | 'admin';
@@ -24,17 +25,21 @@ const isRpcResponse = (val: unknown): val is { success?: boolean; error?: string
 
 // GET: list profiles with search, filters, pagination
 async function getHandler(req: NextRequest, _ctx: AuthContext) {
+  const t0 = Date.now();
+  const requestId = deriveRequestIdFromHeaders(req.headers);
   try {
     void _ctx;
     const { searchParams } = new URL(req.url);
     const meta = searchParams.get('meta');
 
     if (meta === 'filters') {
-      return NextResponse.json({
+  const resMeta = NextResponse.json({
         success: true,
         tiers: ['free', 'pro', 'enterprise'],
         account_types: ['user', 'admin'],
-      });
+  }, { headers: { 'x-request-id': requestId } });
+  logger.infoOrDebug('admin.users.meta.complete', { requestId, route: '/api/admin/users', ctx: { durationMs: Date.now() - t0 } });
+  return resMeta;
     }
 
     const q = (searchParams.get('q') || '').trim();
@@ -74,20 +79,26 @@ async function getHandler(req: NextRequest, _ctx: AuthContext) {
     ]);
 
     if (error) {
-      logger.error('Error fetching profiles', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      logger.error('Error fetching profiles', error, { requestId, route: '/api/admin/users' });
+      return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: { 'x-request-id': requestId } });
     }
 
     const totalCount = totalCountRes.count ?? null;
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       items: (data || []) as UserRow[],
       totalCount,
       filteredCount: filteredCount ?? (data?.length || 0),
+    }, { headers: { 'x-request-id': requestId } });
+    logger.infoOrDebug('admin.users.get.complete', {
+      requestId,
+      route: '/api/admin/users',
+      ctx: { durationMs: Date.now() - t0, count: data?.length || 0 }
     });
+    return res;
   } catch (err) {
-    logger.error('Unhandled GET /admin/users error', err);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    logger.error('Unhandled GET /admin/users error', err, { requestId, route: '/api/admin/users' });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: { 'x-request-id': requestId } });
   }
 }
 
@@ -100,12 +111,14 @@ type UpdateItem = {
 
 // PATCH: batch update tier, account_type, or credits
 async function patchHandler(req: NextRequest, ctx: AuthContext) {
+  const t0 = Date.now();
+  const requestId = deriveRequestIdFromHeaders(req.headers);
   try {
   // actor context available via withAdminAuth
     const body = (await req.json()) as { updates?: UpdateItem[] } | null;
     const updates = body?.updates;
     if (!updates || !Array.isArray(updates) || updates.length === 0) {
-      return NextResponse.json({ success: false, error: 'No updates provided' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'No updates provided' }, { status: 400, headers: { 'x-request-id': requestId } });
     }
 
     const supabase = await createClient();
@@ -193,10 +206,15 @@ async function patchHandler(req: NextRequest, ctx: AuthContext) {
       logger.warn('Audit log write failed for /admin/users PATCH', auditErr);
     }
     const status = okCount === results.length ? 200 : okCount > 0 ? 207 : 400;
-    return NextResponse.json({ success: okCount > 0, results }, { status });
+    logger.infoOrDebug('admin.users.patch.complete', {
+      requestId,
+      route: '/api/admin/users',
+      ctx: { durationMs: Date.now() - t0, okCount, total: results.length }
+    });
+    return NextResponse.json({ success: okCount > 0, results }, { status, headers: { 'x-request-id': requestId } });
   } catch (err) {
-    logger.error('Unhandled PATCH /admin/users error', err);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    logger.error('Unhandled PATCH /admin/users error', err, { requestId, route: '/api/admin/users' });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: { 'x-request-id': requestId } });
   }
 }
 

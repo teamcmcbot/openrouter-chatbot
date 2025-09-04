@@ -20,8 +20,8 @@ const eslintConfig = [
   {
     files: ["**/*.{ts,tsx,js,jsx}"],
     rules: {
-      // Enforce no console usage globally; allow only warn/error
-      "no-console": ["error", { allow: ["warn", "error"] }],
+      // Enforce no console usage globally in app code
+      "no-console": ["error"],
     },
   },
   // Allow console usage inside the logger implementation by design

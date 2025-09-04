@@ -5,8 +5,11 @@ import type { AuthContext } from '../../../../../../../lib/types/auth';
 import { withTieredRateLimit } from '../../../../../../../lib/middleware/redisRateLimitMiddleware';
 import { purgeStorageOnlyOrphans } from '../../../../../../../lib/services/attachmentsStorage';
 import { logger } from '../../../../../../../lib/utils/logger';
+import { deriveRequestIdFromHeaders } from '../../../../../../../lib/utils/headers';
 
 async function handler(req: NextRequest, ctx: AuthContext) {
+  const t0 = Date.now();
+  const requestId = deriveRequestIdFromHeaders(req.headers);
   try {
     const { searchParams } = new URL(req.url);
     const dryRun = searchParams.get('dryRun') === 'true' || searchParams.get('dry') === 'true' || req.method === 'GET';
@@ -14,14 +17,16 @@ async function handler(req: NextRequest, ctx: AuthContext) {
     const limit = Math.max(1, Math.min(2000, parseInt(searchParams.get('limit') || '500', 10)));
   const actor = ctx?.user?.id ?? 'unknown';
 
-    logger.info('Admin storage purge requested', { actor, dryRun, olderThanHours, limit, method: req.method });
+  logger.infoOrDebug('admin.attachments.storage.purge.start', { requestId, route: '/api/admin/attachments/storage/purge', ctx: { actor, dryRun, olderThanHours, limit, method: req.method } });
 
-  const result = await purgeStorageOnlyOrphans({ dryRun, olderThanHours, limit });
-  return NextResponse.json({ ...result, olderThanHours, limit });
+    const result = await purgeStorageOnlyOrphans({ dryRun, olderThanHours, limit });
+    const res = NextResponse.json({ ...result, olderThanHours, limit }, { headers: { 'x-request-id': requestId } });
+  logger.infoOrDebug('admin.attachments.storage.purge.complete', { requestId, route: '/api/admin/attachments/storage/purge', ctx: { durationMs: Date.now() - t0, dryRun, olderThanHours, limit, success: result.success } });
+    return res;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
-    logger.error('Admin storage purge failed', { error: msg });
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    logger.error('admin.attachments.storage.purge.fail', { requestId, route: '/api/admin/attachments/storage/purge', ctx: { error: msg } });
+    return NextResponse.json({ success: false, error: msg }, { status: 500, headers: { 'x-request-id': requestId } });
   }
 }
 

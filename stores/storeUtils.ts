@@ -3,6 +3,7 @@
 import { StateCreator } from 'zustand';
 import { PersistOptions } from 'zustand/middleware';
 import { STORE_CONFIG } from '../lib/constants';
+import { logger as appLogger } from '../lib/utils/logger';
 
 /**
  * Utility to check if code is running on server
@@ -23,7 +24,7 @@ export const safeLocalStorage = {
     try {
       return localStorage.getItem(key);
     } catch (error) {
-      console.warn(`Failed to get localStorage key "${key}":`, error);
+      appLogger.warn('localStorage.getItem.failed', { key, error });
       return null;
     }
   },
@@ -33,7 +34,7 @@ export const safeLocalStorage = {
     try {
       localStorage.setItem(key, value);
     } catch (error) {
-      console.warn(`Failed to set localStorage key "${key}":`, error);
+      appLogger.warn('localStorage.setItem.failed', { key, error });
     }
   },
   
@@ -42,7 +43,7 @@ export const safeLocalStorage = {
     try {
       localStorage.removeItem(key);
     } catch (error) {
-      console.warn(`Failed to remove localStorage key "${key}":`, error);
+      appLogger.warn('localStorage.removeItem.failed', { key, error });
     }
   },
 };
@@ -87,7 +88,7 @@ export const logger = <T>(
   config(
     (partial, replace) => {
       if (STORE_CONFIG.DEVTOOLS_ENABLED) {
-        console.log('Store action:', { partial, replace });
+        appLogger.debug('store.action', { partial, replace });
       }
       if (replace === true) {
         set(partial as T, true);
@@ -139,26 +140,24 @@ export const createLogger = (storeName: string) => {
   const shouldLog = (lvl: LogLevel) => levelRank[lvl] >= levelRank[getCurrentLevel()];
 
   return {
-    debug: (message: string, data?: unknown) => {
+  debug: (message: string, data?: unknown) => {
       if (shouldLog('debug')) {
-  // eslint-disable-next-line no-console
-        console.debug(`[${storeName}]`, message, data);
+    appLogger.debug('store.debug', { store: storeName, message, data });
       }
     },
     info: (message: string, data?: unknown) => {
       if (shouldLog('info')) {
-  // eslint-disable-next-line no-console
-        console.info(`[${storeName}]`, message, data);
+    appLogger.info('store.info', { store: storeName, message, data });
       }
     },
     warn: (message: string, data?: unknown) => {
       if (shouldLog('warn')) {
-        console.warn(`[${storeName}]`, message, data);
+    appLogger.warn('store.warn', { store: storeName, message, data });
       }
     },
     error: (message: string, data?: unknown) => {
       if (shouldLog('error')) {
-        console.error(`[${storeName}]`, message, data);
+    appLogger.error('store.error', { store: storeName, message, data });
       }
     },
   };

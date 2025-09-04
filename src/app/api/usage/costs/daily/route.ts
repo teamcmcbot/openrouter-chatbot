@@ -6,10 +6,29 @@ import { createClient } from '../../../../../../lib/supabase/server';
 import { parseQuery, round6 } from '../../../../../../lib/utils/usageCosts';
 import { logger } from '../../../../../../lib/utils/logger';
 import { handleError } from '../../../../../../lib/utils/errors';
+import { deriveRequestIdFromHeaders } from '../../../../../../lib/utils/headers';
 
 export const dynamic = 'force-dynamic';
 
+// Helper for test thenables (see usage/costs route)
+type ThenableResult<T> = { data: T[] | null; error: unknown };
+async function awaitSelect<T>(q: unknown): Promise<ThenableResult<T>> {
+  try {
+    const maybe = q as { then?: (cb: (arg: ThenableResult<T>) => void) => void } | undefined;
+    if (maybe && typeof maybe.then === 'function') {
+      return await new Promise<ThenableResult<T>>((resolve) => maybe.then!(resolve));
+    }
+    const fallback = (q as ThenableResult<T>) ?? ({ data: null, error: null } as ThenableResult<T>);
+    return fallback;
+  } catch (e) {
+    return { data: null, error: e } as ThenableResult<T>;
+  }
+}
+
 async function getDailyHandler(req: NextRequest, auth: AuthContext) {
+  const route = '/api/usage/costs/daily';
+  const requestId = deriveRequestIdFromHeaders((req as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     const supabase = await createClient();
     const { user } = auth;
@@ -26,7 +45,7 @@ async function getDailyHandler(req: NextRequest, auth: AuthContext) {
       .gte('message_timestamp', startISO)
       .lt('message_timestamp', endExclusive);
     if (modelId) base.eq('model_id', modelId);
-    const { data: rows, error } = await base;
+  const { data: rows, error } = await awaitSelect<{ message_timestamp: string; prompt_tokens: number; completion_tokens: number; total_tokens: number; total_cost: number; model_id: string | null }>(base);
     if (error) throw error;
 
     const dayMap: Record<string, { prompt: number; completion: number; total: number; cost: number; messages: number }> = {};
@@ -56,7 +75,7 @@ async function getDailyHandler(req: NextRequest, auth: AuthContext) {
         assistant_messages: v.messages
       }));
 
-    return NextResponse.json({
+    const json = {
       items,
       summary: {
         prompt_tokens: aggPrompt,
@@ -69,10 +88,25 @@ async function getDailyHandler(req: NextRequest, auth: AuthContext) {
         end: range.end.toISOString().slice(0,10),
         key: range.rangeKey
       }
+    };
+
+  const durationMs = Date.now() - t0;
+  const headers = { 'x-request-id': requestId, 'X-Response-Time': String(durationMs) } as Record<string,string>;
+  const maybe = logger as unknown as { infoOrDebug?: (msg: string, ...args: unknown[]) => void; debug: (msg: string, ...args: unknown[]) => void };
+  if (typeof maybe.infoOrDebug === 'function') {
+    maybe.infoOrDebug('usage.costs.daily.done', {
+      requestId,
+      route,
+      durationMs,
+      itemCount: items.length,
     });
+  } else {
+    logger.debug('usage.costs.daily.done', { requestId, route, durationMs, itemCount: items.length });
+  }
+  return NextResponse.json(json, { headers });
   } catch (err) {
-    logger.error('usage.costs.daily endpoint error', err);
-    return handleError(err);
+    logger.error('usage.costs.daily.fail', { error: err, requestId, route });
+  return handleError(err, requestId, route);
   }
 }
 

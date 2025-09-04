@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { logger } from "../../../lib/utils/logger";
 
 interface CustomCodeBlockProps {
   inline?: boolean;
@@ -115,7 +116,7 @@ export const CustomPreBlock = ({ children, ...props }: CustomPreBlockProps) => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error('Failed to copy text:', error);
+  logger.warn('copy.failed', { err: (error as Error)?.message });
     }
   };
 

@@ -6,6 +6,7 @@ import { createClient } from '../../../../../../lib/supabase/server';
 import { resolveDateRange } from '../../../../../../lib/utils/usageCosts';
 import { logger } from '../../../../../../lib/utils/logger';
 import { handleError } from '../../../../../../lib/utils/errors';
+import { deriveRequestIdFromHeaders } from '../../../../../../lib/utils/headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,8 @@ type GlobalCostRow = {
 function toISODate(d: Date): string { return d.toISOString().slice(0,10); }
 
 async function handler(req: NextRequest, auth: AuthContext) {
+  const t0 = Date.now();
+  const requestId = deriveRequestIdFromHeaders(req.headers);
   try {
     void auth;
     const supabase = await createClient();
@@ -143,7 +146,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
       anonMsgs += Number(r.assistant_messages || 0);
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       ok: true,
       range: { start: toISODate(range.start), end: toISODate(range.end), key: range.rangeKey },
       granularity: granularity,
@@ -162,10 +165,17 @@ async function handler(req: NextRequest, auth: AuthContext) {
           stacked_tokens: { models: topModels, days: anonTokenDays }
         }
       }
+    }, { headers: { 'x-request-id': requestId } });
+
+    logger.infoOrDebug('admin.analytics.costs.complete', {
+      requestId,
+      route: '/api/admin/analytics/costs',
+      ctx: { durationMs: Date.now() - t0, granularity, topModelsCount: topModels.length }
     });
+    return res;
   } catch (err) {
-    logger.error('admin.analytics.costs error', err);
-    return handleError(err);
+    logger.error('admin.analytics.costs error', err, { requestId, route: '/api/admin/analytics/costs' });
+  return handleError(err, requestId, '/api/admin/analytics/costs');
   }
 }
 

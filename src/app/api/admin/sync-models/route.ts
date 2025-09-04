@@ -7,6 +7,7 @@ import { handleError } from '../../../../../lib/utils/errors';
 import { withAdminAuth } from '../../../../../lib/middleware/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { AuthContext } from '../../../../../lib/types/auth';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 // Rate limiting configuration
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
@@ -20,9 +21,10 @@ const lastSyncAttempts = new Map<string, number>();
  */
 async function postSyncHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   const startTime = Date.now();
+  const requestId = deriveRequestIdFromHeaders(request.headers);
   
   try {
-    logger.info('Admin sync-models endpoint called');
+    logger.debug('admin.sync-models.post.start', { requestId });
     
     // Step 1: Check authentication (middleware already handles this)
     if (!authContext.isAuthenticated) {
@@ -33,14 +35,14 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
           code: 'UNAUTHORIZED',
           message: 'You must be signed in to access this endpoint'
         },
-        { status: 401 }
+        { status: 401, headers: { 'x-request-id': requestId } }
       );
     }
 
   // Step 2: Admin authorization handled by withAdminAuth middleware
 
     const userId = authContext.user!.id;
-    logger.info(`Admin sync request from user: ${userId}`);
+  logger.debug('admin.sync-models.post.actor', { requestId, userId });
 
     // Step 2: Rate limiting and cooldown check
     const now = Date.now();
@@ -51,7 +53,7 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
       const remainingCooldown = Math.ceil((SYNC_COOLDOWN_MS - timeSinceLastAttempt) / 1000);
       logger.warn(`Sync cooldown active for user ${userId}, ${remainingCooldown}s remaining`);
       
-      return NextResponse.json(
+  return NextResponse.json(
         {
           error: 'Rate limit exceeded',
           code: 'TOO_MANY_REQUESTS',
@@ -62,7 +64,8 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
           status: 429,
           headers: {
             'Retry-After': remainingCooldown.toString(),
-            'X-RateLimit-Reset': Math.ceil((now + (SYNC_COOLDOWN_MS - timeSinceLastAttempt)) / 1000).toString()
+    'X-RateLimit-Reset': Math.ceil((now + (SYNC_COOLDOWN_MS - timeSinceLastAttempt)) / 1000).toString(),
+    'x-request-id': requestId
           }
         }
       );
@@ -78,7 +81,7 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
           code: 'CONFLICT',
           message: 'A model synchronization is already in progress. Please wait for it to complete.'
         },
-        { status: 409 }
+        { status: 409, headers: { 'x-request-id': requestId } }
       );
     }
 
@@ -89,7 +92,7 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
     const lastSyncStatus = await modelSyncService.getLastSyncStatus();
 
     // Step 6: Trigger the sync
-    logger.info('Starting manual model sync');
+  logger.infoOrDebug('Starting manual model sync');
   const syncResult = await modelSyncService.syncModels(userId);
 
     const responseTime = Date.now() - startTime;
@@ -114,13 +117,15 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
       } catch (auditErr) {
         logger.warn('Audit log write failed for manual sync success', auditErr);
       }
-      logger.info(`Manual sync completed successfully in ${responseTime}ms`, {
+      logger.infoOrDebug('admin.sync-models.post.complete', {
+        requestId,
         syncLogId: syncResult.syncLogId,
         totalProcessed: syncResult.totalProcessed,
         modelsAdded: syncResult.modelsAdded,
         modelsUpdated: syncResult.modelsUpdated,
         modelsMarkedInactive: syncResult.modelsMarkedInactive,
-        userId
+        userId,
+        durationMs: responseTime
       });
 
       return NextResponse.json(
@@ -148,7 +153,8 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
           headers: {
             'X-Response-Time': responseTime.toString(),
             'X-Sync-Log-ID': syncResult.syncLogId,
-            'X-Models-Processed': syncResult.totalProcessed.toString()
+            'X-Models-Processed': syncResult.totalProcessed.toString(),
+            'x-request-id': requestId
           }
         }
       );
@@ -172,7 +178,8 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
       logger.error('Manual sync failed', {
         syncLogId: syncResult.syncLogId,
         errors: syncResult.errors,
-        userId
+        userId,
+        requestId
       });
 
       return NextResponse.json(
@@ -193,7 +200,8 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
           status: 500,
           headers: {
             'X-Response-Time': responseTime.toString(),
-            'X-Sync-Log-ID': syncResult.syncLogId
+      'X-Sync-Log-ID': syncResult.syncLogId,
+      'x-request-id': requestId
           }
         }
       );
@@ -201,9 +209,9 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
 
   } catch (error) {
     const responseTime = Date.now() - startTime;
-    logger.error('Error in admin sync endpoint:', error);
+    logger.error('Error in admin sync endpoint:', error, { requestId });
     
-    const errorResponse = handleError(error);
+  const errorResponse = handleError(error, requestId, '/api/admin/sync-models');
     // Add custom headers to the error response
     errorResponse.headers.set('X-Response-Time', responseTime.toString());
     return errorResponse;
@@ -218,11 +226,13 @@ async function postSyncHandler(request: NextRequest, authContext: AuthContext): 
  */
 async function getSyncStatusHandler(request: NextRequest, authContext: AuthContext): Promise<NextResponse> {
   const startTime = Date.now();
+  const requestId = deriveRequestIdFromHeaders(request.headers);
   
   try {
-    logger.info('Admin sync-models status endpoint called', {
+    logger.debug('admin.sync-models.get.start', {
       userId: authContext.user?.id,
-      url: request.url
+      url: request.url,
+      requestId
     });
     
   // Authorization is handled by withAdminAuth middleware; do not gate by subscription_tier here
@@ -235,7 +245,7 @@ async function getSyncStatusHandler(request: NextRequest, authContext: AuthConte
 
     const responseTime = Date.now() - startTime;
 
-    return NextResponse.json(
+  return NextResponse.json(
       {
         success: true,
         data: {
@@ -269,16 +279,17 @@ async function getSyncStatusHandler(request: NextRequest, authContext: AuthConte
         status: 200,
         headers: {
           'X-Response-Time': responseTime.toString(),
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'x-request-id': requestId
         }
       }
     );
 
   } catch (error) {
     const responseTime = Date.now() - startTime;
-    logger.error('Error in admin sync status endpoint:', error);
+    logger.error('Error in admin sync status endpoint:', error, { requestId });
     
-    const errorResponse = handleError(error);
+  const errorResponse = handleError(error, requestId, '/api/admin/sync-models');
     // Add custom headers to the error response
     errorResponse.headers.set('X-Response-Time', responseTime.toString());
     return errorResponse;

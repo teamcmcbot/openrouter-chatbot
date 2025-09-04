@@ -6,12 +6,15 @@ import { createClient } from '../../../../../../lib/supabase/server';
 import { resolveDateRange } from '../../../../../../lib/utils/usageCosts';
 import { logger } from '../../../../../../lib/utils/logger';
 import { handleError } from '../../../../../../lib/utils/errors';
+import { deriveRequestIdFromHeaders } from '../../../../../../lib/utils/headers';
 
 export const dynamic = 'force-dynamic';
 
 function toISODate(d: Date): string { return d.toISOString().slice(0,10); }
 
 async function handler(req: NextRequest, auth: AuthContext) {
+  const t0 = Date.now();
+  const requestId = deriveRequestIdFromHeaders(req.headers);
   try {
     void auth;
     const supabase = await createClient();
@@ -94,7 +97,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
   type AnonErrRow = { id: string };
   const anon_error_count = Array.isArray(anonErrorsCount.data) ? ((anonErrorsCount.data as unknown as AnonErrRow[]).length || 0) : 0;
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       ok: true,
       range: { start: toISODate(range.start), end: toISODate(range.end), key: range.rangeKey },
       overall: { avg_ms: overall_avg_ms, error_count },
@@ -103,10 +106,17 @@ async function handler(req: NextRequest, auth: AuthContext) {
         authenticated: { overall: { avg_ms: overall_avg_ms, error_count }, daily: series },
         anonymous: { overall: { avg_ms: anon_overall_avg_ms, error_count: anon_error_count }, daily: anonSeries }
       }
+    }, { headers: { 'x-request-id': requestId } });
+
+    logger.infoOrDebug('admin.analytics.performance.complete', {
+      requestId,
+      route: '/api/admin/analytics/performance',
+      ctx: { durationMs: Date.now() - t0, overall_avg_ms, error_count }
     });
+    return res;
   } catch (err) {
-    logger.error('admin.analytics.performance error', err);
-    return handleError(err);
+    logger.error('admin.analytics.performance error', err, { requestId, route: '/api/admin/analytics/performance' });
+  return handleError(err, requestId, '/api/admin/analytics/performance');
   }
 }
 

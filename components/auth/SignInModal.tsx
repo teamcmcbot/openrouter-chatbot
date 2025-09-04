@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import Button from '../ui/Button'
+import { logger } from '../../lib/utils/logger'
 
 interface SignInModalProps {
   isOpen: boolean
@@ -22,7 +23,7 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
       await signInWithGoogle()
       // Modal will close automatically when auth state changes
     } catch (error) {
-      console.error('Sign in error:', error)
+  logger.error('auth.modal.signIn.failed', { err: (error as Error)?.message })
       setLoading(false)
     }
   }

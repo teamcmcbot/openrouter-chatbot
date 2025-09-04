@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { createClient } from '../lib/supabase/client'
 import toast from 'react-hot-toast'
+import { logger } from '../lib/utils/logger'
 
 export function useAuthSuccessToast() {
   const [isClient, setIsClient] = useState(false)
@@ -26,13 +27,13 @@ export function useAuthSuccessToast() {
           const { data: { session }, error } = await supabase.auth.getSession()
           
           if (error) {
-            console.error('Error getting session:', error)
+            logger.warn('auth.toast.getSession.failed', { message: error.message })
           } else {
             setUser(session?.user || null)
           }
           setLoading(false)
         } catch (err) {
-          console.error('Error getting user:', err)
+          logger.warn('auth.toast.getUser.exception', { err: (err as Error)?.message })
           setLoading(false)
         }
       }

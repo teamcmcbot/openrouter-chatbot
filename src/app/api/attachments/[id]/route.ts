@@ -6,10 +6,14 @@ import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
 import { logger } from '../../../../../lib/utils/logger';
+import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 const BUCKET = 'attachments-images';
 
 async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContext): Promise<NextResponse> {
+  const route = '/api/attachments/[id]';
+  const requestId = deriveRequestIdFromHeaders((req as unknown as { headers?: unknown })?.headers);
+  const t0 = Date.now();
   try {
     if (req.method !== 'DELETE') {
       throw new ApiErrorResponse('Method not allowed', ErrorCode.METHOD_NOT_ALLOWED);
@@ -52,7 +56,7 @@ async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContex
 
     if (storageErr) {
       // Log but continue to mark DB as deleted for idempotency
-      logger.warn('Storage removal failed (continuing to soft-delete DB)', storageErr);
+      logger.warn('attachments.delete.storage_remove_fail', { error: storageErr, requestId, route });
     }
 
     // Soft-delete DB row
@@ -63,11 +67,11 @@ async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContex
       .eq('user_id', user.id);
 
     if (dbErr) {
-      logger.error('Failed to soft-delete attachment row', dbErr);
+      logger.error('attachments.delete.db_fail', { error: dbErr, requestId, route });
       throw new ApiErrorResponse('Failed to delete attachment', ErrorCode.INTERNAL_SERVER_ERROR);
     }
 
-    logger.info('Attachment deleted', {
+    logger.info('attachments.delete.done', {
       userId: user.id,
       attachmentId: id,
       mime: attachment.mime,
@@ -75,10 +79,14 @@ async function deleteAttachmentHandler(req: NextRequest, authContext: AuthContex
       session_id: attachment.session_id,
       message_id: attachment.message_id,
       draft_id: attachment.draft_id,
+      durationMs: Date.now() - t0,
+      requestId,
+      route,
     });
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, { status: 204, headers: { 'x-request-id': requestId } });
   } catch (error) {
-    return handleError(error);
+    logger.error('attachments.delete.fail', { error, requestId, route });
+  return handleError(error, requestId, route);
   }
 }
 

@@ -31,16 +31,19 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       requestId,
     });
   
+  // Track model for telemetry in error path
+  let modelTag: string | undefined;
   try {
     const body = await request.json();
     
     // Create request data structure for validation (same as non-streaming)
-    const requestData = {
+  const requestData = {
       messages: body.messages || [{ role: 'user', content: body.message }],
       model: body.model || process.env.OPENROUTER_API_MODEL || 'deepseek/deepseek-r1-0528:free',
       temperature: body.temperature,
       systemPrompt: body.systemPrompt
     };
+  modelTag = requestData.model;
 
     // Validate request with authentication context (same validation as non-streaming)
     const validation = validateChatRequestWithAuth(requestData, authContext);
@@ -59,7 +62,8 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     }
 
     // Use enhanced data with applied feature flags
-    const enhancedData = validation.enhancedData;
+  const enhancedData = validation.enhancedData;
+  modelTag = enhancedData.model || modelTag;
     
     logger.debug('Enhanced chat stream request data:', {
       model: enhancedData.model,
@@ -504,7 +508,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
 
   } catch (error) {
     logger.error('Error processing chat stream request:', { error, requestId });
-    return handleError(error, requestId);
+    return handleError(error, requestId, '/api/chat/stream', { model: modelTag });
   }
 }
 

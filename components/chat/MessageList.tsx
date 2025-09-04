@@ -21,6 +21,7 @@ import { fetchSignedUrl } from "../../lib/utils/signedUrlCache";
 import { sanitizeAttachmentName, fallbackImageLabel } from "../../lib/utils/sanitizeAttachmentName";
 import InlineAttachment from "./InlineAttachment";
 import { getDomainFromUrl, getFaviconUrl } from "../../lib/utils/url";
+import { logger } from "../../lib/utils/logger";
 
 // Memoized markdown component for better performance
 const MemoizedMarkdown = memo(({ children }: { children: string }) => (
@@ -94,7 +95,7 @@ export default function MessageList({
       setCopiedMessageId(messageId);
       setTimeout(() => setCopiedMessageId(null), 2000);
     } catch (error) {
-      console.error('Failed to copy message:', error);
+  logger.warn('message.copy.failed', { err: (error as Error)?.message, messageId });
     }
   };
 
@@ -186,7 +187,7 @@ export default function MessageList({
       const url = await fetchSignedUrl(attachmentId);
       setLightbox({ open: true, url, alt });
     } catch (e) {
-      console.warn('Failed to open image', e);
+  logger.warn('image.open.failed', { attachmentId, err: (e as Error)?.message });
     }
   };
 

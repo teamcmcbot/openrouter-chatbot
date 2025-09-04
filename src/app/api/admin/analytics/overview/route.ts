@@ -6,6 +6,7 @@ import { createClient } from '../../../../../../lib/supabase/server';
 import { resolveDateRange } from '../../../../../../lib/utils/usageCosts';
 import { logger } from '../../../../../../lib/utils/logger';
 import { handleError } from '../../../../../../lib/utils/errors';
+import { deriveRequestIdFromHeaders } from '../../../../../../lib/utils/headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,8 @@ type GlobalCostRow = {
 };
 
 async function handler(req: NextRequest, auth: AuthContext) {
+  const t0 = Date.now();
+  const requestId = deriveRequestIdFromHeaders(req.headers);
   try {
     void auth; // ensure param is considered used
     const supabase = await createClient();
@@ -132,7 +135,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
       supabase.from('v_model_counts_public').select('*').limit(1)
     ]);
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       ok: true,
       range: { start: toISODate(range.start), end: toISODate(range.end), key: range.rangeKey },
       totals: {
@@ -158,10 +161,33 @@ async function handler(req: NextRequest, auth: AuthContext) {
       },
       sync: (syncStatsRes.data && syncStatsRes.data[0]) || null,
       model_counts: (modelCountsRes.data && modelCountsRes.data[0]) || null
+    }, { headers: { 'x-request-id': requestId } });
+
+  // Guard logger.info for test mocks that omit it
+  const hasInfo = typeof (logger as { info?: unknown }).info === 'function';
+  if (hasInfo) (logger as unknown as { info: (msg: string, ctx?: unknown) => void }).info('admin.analytics.overview.complete', {
+      requestId,
+      route: '/api/admin/analytics/overview',
+      ctx: {
+        durationMs: Date.now() - t0,
+        users: totalUsers,
+        conversations: totalConversations,
+        messages: totalMessagesCount,
+      },
+  }); else logger.debug('admin.analytics.overview.complete', {
+      requestId,
+      route: '/api/admin/analytics/overview',
+      ctx: {
+        durationMs: Date.now() - t0,
+        users: totalUsers,
+        conversations: totalConversations,
+        messages: totalMessagesCount,
+      },
     });
+    return res;
   } catch (err) {
-    logger.error('admin.analytics.overview error', err);
-    return handleError(err);
+    logger.error('admin.analytics.overview error', err, { requestId, route: '/api/admin/analytics/overview' });
+  return handleError(err, requestId, '/api/admin/analytics/overview');
   }
 }
 
