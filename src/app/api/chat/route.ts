@@ -9,7 +9,7 @@ import { ChatResponse } from '../../../../lib/types';
 import extractOutputImageDataUrls from '../../../../lib/utils/parseOutputImages';
 import { OpenRouterRequest, OpenRouterContentBlock, OpenRouterUrlCitation } from '../../../../lib/types/openrouter';
 import { AuthContext } from '../../../../lib/types/auth';
-import { withEnhancedAuth } from '../../../../lib/middleware/auth';
+import { withAuth } from '../../../../lib/middleware/auth';
 import { withRedisRateLimitEnhanced } from '../../../../lib/middleware/redisRateLimitMiddleware';
 import { estimateTokenCount } from '../../../../lib/utils/tokens';
 import { getModelTokenLimits } from '../../../../lib/utils/tokens.server';
@@ -427,6 +427,8 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
 }
 
 // Apply enhanced authentication middleware with tiered rate limiting
-export const POST = withEnhancedAuth(
-  withRedisRateLimitEnhanced(chatHandler, { tier: "tierA" })
+// Explicitly enforce ban for chat execution regardless of query params
+export const POST = withAuth(
+  withRedisRateLimitEnhanced(chatHandler, { tier: "tierA" }),
+  { required: false, allowAnonymous: true, enforceBan: true }
 );

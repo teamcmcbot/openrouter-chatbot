@@ -18,6 +18,9 @@ type UserRow = {
   credits: number;
   last_active?: string | null;
   updated_at?: string | null;
+  // Ban fields
+  is_banned?: boolean;
+  banned_until?: string | null;
 };
 
 const isRpcResponse = (val: unknown): val is { success?: boolean; error?: string } =>
@@ -53,7 +56,7 @@ async function getHandler(req: NextRequest, _ctx: AuthContext) {
     let query = supabase
       .from('profiles')
       .select(
-        'id, email, full_name, subscription_tier, account_type, credits, last_active, updated_at',
+  'id, email, full_name, subscription_tier, account_type, credits, last_active, updated_at, is_banned, banned_until',
         { count: 'exact' }
       )
       .order('last_active', { ascending: false, nullsFirst: false });

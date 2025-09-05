@@ -1,6 +1,6 @@
 // src/app/api/attachments/[id]/signed-url/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { withProtectedAuth } from '../../../../../../lib/middleware/auth';
+import { withAuth } from '../../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../../lib/types/auth';
 import { createClient } from '../../../../../../lib/supabase/server';
@@ -70,6 +70,7 @@ async function getSignedUrlHandler(req: NextRequest, authContext: AuthContext): 
   }
 }
 
-export const GET = withProtectedAuth(
-  withTieredRateLimit(getSignedUrlHandler, { tier: 'tierB' })
+export const GET = withAuth(
+  withTieredRateLimit(getSignedUrlHandler, { tier: 'tierB' }),
+  { required: true, requireProfile: true, enforceBan: false }
 );

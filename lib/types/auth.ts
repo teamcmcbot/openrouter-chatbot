@@ -143,4 +143,6 @@ export interface AuthMiddlewareOptions {
   allowAnonymous?: boolean;
   requireProfile?: boolean;
   minimumTier?: UserProfile['subscription_tier'];
+  // When false, skip ban checks in middleware (useful for read-only endpoints)
+  enforceBan?: boolean;
 }
