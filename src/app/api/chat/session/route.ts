@@ -180,8 +180,10 @@ async function postSessionHandler(request: NextRequest, authContext: AuthContext
 
 // Apply middleware to handlers with TierC rate limiting
 export const GET = withProtectedAuth(
-  withTieredRateLimit(getSessionHandler, { tier: 'tierC' })
+  withTieredRateLimit(getSessionHandler, { tier: 'tierC' }),
+  { enforceBan: false }
 );
 export const POST = withProtectedAuth(
-  withTieredRateLimit(postSessionHandler, { tier: 'tierC' })
+  withTieredRateLimit(postSessionHandler, { tier: 'tierC' }),
+  { enforceBan: false }
 );

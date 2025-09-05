@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage, subscribeWithSelector, devtools } from 'zustand/middleware';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { ModelInfo } from '../lib/types/openrouter';
 import { ModelState, ModelSelectors, CachedModelData, isEnhancedModels } from './types/model';
 import { STORAGE_KEYS, CACHE_CONFIG } from '../lib/constants';
@@ -505,8 +505,11 @@ export const useModelData = () => {
   } = useModelStore();
 
   // Initialize models when hydrated (similar to the original useModelData behavior)
+  // Guard to avoid infinite retries when the fetch fails (e.g., banned users get 403)
+  const attemptedRef = React.useRef(false);
   useEffect(() => {
-    if (isHydrated && models.length === 0 && !isLoading) {
+    if (!attemptedRef.current && isHydrated && models.length === 0 && !isLoading) {
+      attemptedRef.current = true;
       logger.info('Initializing model data on mount');
       fetchModels();
     }
@@ -549,8 +552,10 @@ export const useModelSelection = () => {
   } = useModelStore();
 
   // Auto-fetch models when hydrated (similar to useModelData behavior)
+  const attemptedRef = React.useRef(false);
   useEffect(() => {
-    if (isHydrated && availableModels.length === 0 && !isLoading) {
+    if (!attemptedRef.current && isHydrated && availableModels.length === 0 && !isLoading) {
+      attemptedRef.current = true;
       logger.info('Initializing model data on mount');
       fetchModels();
     }

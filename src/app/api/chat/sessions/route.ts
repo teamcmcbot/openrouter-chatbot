@@ -152,11 +152,14 @@ async function deleteSessionsHandler(request: NextRequest, authContext: AuthCont
 
 // Apply middleware to handlers with TierC rate limiting
 export const GET = withProtectedAuth(
-  withTieredRateLimit(getSessionsHandler, { tier: 'tierC' })
+  withTieredRateLimit(getSessionsHandler, { tier: 'tierC' }),
+  { enforceBan: false }
 );
 export const POST = withProtectedAuth(
-  withTieredRateLimit(postSessionsHandler, { tier: 'tierC' })
+  withTieredRateLimit(postSessionsHandler, { tier: 'tierC' }),
+  { enforceBan: false }
 );
 export const DELETE = withProtectedAuth(
-  withTieredRateLimit(deleteSessionsHandler, { tier: 'tierC' })
+  withTieredRateLimit(deleteSessionsHandler, { tier: 'tierC' }),
+  { enforceBan: false }
 );

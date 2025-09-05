@@ -18,6 +18,7 @@ import { Bars3Icon } from "@heroicons/react/24/outline";
 import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
 import TierBadge from "../ui/TierBadge";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useChatStreaming } from "../../hooks/useChatStreaming";
 
 export default function ChatInterface() {
@@ -182,6 +183,12 @@ export default function ChatInterface() {
   const accountType = isAuthenticated ? (userData?.profile.account_type || 'user') : 'user';
   // Tier label now rendered by TierBadge
 
+  // Banned detection: permanent or temporary until future time
+  const isTempBanned = !!userData?.profile.banned_until && new Date(userData.profile.banned_until).getTime() > Date.now();
+  const isBanned = Boolean(userData?.profile.is_banned) || isTempBanned;
+  const banReason = userData?.profile.ban_reason || null;
+  const bannedUntil = userData?.profile.banned_until || null;
+
   // Determine if the last failed message should show a retry action
   const shouldShowRetry = (() => {
     if (!lastFailedUserMessage) return false;
@@ -293,6 +300,28 @@ export default function ChatInterface() {
           </div>
         </div>
 
+        {/* Banned account banner */}
+        {isAuthenticated && isBanned && (
+          <div className="px-4 sm:px-6 pt-3">
+            <div className="rounded-lg border border-red-300 bg-red-50/90 dark:border-red-700/60 dark:bg-red-900/30 p-3">
+              <div className="flex items-start gap-2 text-sm text-red-800 dark:text-red-200">
+                <InformationCircleIcon className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <div className="font-semibold">Your account is banned. You can still browse chat history but cannot send messages.</div>
+                  <div className="mt-0.5">
+                    {banReason && (<span>Reason: {banReason}. </span>)}
+                    {bannedUntil ? (
+                      <span>Ban ends {new Date(bannedUntil).toLocaleString()}.</span>
+                    ) : (
+                      <span>This ban is currently in effect.</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Messages Container */}
   <div className="flex-1 min-h-0">
           <MessageList 
@@ -338,7 +367,8 @@ export default function ChatInterface() {
               sendMessage(message, selectedModel, options);
               setSelectedPrompt(""); // Clear the selected prompt after sending
             }}
-            disabled={isLoading}
+            isSending={isLoading}
+            disabled={isLoading || (isAuthenticated && isBanned)}
             initialMessage={selectedPrompt}
             onOpenModelSelector={(preset) => {
               setModelDropdownPreset(preset ?? 'all');

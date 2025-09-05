@@ -61,8 +61,10 @@ export function withAuth<T extends NextRequest>(
         return handleAuthError(authError);
       }
 
-      // Ban enforcement (after profile fetch). If authenticated with profile, block banned users.
-      if (authContext.isAuthenticated && authContext.profile) {
+  // Ban enforcement (after profile fetch). If authenticated with profile, block banned users.
+  // Allow per-route override via options.enforceBan (default false)
+  const enforceBan = options.enforceBan !== undefined ? options.enforceBan : false;
+  if (enforceBan && authContext.isAuthenticated && authContext.profile) {
         const userId = authContext.user!.id;
         const profile = authContext.profile;
 
@@ -160,11 +162,15 @@ export function withAuth<T extends NextRequest>(
  * Middleware for protected endpoints (requires authentication)
  */
 export function withProtectedAuth<T extends NextRequest>(
-  handler: (req: T, context: AuthContext) => Promise<NextResponse>
+  handler: (req: T, context: AuthContext) => Promise<NextResponse>,
+  options?: { enforceBan?: boolean }
 ) {
+  // Default: enforce bans for protected routes; allow per-route override
+  const enforceBan = options?.enforceBan ?? true;
   return withAuth(handler, { 
     required: true, 
-    requireProfile: true 
+    requireProfile: true,
+    enforceBan,
   });
 }
 
@@ -176,7 +182,8 @@ export function withEnhancedAuth<T extends NextRequest>(
 ) {
   return withAuth(handler, { 
     required: false, 
-    allowAnonymous: true 
+    allowAnonymous: true,
+    enforceBan: false, // Enhanced endpoints typically read-only; allow access when banned unless overridden
   });
 }
 
@@ -190,7 +197,8 @@ export function withTierAuth<T extends NextRequest>(
   return withAuth(handler, { 
     required: true, 
     requireProfile: true,
-    minimumTier 
+  minimumTier,
+  enforceBan: true,
   });
 }
 
@@ -217,7 +225,7 @@ export function withAdminAuth<T extends NextRequest>(
     }
 
     return handler(req, context);
-  }, { required: true, requireProfile: true });
+  }, { required: true, requireProfile: true, enforceBan: true });
 }
 
 /**

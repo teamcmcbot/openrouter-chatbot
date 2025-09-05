@@ -16,12 +16,14 @@ import { MAX_MESSAGE_CHARS } from "../../lib/config/limits";
 interface MessageInputProps {
   onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => void
   disabled?: boolean;
+  // NEW: show spinner based on sending state while keeping button disabled
+  isSending?: boolean;
   initialMessage?: string;
   // Optional: allow parent to open the model selector with a preset filter (e.g., 'multimodal')
   onOpenModelSelector?: (presetFilter?: 'all' | 'free' | 'paid' | 'multimodal' | 'reasoning') => void;
 }
 
-export default function MessageInput({ onSendMessage, disabled = false, initialMessage, onOpenModelSelector }: Readonly<MessageInputProps>) {
+export default function MessageInput({ onSendMessage, disabled = false, isSending = false, initialMessage, onOpenModelSelector }: Readonly<MessageInputProps>) {
   const [message, setMessage] = useState("");
   const [showCount, setShowCount] = useState(false);
   const [liveMsg, setLiveMsg] = useState<string>(""); // for aria-live threshold announcements
@@ -58,6 +60,8 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const prevSelectedModelRef = useRef<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const { data: userData } = useUserData({ enabled: !!isAuthenticated });
+  const isTempBanned = !!userData?.profile?.banned_until && new Date(userData.profile.banned_until).getTime() > Date.now();
+  const isBanned = Boolean(userData?.profile?.is_banned) || isTempBanned;
   const userTier = (userData?.profile.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise';
   const isEnterprise = userTier === 'enterprise';
   type LocalAttachment = {
@@ -576,7 +580,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
             onPaste={handlePaste}
             onCompositionStart={() => (composingRef.current = true)}
             onCompositionEnd={() => (composingRef.current = false)}
-            placeholder="Type your message..."
+            placeholder={isBanned ? "You can't send messages while banned" : "Type your message..."}
             disabled={disabled}
             className="w-full px-3 py-2 bg-transparent border-0 outline-none resize-none focus:ring-0 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 disabled:cursor-not-allowed"
             rows={1}
@@ -798,7 +802,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
             aria-label="Send message"
             data-testid="send-button"
           >
-            {disabled ? (
+            {isSending ? (
               <ArrowPathIcon className="w-5 h-5 animate-spin" />
             ) : (
               <PaperAirplaneIcon className="w-5 h-5" />
