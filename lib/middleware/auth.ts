@@ -17,6 +17,10 @@ import {
 } from '../utils/errors';
 import { logger } from '../utils/logger';
 
+// Default behavior for ban enforcement in base auth middleware.
+// Protected/tier/admin wrappers override this to true by default where appropriate.
+const DEFAULT_ENFORCE_BAN = false;
+
 /**
  * Authentication middleware for API routes
  */
@@ -62,8 +66,8 @@ export function withAuth<T extends NextRequest>(
       }
 
   // Ban enforcement (after profile fetch). If authenticated with profile, block banned users.
-  // Allow per-route override via options.enforceBan (default false)
-  const enforceBan = options.enforceBan !== undefined ? options.enforceBan : false;
+  // Allow per-route override via options.enforceBan (default DEFAULT_ENFORCE_BAN)
+  const enforceBan = options.enforceBan ?? DEFAULT_ENFORCE_BAN;
   if (enforceBan && authContext.isAuthenticated && authContext.profile) {
         const userId = authContext.user!.id;
         const profile = authContext.profile;
@@ -97,7 +101,10 @@ export function withAuth<T extends NextRequest>(
               updatedAt: new Date().toISOString(),
             });
           }
-        } catch {}
+        } catch (err) {
+          // Cache errors are non-fatal; continue with DB/profile fallback
+          logger.debug('Auth snapshot cache error (non-fatal)', { error: err instanceof Error ? err.message : String(err) });
+        }
 
         // Fallback check from profile itself (authoritative)
         const isTempBanned = !!profile.banned_until && new Date(profile.banned_until).getTime() > Date.now();
