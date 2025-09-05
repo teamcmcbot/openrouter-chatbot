@@ -10,6 +10,7 @@ import {
   extractAuthContext, 
   hasPermission 
 } from '../utils/auth';
+import { getAuthSnapshot, setAuthSnapshot } from '../utils/authSnapshot';
 import { 
   createAuthError, 
   handleAuthError 
@@ -58,6 +59,56 @@ export function withAuth<T extends NextRequest>(
         );
         
         return handleAuthError(authError);
+      }
+
+      // Ban enforcement (after profile fetch). If authenticated with profile, block banned users.
+      if (authContext.isAuthenticated && authContext.profile) {
+        const userId = authContext.user!.id;
+        const profile = authContext.profile;
+
+        // Try Redis auth snapshot
+        try {
+          const snap = await getAuthSnapshot(userId);
+          const nowMs = Date.now();
+          if (snap) {
+            const banned = snap.isBanned || (!!snap.bannedUntil && new Date(snap.bannedUntil).getTime() > nowMs);
+            if (banned) {
+              const authError = createAuthError(
+                AuthErrorCode.ACCOUNT_BANNED,
+                undefined,
+                undefined,
+                false,
+                'Contact support to appeal the ban'
+              );
+              return handleAuthError(authError);
+            }
+          } else {
+            // Cache miss: set snapshot from profile minimal fields
+            const tier = (profile.subscription_tier === 'pro' || profile.subscription_tier === 'enterprise') ? profile.subscription_tier : 'free';
+            const acct: 'user' | 'admin' | null = profile.account_type === 'admin' ? 'admin' : (profile.account_type === 'user' ? 'user' : null);
+            await setAuthSnapshot(userId, {
+              v: 1,
+              isBanned: !!profile.is_banned,
+              bannedUntil: profile.banned_until || null,
+              tier,
+              accountType: acct,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        } catch {}
+
+        // Fallback check from profile itself (authoritative)
+        const isTempBanned = !!profile.banned_until && new Date(profile.banned_until).getTime() > Date.now();
+        if (profile.is_banned || isTempBanned) {
+          const authError = createAuthError(
+            AuthErrorCode.ACCOUNT_BANNED,
+            undefined,
+            undefined,
+            false,
+            'Contact support to appeal the ban'
+          );
+          return handleAuthError(authError);
+        }
       }
 
       // Check minimum tier requirement
