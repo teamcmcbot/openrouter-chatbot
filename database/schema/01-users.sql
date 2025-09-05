@@ -69,6 +69,14 @@ CREATE TABLE public.profiles (
     -- allowed_models column removed as per migration 05
 );
 
+-- Data integrity constraints for ban fields
+ALTER TABLE public.profiles
+    ADD CONSTRAINT chk_violation_strikes_nonnegative CHECK (violation_strikes >= 0);
+
+ALTER TABLE public.profiles
+    ADD CONSTRAINT chk_banned_until_after_banned_at
+    CHECK (banned_until IS NULL OR banned_at IS NULL OR banned_until > banned_at);
+
 -- User activity log for audit trail
 CREATE TABLE public.user_activity_log (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -414,11 +422,11 @@ BEGIN
     v_action := CASE WHEN p_until IS NULL THEN 'banned' ELSE 'temporary_ban' END;
 
     UPDATE public.profiles
-       SET is_banned = true,
-           banned_at = now(),
-           banned_until = p_until,
-           ban_reason = p_reason,
-           updated_at = now()
+       SET is_banned   = (p_until IS NULL), -- permanent bans set flag, temporary rely on banned_until
+           banned_at   = now(),
+           banned_until= p_until,
+           ban_reason  = p_reason,
+           updated_at  = now()
      WHERE id = p_user_id;
 
     GET DIAGNOSTICS v_updated = ROW_COUNT;
@@ -847,10 +855,12 @@ DECLARE
 BEGIN
     -- Get main profile data
     SELECT
-        id, email, full_name, avatar_url,
-        default_model, temperature, system_prompt, subscription_tier, credits,
-        ui_preferences, session_preferences,
-        created_at, updated_at, last_active, usage_stats
+    id, email, full_name, avatar_url,
+    default_model, temperature, system_prompt,
+    subscription_tier, account_type, credits,
+    is_banned, banned_at, banned_until, ban_reason, violation_strikes,
+    ui_preferences, session_preferences,
+    created_at, updated_at, last_active, usage_stats
     INTO profile_data
     FROM public.profiles
     WHERE id = user_uuid;
@@ -929,8 +939,14 @@ BEGIN
         'email', profile_data.email,
         'full_name', profile_data.full_name,
         'avatar_url', profile_data.avatar_url,
-        'subscription_tier', profile_data.subscription_tier,
-        'credits', profile_data.credits,
+    'subscription_tier', profile_data.subscription_tier,
+    'account_type', profile_data.account_type,
+    'credits', profile_data.credits,
+    'is_banned', profile_data.is_banned,
+    'banned_at', profile_data.banned_at,
+    'banned_until', profile_data.banned_until,
+    'ban_reason', profile_data.ban_reason,
+    'violation_strikes', profile_data.violation_strikes,
         'preferences', jsonb_build_object(
             'model', jsonb_build_object(
                 'default_model', profile_data.default_model,

@@ -10,6 +10,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import AttachmentTile, { type AttachmentData } from "./AttachmentTile";
 import toast from "react-hot-toast";
 import { useUserData } from "../../hooks/useUserData";
+import { useBanStatus } from "../../hooks/useBanStatus";
 import type { ModelInfo } from "../../lib/types/openrouter";
 import { MAX_MESSAGE_CHARS } from "../../lib/config/limits";
 
@@ -65,8 +66,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
   const prevSelectedModelRef = useRef<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const { data: userData } = useUserData({ enabled: !!isAuthenticated });
-  const isTempBanned = !!userData?.profile?.banned_until && new Date(userData.profile.banned_until).getTime() > Date.now();
-  const isBanned = Boolean(userData?.profile?.is_banned) || isTempBanned;
+  const { isBanned } = useBanStatus(userData?.profile);
   const userTier = (userData?.profile.subscription_tier || 'free') as 'free' | 'pro' | 'enterprise';
   const isEnterprise = userTier === 'enterprise';
   type LocalAttachment = {

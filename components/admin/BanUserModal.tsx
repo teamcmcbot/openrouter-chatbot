@@ -13,6 +13,7 @@ interface BanUserModalProps {
 // - Permanent ban OR temporary ban for N hours
 // - Reason is required (>= 3 chars)
 export default function BanUserModal({ isOpen, onClose, onConfirm }: Readonly<BanUserModalProps>) {
+  const MAX_BAN_HOURS = 24 * 365 * 5; // ~5 years
   const [mode, setMode] = useState<'perm' | 'hours'>('hours')
   const [hours, setHours] = useState<string>('24')
   const [reason, setReason] = useState<string>('')
@@ -29,8 +30,8 @@ export default function BanUserModal({ isOpen, onClose, onConfirm }: Readonly<Ba
   const validHours = useMemo(() => {
     if (mode !== 'hours') return true
     const n = parseInt(hours, 10)
-    return Number.isFinite(n) && n > 0 && n <= 24 * 365 * 5 // cap at ~5y
-  }, [mode, hours])
+  return Number.isFinite(n) && n > 0 && n <= MAX_BAN_HOURS // cap at ~5y
+  }, [mode, hours, MAX_BAN_HOURS])
 
   const isValid = useMemo(() => {
     const reasonOk = reason.trim().length >= 3

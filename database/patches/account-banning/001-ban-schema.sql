@@ -12,6 +12,37 @@ ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS ban_reason text,
   ADD COLUMN IF NOT EXISTS violation_strikes integer NOT NULL DEFAULT 0;
 
+-- Add check constraints for data integrity (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_namespace n ON n.oid = c.connamespace
+    WHERE c.conname = 'chk_violation_strikes_nonnegative'
+      AND n.nspname = 'public'
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT chk_violation_strikes_nonnegative
+      CHECK (violation_strikes >= 0);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_namespace n ON n.oid = c.connamespace
+    WHERE c.conname = 'chk_banned_until_after_banned_at'
+      AND n.nspname = 'public'
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT chk_banned_until_after_banned_at
+      CHECK (banned_until IS NULL OR banned_at IS NULL OR banned_until > banned_at);
+  END IF;
+END$$;
+
 -- Helpful indexes for admin queries and enforcement
 CREATE INDEX IF NOT EXISTS idx_profiles_is_banned_true
   ON public.profiles(is_banned) WHERE is_banned = true;
