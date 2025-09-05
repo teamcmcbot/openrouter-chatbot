@@ -464,4 +464,18 @@ This project is open source and available under the [MIT License](LICENSE).
 - **Deployment**: `docs/ops/` - Production deployment guides
 - **JWT Integration**: `docs/jwt/` - Authentication architecture
 
+Built with ❤️ using Next.js, TypeScript, and Tailwind CSS.
+
+### Documentation Highlights
+
+- Web Search (UX): `docs/components/chat/web-search.md`
+- Chat API (Web Search): `docs/api/chat.md`
+- Chat Sync API (citations): `docs/api/chat-sync.md`
+- Database (Web Search schema): `docs/database/web-search.md`
+- Cost Tracking (includes websearch): `docs/database/token-cost-tracking.md`
+
+## Recent Updates
+
+- Account Banning: see `docs/updates/account-banning-completion-summary.md` for implementation details and links.
+
 ---
