@@ -26,13 +26,22 @@ if (!g.__userDataCache) {
 if (!g.__userDataInFlight) {
   g.__userDataInFlight = new Map<string, Promise<UserDataResponse>>();
 }
+if (!g.__userDataTerminalError) {
+  g.__userDataTerminalError = new Map<string, { status: number; message: string }>();
+}
 const CACHE: Map<string, UserDataResponse> = g.__userDataCache as Map<string, UserDataResponse>;
 const IN_FLIGHT: Map<string, Promise<UserDataResponse>> = g.__userDataInFlight as Map<string, Promise<UserDataResponse>>;
+const TERMINAL_ERR: Map<string, { status: number; message: string }> = g.__userDataTerminalError as Map<string, { status: number; message: string }>;
 
 async function fetchUserDataShared(userId: string, opts?: { force?: boolean }): Promise<UserDataResponse> {
   const force = opts?.force === true;
 
   if (!force) {
+    // If we previously hit a terminal error (e.g., 403), don't refetch automatically
+    const terr = TERMINAL_ERR.get(userId);
+    if (terr) {
+      throw Object.assign(new Error(terr.message), { status: terr.status });
+    }
     const cached = CACHE.get(userId);
     if (cached) return cached;
   }
@@ -43,6 +52,8 @@ async function fetchUserDataShared(userId: string, opts?: { force?: boolean }): 
   const promise = (async () => {
     try {
       const result = await fetchUserData();
+      // Success clears any terminal error and updates cache
+      TERMINAL_ERR.delete(userId);
       CACHE.set(userId, result);
       return result;
     } finally {
@@ -71,6 +82,7 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
   const [error, setError] = useState<string | null>(null);
   const [lastFetchedUserId, setLastFetchedUserId] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);
+  // Track terminal errors per user via shared map; no local state required
 
   const fetchData = useCallback(async () => {
     if (!user?.id || !enabled) {
@@ -91,7 +103,7 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
     setLoading(true);
     setError(null);
 
-    try {
+  try {
       const currentUserId = user.id;
       
       // Only proceed if user hasn't changed during the async operation
@@ -108,9 +120,15 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
         setError(null);
       }
     } catch (err) {
+      const status = (err as { status?: number }).status;
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch user data';
       setError(errorMessage);
       setData(null);
+      if (typeof status === 'number' && (status === 401 || status === 403)) {
+        // Mark as terminal to avoid refetch storms until user/session changes
+  const terr = { status, message: errorMessage };
+  if (user?.id) TERMINAL_ERR.set(user.id, terr);
+      }
     } finally {
       setLoading(false);
       setIsFetching(false);
@@ -126,7 +144,7 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
     setRefreshing(true);
     setError(null);
 
-    try {
+  try {
       const currentUserId = user.id;
       
       // Only proceed if user hasn't changed during the async operation
@@ -144,8 +162,13 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
         setError(null);
       }
     } catch (err) {
+      const status = (err as { status?: number }).status;
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch user data';
       setError(errorMessage);
+      if (typeof status === 'number' && (status === 401 || status === 403)) {
+        const terr = { status, message: errorMessage };
+        if (user?.id) TERMINAL_ERR.set(user.id, terr);
+      }
     } finally {
       setRefreshing(false);
     }
@@ -199,6 +222,7 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
       // User is authenticated
       if (lastFetchedUserId !== currentUserId) {
         // User changed or first load - fetch data
+        TERMINAL_ERR.delete(currentUserId);
         fetchData();
       }
     } else {

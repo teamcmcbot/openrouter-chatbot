@@ -92,6 +92,12 @@ The application implements comprehensive Redis-based rate limiting:
 
 ## 📋 Recently Updated
 
+### Account Banning (Latest)
+
+- ✅ Chat-only ban policy with centralized enforcement and admin endpoints
+- 📄 Summary: [updates/account-banning-completion-summary.md](./updates/account-banning-completion-summary.md)
+- 🔐 Reference: [api/auth-middleware.md](./api/auth-middleware.md), [architecture/auth-snapshot-caching.md](./architecture/auth-snapshot-caching.md)
+
 ### Redis Rate Limiting Implementation (Latest)
 
 - ✅ **Architecture Documentation**: Complete technical overview with diagrams

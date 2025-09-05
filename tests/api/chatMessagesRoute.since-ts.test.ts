@@ -34,6 +34,7 @@ import type { NextRequest } from 'next/server';
 
 jest.mock('../../lib/middleware/auth', () => ({
   withProtectedAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
+  withAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
 }));
 
 const featureFlags: FeatureFlags = { canModifySystemPrompt: true, canAccessAdvancedModels: true, canUseCustomTemperature: true, canSaveConversations: true, canSyncConversations: true, maxRequestsPerHour: 1000, maxTokensPerRequest: 100000, hasRateLimitBypass: true, canUseProModels: true, canUseEnterpriseModels: false, showAdvancedSettings: true, canExportConversations: false, hasAnalyticsDashboard: false };

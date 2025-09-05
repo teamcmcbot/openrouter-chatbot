@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { coerceReasoningDetailsToArray } from '../../../../../lib/utils/reasoning';
 import { ChatMessage } from '../../../../../lib/types/chat';
 import type { OpenRouterUrlCitation } from '../../../../../lib/types/openrouter';
-import { withConversationOwnership } from '../../../../../lib/middleware/auth';
+import { withConversationOwnership, withAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { createClient } from '../../../../../lib/supabase/server';
@@ -516,6 +516,8 @@ async function getConversationsHandler(request: NextRequest, authContext: AuthCo
 export const POST = withConversationOwnership(
   withTieredRateLimit(syncHandler, { tier: 'tierC' })
 );
-export const GET = withConversationOwnership(
-  withTieredRateLimit(getConversationsHandler, { tier: 'tierC' })
+// Allow banned users to read their history; disable ban enforcement for GET
+export const GET = withAuth(
+  withTieredRateLimit(getConversationsHandler, { tier: 'tierC' }),
+  { required: true, requireProfile: true, enforceBan: false }
 );

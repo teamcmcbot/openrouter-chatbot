@@ -24,14 +24,20 @@ export async function fetchUserData(): Promise<UserDataResponse> {
 
   if (!response.ok) {
     let errorMessage = 'Failed to fetch user data';
+    let code: string | undefined;
     try {
       const errorData: UserDataError = await response.json();
       errorMessage = errorData.message || errorMessage;
+      // try to capture upstream code if shaped
+      // @ts-expect-error allow unknown shape
+      code = errorData.code || errorData.error || undefined;
     } catch {
       // If we can't parse error response, use default message
     }
-    
-    throw new Error(errorMessage);
+    const err = new Error(errorMessage) as Error & { status?: number; code?: string };
+    err.status = response.status;
+    if (code) err.code = code;
+    throw err;
   }
 
   return response.json();

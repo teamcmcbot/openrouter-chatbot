@@ -5,7 +5,7 @@ import { validateChatRequestWithAuth, validateRequestLimits } from '../../../../
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
 import { logger } from '../../../../../lib/utils/logger';
 import { AuthContext } from '../../../../../lib/types/auth';
-import { withEnhancedAuth } from '../../../../../lib/middleware/auth';
+import { withAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { estimateTokenCount } from '../../../../../lib/utils/tokens';
 import { getModelTokenLimits } from '../../../../../lib/utils/tokens.server';
@@ -513,6 +513,8 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
 }
 
 // Apply enhanced authentication middleware with TierA rate limiting (same as /api/chat)
-export const POST = withEnhancedAuth(
-  withTieredRateLimit(chatStreamHandler, { tier: "tierA" })
+// Explicitly enforce ban for streaming chat execution
+export const POST = withAuth(
+  withTieredRateLimit(chatStreamHandler, { tier: "tierA" }),
+  { required: false, allowAnonymous: true, enforceBan: true }
 );

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withProtectedAuth } from '../../../../../../../lib/middleware/auth';
+import { withAuth } from '../../../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../../../lib/types/auth';
 import { createClient } from '../../../../../../../lib/supabase/server';
@@ -123,6 +123,7 @@ function buildResponse(rows: ViewRow[], startDate: Date, endDate: Date, topN: nu
   return NextResponse.json(body, { headers });
 }
 
-export const GET = withProtectedAuth(
-  withTieredRateLimit(handler, { tier: 'tierC' })
+export const GET = withAuth(
+  withTieredRateLimit(handler, { tier: 'tierC' }),
+  { required: true, requireProfile: true, enforceBan: false }
 );

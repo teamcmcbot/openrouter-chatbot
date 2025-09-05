@@ -85,15 +85,16 @@
 
 ## Security & Compliance
 
-| Security Aspect       | Coverage    | Implementation                   |
-| --------------------- | ----------- | -------------------------------- |
-| **Authentication**    | ✅ Complete | Supabase session + Bearer tokens |
-| **Authorization**     | ✅ Complete | Tier-based access control        |
-| **Rate Limiting**     | ✅ Complete | Redis-based tiered limiting      |
-| **Input Validation**  | ✅ Complete | Server-side sanitization         |
-| **Content Filtering** | ✅ Complete | OpenRouter safety measures       |
-| **Error Handling**    | ✅ Complete | No sensitive data exposure       |
-| **Audit Logging**     | ✅ Complete | Comprehensive request tracking   |
+| Security Aspect       | Coverage    | Implementation                                                                                                                                                                                                                                       |
+| --------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Authentication**    | ✅ Complete | Supabase session + Bearer tokens                                                                                                                                                                                                                     |
+| **Authorization**     | ✅ Complete | Tier-based access control                                                                                                                                                                                                                            |
+| **Rate Limiting**     | ✅ Complete | Redis-based tiered limiting                                                                                                                                                                                                                          |
+| **Input Validation**  | ✅ Complete | Server-side sanitization                                                                                                                                                                                                                             |
+| **Content Filtering** | ✅ Complete | OpenRouter safety measures                                                                                                                                                                                                                           |
+| **Error Handling**    | ✅ Complete | No sensitive data exposure                                                                                                                                                                                                                           |
+| **Audit Logging**     | ✅ Complete | Comprehensive request tracking                                                                                                                                                                                                                       |
+| **Account Banning**   | ✅ Complete | Middleware enforcement + DB/Redis cache; see: [Account Banning – Completion Summary](./updates/account-banning-completion-summary.md), [Auth Middleware](./api/auth-middleware.md), [Auth Snapshot Caching](./architecture/auth-snapshot-caching.md) |
 
 ## Performance Characteristics
 

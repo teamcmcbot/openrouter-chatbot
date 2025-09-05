@@ -91,6 +91,7 @@ jest.mock("../../lib/utils/openrouter", () => {
 
 jest.mock("../../lib/middleware/auth", () => ({
   withEnhancedAuth: (handler: Handler) => (req: unknown) => handler(req, fakeAuthContext),
+  withAuth: (handler: Handler) => (req: unknown) => handler(req, fakeAuthContext),
 }));
 
 jest.mock("../../lib/middleware/redisRateLimitMiddleware", () => ({

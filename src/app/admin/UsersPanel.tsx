@@ -1,6 +1,11 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from '../../../hooks/useDebounce';
+import dynamic from 'next/dynamic';
+
+// Lazy-load the modal to keep admin panel light
+const BanUserModal = dynamic(() => import('../../../components/admin/BanUserModal'));
+const ConfirmModal = dynamic(() => import('../../../components/ui/ConfirmModal'));
 
 type Tier = 'free' | 'pro' | 'enterprise';
 type AccountType = 'user' | 'admin';
@@ -14,6 +19,8 @@ type UserRow = {
   credits: number;
   last_active?: string | null;
   updated_at?: string | null;
+  is_banned?: boolean;
+  banned_until?: string | null;
 };
 
 type ListResponse = { success: true; items: UserRow[]; totalCount?: number | null; filteredCount?: number | null } | { success: false; error: string };
@@ -181,6 +188,62 @@ export default function UsersPanel() {
     return { from, to };
   }, [offset, limit, counts.filtered, rows.length]);
 
+  // Ban/Unban helpers (minimal UI)
+  // removed old prompt-based banUser
+
+  const unbanUser = async (id: string) => {
+    setPendingUnban({ id });
+  };
+
+  // --- Ban/Unban modals state ---
+  const [pendingBan, setPendingBan] = useState<{ id: string } | null>(null);
+  const [pendingUnban, setPendingUnban] = useState<{ id: string } | null>(null);
+  const [unbanReason, setUnbanReason] = useState<string>('');
+
+  const openBan = (id: string) => setPendingBan({ id });
+  const closeBan = () => setPendingBan(null);
+
+  const submitBan = async (payload: { until: string | null; reason: string }) => {
+    if (!pendingBan) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${pendingBan.id}/ban`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || 'Failed to ban');
+      closeBan();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to ban');
+    } finally {
+      setLoading(false);
+      await load();
+    }
+  };
+
+  const submitUnban = async () => {
+    if (!pendingUnban) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${pendingUnban.id}/unban`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: unbanReason || null })
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || 'Failed to unban');
+      setPendingUnban(null);
+      setUnbanReason('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to unban');
+    } finally {
+      setLoading(false);
+      await load();
+    }
+  };
+
   return (
     <section className="space-y-3 border rounded-md p-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -332,10 +395,19 @@ export default function UsersPanel() {
                     }} />
                 </td>
                 <td className="px-3 py-2 text-xs text-gray-500">{row.last_active ? new Date(row.last_active).toLocaleString() : '—'}</td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 flex items-center gap-2">
                   <button className="px-2 py-1 rounded border text-xs hover:bg-gray-200 hover:text-gray-900 transition-colors" onClick={() => load()}>
                     Refresh
                   </button>
+                  {row.is_banned || (row.banned_until && new Date(row.banned_until).getTime() > Date.now()) ? (
+                    <button className="px-2 py-1 rounded bg-emerald-600 text-white text-xs disabled:opacity-50 hover:bg-emerald-700" onClick={() => unbanUser(row.id)}>
+                      Unban
+                    </button>
+                  ) : (
+                    <button className="px-2 py-1 rounded bg-red-600 text-white text-xs disabled:opacity-50 hover:bg-red-700" onClick={() => openBan(row.id)}>
+                      Ban
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -364,6 +436,32 @@ export default function UsersPanel() {
           </select>
         </div>
       </div>
+      {/* Modals */}
+      {pendingBan && (
+        <BanUserModal
+          isOpen={true}
+          onClose={() => setPendingBan(null)}
+          onConfirm={submitBan}
+        />
+      )}
+      {pendingUnban && (
+        <ConfirmModal
+          isOpen={true}
+          title="Unban user"
+          description="Provide an optional reason."
+          confirmText="Unban"
+          cancelText="Cancel"
+          onCancel={() => { setPendingUnban(null); setUnbanReason(''); }}
+          onConfirm={submitUnban}
+        >
+          <input
+            className="mt-2 w-full border rounded px-2 py-1 text-sm input-emerald-focus"
+            placeholder="Reason (optional)"
+            value={unbanReason}
+            onChange={(e) => setUnbanReason(e.target.value)}
+          />
+        </ConfirmModal>
+      )}
     </section>
   );
 }

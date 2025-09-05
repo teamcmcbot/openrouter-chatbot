@@ -28,6 +28,13 @@ CREATE TABLE public.profiles (
     account_type TEXT NOT NULL DEFAULT 'user' CHECK (account_type IN ('user','admin')),
     credits INTEGER DEFAULT 0 NOT NULL,
 
+    -- Moderation (ban) fields
+    is_banned BOOLEAN NOT NULL DEFAULT false,
+    banned_at TIMESTAMPTZ,
+    banned_until TIMESTAMPTZ,
+    ban_reason TEXT,
+    violation_strikes INTEGER NOT NULL DEFAULT 0,
+
     -- Activity tracking
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -62,6 +69,14 @@ CREATE TABLE public.profiles (
     -- allowed_models column removed as per migration 05
 );
 
+-- Data integrity constraints for ban fields
+ALTER TABLE public.profiles
+    ADD CONSTRAINT chk_violation_strikes_nonnegative CHECK (violation_strikes >= 0);
+
+ALTER TABLE public.profiles
+    ADD CONSTRAINT chk_banned_until_after_banned_at
+    CHECK (banned_until IS NULL OR banned_at IS NULL OR banned_until > banned_at);
+
 -- User activity log for audit trail
 CREATE TABLE public.user_activity_log (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -73,6 +88,17 @@ CREATE TABLE public.user_activity_log (
     timestamp TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     ip_address INET,
     user_agent TEXT
+);
+
+-- Moderation actions audit table (admin-only)
+CREATE TABLE public.moderation_actions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    action TEXT NOT NULL CHECK (action IN ('warned','banned','unbanned','temporary_ban')),
+    reason TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL
 );
 
 -- Daily usage tracking
@@ -115,11 +141,17 @@ CREATE INDEX idx_profiles_email ON public.profiles(email);
 CREATE INDEX idx_profiles_last_active ON public.profiles(last_active);
 CREATE INDEX idx_profiles_subscription_tier ON public.profiles(subscription_tier);
 CREATE INDEX idx_profiles_account_type_admin ON public.profiles(account_type) WHERE account_type = 'admin';
+-- Ban-related indexes
+CREATE INDEX idx_profiles_is_banned_true ON public.profiles(is_banned) WHERE is_banned = true;
+CREATE INDEX idx_profiles_banned_until ON public.profiles(banned_until) WHERE banned_until IS NOT NULL;
 
 -- Activity log indexes
 CREATE INDEX idx_activity_log_user_id ON public.user_activity_log(user_id);
 CREATE INDEX idx_activity_log_timestamp ON public.user_activity_log(timestamp);
 CREATE INDEX idx_activity_log_action ON public.user_activity_log(action);
+
+-- Moderation actions indexes
+CREATE INDEX idx_moderation_actions_user_date ON public.moderation_actions(user_id, created_at DESC);
 
 -- Usage tracking indexes
 CREATE INDEX idx_usage_daily_user_date ON public.user_usage_daily(user_id, usage_date DESC);
@@ -133,6 +165,7 @@ CREATE INDEX idx_usage_daily_date ON public.user_usage_daily(usage_date DESC);
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_activity_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_usage_daily ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.moderation_actions ENABLE ROW LEVEL SECURITY;
 
 -- Profile policies
 CREATE POLICY "Users can view their own profile" ON public.profiles
@@ -164,6 +197,16 @@ CREATE POLICY "Users can insert their own usage" ON public.user_usage_daily
 
 CREATE POLICY "Users can update their own usage" ON public.user_usage_daily
     FOR UPDATE USING (auth.uid() = user_id);
+
+-- Moderation actions policies (admins only)
+CREATE POLICY "Admins can view moderation actions" ON public.moderation_actions
+    FOR SELECT USING (public.is_admin(auth.uid()));
+
+CREATE POLICY "Admins can insert moderation actions" ON public.moderation_actions
+    FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
+
+CREATE POLICY "Admins can update moderation actions" ON public.moderation_actions
+    FOR UPDATE USING (public.is_admin(auth.uid())) WITH CHECK (public.is_admin(auth.uid()));
 
 -- =============================================================================
 -- UTILITY FUNCTIONS
@@ -237,6 +280,20 @@ AS $$
         WHERE id = p_user_id
             AND account_type = 'admin'
     );
+$$;
+
+-- Determine if a user is effectively banned (permanent or temporary)
+CREATE OR REPLACE FUNCTION public.is_banned(p_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT COALESCE(p.is_banned, false)
+           OR (p.banned_until IS NOT NULL AND p.banned_until > now())
+    FROM public.profiles p
+    WHERE p.id = p_user_id;
 $$;
 
 -- Enhanced profile sync function (handles both creation and updates)
@@ -342,6 +399,131 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Ban a user (permanent when p_until is null, temporary otherwise)
+CREATE OR REPLACE FUNCTION public.ban_user(
+    p_user_id uuid,
+    p_until timestamptz DEFAULT NULL,
+    p_reason text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_action text;
+    v_updated int := 0;
+BEGIN
+    -- Require admin unless running with elevated service role (auth.uid() is null in service contexts)
+    IF auth.uid() IS NOT NULL AND NOT public.is_admin(auth.uid()) THEN
+        RAISE EXCEPTION 'Admin privileges required' USING ERRCODE = '42501';
+    END IF;
+
+    v_action := CASE WHEN p_until IS NULL THEN 'banned' ELSE 'temporary_ban' END;
+
+    UPDATE public.profiles
+       SET is_banned   = (p_until IS NULL), -- permanent bans set flag, temporary rely on banned_until
+           banned_at   = now(),
+           banned_until= p_until,
+           ban_reason  = p_reason,
+           updated_at  = now()
+     WHERE id = p_user_id;
+
+    GET DIAGNOSTICS v_updated = ROW_COUNT;
+    IF v_updated = 0 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User not found');
+    END IF;
+
+    -- Write moderation action (admin audit)
+    INSERT INTO public.moderation_actions(user_id, action, reason, metadata, created_by)
+    VALUES (
+        p_user_id,
+        v_action,
+        p_reason,
+        jsonb_build_object('until', p_until),
+        auth.uid()
+    );
+
+    -- Write activity log (user-scoped audit trail)
+    PERFORM public.log_user_activity(
+        p_user_id,
+        'user_banned',
+        'profile',
+        p_user_id::text,
+        jsonb_build_object('until', p_until)
+    );
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'user_id', p_user_id,
+        'action', v_action,
+        'until', p_until,
+        'updated_at', now()
+    );
+END;
+$$;
+
+-- Unban a user
+CREATE OR REPLACE FUNCTION public.unban_user(
+    p_user_id uuid,
+    p_reason text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_updated int := 0;
+BEGIN
+    -- Require admin unless running with elevated service role
+    IF auth.uid() IS NOT NULL AND NOT public.is_admin(auth.uid()) THEN
+        RAISE EXCEPTION 'Admin privileges required' USING ERRCODE = '42501';
+    END IF;
+
+    UPDATE public.profiles
+       SET is_banned = false,
+           banned_until = NULL,
+           ban_reason = NULL,
+           updated_at = now()
+     WHERE id = p_user_id;
+
+    GET DIAGNOSTICS v_updated = ROW_COUNT;
+    IF v_updated = 0 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User not found');
+    END IF;
+
+    INSERT INTO public.moderation_actions(user_id, action, reason, metadata, created_by)
+    VALUES (
+        p_user_id,
+        'unbanned',
+        p_reason,
+        '{}'::jsonb,
+        auth.uid()
+    );
+
+    PERFORM public.log_user_activity(
+        p_user_id,
+        'user_unbanned',
+        'profile',
+        p_user_id::text,
+        '{}'::jsonb
+    );
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'user_id', p_user_id,
+        'action', 'unbanned',
+        'updated_at', now()
+    );
+END;
+$$;
+
+-- Execution grants
+GRANT EXECUTE ON FUNCTION public.is_banned(uuid) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ban_user(uuid, timestamptz, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.unban_user(uuid, text) TO authenticated;
+
 -- Function to manually sync profile data for existing users
 CREATE OR REPLACE FUNCTION public.sync_profile_from_auth(user_uuid UUID)
 RETURNS JSONB AS $$
@@ -428,6 +610,32 @@ BEGIN
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Hardening: prevent non-admins from editing ban columns directly via profile updates
+CREATE OR REPLACE FUNCTION public.protect_ban_columns()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    -- Service role (no auth.uid) bypasses; admins allowed
+    IF auth.uid() IS NULL OR public.is_admin(auth.uid()) THEN
+        RETURN NEW;
+    END IF;
+
+    -- If any ban-related column changed by a non-admin, block the update
+    IF (COALESCE(NEW.is_banned, false) IS DISTINCT FROM COALESCE(OLD.is_banned, false))
+         OR (NEW.banned_until IS DISTINCT FROM OLD.banned_until)
+         OR (NEW.banned_at IS DISTINCT FROM OLD.banned_at)
+         OR (NEW.ban_reason IS DISTINCT FROM OLD.ban_reason)
+    THEN
+        RAISE EXCEPTION 'Insufficient privileges to modify ban fields' USING ERRCODE = '42501';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
 
 -- Function to track user usage
 CREATE OR REPLACE FUNCTION public.track_user_usage(
@@ -647,10 +855,12 @@ DECLARE
 BEGIN
     -- Get main profile data
     SELECT
-        id, email, full_name, avatar_url,
-        default_model, temperature, system_prompt, subscription_tier, credits,
-        ui_preferences, session_preferences,
-        created_at, updated_at, last_active, usage_stats
+    id, email, full_name, avatar_url,
+    default_model, temperature, system_prompt,
+    subscription_tier, account_type, credits,
+    is_banned, banned_at, banned_until, ban_reason, violation_strikes,
+    ui_preferences, session_preferences,
+    created_at, updated_at, last_active, usage_stats
     INTO profile_data
     FROM public.profiles
     WHERE id = user_uuid;
@@ -729,8 +939,14 @@ BEGIN
         'email', profile_data.email,
         'full_name', profile_data.full_name,
         'avatar_url', profile_data.avatar_url,
-        'subscription_tier', profile_data.subscription_tier,
-        'credits', profile_data.credits,
+    'subscription_tier', profile_data.subscription_tier,
+    'account_type', profile_data.account_type,
+    'credits', profile_data.credits,
+    'is_banned', profile_data.is_banned,
+    'banned_at', profile_data.banned_at,
+    'banned_until', profile_data.banned_until,
+    'ban_reason', profile_data.ban_reason,
+    'violation_strikes', profile_data.violation_strikes,
         'preferences', jsonb_build_object(
             'model', jsonb_build_object(
                 'default_model', profile_data.default_model,
@@ -816,3 +1032,8 @@ CREATE TRIGGER update_profiles_updated_at
 CREATE TRIGGER on_auth_user_profile_sync
     AFTER INSERT OR UPDATE ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_user_profile_sync();
+
+-- Trigger to protect ban columns from non-admin updates
+CREATE TRIGGER trg_protect_ban_columns
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.protect_ban_columns();

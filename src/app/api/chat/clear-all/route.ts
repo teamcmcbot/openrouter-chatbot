@@ -84,5 +84,6 @@ async function clearAllHandler(request: NextRequest, authContext: AuthContext): 
 
 // Apply middleware to handler with TierC rate limiting
 export const DELETE = withProtectedAuth(
-  withTieredRateLimit(clearAllHandler, { tier: 'tierC' })
+  withTieredRateLimit(clearAllHandler, { tier: 'tierC' }),
+  { enforceBan: false }
 );

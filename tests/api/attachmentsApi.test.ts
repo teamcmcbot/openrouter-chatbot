@@ -102,6 +102,7 @@ import type { NextRequest } from 'next/server';
 jest.mock('../../lib/middleware/auth', () => ({
     withProtectedAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
     withEnhancedAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
+  withAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
     withTierAuth: (handler: any) => (req: any) => handler(req, currentAuthContext),
     withConversationOwnership: (handler: any) => (req: any) => handler(req, currentAuthContext),
     addRateLimitHeaders: (response: any, _authContext: any, remaining: number = 0) => {

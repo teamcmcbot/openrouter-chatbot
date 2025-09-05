@@ -52,6 +52,12 @@ export interface UserProfileData {
   account_type?: "user" | "admin";
   /** Available credits for paid models */
   credits: number;
+  /** Whether the account is currently banned (permanent flag) */
+  is_banned?: boolean;
+  /** When a temporary ban ends (null means not temp-banned; absent means unknown) */
+  banned_until?: string | null;
+  /** Optional ban reason to show to the user */
+  ban_reason?: string | null;
 }
 
 /**

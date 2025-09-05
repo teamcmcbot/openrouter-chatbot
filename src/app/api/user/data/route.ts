@@ -7,7 +7,7 @@ import {
   UserPreferencesUpdate, 
   UserDataError 
 } from '../../../../../lib/types/user-data';
-import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { withProtectedAuth, withAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
@@ -71,7 +71,10 @@ async function getUserDataHandler(request: NextRequest, authContext: AuthContext
         avatar_url: profileData.avatar_url || '',
         subscription_tier: profileData.subscription_tier || 'free',
         account_type: profileData.account_type || 'user',
-        credits: profileData.credits || 0
+  credits: profileData.credits || 0,
+  is_banned: !!profileData.is_banned,
+  banned_until: profileData.banned_until || null,
+  ban_reason: profileData.ban_reason || null
       },
       preferences: {
         ui: profileData.preferences?.ui || {},
@@ -255,7 +258,10 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
         avatar_url: updatedProfileData.avatar_url || '',
         subscription_tier: updatedProfileData.subscription_tier || 'free',
         account_type: updatedProfileData.account_type || 'user',
-        credits: updatedProfileData.credits || 0
+  credits: updatedProfileData.credits || 0,
+  is_banned: !!updatedProfileData.is_banned,
+  banned_until: updatedProfileData.banned_until || null,
+  ban_reason: updatedProfileData.ban_reason || null
       },
       preferences: {
         ui: updatedProfileData.preferences?.ui || {},
@@ -288,8 +294,10 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
 }
 
 // Apply middleware to handlers with TierB rate limiting (medium-cost database operations)
-export const GET = withProtectedAuth(
-  withTieredRateLimit(getUserDataHandler, { tier: 'tierB' })
+// Read-only user data should be accessible to banned users; disable ban enforcement here
+export const GET = withAuth(
+  withTieredRateLimit(getUserDataHandler, { tier: 'tierB' }),
+  { required: true, requireProfile: true, enforceBan: false }
 );
 export const PUT = withProtectedAuth(
   withTieredRateLimit(putUserDataHandler, { tier: 'tierB' })

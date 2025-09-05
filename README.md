@@ -248,3 +248,7 @@ Built with ❤️ using Next.js, TypeScript, and Tailwind CSS.
 - Chat Sync API (citations): `docs/api/chat-sync.md`
 - Database (Web Search schema): `docs/database/web-search.md`
 - Cost Tracking (includes websearch): `docs/database/token-cost-tracking.md`
+
+## Recent Updates
+
+- Account Banning: see `docs/updates/account-banning-completion-summary.md` for implementation details and links.
