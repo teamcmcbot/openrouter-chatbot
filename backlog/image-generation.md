@@ -69,10 +69,12 @@ Additional completed UI polish (not originally enumerated):
   - Current flow: show data URL thumbnails immediately (no persistence swap yet; that arrives in Phase 2.5).
 - [x] Error handling: silent fallback to text-only when parser yields zero images (no user-facing error required at this stage).
 - [x] Logging: only logs `imageCount`; no base64 payloads or raw image data logged.
-- [x] Tests: parser unit tests (primary + fallback + dedupe) and API route test validating `output_images` array.
-- [ ] User verification (manual): Pending — run a real prompt against an image-capable model; confirm gallery renders (will perform after persistence wiring or upon request).
+- [x] Tests: parser unit tests (primary + fallback + dedupe) API route test validating `output_images` array, plus UI component tests (single image full render, multi-image grid, clickable lightbox, responsive sizing, no-upscale behavior).
+- [x] User verification (manual): Confirmed with real model (`google/gemini-2.5-flash-image-preview`) – single image full-width (natural size, no upscale), multi-image grid (responsive), lightbox opens, logging shows only counts (no base64). Screenshot evidence captured in conversation.
 
-Summary: Non-stream API now augments `ChatResponse` with `output_images` (temporary, transient). Client stores and renders gallery via `MessageList`. Parser utility `extractOutputImageDataUrls` centralizes extraction & deduplication. Safe logging upheld. Ready to proceed to Phase 2.5 persistence endpoint.
+Summary: Non-stream API augments `ChatResponse` with `output_images` (temporary, transient). Client stores and renders gallery via `MessageList`. Parser utility `extractOutputImageDataUrls` centralizes extraction & deduplication. Safe logging upheld. Additional UX polish implemented: full inline single-image rendering with lightbox click, responsive thumbnail grid, no upscaling of small images. Ready to proceed to Phase 2.5 persistence endpoint.
+
+Readiness Note (2025-09-06): Phase 2 scope is functionally COMPLETE; persistence (Phase 2.5) and streaming (Phase 3) remain. We can safely begin Phase 3 (streaming image support) now; it is independent of persistence but should emit the same transient `output_images` array on final stream event prior to persistence wiring.
 
 ### Phase 3 — Streaming support
 
