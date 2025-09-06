@@ -26,6 +26,57 @@ import { emitAnonymousError, emitAnonymousUsage } from "../lib/analytics/anonymo
 
 const logger = createLogger("ChatStore");
 
+// Phase 3 (streaming images): Memory-only image retention configuration
+const IMAGE_RETENTION = {
+  PER_MESSAGE_MAX: 4, // max images kept per assistant message
+  CONVERSATION_MAX_BYTES: 3 * 1024 * 1024, // 3MB soft cap per conversation
+};
+
+// Measure approximate size of data URL images (base64 length) – heuristic only
+const approximateImagesBytes = (images?: string[]) => {
+  if (!Array.isArray(images)) return 0;
+  return images.reduce((sum, dataUrl) => sum + (typeof dataUrl === 'string' ? dataUrl.length : 0), 0);
+};
+
+// Create a shallow cloned conversation with image payloads trimmed according to limits
+function applyImageLimits(conv: Conversation): Conversation {
+  let bytesSoFar = 0;
+  const messages = conv.messages.map(m => {
+    if (m.role !== 'assistant' || !Array.isArray(m.output_images) || m.output_images.length === 0) return m;
+    // Enforce per-message cap (keep earliest images first – order should reflect generation order)
+    let imgs = m.output_images.slice(0, IMAGE_RETENTION.PER_MESSAGE_MAX);
+    // If we already exceeded conversation cap, drop images entirely
+    const imagesBytes = approximateImagesBytes(imgs);
+    if (bytesSoFar + imagesBytes > IMAGE_RETENTION.CONVERSATION_MAX_BYTES) {
+      imgs = [];
+    } else {
+      bytesSoFar += imagesBytes;
+      // If adding next message would overflow, future messages will be dropped
+    }
+    if (imgs.length !== m.output_images.length) {
+      return { ...m, output_images: imgs.length > 0 ? imgs : undefined };
+    }
+    return m;
+  });
+  return { ...conv, messages };
+}
+
+// Strip all image data (used during persistence) so images stay memory-only
+function stripAllImages(conversations: Conversation[]): Conversation[] {
+  return conversations.map(c => ({
+    ...c,
+    messages: c.messages.map(m => {
+      if (m.role === 'assistant' && m.output_images) {
+  // Clone while removing images; retain other fields (maintain ChatMessage structural typing)
+  const clone = { ...m };
+        delete clone.output_images;
+        return clone;
+      }
+      return m;
+    })
+  }));
+}
+
 // In-flight guard for per-session message loads to prevent duplicate fetches
 const messagesInflight = new Set<string>();
 
@@ -1883,12 +1934,25 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               .sort(sortByLastTimestampDesc)
               .slice(0, limit);
           },
+          // Ephemeral image retention enforcement (memory-only)
+          enforceImageRetention: (conversationId: string) => {
+            set((state) => {
+              const conv = state.conversations.find(c => c.id === conversationId);
+              if (!conv) return {} as unknown as Partial<ChatState>; // no update
+              const limited = applyImageLimits(conv);
+              if (limited === conv) return {} as unknown as Partial<ChatState>; // no change
+              return {
+                conversations: state.conversations.map(c => c.id === conversationId ? limited : c),
+              };
+            });
+          },
         }),
         {
           name: STORAGE_KEYS.CHAT,
           storage: createJSONStorage(() => localStorage),
           partialize: (state) => ({
-            conversations: state.conversations,
+            // IMPORTANT: strip all output_images so large base64 blobs never hit localStorage
+            conversations: stripAllImages(state.conversations),
             currentConversationId: state.currentConversationId,
             // Note: conversationErrorBanners intentionally NOT persisted (session-only)
           }),

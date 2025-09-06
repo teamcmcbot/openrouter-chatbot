@@ -111,4 +111,9 @@ export interface ChatSelectors {
   getConversationCount: () => number;
   getTotalMessages: () => number;
   getRecentConversations: (limit?: number) => Conversation[];
+
+  // Ephemeral image retention (Phase 3 streaming images): memory-only enforcement
+  // Ensures large base64 image data is never persisted to localStorage and caps usage.
+  // Not persisted; safe to call opportunistically after image additions.
+  enforceImageRetention?: (conversationId: string) => void;
 }

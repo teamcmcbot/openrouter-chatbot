@@ -273,6 +273,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
         start_index?: number;
         end_index?: number;
       }[];
+  images?: string[]; // aggregated image data URLs forwarded from transformer
     } = {};
     
     // Determine triggering user message ID (same logic as non-streaming)
@@ -328,6 +329,11 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed) continue;
+          // SUPPRESSED: image delta marker lines are no longer forwarded; images only appear in final metadata
+          if (STREAM_MARKERS_ENABLED && trimmed.startsWith('__IMAGE_DELTA_CHUNK__')) {
+            // Skip forwarding entirely (aggregation happens upstream in transformer)
+            continue;
+          }
 
           // Forward pure annotation marker lines (if enabled)
           if (STREAM_MARKERS_ENABLED && trimmed.startsWith('__ANNOTATIONS_CHUNK__')) {
@@ -380,6 +386,9 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
         // Calculate elapsed time - always use markdown rendering
         const endTime = Date.now();
         const elapsedMs = endTime - startTime;
+
+  // Remove any stray inline image delta markers that may have slipped into content before marker handling was added
+  fullCompletion = fullCompletion.replace(/__IMAGE_DELTA_CHUNK__\{[^\n]*\}/g, '');
         
         // Normalize annotations to flat structure (same as non-streaming)
         const rawAnnotations = streamMetadata.annotations ?? [];
@@ -418,10 +427,24 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           : [];
 
   // Create final metadata response (same structure as non-streaming ChatResponse)
+        // Usage normalization: some providers may include nested *_tokens_details; ensure aggregate fields are populated
+        let usage = streamMetadata.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+        try {
+          // If details objects exist, merge them conservatively without double counting
+          const pt: number = typeof usage.prompt_tokens === 'number' ? usage.prompt_tokens : 0;
+          const ct: number = typeof usage.completion_tokens === 'number' ? usage.completion_tokens : 0;
+          let total: number = typeof usage.total_tokens === 'number' ? usage.total_tokens : pt + ct;
+          // Recalculate if obvious mismatch (allow providers to be source of truth otherwise)
+          if (total === 0 && (pt > 0 || ct > 0)) total = pt + ct;
+          // Safeguard: if total < (pt+ct) adjust upward
+          if (total < pt + ct) total = pt + ct;
+          usage = { prompt_tokens: pt, completion_tokens: ct, total_tokens: total };
+        } catch {}
+
         const finalMetadata = {
           __FINAL_METADATA__: {
             response: fullCompletion,
-            usage: streamMetadata.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+            usage,
             request_id: triggeringUserId || undefined,
             timestamp: new Date().toISOString(),
             elapsed_ms: elapsedMs,
@@ -431,6 +454,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
             ...(streamMetadata.reasoning && { reasoning: streamMetadata.reasoning }),
             ...(streamMetadata.reasoning_details && Array.isArray(streamMetadata.reasoning_details) && streamMetadata.reasoning_details.length > 0 && { reasoning_details: streamMetadata.reasoning_details }),
             annotations,
+            ...(Array.isArray(streamMetadata.images) && streamMetadata.images.length > 0 && { images: streamMetadata.images }),
             has_websearch: !!body.webSearch,
             websearch_result_count: Array.isArray(annotations) ? annotations.length : 0,
           }
