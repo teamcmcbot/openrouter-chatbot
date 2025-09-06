@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type React from "react";
-import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon, PlayIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon, PlayIcon, InformationCircleIcon, PhotoIcon } from "@heroicons/react/24/outline";
 import Tooltip from "../ui/Tooltip";
 import { useAuth } from "../../stores/useAuthStore";
 import { useModelSelection } from "../../stores";
@@ -31,14 +31,18 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const [webSearchOn, setWebSearchOn] = useState(false); // UI-only toggle
   const [webMaxResults, setWebMaxResults] = useState<number>(3); // UI setting for web search results (1-5)
   const [reasoningOn, setReasoningOn] = useState(false); // UI-only toggle
+  const [imageOutputOn, setImageOutputOn] = useState(false); // UI-only toggle for LLM image output
   const [streamingModalOpen, setStreamingModalOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [reasoningModalOpen, setReasoningModalOpen] = useState(false);
+  const [imageOutputModalOpen, setImageOutputModalOpen] = useState(false);
   const [gatingOpen, setGatingOpen] = useState<
     | false
     | 'images'
     | 'search'
     | 'reasoning'
+    | 'image-output'
+  | 'image-output-unsupported'
     | 'images-unsupported'
     | 'reasoning-unsupported'
     | 'images-cap'
@@ -51,6 +55,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
   const streamingModalRef = useRef<HTMLDivElement | null>(null);
   const searchModalRef = useRef<HTMLDivElement | null>(null);
   const reasoningModalRef = useRef<HTMLDivElement | null>(null);
+  const imageOutputModalRef = useRef<HTMLDivElement | null>(null);
   const { isAuthenticated } = useAuth();
   const { getSetting, setSetting } = useSettingsStore();
   const { availableModels, selectedModel } = useModelSelection();
@@ -108,6 +113,8 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     setStreamingOn(streamingEnabled);
   const savedWebMax = Number(getSetting('webMaxResults', 3));
   if (Number.isFinite(savedWebMax)) setWebMaxResults(Math.max(1, Math.min(5, Math.trunc(savedWebMax))));
+  const imgOut = Boolean(getSetting('imageOutputEnabled', false));
+  setImageOutputOn(imgOut);
   }, [getSetting]);
 
   // Announce when crossing the character limit threshold
@@ -173,6 +180,15 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     return Array.isArray(params)
       ? (params.includes('reasoning') || params.includes('include_reasoning'))
       : false;
+  })();
+
+  const modelSupportsImageOutput = (() => {
+    if (!selectedModel) return false;
+    const info = Array.isArray(availableModels)
+      ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
+      : undefined;
+    const mods = info?.output_modalities as string[] | undefined;
+    return Array.isArray(mods) ? mods.includes('image') : false;
   })();
 
   // Resolve a human-friendly model display name
@@ -319,6 +335,25 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     };
   }, [reasoningModalOpen]);
 
+  // Close image output settings modal on outside click and Escape
+  useEffect(() => {
+    if (!imageOutputModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setImageOutputModalOpen(false);
+    };
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      const el = imageOutputModalRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) setImageOutputModalOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer, { capture: true } as EventListenerOptions);
+    };
+  }, [imageOutputModalOpen]);
+
   // Reset Web Search and Reasoning toggles when user changes model selection
   useEffect(() => {
     const prev = prevSelectedModelRef.current;
@@ -326,6 +361,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     if (prev !== null && selectedModel && selectedModel !== prev) {
       setWebSearchOn(false);
       setReasoningOn(false);
+  setImageOutputOn(false);
     }
     prevSelectedModelRef.current = selectedModel || null;
   }, [selectedModel]);
@@ -789,6 +825,47 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
               hidden
               onChange={handleFileChange}
             />
+
+            {/* Generate Image (LLM output) toggle - enterprise only */}
+            <button
+              type="button"
+              aria-label={imageOutputOn ? 'Generate Image: ON' : 'Generate Image'}
+              aria-pressed={imageOutputOn}
+              title="Generate Image"
+              onClick={() => {
+                if (disabled) return;
+                // Unsupported model for image output → explain
+                if (selectedModel && !modelSupportsImageOutput) {
+                  setGatingOpen('image-output-unsupported');
+                  return;
+                }
+                // Only enterprise accounts can toggle image output
+                if (!isAuthenticated || !isEnterprise) {
+                  setGatingOpen('image-output');
+                  return;
+                }
+                setImageOutputModalOpen(true);
+                }}
+                className={`relative inline-flex items-center justify-center w-10 h-10 rounded-lg border bg-transparent disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none 
+                border-gray-300 dark:border-gray-600 
+                ${imageOutputOn ? 'ring-0' : ''} 
+                ${!disabled ? 'hover:bg-gray-100/50 dark:hover:bg-gray-600/40' : ''}`}
+                disabled={disabled}
+              >
+                <PhotoIcon
+                className={`w-5 h-5 transition-all duration-150 
+                  ${imageOutputOn
+                  ? 'text-pink-600 dark:text-pink-300 drop-shadow-[0_0_6px_rgba(236,72,153,0.6)]'
+                  : 'text-gray-700 dark:text-gray-200 opacity-80'}
+                `}
+                />
+              {imageOutputOn && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-1 w-5 h-px rounded-full bg-pink-600 dark:bg-pink-300 shadow-[0_0_6px_rgba(236,72,153,0.6)]"
+                />
+              )}
+            </button>
           </div>
 
           <button
@@ -824,6 +901,45 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           {/* Gating popovers anchored above the left buttons. */}
           {gatingOpen && (
             <>
+              {/* Image Output: model unsupported notice */}
+              {gatingOpen === 'image-output-unsupported' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="pr-6 text-gray-800 dark:text-gray-200">Selected model doesn’t support image generation</div>
+                </div>
+              )}
+              {/* Image Output upgrade popover (enterprise only) */}
+              {gatingOpen === 'image-output' && (
+                <div
+                  ref={gatingRef}
+                  data-testid="gating-popover"
+                  className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-emerald-500 bg-emerald-50 ring-1 ring-inset ring-emerald-100 dark:border-emerald-400 dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
+                >
+                  <button
+                    aria-label="Close"
+                    onClick={() => setGatingOpen(false)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                  <div className="mb-1.5 pr-6 font-semibold text-emerald-900 dark:text-emerald-200">Upgrade to generate images</div>
+                  <div className="mb-3 text-gray-800 dark:text-gray-200">Model-generated images are available for Enterprise accounts.</div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
+                  </div>
+                </div>
+              )}
               {/* Web Search upgrade popover */}
               {gatingOpen === 'search' && (
                 <div
@@ -1085,7 +1201,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
           {reasoningModalOpen && (
             <div
               ref={reasoningModalRef}
-              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
             >
               <button
                 aria-label="Close"
@@ -1107,6 +1223,42 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
                 >
                   <span
                     className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${reasoningOn ? 'translate-x-5' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Image Output settings popover (enterprise) anchored above buttons */}
+          {imageOutputModalOpen && (
+            <div
+              ref={imageOutputModalRef}
+              className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
+            >
+              <button
+                aria-label="Close"
+                onClick={() => setImageOutputModalOpen(false)}
+                className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10 dark:hover:bg-white/10"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+              <div className="mb-2 pr-6 text-sm font-semibold text-slate-900 dark:text-gray-100">Generate images</div>
+              <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">Allow the assistant to return images when the model supports image output.</div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-800 dark:text-gray-200">Generate Image</span>
+                <button
+                  type="button"
+                  data-testid="image-output-toggle"
+                  aria-pressed={imageOutputOn}
+                  onClick={() => {
+                    const newValue = !imageOutputOn;
+                    setImageOutputOn(newValue);
+                    setSetting('imageOutputEnabled', newValue);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${imageOutputOn ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${imageOutputOn ? 'translate-x-5' : 'translate-x-1'}`}
                   />
                 </button>
               </div>

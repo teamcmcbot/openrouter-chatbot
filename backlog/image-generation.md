@@ -24,32 +24,38 @@ Add image output support for OpenRouter models with `output_modalities` includin
 
 Create incremental, idempotent SQL patches under `database/patches/image-output-pricing/` to prepare schema for output images while preserving existing input-attachment limits.
 
-- [ ] Add `model_access.output_image_cost` (default '0')
+- [x] Add `model_access.output_image_cost` (default '0')
   - `ALTER TABLE public.model_access ADD COLUMN IF NOT EXISTS output_image_cost VARCHAR(20) DEFAULT '0';`
-- [ ] Stage future cost columns (commented/guarded; no behavior change)
+- [x] Stage future cost columns (commented/guarded; no behavior change)
   - `ALTER TABLE public.message_token_costs ADD COLUMN IF NOT EXISTS output_image_units INTEGER DEFAULT 0;`
   - `ALTER TABLE public.message_token_costs ADD COLUMN IF NOT EXISTS output_image_cost DECIMAL(12,6) DEFAULT 0;`
-- [ ] Add metadata column to `chat_attachments` for differentiation and future fields
+- [x] Add metadata column to `chat_attachments` for differentiation and future fields
   - `ALTER TABLE public.chat_attachments ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;`
   - We'll set `{ "source": "assistant" | "user" }` on insert; scan code for any JSONB casts/assumptions (none expected today).
-- [ ] Add new recompute function stub (no-op body now) to avoid deploy-order issues
+- [x] Add new recompute function stub (no-op body now) to avoid deploy-order issues
   - `CREATE OR REPLACE FUNCTION public.recompute_output_image_cost_for_assistant_message(p_assistant_message_id TEXT) RETURNS VOID LANGUAGE plpgsql AS $$ BEGIN RETURN; END; $$;`
 - [ ] Document merge-back step: after approval, fold into `/database/schema/` and update docs under `/docs/database/`
 
 ### Phase 1 — Planning & Wiring
 
-- [ ] Confirm a feature flag to gate image generation UI/requests (e.g., `features.imagesEnabled`).
-- [ ] Composer control: add a "Generate Image" toggle/button (same pattern as Web Search and Reasoning). Placement: immediately after the Image attachment button.
+- [ ] Confirm a feature flag to gate image generation UI/requests (e.g., `features.imagesEnabled`). (Current: enterprise tier + model capability gating only.)
+- [x] Composer control: add a "Generate Image" toggle/button (same pattern as Web Search and Reasoning). Placement: immediately after the Image attachment button.
   - Enterprise-only: gate by `authContext.features` (tier='enterprise') and model capability (`output_modalities` contains `image`). Hidden/disabled otherwise with tooltip.
-  - When enabled, request builder includes `modalities: ["image","text"]` and downstream persistence wiring activates.
-- [ ] Add request builder support for `modalities: ["image", "text"]` only when an image-capable model is selected.
-- [ ] Update model picker to indicate models with `image` output and restrict UI affordances accordingly.
-- [ ] Models dropdown: add an "Image Generation" tag/chip for models where `output_modalities` contains `"image"`.
-- [ ] Model details sidebar: in Overview tab, add an "Output" field (under "Input") that shows `Text` or `Text, Image` based on `output_modalities`.
-- [ ] Clarify storage strategy: transient (in-memory/data URLs) vs persisted (object storage). Start with transient only.
+  - When enabled, request builder includes `modalities: ["image","text"]` and downstream persistence wiring activates. (Request builder wiring still pending.)
+- [ ] Add request builder support for `modalities: ["image", "text"]` only when an image-capable model is selected. (NOT DONE)
+- [x] Update model picker to indicate models with `image` output and restrict UI affordances accordingly.
+- [x] Models dropdown: add an "Image Generation" tag/chip for models where `output_modalities` contains `"image"`.
+- [x] Model details sidebar: in Overview tab, add an "Output" field (under "Input") that shows `Text` or `Text, Image` based on `output_modalities`.
+- [ ] Clarify storage strategy: transient (in-memory/data URLs) vs persisted (object storage). (Pending final decision; implementation moving toward persistence Phase 2.5.)
   - UI behavior: render raw data URLs immediately (non-streaming after response; streaming on final event), then switch to signed Supabase URL after successful upload to ensure persistence and cacheability.
 - [ ] Security review: sanitize prompts, do not log image data, respect logging standards.
 - [ ] User verification: Confirm UX/flag behavior and model gating.
+
+Additional completed UI polish (not originally enumerated):
+
+- [x] Toggle emerald styling & icon swap (PhotoIcon)
+- [x] Toggle resets on model change
+- [x] Unsupported / upgrade popovers standardized
 
 ### Phase 2 — Non‑streaming support
 
@@ -194,6 +200,20 @@ Prepare schema to track output image pricing when OpenRouter exposes a dedicated
 - [ ] Multiple images render in grid; text + images interleaved
 - [ ] Logs contain summary only; no payloads
 - [ ] Rate limitations respected
+
+---
+
+## Next Focus (Working Set)
+
+1. Implement request builder `modalities` inclusion when toggle enabled & model supports images (Phase 1 remaining item).
+2. Phase 2 parsing: detect assistant images (response `message.images[]` or data URLs in content) in non‑streaming handler.
+3. Implement `/api/chat/images/store` endpoint (Phase 2.5) with protected auth + tiered rate limiting; persist assistant images (`metadata.source='assistant'`).
+4. Wire non‑streaming flow to call store endpoint and return attachment IDs + signed URLs.
+5. Add client rendering of assistant image gallery + swap data URL → signed URL after persistence.
+6. Streaming integration (Phase 3): buffer image references; call store endpoint on final metadata.
+7. Security/logging review & docs update; then user verification checklist execution.
+
+After these, proceed to pricing recompute logic (Phase 2.6) and orphan GC.
 
 ## Rollout
 
