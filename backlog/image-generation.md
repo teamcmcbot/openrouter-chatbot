@@ -78,11 +78,46 @@ Readiness Note (2025-09-06): Phase 2 scope is functionally COMPLETE; persistence
 
 ### Phase 3 — Streaming support
 
-- [ ] Enable `stream: true` with `modalities: ["image", "text"]`.
-- [ ] SSE handling: keep current text deltas; buffer until the terminal chunk, then detect `delta.images` or images on the final assistant message.
-- [ ] UI: show progress status while streaming; on completion, render images.
-- [ ] Tests: streaming parser test for lines containing `delta.images` and final message merge.
-- [ ] User verification: manual streaming run; ensure no JSON parse errors on SSE comments.
+Refined scope based on clarifications (2025-09-06):
+
+Decisions:
+
+- Emit images immediately when their `delta.images` chunk arrives (no waiting for final chunk).
+- No placeholder skeleton (explicitly declined).
+- No artificial soft cap in Phase 3 (cannot enforce via API; rely on prompt/model behavior). We simply dedupe.
+- Image extraction errors are silent (logged at debug only, no UI badge).
+- Rely primarily on streaming `delta.images` events per official docs; fallback final content scan only if none captured.
+
+Implementation Checklist:
+
+- [ ] Add streaming image delta handling in SSE parser: detect `delta.images[]` objects `{ type: 'image_url', image_url: { url } }`.
+- [ ] Maintain a Set for dedupe; push new images to the in-flight assistant draft (`output_images` transient) immediately.
+- [ ] On stream completion, if no images were emitted but `requested_image_output` is true, run fallback content scan (reuse `extractOutputImageDataUrls`).
+- [ ] Ensure retry path preserves `requested_image_output` flag for streaming just like non-stream.
+- [ ] Logging: single finalize summary log includes `imageCount` (no base64); any parse anomalies at debug only.
+
+Testing Checklist:
+
+- [ ] Unit: parser handles multiple `delta.images` events (accumulates & dedupes).
+- [ ] Unit: fallback triggers when no deltas contained images.
+- [ ] Store: streaming flow updates assistant message state incrementally (images visible before final `[DONE]`).
+- [ ] Store: duplicate image URLs ignored.
+- [ ] Regression: reasoning/text streaming unaffected when images present.
+
+Manual Verification Steps:
+
+1. Enable image toggle; use a streaming-capable image model; send prompt.
+2. Observe text tokens stream; when `delta.images` arrives, image(s) appear immediately.
+3. Confirm no placeholder skeleton appears at any time.
+4. Retry message; images stream again (may differ based on model determinism).
+5. Confirm logs show image count only; no base64.
+6. Test a prompt that yields zero images (text-only) while toggle on; no crash, no empty gallery artifacts.
+
+Exit Criteria:
+
+- All tests above passing & manual checklist confirmed.
+- No console/base64 leaks; only structured logger usage.
+- Non-stream behavior unchanged.
 
 ### Phase 4 — Rate limits, auth, and middleware
 
