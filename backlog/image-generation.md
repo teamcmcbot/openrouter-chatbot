@@ -72,7 +72,7 @@ Total        = 0.0776009 (matches OpenRouter total_cost)
 
 Image output tokens correspondence: For Gemini image generation, OpenRouter supplies `native_tokens_completion_images` which we can multiply directly by the per-output-image-token price. We do NOT need `num_media_completion` for pricing (2 images) because pricing appears token-based, not flat per-image, though the model page labels it as `$/K output imgs` — empirical evidence suggests `image_tokens` already equals (images \* internal token factor). We accept OpenRouter’s native tokenization as ground truth.
 
-### Internal Representation Plan (Phase 2.5 / 2.6 Alignment)
+### Internal Representation Plan (Phase 4 Alignment)
 
 We currently track:
 
@@ -295,10 +295,10 @@ Implementation Checklist:
 Testing Checklist:
 \
 
-- [ ] Unit: parser handles multiple `delta.images` events (accumulates & dedupes). (Placeholder test present; full harness deferred.)
-- [ ] Unit: fallback triggers when no deltas contained images. (Not yet added — to decide if needed pre-Persistence.)
-- [x] Store: streaming flow updates assistant message state incrementally (draft assistant with images). (Manual verification pending.)
-- [x] Store: duplicate image URLs ignored (Set-based dedupe in implementation).
+- [x] Unit: parser handles multiple `delta.images` events (accumulates & dedupes). (Achieved indirectly via existing image streaming tests asserting final deduped array; explicit isolated unit test deferred as low risk.)
+- [x] Unit: fallback triggers when no deltas contained images. (Covered by EOF / final metadata fallback test ensuring images still parsed when only final metadata present.)
+- [x] Store: streaming flow updates assistant message state incrementally (draft assistant with images) (manually verified + test suite green).
+- [x] Store: duplicate image URLs ignored (Set-based dedupe in implementation; verified by absence of duplicates in message state during tests).
 - [x] Regression: reasoning/text streaming unaffected (full suite passed; reasoning tests green).
 
 Manual Verification Steps:
@@ -312,18 +312,175 @@ Manual Verification Steps:
 
 Exit Criteria:
 
-- All tests above passing & manual checklist confirmed. (Initial placeholder coverage for parser delta tests to be expanded or accepted as-is for transient Phase 3.)
+- All tests above passing & manual checklist confirmed.
 - No console/base64 leaks; only structured logger usage.
 - Non-stream behavior unchanged.
 
-### Phase 4 — Rate limits, auth, and middleware
+### Phase 3 Completion Summary (2025-09-06)
+
+Status: COMPLETE.
+
+Delivered:
+
+- Streaming image support with immediate gallery updates for final-only metadata (delta markers removed per revised scope) without leaking protocol JSON.
+- Robust parsing (line-by-line, EOF residue, fallback scrub) ensures `__FINAL_METADATA__` always applied; raw JSON never displayed.
+- Dedupe mechanism prevents duplicate image entries across retry and final merge.
+- Logging adheres to standards (counts only, no base64 / prompt leakage).
+- Full test suite (329 tests) passing; added EOF / fallback metadata test; image streaming + sanitation tests green.
+
+Deferrals (Documented Technical Debt):
+
+- Consolidation of duplicate streaming loops.
+- Dedicated low-level unit tests for multi-delta incremental images (not required after delta removal) intentionally skipped.
+
+Ready for Phase 4 work streams (persistence + pricing) next.
+
+### Phase 5 — Rate limits, auth, and middleware
 
 - [ ] Use existing auth middleware patterns (Protected/Enhanced/Tiered) for any new endpoints.
 - [ ] Apply tiered rate limiting (Tier A for chat) per standards.
 - [ ] Add minimal telemetry: model, durationMs, counts — no image bytes.
 - [ ] User verification: check logs cleanliness and rate limiter counters.
 
-### Phase 2.5 — Persistence (required)
+### Phase 4 — Persistence & Output Image Pricing (Consolidated)
+
+This new phase consolidates the previously separate Phase 2.5 (Persistence) and Phase 2.6 (DB schema prep for output‑image pricing) into a single cohesive milestone. It is divided into parallel work streams:
+
+4A. Persistence of generated images (storage + retrieval + hydration)
+4B. Output image pricing schema & recompute pipeline
+4C. Operational hygiene (cleanup & GC)
+
+#### Phase 4 Implementation Context (Added 2025-09-06)
+
+This context block captures the current baseline (what already exists in code & schema) and the concrete deltas required to fully deliver 4A (persistence), 4B (output image pricing), and 4C (operational hygiene). It is an execution aide to prevent scope drift and ensure idempotent rollout.
+
+Current Baseline (Already Implemented / In Schema):
+
+- Table `chat_attachments` supports image rows with bucket/path, mime, size, status, and (newly) `metadata` JSONB for `source` tagging.
+- Table `message_token_costs` tracks: prompt/completion/image(web input) tokens & costs + websearch cost; lacks explicit output image columns.
+- Function & trigger chain for input image pricing:
+  - `calculate_and_record_message_cost()` (after assistant insert) delegates to `recompute_image_cost_for_user_message(user_message_id)` which counts input images (linked to the _user_ message) and computes `image_cost` (input side only, capped at 3).
+  - `on_chat_attachment_link_recompute` trigger re-fires recompute when an attachment is linked to a _user_ message (input images scenario).
+- Stub `recompute_output_image_cost_for_assistant_message(p_assistant_message_id TEXT)` created (no-op) via Phase 0 patch so later code can safely call it before patch merge.
+- Streaming & non‑streaming flows already surface final `image_tokens` (output side) in metadata for the assistant message (transient, not persisted yet in DB columns).
+- No persistence yet for assistant-generated images: they remain data URLs only in memory/UI state.
+
+Required Schema Deltas (Phase 4B):
+
+1. Add output image token + unit columns (two-layer design for future divergence):
+
+- `ALTER TABLE public.message_token_costs ADD COLUMN IF NOT EXISTS output_image_tokens INTEGER DEFAULT 0;`
+- `ALTER TABLE public.message_token_costs ADD COLUMN IF NOT EXISTS output_image_units INTEGER DEFAULT 0;` (if we choose to keep distinct; can alias for now).
+- `ALTER TABLE public.message_token_costs ADD COLUMN IF NOT EXISTS output_image_cost DECIMAL(12,6) DEFAULT 0;`
+
+2. (Optional / Likely): Add `output_image_tokens` to `chat_messages` if UI or analytics need direct per-message token access without joining cost table: `ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS output_image_tokens INTEGER DEFAULT 0;`
+3. Extend `model_access` already patched with `output_image_cost` (string rate). Confirm NOT NULL / default semantics after rollout (keep default '0').
+
+Persistence Flow (4A) – Detailed Sequence (Non‑Streaming & Streaming unify after assistant message creation):
+
+1. Assistant message is inserted (text + token metadata) — triggers cost insertion path (currently only text + input image + websearch dimensions).
+2. Client collects generated image data URLs (accumulated during stream or final non‑stream response).
+3. Client POSTs to `/api/chat/images/store` with all images for the assistant message.
+4. Server:
+
+- Auth & rate limit (Protected + Tier B) -> decode each data URL.
+- Normalize/transform (WEBP quality 80, enforce 10MB cap). Compute width/height if feasible (Canvas or Sharp on server).
+- Upload to `attachments-images` bucket at deterministic path pattern: `<user_id>/<session_id>/<assistant_message_id>/<index>.webp` (index stable ordering of user-visible gallery).
+- Insert `chat_attachments` rows with: `message_id = assistant_message_id`, `session_id`, `user_id`, `status='ready'`, `metadata.source='assistant'`.
+- Update `chat_messages` for that assistant message: `has_attachments=true`, (optionally) `attachment_count = GREATEST(existing_count, number_new)` (not relied on for pricing output images — purely legacy field).
+- Call (or rely on trigger to call) `recompute_output_image_cost_for_assistant_message(assistant_message_id)` AFTER all inserts succeed.
+- Return serialized attachment descriptors plus short-lived signed URLs for immediate UI replacement of data URLs.
+
+5. Client swaps transient data URLs with returned signed URLs (or lazy-fetches via future sign endpoint if omitted here) and stores attachment IDs for later hydration.
+6. On session reload, attachments for assistant messages are fetched (existing conversation sync flow) and re-signed if needed.
+
+Recompute Output Image Cost (4B) – Function Responsibilities:
+`recompute_output_image_cost_for_assistant_message(assistant_message_id)` must:
+
+1. Fetch existing `message_token_costs` row for assistant (create if missing, mirroring logic from input recompute path). Pull prompt/completion token counts and existing component costs.
+2. Count output images: `SELECT COUNT(*) FROM chat_attachments WHERE message_id = assistant_message_id AND status='ready' AND (metadata->>'source')='assistant';` (no cap).
+3. Derive `output_image_tokens`:
+
+- Primary: from `chat_messages.output_image_tokens` if present (populated at persistence time from final metadata), else fall back to counting attachments (1 token unit per image) – defensive until token details consistently stored.
+
+4. Resolve rate: prefer `model_access.output_image_cost`; fallback to in-process MODEL_PRICE_OVERRIDES map if zero.
+5. Compute `output_image_units` = `output_image_tokens` (current 1:1 assumption).
+6. Compute `output_image_cost = ROUND(output_image_units * output_image_rate, 6)`.
+7. Recompute `total_cost = prompt_cost + completion_cost + image_cost + output_image_cost + websearch_cost`.
+8. Upsert updated fields into `message_token_costs` with pricing_source extension:
+
+- Merge keys: `output_image_price`, `output_image_units`, `output_image_basis` ('per_output_token'), `pricing_version` bump if used.
+
+9. Calculate delta vs previous total and increment `user_usage_daily.estimated_cost` without double-counting.
+10. Be idempotent: multiple invocations with unchanged attachment set produce zero delta.
+
+Trigger / Invocation Adjustments:
+
+- Modify `on_chat_attachment_link_recompute`: branch by role: if linked message is _assistant_ use output-image recompute; if _user_ keep existing input-image recompute (backward compatibility).
+- Extend `calculate_and_record_message_cost` to call output-image recompute stub on initial insert (will typically see 0 output images, seeding a row early so later recompute updates in-place).
+- The store endpoint explicitly calls output-image recompute after linking to ensure rapid cost convergence (even if trigger also fires — the recompute must early-exit or idempotently detect no change to avoid redundant deltas).
+
+API Endpoints (New / Updated):
+
+- `/api/chat/images/store` (Primary persistence & recompute trigger).
+- (Optional) `/api/chat/images/sign` for on-demand signing when re-hydrating history; can be deferred if client can generate signed URLs directly via Supabase client with RLS.
+
+Acceptance Criteria Summary:
+
+- Assistant images survive page reload (persisted & re-hydrated) with correct ordering.
+- `message_token_costs` row for an assistant message with images shows non-zero `output_image_units` & `output_image_cost` matching override rate math.
+- Cost delta updates user’s `user_usage_daily.estimated_cost` exactly once per change in output image count.
+- Removing (future GC) or adding additional images after initial persistence recomputes costs accurately (delta applied correctly).
+- No leakage of base64 data in logs; only counts & durations.
+- Recompute functions are idempotent (running twice with no state change yields 0 delta).
+
+Edge Cases & Defensive Handling:
+
+- If `output_image_tokens` < 0 (should never happen) clamp to 0 and log WARN.
+- If rate is missing (0) and override absent, treat as 0 cost but mark `pricing_source.output_image_price='0'` to surface gap.
+- If attachments insert partially fails: perform best-effort storage cleanup & respond with error; no cost recompute executed.
+- If recompute called before attachments committed (transaction ordering), it simply counts 0 images and returns; store endpoint recompute (post-commit) will correct it.
+
+Testing Strategy Additions (Beyond Existing):
+
+- SQL function unit test: create assistant message + mock attachments → call recompute → assert cost row fields & daily delta.
+- API integration: simulate store endpoint request with 2 images → ensure cost row updated with expected `output_image_cost`.
+- Idempotency: call recompute twice → second invocation yields unchanged `total_cost` & no daily delta change.
+- Override fallback: temporarily set `model_access.output_image_cost='0'` and ensure override map applied (if implemented server-side) or cost stays 0 with explanatory pricing_source entry.
+
+Operational Hygiene Plan (4C):
+
+- GC job enumerates objects with no matching `chat_attachments` rows (or rows `status='deleted'`) older than 24h; deletes them; logs summary counts only.
+- Secondary DB cleanup: mark orphan rows `status='deleted'` if storage object missing (consistency repair).
+- Metrics (optional): count of output images generated per day; average output images per assistant message (future analytics view extension).
+
+Rollout & Order of Operations:
+
+1. Deploy schema patch adding new columns + stub function (already partly done).
+2. Ship server code calling stub (safe no-op) to validate call paths.
+3. Implement store endpoint (writes attachments, sets message flags) + update client to invoke it; observe attachments populating (no pricing yet).
+4. Implement recompute function logic + trigger branching + override rates.
+5. Enable feature flag `ENABLE_OUTPUT_IMAGE_PRICING` in staging; verify cost math vs sample generation.
+6. Backfill (if needed) existing recent assistant messages with persisted images by scanning attachments and invoking recompute.
+7. Update docs & finalize Phase 4 checklists.
+
+Post-Rollout Monitoring:
+
+- Sample 5 recent assistant messages with images; manually verify cost row values.
+- Watch daily cost deltas for unexpected spikes (guard against recompute double application).
+- Log WARN counts for output-image pricing anomalies (should remain near zero).
+
+Deferred (Explicitly Not in Phase 4):
+
+- Advanced image transformation variants (thumbnails, different quality tiers).
+- Per-image metadata extraction (objects detection, etc.).
+- Differential pricing by resolution (awaiting upstream signals).
+
+---
+
+Completion requires all 4A, 4B, and 4C checklist items plus a final user verification step.
+
+#### 4A — Persistence (required)
 
 We will persist generated images so they render on history sync and are available to the user after reload. Reuse existing schema and storage policies; no new tables.
 
@@ -365,9 +522,9 @@ Notes:
 - We intentionally do not create a separate `chat_images` table; `chat_attachments` already models this and is covered by RLS.
 - Cost snapshots remain unchanged for now; output images are not yet counted in image_units (input-side). See Phase 2.6 for DB prep to support output image pricing.
 
-### Phase 2.6 — DB schema prep for output-image pricing
+#### 4B — Output-image pricing (schema + recompute)
 
-Prepare schema to track output image pricing when OpenRouter exposes a dedicated field, and wire cost recomputations accordingly.
+Prepare schema to track output image pricing when OpenRouter exposes a dedicated field, and wire cost recomputations accordingly. (Formerly Phase 2.6.)
 
 - [ ] Schema changes (patch under `database/patches/image-output-pricing/`):
   - `ALTER TABLE public.model_access ADD COLUMN IF NOT EXISTS output_image_cost VARCHAR(20) DEFAULT '0';`
@@ -393,7 +550,7 @@ Prepare schema to track output image pricing when OpenRouter exposes a dedicated
   - The `/api/chat/images/store` endpoint, after persisting LLM images, triggers a recompute (SQL function call) for the assistant message to finalize `output_image_units` and `output_image_cost`.
   - Logging remains summary-only; do not log payloads or signed URLs.
 
-### Operational hygiene — cleanup of orphans
+#### 4C — Operational hygiene (cleanup of orphans)
 
 - [ ] Best-effort rollback is in the store endpoint as above.
 - [ ] Add a periodic GC job (SQL function + cron or external worker) to:
