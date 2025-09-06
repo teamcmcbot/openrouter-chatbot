@@ -366,6 +366,52 @@ export default function MessageList({
                   )}
                 </div>
 
+                {/* Phase 2: Non-persisted assistant output images (data URLs)
+                   UX update: If exactly 1 image, show it inline full-width (still constrained) instead of thumbnails.
+                   If multiple, retain thumbnail grid with lightbox. */}
+                {message.role === 'assistant' && Array.isArray(message.output_images) && message.output_images.length > 0 && (
+                  message.output_images.length === 1 ? (
+        <div className="mt-4" data-testid="assistant-output-image-single">
+                      <button
+                        type="button"
+                        onClick={() => setLightbox({ open: true, url: message.output_images![0], alt: 'Generated image' })}
+        className="group relative text-left rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 bg-white dark:bg-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer mx-auto max-w-full"
+                        title="Click to view full size"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={message.output_images[0]}
+                          alt="Generated image"
+          className="max-w-full h-auto max-h-[480px] object-contain bg-black/5 dark:bg-white/5 transition-opacity group-hover:opacity-95 mx-auto"
+                          loading="lazy"
+                        />
+                        <span className="absolute bottom-2 right-2 bg-black/50 text-white text-[11px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">Open</span>
+                      </button>
+                    </div>
+                  ) : (
+        <div className="mt-3 flex flex-wrap gap-2" data-testid="assistant-output-images">
+                      {message.output_images.map((dataUrl, idx) => (
+                        <button
+                          key={`${message.id}-outimg-${idx}`}
+                          type="button"
+          className="relative group w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          onClick={() => setLightbox({ open: true, url: dataUrl, alt: `Generated image ${idx + 1}` })}
+                          title="Click to enlarge"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={dataUrl}
+                            alt={"Generated image " + (idx + 1)}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                          <span className="absolute bottom-0 left-0 right-0 bg-black/40 text-[10px] text-white px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">View</span>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                )}
+
                 {/* Linked image attachments (history and recent) */}
                 {message.has_attachments && Array.isArray(message.attachment_ids) && message.attachment_ids.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">

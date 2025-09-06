@@ -269,7 +269,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             return selectedMessages;
           },
 
-          sendMessage: async (content, model, options) => {
+          sendMessage: async (content, model, options: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput?: boolean } | undefined) => {
             if (!content.trim() || get().isLoading) {
               logger.warn("Cannot send message: empty content or already loading");
               return;
@@ -297,6 +297,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               requested_web_search: options?.webSearch,
               requested_web_max_results: options?.webMaxResults,
               requested_reasoning_effort: options?.reasoning?.effort,
+              // Phase 2: image output request flag for retry & persistence mapping
+              requested_image_output: options?.imageOutput || false,
             };
 
             logger.debug("Sending message", { conversationId: currentConversationId, content: content.substring(0, 50) + "..." });
@@ -322,7 +324,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               logger.debug(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               logger.debug(`[Send Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput?: boolean };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -383,6 +385,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     webSearch: options?.webSearch,
                     webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
+                    imageOutput: !!options?.imageOutput,
                   };
                 } else {
                   // Build request with conversation context
@@ -395,6 +398,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     webSearch: options?.webSearch,
                     webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
+                    imageOutput: !!options?.imageOutput,
                   };
                 }
                 
@@ -405,7 +409,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 logger.debug(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch, webMaxResults: options?.webMaxResults, reasoning: options?.reasoning };
+                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch, webMaxResults: options?.webMaxResults, reasoning: options?.reasoning, imageOutput: !!options?.imageOutput };
                 if (model) {
                   requestBody.model = model;
                 }
@@ -504,6 +508,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 annotations: Array.isArray(data.annotations) ? data.annotations : undefined,
                 reasoning: typeof respWithReasoning.reasoning === 'string' ? respWithReasoning.reasoning : undefined,
                 reasoning_details: respWithReasoning.reasoning_details && Array.isArray(respWithReasoning.reasoning_details) ? respWithReasoning.reasoning_details : undefined,
+                // Phase 2: Map transient output_images (data URLs) for inline gallery rendering
+                output_images: Array.isArray(data.output_images) && data.output_images.length > 0 ? data.output_images : undefined,
               };
 
               // Add assistant response and update conversation metadata
@@ -1051,7 +1057,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             messageId: string,
             content: string,
             model?: string,
-            options?: { attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
+            options?: { attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput?: boolean }
           ) => {
             if (!content.trim() || get().isLoading) {
               logger.warn("Cannot retry message: empty content or already loading");
@@ -1092,7 +1098,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               logger.debug(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               logger.debug(`[Retry Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput?: boolean };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -1120,6 +1126,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   originalModel: model,
                   // Store that this retry is using non-streaming mode
                   was_streaming: false,
+                  requested_image_output: options?.imageOutput || false,
                 };
                 
                 // Build complete message array (context + retry message)
@@ -1162,6 +1169,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     webSearch: options?.webSearch,
                     webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
+                    imageOutput: !!options?.imageOutput,
                   };
                 } else {
                   requestBody = {
@@ -1172,6 +1180,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     webSearch: options?.webSearch,
                     webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
+                    imageOutput: !!options?.imageOutput,
                   };
                 }
                 
@@ -1182,7 +1191,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 logger.debug(`[Retry Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content, current_message_id: messageId };
+                requestBody = { message: content, current_message_id: messageId, imageOutput: !!options?.imageOutput };
                 if (model) {
                   requestBody.model = model;
                 }

@@ -60,15 +60,19 @@ Additional completed UI polish (not originally enumerated):
 
 ### Phase 2 — Non‑streaming support
 
-- [ ] Update API client/types to detect assistant images in responses:
-  - Primary path (per docs): `choices[0].message.images[]` items with `{ type: "image_url", image_url: { url: "data:image/png;base64,..." } }`.
-  - Fallback path: detect data URLs inside `message.content` parts or plain strings.
-- [ ] UI: render image gallery in a message bubble when images present; keep existing text rendering intact.
-  - Render flow: show data URL immediately; after `/api/chat/images/store` returns, replace each image src with the returned signed URL.
-- [ ] Error handling: if no images, fall back to text message. Show friendly notice if model lacks image modality.
-- [ ] Logging: use `logger` with minimal, no-PII; never log base64 payloads.
-- [ ] Tests: unit tests to parse and render images; mock minimal responses per testing standards.
-- [ ] User verification: manually test with `google/gemini-2.5-flash-image-preview` non‑streaming.
+// Phase 2 IMPLEMENTATION STATUS (2025-09-06): Non-streaming parsing & inline render COMPLETE (transient only)
+
+- [x] Update API client/types to detect assistant images in responses:
+  - Primary path handled: `choices[0].message.images[]` supports both string data URLs and objects `{ type: 'image_url', image_url: { url } }`.
+  - Fallback path implemented: regex extraction of `data:image/...;base64,` URLs from `message.content` (string or text parts array).
+- [x] UI: render image gallery in assistant bubble when images present; preserves existing markdown text.
+  - Current flow: show data URL thumbnails immediately (no persistence swap yet; that arrives in Phase 2.5).
+- [x] Error handling: silent fallback to text-only when parser yields zero images (no user-facing error required at this stage).
+- [x] Logging: only logs `imageCount`; no base64 payloads or raw image data logged.
+- [x] Tests: parser unit tests (primary + fallback + dedupe) and API route test validating `output_images` array.
+- [ ] User verification (manual): Pending — run a real prompt against an image-capable model; confirm gallery renders (will perform after persistence wiring or upon request).
+
+Summary: Non-stream API now augments `ChatResponse` with `output_images` (temporary, transient). Client stores and renders gallery via `MessageList`. Parser utility `extractOutputImageDataUrls` centralizes extraction & deduplication. Safe logging upheld. Ready to proceed to Phase 2.5 persistence endpoint.
 
 ### Phase 3 — Streaming support
 

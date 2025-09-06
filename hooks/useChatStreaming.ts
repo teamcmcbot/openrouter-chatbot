@@ -185,7 +185,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
           webSearch: options?.webSearch,
           webMaxResults: options?.webMaxResults,
           reasoning: options?.reasoning,
-          ...(options?.imageOutput && { imageOutput: true }),
+          // Always include explicit boolean (false included) for parity with non-stream route
+          imageOutput: !!options?.imageOutput,
         };
 
   const response = await fetch('/api/chat/stream', {

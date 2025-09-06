@@ -44,6 +44,11 @@ export function useChat(): UseChatReturn {
       content: content.trim(),
       role: "user",
       timestamp: new Date(),
+  // Preserve request-side options for exact retry (Phase 2: image output)
+  requested_image_output: options?.imageOutput || false,
+  requested_web_search: options?.webSearch,
+  requested_web_max_results: options?.webMaxResults,
+  requested_reasoning_effort: options?.reasoning?.effort,
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -71,7 +76,8 @@ export function useChat(): UseChatReturn {
         ...(options?.webSearch !== undefined && { webSearch: options.webSearch }),
         ...(options?.webMaxResults !== undefined && { webMaxResults: options.webMaxResults }),
         ...(options?.reasoning && { reasoning: options.reasoning }),
-        ...(options?.imageOutput && { imageOutput: true }),
+  // Always include explicit boolean so backend can distinguish omission
+  imageOutput: !!options?.imageOutput,
       };
       if (model) {
         requestBody.model = model;
@@ -130,6 +136,9 @@ export function useChat(): UseChatReturn {
         completion_id: data.id,
         reasoning: typeof respWithReasoning.reasoning === 'string' ? respWithReasoning.reasoning : undefined,
         reasoning_details: respWithReasoning.reasoning_details && Array.isArray(respWithReasoning.reasoning_details) ? respWithReasoning.reasoning_details : undefined,
+  // Phase 2: non-persisted output images (data URLs) from API
+  output_images: Array.isArray(data.output_images) ? data.output_images : undefined,
+  requested_image_output: !!options?.imageOutput,
       };
 
   logger.debug('Created assistant message:', assistantMessage);

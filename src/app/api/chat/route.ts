@@ -6,6 +6,7 @@ import { handleError, ApiErrorResponse, ErrorCode } from '../../../../lib/utils/
 import { createSuccessResponse } from '../../../../lib/utils/response';
 import { logger } from '../../../../lib/utils/logger';
 import { ChatResponse } from '../../../../lib/types';
+import extractOutputImageDataUrls from '../../../../lib/utils/parseOutputImages';
 import { OpenRouterRequest, OpenRouterContentBlock, OpenRouterUrlCitation } from '../../../../lib/types/openrouter';
 import { AuthContext } from '../../../../lib/types/auth';
 import { withEnhancedAuth } from '../../../../lib/middleware/auth';
@@ -286,6 +287,15 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     );
     logger.debug('OpenRouter response received:', openRouterResponse);
   const assistantResponse = openRouterResponse.choices[0].message.content;
+  // Phase 2: extract any data URL images (non-persisted) when image output requested
+  let outputImages: string[] | undefined;
+  if (imageOutput) {
+    try {
+      outputImages = extractOutputImageDataUrls(openRouterResponse);
+    } catch {
+      outputImages = undefined; // swallow extraction errors
+    }
+  }
   // Some providers may include reasoning/thinking text in non-standard fields; map if available
   type MaybeReasoningMessage = { choices?: { message?: { reasoning?: string } }[]; reasoning?: Record<string, unknown> };
   const maybe = openRouterResponse as unknown as MaybeReasoningMessage;
@@ -385,6 +395,9 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   // Echo web search activation for persistence layer
   response.has_websearch = !!body.webSearch;
   response.websearch_result_count = Array.isArray(annotations) ? annotations.length : 0;
+  if (outputImages && outputImages.length > 0) {
+    response.output_images = outputImages;
+  }
 
     logger.info('Chat request successful', {
       userId: authContext.user?.id,
@@ -392,6 +405,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       tokens: usage.total_tokens,
       tier: authContext.profile?.subscription_tier,
       requestId,
+      imageCount: outputImages?.length || 0,
     });
     
   return createSuccessResponse(response, 200, { 'x-request-id': requestId, 'X-Model': (response.model ?? enhancedData.model) });
