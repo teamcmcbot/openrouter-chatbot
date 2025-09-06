@@ -38,17 +38,18 @@ Create incremental, idempotent SQL patches under `database/patches/image-output-
 
 ### Phase 1 — Planning & Wiring
 
-- [ ] Confirm a feature flag to gate image generation UI/requests (e.g., `features.imagesEnabled`). (Current: enterprise tier + model capability gating only.)
+- [x] Confirm a feature flag to gate image generation UI/requests (Decision: NO new env flag; rely on enterprise tier + model capability gating only.)
 - [x] Composer control: add a "Generate Image" toggle/button (same pattern as Web Search and Reasoning). Placement: immediately after the Image attachment button.
   - Enterprise-only: gate by `authContext.features` (tier='enterprise') and model capability (`output_modalities` contains `image`). Hidden/disabled otherwise with tooltip.
   - When enabled, request builder includes `modalities: ["image","text"]` and downstream persistence wiring activates. (Request builder wiring still pending.)
-- [ ] Add request builder support for `modalities: ["image", "text"]` only when an image-capable model is selected. (NOT DONE)
+- [x] Add request builder support for `modalities: ["image", "text"]` only when an image-capable model is selected. (Implemented: UI toggle propagates `imageOutput`; API routes inject modalities; OpenRouter util passes `modalities`.)
 - [x] Update model picker to indicate models with `image` output and restrict UI affordances accordingly.
 - [x] Models dropdown: add an "Image Generation" tag/chip for models where `output_modalities` contains `"image"`.
 - [x] Model details sidebar: in Overview tab, add an "Output" field (under "Input") that shows `Text` or `Text, Image` based on `output_modalities`.
-- [ ] Clarify storage strategy: transient (in-memory/data URLs) vs persisted (object storage). (Pending final decision; implementation moving toward persistence Phase 2.5.)
+- [ ] Clarify storage strategy: transient (in-memory/data URLs) vs persisted (object storage). (Pending final decision; leaning toward persistence Phase 2.5.)
   - UI behavior: render raw data URLs immediately (non-streaming after response; streaming on final event), then switch to signed Supabase URL after successful upload to ensure persistence and cacheability.
-- [ ] Security review: sanitize prompts, do not log image data, respect logging standards.
+- [ ] Security review: sanitize prompts, do not log image data, respect logging standards. (Planned; logging currently excludes image/base64 payloads.)
+- [x] Security review: confirmed no base64/image data logged. `logger` usage only in new wiring (routes/util) avoids payload bodies; no `console.log` of image data. Added guard to never send logs from browser drain. No persistence yet, so no signed URL leakage. (2025-09-06)
 - [ ] User verification: Confirm UX/flag behavior and model gating.
 
 Additional completed UI polish (not originally enumerated):
@@ -205,13 +206,26 @@ Prepare schema to track output image pricing when OpenRouter exposes a dedicated
 
 ## Next Focus (Working Set)
 
-1. Implement request builder `modalities` inclusion when toggle enabled & model supports images (Phase 1 remaining item).
-2. Phase 2 parsing: detect assistant images (response `message.images[]` or data URLs in content) in non‑streaming handler.
-3. Implement `/api/chat/images/store` endpoint (Phase 2.5) with protected auth + tiered rate limiting; persist assistant images (`metadata.source='assistant'`).
-4. Wire non‑streaming flow to call store endpoint and return attachment IDs + signed URLs.
-5. Add client rendering of assistant image gallery + swap data URL → signed URL after persistence.
-6. Streaming integration (Phase 3): buffer image references; call store endpoint on final metadata.
-7. Security/logging review & docs update; then user verification checklist execution.
+### Phase 1 Completion Summary (2025-09-06)
+
+Decisions & Status:
+
+- Feature flag: Chose NO new env flag; gating via enterprise tier + model `output_modalities` only.
+- UI Toggle: "Generate Image" enterprise-gated control with capability + unsupported and upgrade popovers implemented.
+- Propagation: `imageOutput` flag flows MessageInput → hooks (stream & non-stream) → API routes → OpenRouter util; routes inject `modalities: ["text","image"]` when enabled.
+- Types: Added `requested_image_output` on ChatMessage for auditing.
+- Logging/Security: Confirmed no base64 image data or prompts logged; logger drains server-side only; Phase 2 persistence endpoint will follow same standards.
+- Tests: Adjusted brittle MessageInput test to tolerate extended option object.
+
+Ready to proceed with Phase 2 parsing & persistence work.
+
+1. Phase 2 parsing: detect assistant images (response `message.images[]` or data URLs in content) in non‑streaming handler.
+2. Implement `/api/chat/images/store` endpoint (Phase 2.5) with protected auth + tiered rate limiting; persist assistant images (`metadata.source='assistant'`).
+3. Wire non‑streaming flow to call store endpoint and return attachment IDs + signed URLs.
+4. Add client rendering of assistant image gallery + swap data URL → signed URL after persistence.
+5. Streaming integration (Phase 3): buffer image references; call store endpoint on final metadata.
+6. Security/logging review & docs update; then user verification checklist execution (covers remaining Phase 1 verification + Phase 2/3 additions).
+7. Proceed to pricing recompute logic (Phase 2.6) and orphan GC planning.
 
 After these, proceed to pricing recompute logic (Phase 2.6) and orphan GC.
 

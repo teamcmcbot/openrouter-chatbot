@@ -12,11 +12,20 @@ interface ChatError {
   timestamp?: string;
 }
 
+interface SendOptions {
+  attachmentIds?: string[];
+  draftId?: string;
+  webSearch?: boolean;
+  webMaxResults?: number;
+  reasoning?: { effort?: 'low' | 'medium' | 'high' };
+  imageOutput?: boolean; // NEW: request assistant image output when supported
+}
+
 interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
   error: ChatError | null;
-  sendMessage: (content: string, model?: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => Promise<void>;
+  sendMessage: (content: string, model?: string, options?: SendOptions) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
   clearMessageError: (messageId: string) => void;
@@ -27,7 +36,7 @@ export function useChat(): UseChatReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ChatError | null>(null);
 
-  const sendMessage = useCallback(async (content: string, model?: string) => {
+  const sendMessage = useCallback(async (content: string, model?: string, options?: SendOptions) => {
     if (!content.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
@@ -47,11 +56,22 @@ export function useChat(): UseChatReturn {
         model?: string;
         messages?: ChatMessage[];
         current_message_id?: string;
+        attachmentIds?: string[];
+        draftId?: string;
         webSearch?: boolean;
+        webMaxResults?: number;
+        reasoning?: { effort?: 'low' | 'medium' | 'high' };
+        imageOutput?: boolean;
       } = {
         message: content,
         messages: [userMessage], // Send the user message with its ID
-        current_message_id: userMessage.id
+        current_message_id: userMessage.id,
+        ...(options?.attachmentIds && { attachmentIds: options.attachmentIds }),
+        ...(options?.draftId && { draftId: options.draftId }),
+        ...(options?.webSearch !== undefined && { webSearch: options.webSearch }),
+        ...(options?.webMaxResults !== undefined && { webMaxResults: options.webMaxResults }),
+        ...(options?.reasoning && { reasoning: options.reasoning }),
+        ...(options?.imageOutput && { imageOutput: true }),
       };
       if (model) {
         requestBody.model = model;

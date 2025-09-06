@@ -30,7 +30,8 @@ interface UseChatStreamingReturn {
     draftId?: string; 
   webSearch?: boolean; 
   webMaxResults?: number;
-    reasoning?: { effort?: 'low' | 'medium' | 'high' } 
+  reasoning?: { effort?: 'low' | 'medium' | 'high' };
+  imageOutput?: boolean;
   }) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
@@ -97,7 +98,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
       draftId?: string; 
       webSearch?: boolean; 
       webMaxResults?: number;
-      reasoning?: { effort?: 'low' | 'medium' | 'high' } 
+  reasoning?: { effort?: 'low' | 'medium' | 'high' };
+  imageOutput?: boolean;
     }
   ) => {
   if (!content.trim() || storeIsLoading || isStreaming) {
@@ -133,6 +135,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
   requested_web_search: options?.webSearch,
   requested_web_max_results: options?.webMaxResults,
   requested_reasoning_effort: options?.reasoning?.effort,
+  requested_image_output: options?.imageOutput,
     };
 
     if (streamingEnabled) {
@@ -182,6 +185,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           webSearch: options?.webSearch,
           webMaxResults: options?.webMaxResults,
           reasoning: options?.reasoning,
+          ...(options?.imageOutput && { imageOutput: true }),
         };
 
   const response = await fetch('/api/chat/stream', {
@@ -744,6 +748,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       webSearch?: boolean;
       webMaxResults?: number;
       reasoning?: { effort?: 'low' | 'medium' | 'high' };
+  imageOutput?: boolean;
     }
   ) => {
   if (!content.trim() || storeIsLoading || isStreaming) {
@@ -835,6 +840,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           webSearch: options?.webSearch,
           webMaxResults: options?.webMaxResults,
           reasoning: options?.reasoning,
+          ...(options?.imageOutput && { imageOutput: true }),
         };
 
   const response = await fetch('/api/chat/stream', {

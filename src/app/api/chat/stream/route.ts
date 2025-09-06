@@ -81,6 +81,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     const reasoning: { effort?: 'low' | 'medium' | 'high' } | undefined = body?.reasoning && typeof body.reasoning === 'object'
       ? { effort: ['low','medium','high'].includes(body.reasoning.effort) ? body.reasoning.effort : 'low' }
       : undefined;
+  const imageOutput: boolean = body?.imageOutput === true;
 
     // Handle attachments validation and processing (same logic as non-streaming)
     const messages: { role: 'user' | 'assistant'; content: string | OpenRouterContentBlock[] }[] = enhancedData.messages.map(msg => ({
@@ -253,7 +254,7 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       enhancedData.temperature,
       enhancedData.systemPrompt,
       authContext,
-      { webSearch: !!body.webSearch, webMaxResults: effectiveWebMax, reasoning }
+  { webSearch: !!body.webSearch, webMaxResults: effectiveWebMax, reasoning, modalities: imageOutput ? ['text','image'] : undefined }
     );
 
     // Transform the OpenRouter stream to extract metadata and content

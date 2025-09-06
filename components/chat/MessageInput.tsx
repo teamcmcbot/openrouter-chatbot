@@ -14,7 +14,7 @@ import type { ModelInfo } from "../../lib/types/openrouter";
 import { MAX_MESSAGE_CHARS } from "../../lib/config/limits";
 
 interface MessageInputProps {
-  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => void
+  onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput?: boolean }) => void
   disabled?: boolean;
   initialMessage?: string;
   // Optional: allow parent to open the model selector with a preset filter (e.g., 'multimodal')
@@ -205,11 +205,12 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
       return;
     }
     if (message.trim() && !disabled) {
+  const common: { webSearch: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput: boolean } = { webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined, reasoning: reasoningOn ? { effort: 'low' } : undefined, imageOutput: imageOutputOn && modelSupportsImageOutput };
       if (attachments.length > 0) {
         const ready = attachments.filter(a => a.status === 'ready' && a.id);
-        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined, webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined, reasoning: reasoningOn ? { effort: 'low' } : undefined });
+        onSendMessage(message.trim(), { attachmentIds: ready.map(a => a.id!) as string[], draftId: draftId || undefined, ...common });
       } else {
-        onSendMessage(message.trim(), { webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined, reasoning: reasoningOn ? { effort: 'low' } : undefined });
+        onSendMessage(message.trim(), common);
       }
       setMessage("");
       // Reset draft and clear pending attachments
@@ -240,7 +241,7 @@ export default function MessageInput({ onSendMessage, disabled = false, initialM
     for (const id of toDelete) {
       try { fetch(`/api/attachments/${id}`, { method: 'DELETE' }); } catch {}
     }
-  onSendMessage(message.trim(), { webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined });
+  onSendMessage(message.trim(), { webSearch: webSearchOn, webMaxResults: webSearchOn ? webMaxResults : undefined, imageOutput: imageOutputOn && modelSupportsImageOutput });
     // Clear local state
     setMessage("");
     setAttachments((prev) => {

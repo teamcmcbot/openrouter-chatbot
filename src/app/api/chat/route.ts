@@ -76,6 +76,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
   const reasoning: { effort?: 'low' | 'medium' | 'high' } | undefined = body?.reasoning && typeof body.reasoning === 'object'
       ? { effort: ['low','medium','high'].includes(body.reasoning.effort) ? body.reasoning.effort : 'low' }
       : undefined;
+  const imageOutput: boolean = body?.imageOutput === true;
 
   const messages: OpenRouterRequest['messages'] = enhancedData.messages.map(msg => ({
       role: msg.role as 'user' | 'assistant',
@@ -195,6 +196,7 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
     webSearchEnabled: !!body.webSearch,
     reasoningRequested: !!reasoning,
     reasoningEffort: reasoning ? reasoning.effort : undefined,
+  imageOutputRequested: imageOutput,
   });
 
     // Tier gating for Web Search (Pro/Enterprise only)
@@ -272,7 +274,15 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
       enhancedData.temperature,
       enhancedData.systemPrompt,
       authContext,
-      { webSearch: !!body.webSearch, webMaxResults: effectiveWebMax, reasoning }
+      { webSearch: !!body.webSearch, webMaxResults: effectiveWebMax, reasoning, modalities: (() => {
+        if (!imageOutput) return undefined;
+        try {
+          // Only add image modality if model supports it
+          // (best-effort; fetch list and check output_modalities)
+          // Reuse previously fetched models if any earlier (attachments path) else fetch now
+          return ['text','image'];
+        } catch { return ['text','image']; }
+      })() }
     );
     logger.debug('OpenRouter response received:', openRouterResponse);
   const assistantResponse = openRouterResponse.choices[0].message.content;

@@ -168,7 +168,7 @@ export async function getOpenRouterCompletion(
   temperature?: number,
   systemPrompt?: string,
   authContext?: AuthContext | null,
-  options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
+  options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; modalities?: ('text' | 'image')[] }
 ): Promise<OpenRouterResponse> {
   if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is not set');
   const selectedModel = model ?? OPENROUTER_API_MODEL;
@@ -188,7 +188,7 @@ export async function getOpenRouterCompletion(
   const finalMessages = appendSystemPrompt(messages, finalSystemPrompt);
 
   type ReasoningOption = { effort?: 'low' | 'medium' | 'high' };
-  type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption };
+  type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption; modalities?: ('text' | 'image')[] };
   const requestBody: OpenRouterRequestWithReasoning = {
     model: selectedModel,
     messages: finalMessages,
@@ -209,6 +209,11 @@ export async function getOpenRouterCompletion(
     requestBody.plugins = [{ id: 'web', max_results: maxResults }];
   }
   if (options?.reasoning) requestBody.reasoning = options.reasoning;
+  if (options?.modalities && options.modalities.length > 0) {
+    // Only include unique, valid modalities (currently text/image)
+    const unique = Array.from(new Set(options.modalities.filter(m => m === 'text' || m === 'image')));
+    if (unique.length > 0) requestBody.modalities = unique as ('text' | 'image')[];
+  }
 
   let lastError: Error | null = null;
   let lastErrorDetails: string | undefined;
@@ -444,7 +449,7 @@ export async function getOpenRouterCompletionStream(
   temperature?: number,
   systemPrompt?: string,
   authContext?: AuthContext | null,
-  options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
+  options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; modalities?: ('text' | 'image')[] }
 ): Promise<ReadableStream> {
   // STREAM_DEBUG toggle
   const STREAM_DEBUG = process.env.STREAM_DEBUG === '1';
@@ -467,7 +472,7 @@ export async function getOpenRouterCompletionStream(
 
   const finalMessages = appendSystemPrompt(messages, finalSystemPrompt);
   type ReasoningOption = { effort?: 'low' | 'medium' | 'high' };
-  type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption };
+  type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption; modalities?: ('text' | 'image')[] };
   const requestBody: OpenRouterRequestWithReasoning = {
     model: selectedModel,
     messages: finalMessages,
@@ -489,6 +494,10 @@ export async function getOpenRouterCompletionStream(
     requestBody.plugins = [{ id: 'web', max_results: maxResults }];
   }
   if (options?.reasoning) requestBody.reasoning = options.reasoning;
+  if (options?.modalities && options.modalities.length > 0) {
+    const unique = Array.from(new Set(options.modalities.filter(m => m === 'text' || m === 'image')));
+    if (unique.length > 0) requestBody.modalities = unique as ('text' | 'image')[];
+  }
 
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',

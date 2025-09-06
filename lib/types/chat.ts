@@ -48,6 +48,8 @@ export interface ChatMessage {
   requested_web_search?: boolean;
   requested_web_max_results?: number;
   requested_reasoning_effort?: "low" | "medium" | "high";
+  // Whether user requested assistant image output for this message (for exact-option retry)
+  requested_image_output?: boolean;
 }
 
 export interface ChatRequest {
