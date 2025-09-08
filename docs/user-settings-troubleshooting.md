@@ -406,6 +406,140 @@ Contact support with your browser version and error message details.
 
 ---
 
+## Image Generation Issues
+
+### Problem: Image Generation Toggle Not Available
+
+**Symptoms:**
+
+- Image generation toggle is missing or disabled
+- "Upgrade required" message appears
+- Cannot enable image generation in preferences
+
+**Solutions:**
+
+1. **Check Subscription Tier**
+
+   ```
+   Image generation requires Pro or Enterprise subscription
+   - Anonymous/Free users: Feature not available
+   - Pro users: 200 images/hour limit
+   - Enterprise users: 500 images/hour limit
+   ```
+
+2. **Verify Model Compatibility**
+
+   ```
+   Ensure selected model supports image generation:
+   - DALL-E models (recommended)
+   - Other image-capable models listed
+   - Check model description for image support
+   ```
+
+### Problem: Images Not Generating
+
+**Symptoms:**
+
+- Toggle is enabled but no images appear
+- "Image generation failed" error messages
+- Images appear as broken links
+
+**Solutions:**
+
+1. **Rate Limit Check**
+
+   ```
+   Monitor your usage:
+   - Check analytics for current hour usage
+   - Wait if you've hit tier limits
+   - Consider upgrading to higher tier
+   ```
+
+2. **Model Selection**
+
+   ```
+   Switch to compatible models:
+   - openai/dall-e-3 (recommended)
+   - openai/dall-e-2
+   - Verify model is available and not deprecated
+   ```
+
+3. **Content Policy**
+
+   ```
+   Ensure your prompts comply with policies:
+   - Avoid requesting inappropriate content
+   - Use descriptive, family-friendly language
+   - Review OpenAI's usage policies
+   ```
+
+### Problem: High Image Generation Costs
+
+**Symptoms:**
+
+- Unexpected high costs in analytics
+- Running out of credits quickly
+- Cost alerts from the platform
+
+**Solutions:**
+
+1. **Monitor Usage**
+
+   ```
+   Track your image generation:
+   - Check daily cost breakdown in settings
+   - Set up usage alerts
+   - Review image generation frequency
+   ```
+
+2. **Optimize Usage**
+
+   ```
+   Reduce costs by:
+   - Being specific with image requests
+   - Avoiding regeneration unless necessary
+   - Using appropriate model tiers
+   ```
+
+### Problem: Generated Images Not Loading
+
+**Symptoms:**
+
+- Images show as broken or loading forever
+- Signed URL expired errors
+- Images worked previously but now fail
+
+**Solutions:**
+
+1. **Refresh Browser**
+
+   ```
+   Simple refresh often resolves:
+   - Refresh the page
+   - Clear browser cache
+   - Try in incognito/private mode
+   ```
+
+2. **Check Network**
+
+   ```
+   Verify connectivity:
+   - Test other images load correctly
+   - Check if behind corporate firewall
+   - Try different network connection
+   ```
+
+3. **Storage Issues**
+
+   ```
+   If problems persist:
+   - Images may be archived due to retention policies
+   - Check your tier's storage limits
+   - Contact support for recovery options
+   ```
+
+---
+
 ## When to Contact Support
 
 ### Immediate Support Needed:

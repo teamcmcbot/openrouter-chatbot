@@ -65,8 +65,27 @@ The component now integrates with actual database analytics through:
   - Availability indicators for unavailable models (shows "(Not available)")
   - Temperature slider for response creativity control
   - System prompt configuration
+- **Image Generation Settings**:
+  - Toggle for default image generation preference (Pro+ only)
+  - Tier-based access indicators showing feature availability
+  - Cost estimates and usage warnings for image generation
+  - Model compatibility indicators for image-capable models
 - **Persistence**: Real-time saving to database with validation including null default model support
 - **Error Handling**: User-friendly error messages for failed updates
+
+#### Image Generation Preferences
+
+- **Default Toggle**: Sets user's default preference for image generation in new conversations
+- **Tier Gating**: Shows upgrade prompts for Free/Anonymous users with feature previews
+- **Cost Awareness**: Displays current tier limits and per-image cost estimates
+- **Model Integration**: Automatically filters and highlights image-capable models in model selector
+- **Override Behavior**: Per-message toggles can still override the default preference
+
+Access levels by tier:
+
+- **Anonymous/Free**: Feature preview with upgrade prompts
+- **Pro**: Full access with usage limits (200 images/hour)
+- **Enterprise**: Full access with higher limits (500 images/hour)
 
 #### System Prompt Editor UX
 

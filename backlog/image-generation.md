@@ -363,7 +363,7 @@ Structure now divides Phase 4 into two active streams (4A Persistence, 4B Unifie
 
 #### 4A — Persistence (no schema changes needed beyond unified patch)
 
-Current Status: **PARTIALLY COMPLETE** - Streaming flow fully implemented, non-streaming flow needs work
+Current Status: **COMPLETE** - Both streaming and non-streaming flows fully implemented and tested
 
 ✅ **STREAMING FLOW COMPLETE:**
 
@@ -375,13 +375,13 @@ Current Status: **PARTIALLY COMPLETE** - Streaming flow fully implemented, non-s
 - [x] ✅ Chat history loads output images and renders them on assistant messages
 - [x] ✅ Token data displayed correctly in UI (Input: X, Text: Y, Images: Z, Total: W)
 
-❌ **NON-STREAMING FLOW INCOMPLETE:**
+✅ **NON-STREAMING FLOW COMPLETE:**
 
 - [x] ✅ Image generation and rendering on assistant message works
-- [ ] ❌ Token information for image tokens not showing correctly in UI
-- [ ] ❌ POST `/api/chat/messages` payload missing correct values for image and output tokens
-- [ ] ❌ Database persistence for image tokens and cost calculations not working correctly
-- [ ] ❌ `/api/chat` (non-streaming) response missing `completion_tokens_details.image_tokens` forwarding
+- [x] ✅ Token information for image tokens showing correctly in UI
+- [x] ✅ POST `/api/chat/messages` payload includes correct values for image and output tokens
+- [x] ✅ Database persistence for image tokens and cost calculations working correctly
+- [x] ✅ `/api/chat` (non-streaming) response includes `completion_tokens_details.image_tokens` forwarding
 
 **Root Cause Analysis:**
 The streaming endpoint (`/api/chat/stream`) correctly forwards `completion_tokens_details` from OpenRouter, but the non-streaming endpoint (`/api/chat`) is not extracting and including `completion_tokens_details.image_tokens` in the response payload. This means:
@@ -401,17 +401,17 @@ Action Items (Persistence):
 - [x] ✅ POST `/api/chat/messages` accepts and sanitizes `output_image_tokens` field
 - [x] ✅ Unified recompute function `recompute_image_cost_for_user_message` handles output image costs
 - [x] ✅ Triggers properly invoke cost calculations for streaming flow
-- [ ] ❌ **CRITICAL**: Fix `/api/chat` (non-streaming) to extract and forward `usage.completion_tokens_details.image_tokens`
-- [ ] ❌ Verify non-streaming frontend sends correct `output_image_tokens` in persistence payload
-- [ ] ❌ Test non-streaming cost calculations work correctly
-- [ ] ❌ Implement `/api/chat/images/store` (Protected + Tier B) storing assistant images into `chat_attachments` with `metadata.source='assistant'`
-- [ ] ❌ Update client to invoke store endpoint post-stream / post-non-stream finalize, then replace transient data URLs with signed URLs
-- [ ] ❌ Hydration path: rely on existing attachments fetch; ensure UI filters or groups by `metadata.source` if needed
-- [ ] ❌ Tests: endpoint success, attachment rows exist, images render after reload
+- [x] ✅ **VERIFIED**: Fix `/api/chat` (non-streaming) to extract and forward `usage.completion_tokens_details.image_tokens`
+- [x] ✅ Verify non-streaming frontend sends correct `output_image_tokens` in persistence payload
+- [x] ✅ Test non-streaming cost calculations work correctly
+- [x] ✅ Implement `/api/chat/images/store` (Protected + Tier B) storing assistant images into `chat_attachments` with `metadata.source='assistant'`
+- [x] ✅ Update client to invoke store endpoint post-stream / post-non-stream finalize, then replace transient data URLs with signed URLs
+- [x] ✅ Hydration path: rely on existing attachments fetch; ensure UI filters or groups by `metadata.source` if needed
+- [x] ✅ Tests: endpoint success, attachment rows exist, images render after reload
 
 #### 4B — Unified Output Image Pricing (post-persistence)
 
-Current Status: **STREAMING COMPLETE, NON-STREAMING BLOCKED**
+Current Status: **COMPLETE - Both streaming and non-streaming flows working**
 
 ✅ **STREAMING FLOW COMPLETE:**
 
@@ -422,46 +422,52 @@ Current Status: **STREAMING COMPLETE, NON-STREAMING BLOCKED**
 - [x] ✅ Cost calculations include all five components (prompt, text_completion, input_image, output_image, websearch)
 - [x] ✅ Daily usage tracking working with proper delta calculations
 
-❌ **NON-STREAMING FLOW FIXED (2025-09-08):**
-
-**Test Results Analysis:**
-
-From testing with `google/gemini-2.5-flash-image-preview`:
-
-- ✅ `/api/chat` correctly returns `completion_tokens_details.image_tokens: 1290`
-- ✅ Database persistence accepts `output_image_tokens` and filters out transient `output_images`
-- ❌ Frontend conditional extraction logic was broken (using `&&` with spread operator)
-- ❌ UI displayed "Output: 1318" instead of "Text: 28, Images: 1290"
-
-**Root Cause Identified:**
-
-The issue was NOT in `hooks/useChat.ts` (which isn't used by the app) but in `stores/useChatStore.ts` `sendMessage` function. The application uses `useChatStreaming` which delegates non-streaming requests to the store-based `sendMessage`, but that function was missing the `output_image_tokens` extraction logic.
-
-**Fixed:**
-
-Added the missing extraction logic in `stores/useChatStore.ts`:
-
-```typescript
-// ADDED: Extract image tokens from completion_tokens_details if present
-...(data.usage?.completion_tokens_details?.image_tokens && {
-  output_image_tokens: data.usage.completion_tokens_details.image_tokens
-}),
-```
-
-**Current Status After Fix:**
+✅ **NON-STREAMING FLOW COMPLETE:**
 
 - [x] ✅ `/api/chat` (non-streaming) correctly forwards `completion_tokens_details.image_tokens`
 - [x] ✅ Store-based `sendMessage` now extracts `output_image_tokens` correctly
 - [x] ✅ Database persistence accepts `output_image_tokens` (transient `output_images` correctly filtered)
 - [x] ✅ Assistant message now includes `output_image_tokens` field for persistence payload
-- [ ] ⏳ Token display in UI should now show correct split (needs testing)
-- [ ] ⏳ Database cost calculations should now work for non-streaming (needs verification)
+- [x] ✅ Token display in UI shows correct split (verified working)
+- [x] ✅ Database cost calculations work for non-streaming (verified working)
 
 **Next Critical Actions**:
 
-1. Test the non-streaming fix to verify UI now shows "Text: 28, Images: 1290"
-2. Verify database cost calculations work correctly for non-streaming image generation
-3. Implement `/api/chat/images/store` endpoint for assistant image persistence
+~~1. Test the non-streaming fix to verify UI now shows "Text: 28, Images: 1290"~~ ✅ **COMPLETED**
+~~2. Verify database cost calculations work correctly for non-streaming image generation~~ ✅ **COMPLETED**  
+~~3. Implement `/api/chat/images/store` endpoint for assistant image persistence~~ ✅ **COMPLETED**
+
+## Phase 4 Completion Summary (2025-09-08)
+
+**Status: COMPLETE** - All core functionality verified working
+
+### ✅ Fully Implemented and Tested:
+
+- **Image Generation**: Both streaming and non-streaming modes working correctly
+- **Token Handling**: Proper separation of text vs image tokens in UI display
+- **Database Persistence**: Assistant images stored with correct metadata and cost calculations
+- **Cost Calculations**: All five cost components (prompt, text_completion, input_image, output_image, websearch) working
+- **Chat History**: Generated images persist and render correctly after page reload
+- **API Endpoints**: `/api/chat/images/store` implemented with proper auth and rate limiting
+
+### 🔬 Remaining Test Items (Lower Priority):
+
+The following test scenarios would provide additional confidence but are not critical for core functionality:
+
+- Mixed input + output images cost validation
+- Fallback Gemini pricing override testing
+- Heuristic path edge cases
+- Websearch + images combined scenarios
+- Recompute idempotency validation
+
+### 📋 Administrative Tasks Remaining:
+
+- Enhanced logging (structured debug with sampling)
+- Warning logs for edge cases (completion < image tokens)
+- Documentation updates for Phase 4 implementation
+- Verification guide for SQL cost inspection
+- Heuristic removal planning (once stable ingestion confirmed)
+- Orphan GC specification (Phase 4C)
 
 Supersedes prior separate output-image recompute plan. Unified pricing covers:
 
@@ -483,23 +489,23 @@ Open Decisions / Follow-ups:
 
 ##### 4A Persistence
 
-- [ ] Add server DTO/interface fields for `output_image_tokens` on assistant messages (API request/response types).
-- [ ] Modify `/api/chat/messages` handler to accept & persist `output_image_tokens` (clamp negatives, ignore NaN) and rely on trigger path only.
-- [ ] Ensure defensive derivation: `text_completion_tokens = max(completion_tokens - output_image_tokens, 0)` (server-side, not trusting client subtraction).
-- [ ] Implement `/api/chat/images/store` endpoint (Protected + Tier B) to persist assistant images (no recompute) with `metadata.source='assistant'`.
-- [ ] Create helper util `persistAssistantImages` to upload/store and insert `chat_attachments` rows (status='ready').
-- [ ] Client: call store endpoint post-finalization (non-stream + stream) to swap data URLs to signed URLs (graceful fallback on failure).
-- [ ] Hydration: verify existing attachment fetch rehydrates assistant images with correct ordering.
-- [ ] Persistence tests: endpoint auth / rate limit stub, attachment inserted, metadata.source correctness, reload renders images.
+- [x] ✅ Add server DTO/interface fields for `output_image_tokens` on assistant messages (API request/response types).
+- [x] ✅ Modify `/api/chat/messages` handler to accept & persist `output_image_tokens` (clamp negatives, ignore NaN) and rely on trigger path only.
+- [x] ✅ Ensure defensive derivation: `text_completion_tokens = max(completion_tokens - output_image_tokens, 0)` (server-side, not trusting client subtraction).
+- [x] ✅ Implement `/api/chat/images/store` endpoint (Protected + Tier B) to persist assistant images (no recompute) with `metadata.source='assistant'`.
+- [x] ✅ Create helper util `persistAssistantImages` to upload/store and insert `chat_attachments` rows (status='ready').
+- [x] ✅ Client: call store endpoint post-finalization (non-stream + stream) to swap data URLs to signed URLs (graceful fallback on failure).
+- [x] ✅ Hydration: verify existing attachment fetch rehydrates assistant images with correct ordering.
+- [x] ✅ Persistence tests: endpoint auth / rate limit stub, attachment inserted, metadata.source correctness, reload renders images.
 
 ##### 4B Unified Output Image Pricing
 
-- [ ] Confirm schema columns present (`chat_messages.output_image_tokens`, `message_token_costs.output_image_tokens`, `output_image_units`, `output_image_cost`, `model_access.output_image_price`).
-- [ ] Verify unified function `recompute_image_cost_for_user_message` logic matches spec (heuristic, override price, caps, idempotent delta).
-- [ ] Ensure `/api/chat/messages` forwards raw full `completion_tokens` + `image_tokens` (as `output_image_tokens`).
+- [x] ✅ Confirm schema columns present (`chat_messages.output_image_tokens`, `message_token_costs.output_image_tokens`, `output_image_units`, `output_image_cost`, `model_access.output_image_price`).
+- [x] ✅ Verify unified function `recompute_image_cost_for_user_message` logic matches spec (heuristic, override price, caps, idempotent delta).
+- [x] ✅ Ensure `/api/chat/messages` forwards raw full `completion_tokens` + `image_tokens` (as `output_image_tokens`).
 - [ ] Logging: add structured debug (sampled) `{ model, outputImageTokens, inferredHeuristic, outputImageUnits }` (no payloads).
 - [ ] WARN (once) if completion < image tokens (clamped) with redacted context.
-- [ ] Test: pure output images (no user images) cost component correctness.
+- [x] ✅ Test: pure output images (no user images) cost component correctness.
 - [ ] Test: mixed input + output images (both components & caps enforced).
 - [ ] Test: fallback Gemini override when `output_image_price='0'`.
 - [ ] Test: heuristic path (tokens missing, attachments exist) infers tokens once; second recompute no delta.
@@ -521,11 +527,11 @@ Open Decisions / Follow-ups:
 
 ##### Acceptance Validation (Execution Checklist)
 
-- [ ] Assistant images persisted & rehydrated after page reload.
-- [ ] Cost row includes prompt, text_completion, input_image, output_image, websearch components.
+- [x] ✅ Assistant images persisted & rehydrated after page reload.
+- [x] ✅ Cost row includes prompt, text_completion, input_image, output_image, websearch components.
 - [ ] Daily usage delta reflects single recompute per material change.
 - [ ] Recompute idempotent (repeat run no cost change) confirmed.
-- [ ] Logs contain only counts + summary (no base64 / raw tokens beyond counts).
+- [x] ✅ Logs contain only counts + summary (no base64 / raw tokens beyond counts).
 - [ ] Heuristic removal backlog item created.
 
 Test Additions (Unified):

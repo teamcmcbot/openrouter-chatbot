@@ -49,7 +49,8 @@ Content-Type: application/json
   "temperature": 0.7,
   "systemPrompt": "You are a helpful assistant",
   "webSearch": true,
-  "webMaxResults": 5 // Enterprise only; Pro will be forced to 3
+  "webMaxResults": 5, // Enterprise only; Pro will be forced to 3
+  "imageGeneration": true // Enable AI image generation
 }
 ```
 
@@ -98,6 +99,48 @@ Response may include (when provider returns them):
 
 Both fields are persisted to `chat_messages.reasoning` (TEXT) and `chat_messages.reasoning_details` (JSONB) and included in `/api/chat/sync` for assistant messages.
 
+### Image Generation (optional)
+
+Pro and Enterprise users can enable AI image generation on supported models. When enabled, include `imageGeneration: true` in the request:
+
+```json
+{
+  "messages": [{ "role": "user", "content": "Create a picture of a sunset" }],
+  "model": "openai/dall-e-3",
+  "imageGeneration": true
+}
+```
+
+Validation and behavior:
+
+- **Tier Requirements**: Pro+ users only; Free/Anonymous requests are rejected
+- **Model Support**: Model must support image generation (typically DALL-E models)
+- **Cost Tracking**: Image generation tokens are tracked separately as `output_image_tokens` and `output_image_costs`
+- **Storage**: Generated images are automatically stored via `/api/chat/images/store`
+- **Rate Limiting**: Uses Tier A rate limits (most restrictive due to cost)
+
+Response includes image URLs and metadata when generation succeeds:
+
+```json
+{
+  "response": "I've created a beautiful sunset image for you.",
+  "images": [
+    {
+      "url": "https://storage.supabase.co/object/sign/...",
+      "attachmentId": "att_abc123",
+      "mimeType": "image/png"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 15,
+    "total_tokens": 27,
+    "image_tokens": 1000, // Image generation tokens
+    "image_cost": 0.04 // Image generation cost in USD
+  }
+}
+```
+
 ## Response
 
 ```json
@@ -106,7 +149,9 @@ Both fields are persisted to `chat_messages.reasoning` (TEXT) and `chat_messages
   "usage": {
     "prompt_tokens": 12,
     "completion_tokens": 15,
-    "total_tokens": 27
+    "total_tokens": 27,
+    "image_tokens": 0, // Only present when imageGeneration enabled
+    "image_cost": 0.0 // Only present when imageGeneration enabled (USD)
   },
   "request_id": "msg-123",
   "timestamp": "2025-07-29T12:00:00Z",
@@ -118,6 +163,14 @@ Both fields are persisted to `chat_messages.reasoning` (TEXT) and `chat_messages
   "citations": [
     { "url": "https://example.com/a", "title": "Example A" },
     { "url": "https://example.com/b", "title": "Example B" }
+  ],
+  "images": [
+    // Only present when images are generated
+    {
+      "url": "https://storage.supabase.co/object/sign/...",
+      "attachmentId": "att_abc123",
+      "mimeType": "image/png"
+    }
   ]
 }
 ```

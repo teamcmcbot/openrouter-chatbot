@@ -58,6 +58,7 @@ These endpoints require user authentication and implement full rate limiting:
 - [`/api/chat/session`](./chat-session.md) - Individual session updates
 - [`/api/chat/clear-all`](./chat-clear-all.md) - Bulk conversation deletion
 - [`/api/chat/sync`](./chat-sync.md) - Conversation synchronization
+- [`/api/chat/images/store`](./chat-images-store.md) - Store AI-generated images
 - [`/api/uploads/images`](./uploads-images.md) - Image attachment upload (multipart)
 - [`/api/attachments/:id/signed-url`](./attachments-signed-url.md) - Mint short‑lived signed URL
 - [`/api/attachments/:id`](./attachments-delete.md) - Delete pending attachment
@@ -118,6 +119,7 @@ These endpoints are intentionally public and have no rate limiting:
   - `/api/chat/session`
   - `/api/chat/sessions`
   - `/api/chat/clear-all`
+  - `/api/chat/images/store`
   - `/api/models`
   - `/api/user/data`
   - `/api/generation/[id]`
