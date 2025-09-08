@@ -46,6 +46,7 @@ describe('Responsive output images layout', () => {
     const firstBtn = grid.querySelector('button');
     expect(firstBtn).not.toBeNull();
     const btnClass = firstBtn!.className;
+    // Updated responsive classes: w-20 → sm:w-24 → md:w-28 (removed lg breakpoint)
     expect(btnClass).toMatch(/w-20/);
     expect(btnClass).toMatch(/sm:w-24/);
     expect(btnClass).toMatch(/md:w-28/);
