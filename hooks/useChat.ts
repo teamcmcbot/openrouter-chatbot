@@ -112,14 +112,6 @@ export function useChat(): UseChatReturn {
         throw new Error(data.error);
       }
 
-  logger.debug('Raw API response data:', data);
-  logger.debug('Usage object:', data.usage);
-  logger.debug('Individual token values:', {
-        prompt_tokens: data.usage?.prompt_tokens,
-        completion_tokens: data.usage?.completion_tokens,
-        total_tokens: data.usage?.total_tokens
-      });
-
       type ChatResponseWithReasoning = { reasoning?: string; reasoning_details?: Record<string, unknown>[] };
       const respWithReasoning = data as ChatResponseWithReasoning;
       const assistantMessage: ChatMessage = {
@@ -147,11 +139,6 @@ export function useChat(): UseChatReturn {
       };
 
   logger.debug('Created assistant message:', assistantMessage);
-  logger.debug('Assistant message tokens:', {
-        input_tokens: assistantMessage.input_tokens,
-        output_tokens: assistantMessage.output_tokens,
-        total_tokens: assistantMessage.total_tokens
-      });
 
       // Phase 4A: Persist assistant images if present (best-effort, non-blocking)
       if (assistantMessage.output_images && assistantMessage.output_images.length > 0) {

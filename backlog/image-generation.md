@@ -363,21 +363,105 @@ Structure now divides Phase 4 into two active streams (4A Persistence, 4B Unifie
 
 #### 4A — Persistence (no schema changes needed beyond unified patch)
 
-Unchanged from prior draft EXCEPT cost recompute references now point to unified function invocation sequence:
+Current Status: **PARTIALLY COMPLETE** - Streaming flow fully implemented, non-streaming flow needs work
 
-- After assistant message INSERT (role='assistant', no error) the `after_assistant_message_cost` trigger fires `calculate_and_record_message_cost()` which calls `recompute_image_cost_for_user_message(NEW.user_message_id)`; this resolves the assistant message internally and seeds/updates the `message_token_costs` row (initially with zero output images if none linked yet).
-- When user images are linked (input images) via attachment UPDATE (message_id set & status='ready'), the `after_attachment_link_recompute_cost` trigger calls unified recompute ONLY if the linked message is a user message (role='user').
-- Assistant-generated image persistence flow (store endpoint) links attachments directly to the assistant message; this DOES NOT auto-trigger recompute (by design) so that we avoid double delta application. If materially needed, the store endpoint can explicitly call `SELECT recompute_image_cost_for_user_message(<assistant_id>)` after all assistant images are ready (pending final endpoint wiring decision).
+✅ **STREAMING FLOW COMPLETE:**
+
+- [x] ✅ Image generation works correctly in streaming mode
+- [x] ✅ Frontend displays tokens and image tokens correctly for streaming responses
+- [x] ✅ `/api/chat/stream` final metadata includes `completion_tokens_details.image_tokens`
+- [x] ✅ All relevant data persisted to `chat_*` tables correctly via POST `/api/chat/messages`
+- [x] ✅ Cost calculation functions in `message_token_costs` account for output image cost correctly
+- [x] ✅ Chat history loads output images and renders them on assistant messages
+- [x] ✅ Token data displayed correctly in UI (Input: X, Text: Y, Images: Z, Total: W)
+
+❌ **NON-STREAMING FLOW INCOMPLETE:**
+
+- [x] ✅ Image generation and rendering on assistant message works
+- [ ] ❌ Token information for image tokens not showing correctly in UI
+- [ ] ❌ POST `/api/chat/messages` payload missing correct values for image and output tokens
+- [ ] ❌ Database persistence for image tokens and cost calculations not working correctly
+- [ ] ❌ `/api/chat` (non-streaming) response missing `completion_tokens_details.image_tokens` forwarding
+
+**Root Cause Analysis:**
+The streaming endpoint (`/api/chat/stream`) correctly forwards `completion_tokens_details` from OpenRouter, but the non-streaming endpoint (`/api/chat`) is not extracting and including `completion_tokens_details.image_tokens` in the response payload. This means:
+
+1. **Streaming**: OpenRouter → `/api/chat/stream` → Frontend (✅ includes `image_tokens`)
+2. **Non-streaming**: OpenRouter → `/api/chat` → Frontend (❌ missing `image_tokens`)
+
+When the frontend receives a response without `completion_tokens_details.image_tokens`, it cannot:
+
+- Display correct token breakdown in UI
+- Send correct `output_image_tokens` in POST `/api/chat/messages`
+- Trigger proper cost calculations in database
 
 Action Items (Persistence):
 
-- [ ] Implement `/api/chat/images/store` (Protected + Tier B) storing assistant images into `chat_attachments` with `metadata.source='assistant'`.
-- [ ] Decide / document whether store endpoint will explicitly call unified recompute for output images (recommended for near-real-time cost accuracy) — add an idempotent call guarded by row snapshot to avoid duplicate deltas.
-- [ ] Update client to invoke store endpoint post-stream / post-non-stream finalize, then replace transient data URLs with signed URLs.
-- [ ] Hydration path: rely on existing attachments fetch; ensure UI filters or groups by `metadata.source` if needed.
-- [ ] Tests: endpoint success, attachment rows exist, images render after reload.
+- [x] ✅ Database schema includes `output_image_tokens` column (unified patch applied)
+- [x] ✅ POST `/api/chat/messages` accepts and sanitizes `output_image_tokens` field
+- [x] ✅ Unified recompute function `recompute_image_cost_for_user_message` handles output image costs
+- [x] ✅ Triggers properly invoke cost calculations for streaming flow
+- [ ] ❌ **CRITICAL**: Fix `/api/chat` (non-streaming) to extract and forward `usage.completion_tokens_details.image_tokens`
+- [ ] ❌ Verify non-streaming frontend sends correct `output_image_tokens` in persistence payload
+- [ ] ❌ Test non-streaming cost calculations work correctly
+- [ ] ❌ Implement `/api/chat/images/store` (Protected + Tier B) storing assistant images into `chat_attachments` with `metadata.source='assistant'`
+- [ ] ❌ Update client to invoke store endpoint post-stream / post-non-stream finalize, then replace transient data URLs with signed URLs
+- [ ] ❌ Hydration path: rely on existing attachments fetch; ensure UI filters or groups by `metadata.source` if needed
+- [ ] ❌ Tests: endpoint success, attachment rows exist, images render after reload
 
 #### 4B — Unified Output Image Pricing (post-persistence)
+
+Current Status: **STREAMING COMPLETE, NON-STREAMING BLOCKED**
+
+✅ **STREAMING FLOW COMPLETE:**
+
+- [x] ✅ Schema columns present and functional (`chat_messages.output_image_tokens`, `message_token_costs.*`)
+- [x] ✅ Unified function `recompute_image_cost_for_user_message` working correctly
+- [x] ✅ `/api/chat/stream` forwards complete `completion_tokens_details` including `image_tokens`
+- [x] ✅ Frontend correctly processes `image_tokens` and sends `output_image_tokens` in persistence
+- [x] ✅ Cost calculations include all five components (prompt, text_completion, input_image, output_image, websearch)
+- [x] ✅ Daily usage tracking working with proper delta calculations
+
+❌ **NON-STREAMING FLOW FIXED (2025-09-08):**
+
+**Test Results Analysis:**
+
+From testing with `google/gemini-2.5-flash-image-preview`:
+
+- ✅ `/api/chat` correctly returns `completion_tokens_details.image_tokens: 1290`
+- ✅ Database persistence accepts `output_image_tokens` and filters out transient `output_images`
+- ❌ Frontend conditional extraction logic was broken (using `&&` with spread operator)
+- ❌ UI displayed "Output: 1318" instead of "Text: 28, Images: 1290"
+
+**Root Cause Identified:**
+
+The issue was NOT in `hooks/useChat.ts` (which isn't used by the app) but in `stores/useChatStore.ts` `sendMessage` function. The application uses `useChatStreaming` which delegates non-streaming requests to the store-based `sendMessage`, but that function was missing the `output_image_tokens` extraction logic.
+
+**Fixed:**
+
+Added the missing extraction logic in `stores/useChatStore.ts`:
+
+```typescript
+// ADDED: Extract image tokens from completion_tokens_details if present
+...(data.usage?.completion_tokens_details?.image_tokens && {
+  output_image_tokens: data.usage.completion_tokens_details.image_tokens
+}),
+```
+
+**Current Status After Fix:**
+
+- [x] ✅ `/api/chat` (non-streaming) correctly forwards `completion_tokens_details.image_tokens`
+- [x] ✅ Store-based `sendMessage` now extracts `output_image_tokens` correctly
+- [x] ✅ Database persistence accepts `output_image_tokens` (transient `output_images` correctly filtered)
+- [x] ✅ Assistant message now includes `output_image_tokens` field for persistence payload
+- [ ] ⏳ Token display in UI should now show correct split (needs testing)
+- [ ] ⏳ Database cost calculations should now work for non-streaming (needs verification)
+
+**Next Critical Actions**:
+
+1. Test the non-streaming fix to verify UI now shows "Text: 28, Images: 1290"
+2. Verify database cost calculations work correctly for non-streaming image generation
+3. Implement `/api/chat/images/store` endpoint for assistant image persistence
 
 Supersedes prior separate output-image recompute plan. Unified pricing covers:
 
@@ -389,21 +473,9 @@ Supersedes prior separate output-image recompute plan. Unified pricing covers:
   - Attachment count heuristic (1 token each) when tokens absent.
 - Websearch results (capped 50) @ `web_search_price` (fallback 0.004 if missing).
 
-Unified function algorithm (reference snapshot – see actual SQL for authoritative logic):
-
-1. Resolve assistant message by either user_message_id or assistant id param.
-2. Collect token + model + websearch fields; load pricing from `model_access`.
-3. Fallback output image price override for `google/gemini-2.5-flash-image-preview` if `output_image_price` is missing/zero (`0.00003`).
-4. Count input images (user message attachments status='ready', capped 3) => `image_units`.
-5. Count output images (assistant attachments status='ready', `metadata.source` absent or 'assistant') => `output_image_units`.
-6. If output_image_tokens = 0 and output_image_units > 0 ⇒ infer `output_image_tokens = output_image_units`.
-7. Derive text completion tokens = max(completion_tokens - output_image_tokens, 0).
-8. Compute component costs; upsert into `message_token_costs` with expanded `pricing_source` JSON including: prompt & completion prices, input/output image prices, token splits, units, websearch pricing, basis markers, and output image tokens.
-9. Calculate total_cost delta; apply to `user_usage_daily.estimated_cost` idempotently.
-
 Open Decisions / Follow-ups:
 
-- [x] Explicit endpoint recompute after assistant image persistence: DECISION = NO (documented). Cost (including output image component) is computed by the existing `after_assistant_message_cost` trigger path when `/api/chat/messages` inserts the assistant row WITH `output_image_tokens` provided in the payload. No extra recompute call in a separate image store endpoint; that endpoint (when implemented) only persists binaries/attachments. Frontend must send raw `completion_tokens` (full) plus `image_tokens`; server defensively recomputes text vs image split.
+- [x] ✅ Explicit endpoint recompute after assistant image persistence: DECISION = NO (documented). Cost (including output image component) is computed by the existing `after_assistant_message_cost` trigger path when `/api/chat/messages` inserts the assistant row WITH `output_image_tokens` provided in the payload. No extra recompute call in a separate image store endpoint; that endpoint (when implemented) only persists binaries/attachments. Frontend must send raw `completion_tokens` (full) plus `image_tokens`; server defensively recomputes text vs image split.
 - [ ] Track removal timeline for heuristic 1:1 tokens mapping once consistent `output_image_tokens` ingestion confirmed via `/api/chat/messages` payload (>=95% coverage over 7d rolling window).
 - [ ] (Optional) Add sampled debug logs for costly recompute (duration & component breakdown) for anomaly detection.
 

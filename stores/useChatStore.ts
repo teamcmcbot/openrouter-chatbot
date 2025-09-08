@@ -13,6 +13,7 @@ import { STORAGE_KEYS } from "../lib/constants";
 import { createLogger } from "./storeUtils";
 import { useAuthStore } from "./useAuthStore";
 import { syncManager } from "../lib/utils/syncManager";
+import { persistAssistantImages } from "../lib/utils/persistAssistantImages";
 // Phase 3: Import token management utilities
 import { 
   estimateTokenCount, 
@@ -548,6 +549,10 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 total_tokens: data.usage?.total_tokens ?? 0,
                 input_tokens: data.usage?.prompt_tokens ?? 0,
                 output_tokens: data.usage?.completion_tokens ?? 0,
+                // Phase 4A: Extract image tokens from completion_tokens_details if present
+                ...(data.usage?.completion_tokens_details?.image_tokens && {
+                  output_image_tokens: data.usage.completion_tokens_details.image_tokens
+                }),
                 user_message_id: data.request_id, // Link to the user message that triggered this response
                 model: data.model || model,
                 contentType: data.contentType || "text",
@@ -660,6 +665,23 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         title: shouldIncludeTitle ? updatedConv?.title : undefined
                       });
                       
+                      // Phase 4A: Create cleaned assistant message for database persistence (same as streaming)
+                      const assistantMessageForDB = { ...assistantMessage };
+                      
+                      // Remove data URLs from output_images for database payload (keep count only)
+                      if (assistantMessageForDB.output_images && assistantMessageForDB.output_images.length > 0) {
+                        // Add image count for database tracking
+                        assistantMessageForDB.output_image_count = assistantMessage.output_images!.length;
+                        
+                        // Remove actual data URLs from database payload (too large for DB)
+                        delete assistantMessageForDB.output_images;
+                      }
+                      
+                      // Calculate text-only output_tokens (total - image_tokens) for database
+                      if (assistantMessageForDB.output_image_tokens && assistantMessageForDB.output_tokens) {
+                        assistantMessageForDB.output_tokens = assistantMessageForDB.output_tokens - assistantMessageForDB.output_image_tokens;
+                      }
+                      
                       // Save user and assistant messages as a pair - now with correct input_tokens and optional title
                       const payload: {
                         messages: ChatMessage[];
@@ -667,7 +689,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         sessionTitle?: string;
                         attachmentIds?: string[];
                       } = {
-                        messages: [updatedUserMessage, assistantMessage],
+                        messages: [updatedUserMessage, assistantMessageForDB],
                         sessionId: currentConversationId,
                         attachmentIds: options?.attachmentIds,
                       };
@@ -684,6 +706,38 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                       });
                       // Update lastSyncTime after successful persistence
                       set({ lastSyncTime: new Date().toISOString(), syncError: null });
+                      
+                      // Phase 4A: Persist assistant images AFTER database sync (fixes timing race condition)
+                      if (assistantMessage.output_images && assistantMessage.output_images.length > 0) {
+                        persistAssistantImages(
+                          assistantMessage.output_images, 
+                          assistantMessage.id, 
+                          currentConversationId
+                        ).then((persistedUrls: string[]) => {
+                          // Update the assistant message with persisted URLs (swap data URLs for signed URLs)
+                          set((state) => ({
+                            conversations: state.conversations.map((conv) =>
+                              conv.id === currentConversationId
+                                ? {
+                                    ...conv,
+                                    messages: conv.messages.map(msg =>
+                                      msg.id === assistantMessage.id 
+                                        ? { ...msg, output_images: persistedUrls }
+                                        : msg
+                                    ),
+                                  }
+                                : conv
+                            ),
+                          }));
+                        }).catch((error: unknown) => {
+                          logger.warn('Failed to persist assistant images, keeping data URLs', { 
+                            messageId: assistantMessage.id, 
+                            error 
+                          });
+                          // Images remain as data URLs - graceful degradation
+                        });
+                      }
+                      
                       toast.success('Message saved successfully!', { id: 'chat-message-saved' });
                       logger.debug("Message pair saved successfully with correct tokens", { 
                         userMessageId: updatedUserMessage.id,
@@ -697,13 +751,31 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         conversationId: currentConversationId
                       });
                       // Fallback to original userMessage if updated one not found
+                      
+                      // Phase 4A: Create cleaned assistant message for database persistence (fallback path)
+                      const assistantMessageForDB = { ...assistantMessage };
+                      
+                      // Remove data URLs from output_images for database payload (keep count only)
+                      if (assistantMessageForDB.output_images && assistantMessageForDB.output_images.length > 0) {
+                        // Add image count for database tracking
+                        assistantMessageForDB.output_image_count = assistantMessage.output_images!.length;
+                        
+                        // Remove actual data URLs from database payload (too large for DB)
+                        delete assistantMessageForDB.output_images;
+                      }
+                      
+                      // Calculate text-only output_tokens (total - image_tokens) for database
+                      if (assistantMessageForDB.output_image_tokens && assistantMessageForDB.output_tokens) {
+                        assistantMessageForDB.output_tokens = assistantMessageForDB.output_tokens - assistantMessageForDB.output_image_tokens;
+                      }
+                      
                       const payload: {
                         messages: ChatMessage[];
                         sessionId: string;
                         sessionTitle?: string;
                         attachmentIds?: string[];
                       } = {
-                        messages: [userMessage, assistantMessage],
+                        messages: [userMessage, assistantMessageForDB],
                         sessionId: currentConversationId,
                         attachmentIds: options?.attachmentIds,
                       };
@@ -720,6 +792,38 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                       });
                       // Update lastSyncTime after successful persistence (fallback path)
                       set({ lastSyncTime: new Date().toISOString(), syncError: null });
+                      
+                      // Phase 4A: Persist assistant images AFTER database sync (fallback path)
+                      if (assistantMessage.output_images && assistantMessage.output_images.length > 0) {
+                        persistAssistantImages(
+                          assistantMessage.output_images, 
+                          assistantMessage.id, 
+                          currentConversationId
+                        ).then((persistedUrls: string[]) => {
+                          // Update the assistant message with persisted URLs (swap data URLs for signed URLs)
+                          set((state) => ({
+                            conversations: state.conversations.map((conv) =>
+                              conv.id === currentConversationId
+                                ? {
+                                    ...conv,
+                                    messages: conv.messages.map(msg =>
+                                      msg.id === assistantMessage.id 
+                                        ? { ...msg, output_images: persistedUrls }
+                                        : msg
+                                    ),
+                                  }
+                                : conv
+                            ),
+                          }));
+                        }).catch((error: unknown) => {
+                          logger.warn('Failed to persist assistant images, keeping data URLs', { 
+                            messageId: assistantMessage.id, 
+                            error 
+                          });
+                          // Images remain as data URLs - graceful degradation
+                        });
+                      }
+                      
                       toast.success('Message saved successfully!', { id: 'chat-message-saved' });
                     }
                   } catch (error) {
