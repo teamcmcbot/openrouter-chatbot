@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { logger } from "../lib/utils/logger";
 import { ChatMessage } from "../lib/types/chat";
+import { persistAssistantImages } from "../lib/utils/persistAssistantImages";
 
 interface ChatError {
   message: string;
@@ -130,6 +131,10 @@ export function useChat(): UseChatReturn {
         total_tokens: data.usage?.total_tokens ?? 0,
         input_tokens: data.usage?.prompt_tokens ?? 0, // NEW: input tokens from API
         output_tokens: data.usage?.completion_tokens ?? 0, // NEW: output tokens from API
+        // Phase 4A: Extract image tokens from completion_tokens_details if present
+        ...(data.usage?.completion_tokens_details?.image_tokens && {
+          output_image_tokens: data.usage.completion_tokens_details.image_tokens
+        }),
         user_message_id: data.request_id, // NEW: link to user message that triggered this response
         model: data.model || model,
         contentType: data.contentType || "text",
@@ -147,6 +152,33 @@ export function useChat(): UseChatReturn {
         output_tokens: assistantMessage.output_tokens,
         total_tokens: assistantMessage.total_tokens
       });
+
+      // Phase 4A: Persist assistant images if present (best-effort, non-blocking)
+      if (assistantMessage.output_images && assistantMessage.output_images.length > 0) {
+        // Get current session ID (we'll need to derive this from context)
+        // For now, generate a temporary session ID - this will need to be improved
+        // when we integrate with proper session management
+        const sessionId = `temp_${Date.now()}`;
+        
+        persistAssistantImages(
+          assistantMessage.output_images, 
+          assistantMessage.id, 
+          sessionId
+        ).then(persistedUrls => {
+          // Update the assistant message with persisted URLs (swap data URLs for signed URLs)
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessage.id 
+              ? { ...msg, output_images: persistedUrls }
+              : msg
+          ));
+        }).catch(error => {
+          logger.warn('Failed to persist assistant images, keeping data URLs', { 
+            messageId: assistantMessage.id, 
+            error 
+          });
+          // Images remain as data URLs - graceful degradation
+        });
+      }
 
       // Update user message with input tokens when assistant response arrives
       setMessages(prev => {

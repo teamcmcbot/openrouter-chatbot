@@ -54,6 +54,10 @@ export interface ChatMessage {
   // Phase 2 (non-persisted) assistant output images (data URLs) for inline display only.
   // These are not stored in DB yet; will be replaced by attachments in Phase 2.5.
   output_images?: string[];
+  /** Raw output image token count (from completion_tokens_details.image_tokens); persisted for pricing (assistant only). */
+  output_image_tokens?: number;
+  /** Number of output images generated (for database tracking when data URLs are removed). */
+  output_image_count?: number;
 }
 
 export interface ChatRequest {
@@ -69,6 +73,13 @@ export interface ChatResponse {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    prompt_tokens_details?: {
+      cached_tokens?: number;
+    };
+    completion_tokens_details?: {
+      reasoning_tokens?: number;
+      image_tokens?: number;
+    };
   };
   request_id?: string; // NEW: Links response to user message that triggered it
   timestamp: string;

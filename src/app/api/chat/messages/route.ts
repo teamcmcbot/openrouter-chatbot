@@ -9,6 +9,7 @@ import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
 import { handleError } from '../../../../../lib/utils/errors';
 import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
+import { extractOutputImageDataUrls } from '../../../../../lib/utils/parseOutputImages';
 
 // Shape of chat_messages rows we read from DB
 interface DbMessage {
@@ -20,6 +21,7 @@ interface DbMessage {
   total_tokens?: number | null;
   input_tokens?: number | null;
   output_tokens?: number | null;
+  output_image_tokens?: number | null; // Add missing field
   user_message_id?: string | null;
   content_type?: string | null;
   elapsed_ms?: number | null;
@@ -164,6 +166,11 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
         const model = message.role === 'assistant' ? message.model : undefined;
         const originalModel = message.role === 'user' ? (message.model ?? undefined) : undefined;
 
+        // Extract output images from assistant message content (for UI display)
+        const output_images = message.role === 'assistant' 
+          ? extractOutputImageDataUrls({ choices: [{ message: { content: message.content } }] })
+          : undefined;
+
         return {
           id: message.id,
           role: message.role as 'user' | 'assistant',
@@ -175,6 +182,7 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
           total_tokens: message.total_tokens,
           input_tokens: message.input_tokens || 0,
           output_tokens: message.output_tokens || 0,
+          output_image_tokens: message.output_image_tokens || undefined, // Add missing field
           user_message_id: message.user_message_id || undefined,
           // Rendering and tracing
           contentType,
@@ -195,6 +203,8 @@ async function getMessagesHandler(request: NextRequest, authContext: AuthContext
           error: !!message.error_message,
           // Streaming mode used
           was_streaming: message.is_streaming === true,
+          // Output images for assistant messages (extracted from content)
+          ...(output_images && output_images.length > 0 ? { output_images } : {}),
           // Request-side options
           ...(requested_web_search !== undefined ? { requested_web_search } : {}),
           ...(requested_web_max_results !== undefined ? { requested_web_max_results } : {}),
@@ -253,6 +263,46 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       sessionTitle?: string; // NEW: Optional title update for session
       attachmentIds?: string[]; // NEW: image attachments to link to the triggering user message
     };
+
+    // Helper to coerce & validate output_image_tokens (assistant only)
+    interface ChatMessageWithImages extends ChatMessage { output_image_tokens?: number }
+    function sanitizeOutputImageTokens(msg: ChatMessageWithImages): number | undefined {
+      if (msg.role !== 'assistant') return undefined;
+      const raw = msg.output_image_tokens;
+      if (raw === undefined || raw === null) return undefined;
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) {
+        logger.warn('Invalid output_image_tokens ignored', { requestId, messageId: msg.id, provided: raw });
+        return undefined;
+      }
+      // Guard against pathological huge values (basic sanity check)
+      if (n > 5_000_000) {
+        logger.warn('Suspiciously large output_image_tokens clamped', { requestId, messageId: msg.id, provided: n });
+        return 5_000_000;
+      }
+      return Math.floor(n);
+    }
+
+    // Defensive utility for text token calculation: clamp negative to zero
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    function calculateTextOutputTokens(completionTokens: number, imageTokens: number | undefined, msgId?: string): number {
+      const ct = Number.isFinite(completionTokens) ? Math.max(0, completionTokens) : 0;
+      const it = Number.isFinite(imageTokens) ? Math.max(0, imageTokens!) : 0;
+      const textTokens = Math.max(0, ct - it);
+      
+      // Log warning if subtraction would have been negative (diagnostic info)
+      if (ct > 0 && it > 0 && ct < it) {
+        logger.warn('Image tokens exceed completion tokens - clamped text to zero', { 
+          requestId, 
+          messageId: msgId, 
+          completionTokens: ct, 
+          imageTokens: it,
+          textTokensCalculated: textTokens 
+        });
+      }
+      
+      return textTokens;
+    }
 
     // Check if session already exists first
     const { data: existingSession } = await supabase
@@ -322,6 +372,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       for (const message of requestData.messages) {
   type MessageWithReasoning = ChatMessage & { reasoning?: string; reasoning_details?: Record<string, unknown>[] };
     const mwr = message as MessageWithReasoning;
+    const outputImageTokens = sanitizeOutputImageTokens(message);
     const { data: newMessage, error: messageError } = await supabase
           .from('chat_messages')
           .upsert({
@@ -341,6 +392,8 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
   reasoning_details: mwr.reasoning_details || null,
       has_websearch: message.has_websearch ?? false,
       websearch_result_count: message.websearch_result_count ?? 0,
+      // Persist raw output image tokens (assistant only). Column assumed added by unified patch.
+      ...(outputImageTokens !== undefined ? { output_image_tokens: outputImageTokens } : {}),
             metadata: {
               // Prefer upstream-specific fields if provided by client
               ...(message.upstream_error_code !== undefined && message.upstream_error_code !== null
@@ -373,7 +426,8 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       const message = requestData.message;
   type MessageWithReasoning = ChatMessage & { reasoning?: string; reasoning_details?: Record<string, unknown>[] };
     const mwr = message as MessageWithReasoning;
-    const { data: newMessage, error: messageError } = await supabase
+  const outputImageTokens = sanitizeOutputImageTokens(message);
+  const { data: newMessage, error: messageError } = await supabase
         .from('chat_messages')
         .upsert({
           id: message.id,
@@ -392,6 +446,7 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
       reasoning_details: mwr.reasoning_details || null,
       has_websearch: message.has_websearch ?? false,
       websearch_result_count: message.websearch_result_count ?? 0,
+      ...(outputImageTokens !== undefined ? { output_image_tokens: outputImageTokens } : {}),
           metadata: {
             ...(message.upstream_error_code !== undefined && message.upstream_error_code !== null
               ? { upstream_error_code: message.upstream_error_code }

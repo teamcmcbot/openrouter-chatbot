@@ -8,6 +8,7 @@ import rehypeHighlight from "rehype-highlight";
 import { ChatMessage } from "../../lib/types/chat";
 import { formatMessageTime } from "../../lib/utils/dateFormat";
 import { detectMarkdownContent } from "../../lib/utils/markdown";
+import { formatTokenDisplay } from "../../lib/utils/tokenCalculations";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { 
   CustomCodeBlock, 
@@ -504,12 +505,28 @@ export default function MessageList({
                     </div>
 
                     {/* Group 2: Tokens Info */}
-                    {message.role === "assistant" && (
-                      <div className="flex items-center text-xs text-gray-600 dark:text-gray-300">
-                        Input: {message.input_tokens || 0}, Output: {message.output_tokens || 0}, 
-                        Total: {message.total_tokens} tokens
-                      </div>
-                    )}
+                    {message.role === "assistant" && (() => {
+                      const tokenInfo = formatTokenDisplay(
+                        message.input_tokens,
+                        message.output_tokens,
+                        message.total_tokens,
+                        message.output_image_tokens
+                      );
+                      
+                      return (
+                        <div className="flex items-center text-xs text-gray-600 dark:text-gray-300">
+                          {tokenInfo.showDetailed ? (
+                            <>
+                              Input: {tokenInfo.input}, Text: {tokenInfo.textOutput}, Images: {tokenInfo.image}, Total: {tokenInfo.total} tokens
+                            </>
+                          ) : (
+                            <>
+                              Input: {tokenInfo.input}, Output: {tokenInfo.output}, Total: {tokenInfo.total} tokens
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Group 3 (always on the far right or its own row) */}

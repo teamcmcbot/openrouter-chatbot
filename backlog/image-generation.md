@@ -403,9 +403,58 @@ Unified function algorithm (reference snapshot – see actual SQL for authoritat
 
 Open Decisions / Follow-ups:
 
-- Explicit endpoint recompute after assistant image persistence: DECISION = NO. Cost (including output image component) is computed by the existing `after_assistant_message_cost` trigger path when `/api/chat/messages` inserts the assistant row WITH `output_image_tokens` provided in the payload. No extra recompute call in a separate image store endpoint; that endpoint (when implemented) only persists binaries/attachments. Frontend must send raw `completion_tokens` (full) plus `image_tokens`; server defensively recomputes text vs image split.
-- Removal timeline for heuristic 1:1 tokens mapping once consistent `output_image_tokens` ingestion confirmed via `/api/chat/messages` payload.
-- Potential sampling of costly recompute logs at debug for anomaly detection (not required now).
+- [x] Explicit endpoint recompute after assistant image persistence: DECISION = NO (documented). Cost (including output image component) is computed by the existing `after_assistant_message_cost` trigger path when `/api/chat/messages` inserts the assistant row WITH `output_image_tokens` provided in the payload. No extra recompute call in a separate image store endpoint; that endpoint (when implemented) only persists binaries/attachments. Frontend must send raw `completion_tokens` (full) plus `image_tokens`; server defensively recomputes text vs image split.
+- [ ] Track removal timeline for heuristic 1:1 tokens mapping once consistent `output_image_tokens` ingestion confirmed via `/api/chat/messages` payload (>=95% coverage over 7d rolling window).
+- [ ] (Optional) Add sampled debug logs for costly recompute (duration & component breakdown) for anomaly detection.
+
+#### Phase 4 Implementation Checklist
+
+##### 4A Persistence
+
+- [ ] Add server DTO/interface fields for `output_image_tokens` on assistant messages (API request/response types).
+- [ ] Modify `/api/chat/messages` handler to accept & persist `output_image_tokens` (clamp negatives, ignore NaN) and rely on trigger path only.
+- [ ] Ensure defensive derivation: `text_completion_tokens = max(completion_tokens - output_image_tokens, 0)` (server-side, not trusting client subtraction).
+- [ ] Implement `/api/chat/images/store` endpoint (Protected + Tier B) to persist assistant images (no recompute) with `metadata.source='assistant'`.
+- [ ] Create helper util `persistAssistantImages` to upload/store and insert `chat_attachments` rows (status='ready').
+- [ ] Client: call store endpoint post-finalization (non-stream + stream) to swap data URLs to signed URLs (graceful fallback on failure).
+- [ ] Hydration: verify existing attachment fetch rehydrates assistant images with correct ordering.
+- [ ] Persistence tests: endpoint auth / rate limit stub, attachment inserted, metadata.source correctness, reload renders images.
+
+##### 4B Unified Output Image Pricing
+
+- [ ] Confirm schema columns present (`chat_messages.output_image_tokens`, `message_token_costs.output_image_tokens`, `output_image_units`, `output_image_cost`, `model_access.output_image_price`).
+- [ ] Verify unified function `recompute_image_cost_for_user_message` logic matches spec (heuristic, override price, caps, idempotent delta).
+- [ ] Ensure `/api/chat/messages` forwards raw full `completion_tokens` + `image_tokens` (as `output_image_tokens`).
+- [ ] Logging: add structured debug (sampled) `{ model, outputImageTokens, inferredHeuristic, outputImageUnits }` (no payloads).
+- [ ] WARN (once) if completion < image tokens (clamped) with redacted context.
+- [ ] Test: pure output images (no user images) cost component correctness.
+- [ ] Test: mixed input + output images (both components & caps enforced).
+- [ ] Test: fallback Gemini override when `output_image_price='0'`.
+- [ ] Test: heuristic path (tokens missing, attachments exist) infers tokens once; second recompute no delta.
+- [ ] Test: websearch + images combined (all five cost components aggregated).
+- [ ] Test: back-to-back recompute unchanged state yields zero additional daily usage delta.
+
+##### 4C Operational Hygiene (Spec Only in this Phase)
+
+- [ ] Draft orphan GC spec: delete/cleanup assistant attachments older than TTL with no message reference or not `status='ready'`.
+- [ ] Add backlog issue for GC implementation & monitoring metrics (counts by age/status).
+
+##### Documentation & Follow-ups
+
+- [ ] Update `docs/architecture/db-persist-chat-messages.md` with Phase 4 persistence + pricing flow and decision rationale (no explicit recompute endpoint).
+- [ ] Add verification guide documenting SQL queries to inspect `message_token_costs` & `user_usage_daily` deltas.
+- [ ] Add heuristic removal success metric & monitoring query snippet to docs/backlog.
+- [ ] Add API contract doc for `/api/chat/images/store` (auth, rate limit tier, request/response schema, no recompute).
+- [ ] Prepare manual user verification checklist: 4A (persistence) & 4B (pricing) steps.
+
+##### Acceptance Validation (Execution Checklist)
+
+- [ ] Assistant images persisted & rehydrated after page reload.
+- [ ] Cost row includes prompt, text_completion, input_image, output_image, websearch components.
+- [ ] Daily usage delta reflects single recompute per material change.
+- [ ] Recompute idempotent (repeat run no cost change) confirmed.
+- [ ] Logs contain only counts + summary (no base64 / raw tokens beyond counts).
+- [ ] Heuristic removal backlog item created.
 
 Test Additions (Unified):
 

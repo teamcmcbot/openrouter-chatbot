@@ -10,6 +10,7 @@ import { createLogger } from '../stores/storeUtils';
 import { isStreamingDebugEnabled, streamDebug } from '../lib/utils/streamDebug';
 import { checkRateLimitHeaders } from '../lib/utils/rateLimitNotifications';
 import { getModelTokenLimits } from '../lib/utils/tokens';
+import { persistAssistantImages } from '../lib/utils/persistAssistantImages';
 
 const logger = createLogger("ChatStreaming");
 
@@ -236,7 +237,18 @@ export function useChatStreaming(): UseChatStreamingReturn {
         let fullContent = '';
         let finalMetadata: {
           response?: string;
-          usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+          usage?: { 
+            prompt_tokens: number; 
+            completion_tokens: number; 
+            total_tokens: number;
+            prompt_tokens_details?: {
+              cached_tokens?: number;
+            };
+            completion_tokens_details?: {
+              reasoning_tokens?: number;
+              image_tokens?: number;
+            };
+          };
           request_id?: string;
           timestamp?: string;
           elapsed_ms?: number;
@@ -582,6 +594,10 @@ export function useChatStreaming(): UseChatStreamingReturn {
           total_tokens: finalMetadata?.usage?.total_tokens || 0,
           input_tokens: finalMetadata?.usage?.prompt_tokens || 0,
           output_tokens: finalMetadata?.usage?.completion_tokens || 0,
+          // Phase 4A: Extract image tokens from completion_tokens_details if present
+          ...(finalMetadata?.usage?.completion_tokens_details?.image_tokens && {
+            output_image_tokens: finalMetadata.usage.completion_tokens_details.image_tokens
+          }),
           elapsed_ms: finalMetadata?.elapsed_ms || 0,
           completion_id: finalMetadata?.id,
           // Mark assistant message as streamed
@@ -680,6 +696,26 @@ export function useChatStreaming(): UseChatStreamingReturn {
           // Only persist for authenticated users; skip for anonymous
           const { user } = useAuthStore.getState();
           if (user?.id) {
+            // Phase 4A: Create cleaned assistant message for database persistence
+            const assistantMessageForDB = { ...assistantMessage };
+            
+            // Remove data URLs from output_images for database payload (keep count only)
+            if (assistantMessageForDB.output_images && assistantMessageForDB.output_images.length > 0) {
+              // Add image count for database tracking
+              assistantMessageForDB.output_image_count = assistantMessage.output_images!.length;
+              
+              // Remove actual data URLs from database payload (too large for DB)
+              delete assistantMessageForDB.output_images;
+            }
+            
+            // Calculate text-only output_tokens (total - image_tokens) for database
+            if (assistantMessageForDB.output_image_tokens && assistantMessageForDB.output_tokens) {
+              assistantMessageForDB.output_tokens = assistantMessageForDB.output_tokens - assistantMessageForDB.output_image_tokens;
+            }
+            
+            // Update syncPayload with cleaned message
+            syncPayload.messages[1] = assistantMessageForDB;
+
             const syncResponse = await fetch('/api/chat/messages', {
               method: 'POST',
               headers: {
@@ -692,6 +728,38 @@ export function useChatStreaming(): UseChatStreamingReturn {
               logger.warn('Failed to sync messages to database:', syncResponse.status);
             } else {
               // logger.debug('Messages synced to database successfully');
+              
+              // Phase 4A: Persist assistant images AFTER database sync (fixes timing race condition)
+              if (assistantMessage.output_images && assistantMessage.output_images.length > 0) {
+                persistAssistantImages(
+                  assistantMessage.output_images, 
+                  assistantMessage.id, 
+                  conversationId
+                ).then(persistedUrls => {
+                  // Update the assistant message with persisted URLs (swap data URLs for signed URLs)
+                  useChatStore.setState((state) => ({
+                    conversations: state.conversations.map((conv) =>
+                      conv.id === conversationId
+                        ? {
+                            ...conv,
+                            messages: conv.messages.map(msg =>
+                              msg.id === assistantMessage.id
+                                ? { ...msg, output_images: persistedUrls }
+                                : msg
+                            ),
+                          }
+                        : conv
+                    ),
+                  }));
+                }).catch(error => {
+                  logger.warn('Failed to persist assistant images, keeping data URLs', { 
+                    messageId: assistantMessage.id, 
+                    conversationId,
+                    error 
+                  });
+                  // Images remain as data URLs - graceful degradation
+                });
+              }
             }
           } else {
             logger.debug('Skipping /api/chat/messages persistence for anonymous user');

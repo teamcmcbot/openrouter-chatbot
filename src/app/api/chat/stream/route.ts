@@ -260,7 +260,18 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
     // Transform the OpenRouter stream to extract metadata and content
     let fullCompletion = '';
     let streamMetadata: {
-      usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+      usage?: { 
+        prompt_tokens: number; 
+        completion_tokens: number; 
+        total_tokens: number;
+        prompt_tokens_details?: {
+          cached_tokens?: number;
+        };
+        completion_tokens_details?: {
+          reasoning_tokens?: number;
+          image_tokens?: number;
+        };
+      };
       id?: string;
       model?: string;
       reasoning?: string;
@@ -438,7 +449,13 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
           if (total === 0 && (pt > 0 || ct > 0)) total = pt + ct;
           // Safeguard: if total < (pt+ct) adjust upward
           if (total < pt + ct) total = pt + ct;
-          usage = { prompt_tokens: pt, completion_tokens: ct, total_tokens: total };
+          usage = { 
+            prompt_tokens: pt, 
+            completion_tokens: ct, 
+            total_tokens: total,
+            prompt_tokens_details: usage.prompt_tokens_details,
+            completion_tokens_details: usage.completion_tokens_details,
+          };
         } catch {}
 
         const finalMetadata = {

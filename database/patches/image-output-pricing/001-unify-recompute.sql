@@ -34,9 +34,37 @@ ALTER TABLE public.chat_attachments
 ALTER TABLE public.message_token_costs
     ADD COLUMN IF NOT EXISTS output_image_tokens INTEGER DEFAULT 0;
 ALTER TABLE public.message_token_costs
-    ADD COLUMN IF NOT EXISTS output_image_units INTEGER DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS output_image_units_price DECIMAL(12,8) DEFAULT 0;
 ALTER TABLE public.message_token_costs
     ADD COLUMN IF NOT EXISTS output_image_cost DECIMAL(12,6) DEFAULT 0;
+ALTER TABLE public.message_token_costs
+    DROP COLUMN IF EXISTS output_image_units; -- remove old column name
+
+-- Update total_tokens computed column to include output_image_tokens
+-- First, handle dependent views that reference total_tokens
+DROP VIEW IF EXISTS public.user_model_costs_daily;
+
+-- Now we can safely drop and recreate the total_tokens column
+ALTER TABLE public.message_token_costs
+    DROP COLUMN IF EXISTS total_tokens;
+ALTER TABLE public.message_token_costs
+    ADD COLUMN total_tokens INTEGER GENERATED ALWAYS AS (prompt_tokens + completion_tokens + COALESCE(output_image_tokens, 0)) STORED;
+
+-- Recreate the dependent view (if it existed)
+-- Note: This assumes the view exists - if the exact definition is different, 
+-- this will need to be updated to match the current schema
+CREATE OR REPLACE VIEW public.user_model_costs_daily AS
+SELECT 
+    user_id,
+    model_id,
+    DATE(message_timestamp) as cost_date,
+    COUNT(*) as message_count,
+    SUM(prompt_tokens) as total_prompt_tokens,
+    SUM(completion_tokens) as total_completion_tokens,
+    SUM(total_tokens) as total_tokens,
+    SUM(total_cost) as total_cost
+FROM public.message_token_costs
+GROUP BY user_id, model_id, DATE(message_timestamp);
 
 -- 4) chat_messages raw output image token persistence
 ALTER TABLE public.chat_messages
@@ -80,7 +108,7 @@ DECLARE
 
     -- Units (counts)
     v_input_image_units INTEGER := 0;    -- attachments on user message (cap 3)
-    v_output_image_units INTEGER := 0;   -- assistant-generated image count (no cap)
+    v_output_image_units_price DECIMAL(12,8) := 0;   -- output image unit price from model_access
 
     -- Costs
     v_prompt_cost DECIMAL(12,6) := 0;
@@ -131,13 +159,13 @@ BEGIN
         COALESCE(image_price,'0'),
         COALESCE(output_image_price,'0'),
         COALESCE(web_search_price,'0')
-    INTO v_prompt_price, v_completion_price, v_input_image_price, v_output_image_price, v_websearch_price
+    INTO v_prompt_price, v_completion_price, v_input_image_price, v_output_image_units_price, v_websearch_price
     FROM public.model_access
     WHERE model_id = v_model;
 
     -- Fallback for known model override
-    IF (v_output_image_price = 0 OR v_output_image_price IS NULL) AND v_model = 'google/gemini-2.5-flash-image-preview' THEN
-        v_output_image_price := 0.00003; -- override until model sync includes it
+    IF (v_output_image_units_price = 0 OR v_output_image_units_price IS NULL) AND v_model = 'google/gemini-2.5-flash-image-preview' THEN
+        v_output_image_units_price := 0.00003; -- override until model sync includes it
     END IF;
 
     -- Web search fallback price
@@ -155,26 +183,16 @@ BEGIN
           AND status = 'ready';
     END IF;
 
-    -- Output images (assistant attachments, no cap) – rely on metadata.source when present
-    SELECT COALESCE(COUNT(*),0)
-    INTO v_output_image_units
-    FROM public.chat_attachments
-    WHERE message_id = v_assistant_id
-      AND status = 'ready'
-      AND ( (metadata ? 'source') IS FALSE OR (metadata ->> 'source') = 'assistant');
-
-    -- If we have image tokens column but zero tokens & attachments present, infer 1:1 (temporary heuristic)
-    IF v_output_image_tokens = 0 AND v_output_image_units > 0 THEN
-        v_output_image_tokens := v_output_image_units;
-    END IF;
-
-    v_text_completion_tokens := GREATEST(v_completion_tokens - v_output_image_tokens, 0);
+    -- FIXED: completion_tokens and output_image_tokens are separate, not overlapping
+    -- completion_tokens = text output tokens (from OpenRouter)
+    -- output_image_tokens = image output tokens (from completion_tokens_details.image_tokens)
+    v_text_completion_tokens := COALESCE(v_completion_tokens, 0);
 
     -- Cost components
     v_prompt_cost := ROUND( (v_prompt_tokens * v_prompt_price)::numeric, 6 );
     v_text_completion_cost := ROUND( (v_text_completion_tokens * v_completion_price)::numeric, 6 );
     v_input_image_cost := ROUND( (v_input_image_units * v_input_image_price)::numeric, 6 );
-    v_output_image_cost := ROUND( (v_output_image_units * v_output_image_price)::numeric, 6 );
+    v_output_image_cost := ROUND( (v_output_image_tokens * v_output_image_units_price)::numeric, 6 );
 
     IF v_has_websearch THEN
         v_websearch_cost := ROUND( (LEAST(COALESCE(v_websearch_results,0), 50) * v_websearch_price)::numeric, 6 );
@@ -193,13 +211,13 @@ BEGIN
         model_id, message_timestamp, prompt_tokens, completion_tokens, elapsed_ms,
         prompt_unit_price, completion_unit_price, image_units, image_unit_price,
         prompt_cost, completion_cost, image_cost, websearch_cost,
-        output_image_tokens, output_image_units, output_image_cost, total_cost, pricing_source
+        output_image_tokens, output_image_units_price, output_image_cost, total_cost, pricing_source
     ) VALUES (
         v_user_id, v_session_id, v_assistant_id, v_user_msg_id, v_completion_id,
         v_model, v_message_timestamp, v_prompt_tokens, v_completion_tokens, COALESCE(v_elapsed_ms,0),
         v_prompt_price, v_completion_price, v_input_image_units, v_input_image_price,
         v_prompt_cost, v_text_completion_cost, v_input_image_cost, v_websearch_cost,
-        v_output_image_tokens, v_output_image_units, v_output_image_cost, v_total_cost,
+        v_output_image_tokens, v_output_image_units_price, v_output_image_cost, v_total_cost,
         jsonb_build_object(
             'model_id', v_model,
             'pricing_basis', 'unified_per_token_plus_input_output_images_plus_websearch',
@@ -207,9 +225,8 @@ BEGIN
             'completion_price', v_completion_price,
             'input_image_price', v_input_image_price,
             'image_units', v_input_image_units,
-            'output_image_price', v_output_image_price,
+            'output_image_price', v_output_image_units_price,
             'output_image_tokens', v_output_image_tokens,
-            'output_image_units', v_output_image_units,
             'output_image_basis', 'per_output_token',
             'text_completion_tokens', v_text_completion_tokens,
             'web_search_price', v_websearch_price,
@@ -228,7 +245,7 @@ BEGIN
         image_cost = EXCLUDED.image_cost,
         websearch_cost = EXCLUDED.websearch_cost,
         output_image_tokens = EXCLUDED.output_image_tokens,
-        output_image_units = EXCLUDED.output_image_units,
+        output_image_units_price = EXCLUDED.output_image_units_price,
         output_image_cost = EXCLUDED.output_image_cost,
         total_cost = EXCLUDED.total_cost,
         pricing_source = EXCLUDED.pricing_source;

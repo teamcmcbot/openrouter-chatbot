@@ -375,6 +375,8 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
         prompt_tokens: usage?.prompt_tokens ?? 0,
         completion_tokens: usage?.completion_tokens ?? 0,
         total_tokens: usage?.total_tokens ?? 0,
+        prompt_tokens_details: usage?.prompt_tokens_details,
+        completion_tokens_details: usage?.completion_tokens_details,
       },
       request_id: triggeringUserId || undefined, // Deterministic linkage to triggering user message
       timestamp: new Date().toISOString(),
