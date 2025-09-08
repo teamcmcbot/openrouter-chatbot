@@ -54,17 +54,17 @@ ALTER TABLE public.message_token_costs
 -- Note: This assumes the view exists - if the exact definition is different, 
 -- this will need to be updated to match the current schema
 CREATE OR REPLACE VIEW public.user_model_costs_daily AS
-SELECT 
+SELECT
     user_id,
+    (message_timestamp AT TIME ZONE 'UTC')::date AS usage_date,
     model_id,
-    DATE(message_timestamp) as cost_date,
-    COUNT(*) as message_count,
-    SUM(prompt_tokens) as total_prompt_tokens,
-    SUM(completion_tokens) as total_completion_tokens,
-    SUM(total_tokens) as total_tokens,
-    SUM(total_cost) as total_cost
+    SUM(prompt_tokens) AS prompt_tokens,
+    SUM(completion_tokens) AS completion_tokens,
+    SUM(total_tokens) AS total_tokens,
+    ROUND(SUM(total_cost), 6) AS total_cost,
+    COUNT(*) AS assistant_messages
 FROM public.message_token_costs
-GROUP BY user_id, model_id, DATE(message_timestamp);
+GROUP BY user_id, (message_timestamp AT TIME ZONE 'UTC')::date, model_id;
 
 -- 4) chat_messages raw output image token persistence
 ALTER TABLE public.chat_messages
