@@ -43,7 +43,7 @@ async function getCostsHandler(req: NextRequest, auth: AuthContext) {
 
     const filters = supabase
       .from('message_token_costs')
-      .select('assistant_message_id, session_id, model_id, message_timestamp, prompt_tokens, completion_tokens, total_tokens, prompt_cost, completion_cost, image_cost, websearch_cost, total_cost, elapsed_ms', { count: 'exact' })
+      .select('assistant_message_id, session_id, model_id, message_timestamp, prompt_tokens, completion_tokens, total_tokens, prompt_cost, completion_cost, image_cost, output_image_cost, websearch_cost, total_cost, elapsed_ms', { count: 'exact' })
       .eq('user_id', user.id)
       .gte('message_timestamp', startISO)
       .lt('message_timestamp', endExclusive)

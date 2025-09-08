@@ -519,10 +519,10 @@ Open Decisions / Follow-ups:
 
 ##### Documentation & Follow-ups
 
-- [ ] Update `docs/architecture/db-persist-chat-messages.md` with Phase 4 persistence + pricing flow and decision rationale (no explicit recompute endpoint).
+- [x] ✅ Update `docs/architecture/db-persist-chat-messages.md` with Phase 4 persistence + pricing flow and decision rationale (no explicit recompute endpoint).
 - [ ] Add verification guide documenting SQL queries to inspect `message_token_costs` & `user_usage_daily` deltas.
 - [ ] Add heuristic removal success metric & monitoring query snippet to docs/backlog.
-- [ ] Add API contract doc for `/api/chat/images/store` (auth, rate limit tier, request/response schema, no recompute).
+- [x] ✅ Add API contract doc for `/api/chat/images/store` (auth, rate limit tier, request/response schema, no recompute).
 - [ ] Prepare manual user verification checklist: 4A (persistence) & 4B (pricing) steps.
 
 ##### Acceptance Validation (Execution Checklist)
