@@ -43,7 +43,7 @@ function rsFromStrings(parts: string[]): ReadableStream<Uint8Array> {
   });
 }
 
-async function readAll(rs: ReadableStream<unknown>): Promise<string> {
+async function readAllNewlines(rs: ReadableStream<unknown>): Promise<string> {
   const reader = rs.getReader();
   let out = "";
   while (true) {
@@ -133,7 +133,7 @@ describe("API chat stream route - newline preservation", () => {
       json: async () => ({ messages: [{ role: "user", content: "hi" }], model: "deepseek/deepseek-r1-0528:free" }),
     };
     const res = (await POST(req as unknown as import("next/server").NextRequest)) as { body: ReadableStream<unknown> };
-    const text = await readAll(res.body);
+    const text = await readAllNewlines(res.body);
 
     const finalLine = text.split("\n").find((l) => l.includes("__FINAL_METADATA__"));
     expect(finalLine).toBeTruthy();

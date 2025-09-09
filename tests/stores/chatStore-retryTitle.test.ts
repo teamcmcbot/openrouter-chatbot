@@ -68,7 +68,8 @@ describe('ChatStore retry title update', () => {
       ),
     }));
 
-    mockFetch.mockImplementation((url: string) => {
+    mockFetch.mockImplementation((...args: unknown[]) => {
+      const url = args[0] as string;
       if (url === '/api/chat') {
         return Promise.resolve({
           ok: true,
@@ -99,7 +100,7 @@ describe('ChatStore retry title update', () => {
 
     const messagesCall = mockFetch.mock.calls.find((call) => call[0] === '/api/chat/messages');
     expect(messagesCall).toBeTruthy();
-    const body = JSON.parse(messagesCall![1].body as string);
+    const body = JSON.parse((messagesCall![1] as any).body as string);
     expect(body.sessionTitle).toBe('Hello world');
   });
 });

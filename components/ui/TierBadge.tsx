@@ -49,6 +49,10 @@ export default function TierBadge({
         if (!user?.id) return;
         
         const supabase = createClient();
+        if (!supabase) {
+          if (isMounted) setActualAccountType("user");
+          return;
+        }
         const { data, error } = await supabase
           .from('profiles')
           .select('account_type')

@@ -24,6 +24,10 @@ export function useAuthSuccessToast() {
       const getUser = async () => {
         try {
           const supabase = createClient()
+          if (!supabase) {
+            setLoading(false)
+            return
+          }
           const { data: { session }, error } = await supabase.auth.getSession()
           
           if (error) {

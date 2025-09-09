@@ -16,7 +16,7 @@ export function createClient() {
     throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
   }
   
-  supabaseClient = createBrowserClient(url, key)
+  supabaseClient = createBrowserClient(url, key) as unknown as SupabaseClient
   return supabaseClient
 }
 
