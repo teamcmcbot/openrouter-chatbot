@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * Tests for web search flags and URL citations via GET/POST /api/chat/sync
  */

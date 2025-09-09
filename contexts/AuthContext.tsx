@@ -6,6 +6,7 @@ import { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '../lib/supabase/client'
 import { clearGenerationCache } from '../lib/utils/generationCache'
+import { logger } from '../lib/utils/logger'
 
 interface AuthContextType {
   user: User | null
@@ -26,12 +27,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Initialize Supabase client
   useEffect(() => {
     try {
-      console.log('AuthProvider: Initializing Supabase client...')
+      logger.debug('auth.context.init.start')
       const client = createClient()
       setSupabase(client)
-      console.log('AuthProvider: Supabase client initialized successfully')
+      logger.debug('auth.context.init.success')
     } catch (error) {
-      console.error('AuthProvider: Failed to initialize Supabase client:', error)
+      logger.error('auth.context.init.failed', error)
       setLoading(false)
     }
   }, [])
@@ -39,30 +40,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Initialize auth when Supabase client is ready
   useEffect(() => {
     if (!supabase) {
-      console.log('AuthContext: Waiting for Supabase client...')
+      logger.debug('auth.context.waitingForClient')
       return
     }
 
-    console.log('AuthContext: Starting auth initialization...')
+    logger.debug('auth.context.authInit.start')
     
     // Get initial session
     const getInitialSession = async () => {
       try {
-        console.log('AuthContext: Getting initial session...')
+        logger.debug('auth.context.getSession.start')
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
-          console.error('AuthContext: Error getting session:', error)
+          logger.error('auth.context.getSession.error', error)
         } else {
-          console.log('AuthContext: Initial session:', session ? 'Found' : 'None')
+          logger.debug('auth.context.getSession.success', { hasSession: !!session })
         }
         
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
-        console.log('AuthContext: Initial auth state set, loading = false')
+        logger.debug('auth.context.authState.initialized')
       } catch (err) {
-        console.error('AuthContext: Exception in getInitialSession:', err)
+        logger.error('auth.context.getSession.exception', err)
         setLoading(false)
       }
     }
@@ -70,44 +71,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     getInitialSession()
 
     // Listen for auth changes
-    console.log('AuthContext: Setting up auth state change listener...')
+    logger.debug('auth.context.listener.setup')
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
-        console.log('AuthContext: Auth state change:', event, session ? 'with session' : 'no session')
+        logger.debug('auth.context.stateChange', { event, hasSession: !!session })
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
 
         // Handle sign in success
         if (event === 'SIGNED_IN' && session?.user) {
-          console.log('User signed in:', session.user.email)
+          logger.info('auth.context.signIn.success', { email: session.user.email })
           // TODO: Create/update user profile in database
           // TODO: Migrate anonymous conversations
         }
 
         // Handle sign out
         if (event === 'SIGNED_OUT') {
-          console.log('User signed out')
+          logger.info('auth.context.signOut.success')
           // TODO: Clear user-specific data
           // TODO: Revert to anonymous mode
           try {
             clearGenerationCache()
           } catch (e) {
-            console.warn('Failed to clear generation cache on sign out event', e)
+            logger.warn('auth.context.signOut.cacheCleanupFailed', e)
           }
         }
       }
     )
 
     return () => {
-      console.log('AuthContext: Cleaning up auth listener...')
+      logger.debug('auth.context.listener.cleanup')
       subscription.unsubscribe()
     }
   }, [supabase])
 
   const signInWithGoogle = async () => {
     if (!supabase) {
-      console.error('Supabase client not initialized')
+      logger.error('auth.context.signIn.clientNotReady')
       throw new Error('Auth not ready')
     }
     const { error } = await supabase.auth.signInWithOAuth({
@@ -117,25 +118,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
     if (error) {
-      console.error('Error signing in with Google:', error)
+      logger.error('auth.context.signIn.googleError', error)
       throw error
     }
   }
 
   const signOut = async () => {
     if (!supabase) {
-      console.error('Supabase client not initialized')
+      logger.error('auth.context.signOut.clientNotReady')
       throw new Error('Auth not ready')
     }
     const { error } = await supabase.auth.signOut()
     if (error) {
-      console.error('Error signing out:', error)
+      logger.error('auth.context.signOut.error', error)
       throw error
     }
     try {
       clearGenerationCache()
     } catch (e) {
-      console.warn('Failed to clear generation cache in signOut()', e)
+      logger.warn('auth.context.signOut.cacheClearFailed', e)
     }
   }
 

@@ -5,7 +5,7 @@ import type { ChatMessage } from '../../lib/types/chat';
 import type { User } from '@supabase/supabase-js';
 
 const mockFetch = jest.fn();
-// @ts-ignore
+// @ts-expect-error - Mocking global fetch for tests
 global.fetch = mockFetch;
 
 describe('ChatStore retry title update', () => {

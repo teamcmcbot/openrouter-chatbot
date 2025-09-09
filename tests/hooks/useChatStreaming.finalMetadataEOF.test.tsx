@@ -109,19 +109,19 @@ describe('useChatStreaming final metadata without trailing newline', () => {
       await result.current.sendMessage('Test newline-less final metadata', 'test/model');
     });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const assistant = result.current.messages.find(m => m.role === 'assistant') as any;
 
   // After fix: metadata should be parsed even without trailing newline and not appear as raw JSON content.
     expect(assistant).toBeTruthy();
   // Assert flattened token fields populated
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   expect(typeof (assistant as any)?.total_tokens).toBe('number');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   expect((assistant as any).total_tokens).toBe(5);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   expect((assistant as any).input_tokens).toBe(2);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   expect((assistant as any).output_tokens).toBe(3);
     if (typeof assistant?.content === 'string') {
   expect(assistant.content).not.toMatch(/__FINAL_METADATA__/); // Raw JSON should be removed by fallback scrub

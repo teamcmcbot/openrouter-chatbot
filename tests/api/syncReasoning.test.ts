@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * Tests for reasoning fields via GET/POST /api/chat/sync
  */

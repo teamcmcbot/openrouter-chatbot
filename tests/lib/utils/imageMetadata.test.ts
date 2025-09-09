@@ -48,7 +48,7 @@ describe('Image Metadata Utilities', () => {
     });
 
     it('should throw on invalid input', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       expect(() => calculateChecksum(null as any)).toThrow('Failed to calculate checksum');
     });
   });
@@ -253,9 +253,9 @@ describe('Image Metadata Utilities', () => {
 
   describe('Error Handling', () => {
     it('should handle null/undefined buffers gracefully in checksum calculation', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       expect(() => calculateChecksum(null as any)).toThrow();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       expect(() => calculateChecksum(undefined as any)).toThrow();
     });
 
