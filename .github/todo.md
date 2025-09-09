@@ -22,6 +22,6 @@ Chatbot todo:
 - [ ] Proper supabase setup, local + GitHub integration + supabase mcp?
 - [ ] Database cleanup, unused tables, columns, functions etc..
 - [ ] Production readiness check
-
+- [ ] upgrade recharts to latest version 3.2.0
 - [x] Gemini image model, image generation implementation
 - [x] Removed message `I'm currently not available. The backend API is being developed by Gemini CLI. Please check back later!`
