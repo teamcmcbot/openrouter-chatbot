@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "NODE_OPTIONS='--no-deprecation' jest",
     "test:watch": "NODE_OPTIONS='--no-deprecation' jest --watch",
     "test:coverage": "NODE_OPTIONS='--no-deprecation' jest --coverage",
