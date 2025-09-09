@@ -7,6 +7,7 @@ import { createClient } from '../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../lib/utils/errors';
 import { logger } from '../../../../../lib/utils/logger';
 import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
+import { extractMetadataWithDimensions } from '../../../../../lib/utils/imageMetadata';
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const BUCKET = 'attachments-images';
@@ -94,6 +95,43 @@ async function uploadImageHandler(req: NextRequest, authContext: AuthContext): P
 
     const buffer = Buffer.from(await (file as File).arrayBuffer());
 
+    // Extract metadata and checksum
+    let checksum: string | null = null;
+    let width: number | null = null;
+    let height: number | null = null;
+    let metadata: Record<string, unknown> = {};
+    
+    try {
+      const metadataResult = extractMetadataWithDimensions(buffer, mime, {
+        originalName,
+        uploadSource: 'user_input',
+        userTier: profile.subscription_tier,
+        sessionId: sessionId || undefined,
+        draftId,
+        maxSize: maxBytes,
+      });
+      
+      checksum = metadataResult.checksum;
+      width = metadataResult.width;
+      height = metadataResult.height;
+      metadata = metadataResult.metadata as unknown as Record<string, unknown>;
+      
+      logger.info('Image metadata extracted', {
+        requestId,
+        hasChecksum: !!checksum,
+        hasDimensions: !!(width && height),
+        bytes: buffer.length,
+      });
+    } catch (metadataError) {
+      // Non-blocking: log warning but continue with upload
+      logger.warn('Failed to extract image metadata', {
+        error: metadataError,
+        requestId,
+        mime,
+        size: buffer.length,
+      });
+    }
+
     // Upload to Storage under user session (RLS will assign owner)
     const { error: uploadErr } = await supabase.storage
       .from(BUCKET)
@@ -117,8 +155,11 @@ async function uploadImageHandler(req: NextRequest, authContext: AuthContext): P
         storage_bucket: BUCKET,
         storage_path: path,
         draft_id: draftId,
+        width,
+        height,
+        checksum,
         status: 'ready',
-        checksum: null,
+        metadata,
       })
       .select('*')
       .single();

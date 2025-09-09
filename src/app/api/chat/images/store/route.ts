@@ -7,6 +7,7 @@ import { createClient } from '../../../../../../lib/supabase/server';
 import { handleError, ApiErrorResponse, ErrorCode } from '../../../../../../lib/utils/errors';
 import { logger } from '../../../../../../lib/utils/logger';
 import { deriveRequestIdFromHeaders } from '../../../../../../lib/utils/headers';
+import { extractMetadataWithDimensions } from '../../../../../../lib/utils/imageMetadata';
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const BUCKET = 'attachments-images';
@@ -74,10 +75,10 @@ async function storeImageHandler(req: NextRequest, authContext: AuthContext): Pr
       throw new ApiErrorResponse('Can only store images for assistant messages', ErrorCode.BAD_REQUEST);
     }
 
-    // Verify the session belongs to the user
+    // Verify the session belongs to the user and get profile for metadata
     const { data: session, error: sessionError } = await supabase
       .from('chat_sessions')
-      .select('id, user_id')
+      .select('id, user_id, profiles!inner(subscription_tier)')
       .eq('id', sessionId)
       .eq('user_id', user.id)
       .single();
@@ -111,6 +112,43 @@ async function storeImageHandler(req: NextRequest, authContext: AuthContext): Pr
       throw new ApiErrorResponse('Image exceeds size limit (10MB)', ErrorCode.PAYLOAD_TOO_LARGE);
     }
 
+    // Extract metadata and checksum for LLM-generated image
+    let checksum: string | null = null;
+    let width: number | null = null;
+    let height: number | null = null;
+    let metadata: Record<string, unknown> = {};
+    
+    try {
+      const metadataResult = extractMetadataWithDimensions(buffer, mimeType, {
+        uploadSource: 'llm_generated',
+        userTier: ((session as unknown as { profiles?: { subscription_tier: string } }).profiles?.subscription_tier) || 'free',
+        sessionId,
+        maxSize: MAX_SIZE_BYTES,
+      });
+      
+      checksum = metadataResult.checksum;
+      width = metadataResult.width;
+      height = metadataResult.height;
+      metadata = metadataResult.metadata as unknown as Record<string, unknown>;
+      
+      logger.info('LLM image metadata extracted', {
+        requestId,
+        messageId,
+        hasChecksum: !!checksum,
+        hasDimensions: !!(width && height),
+        bytes: buffer.length,
+      });
+    } catch (metadataError) {
+      // Non-blocking: log warning but continue with storage
+      logger.warn('Failed to extract LLM image metadata', {
+        error: metadataError,
+        requestId,
+        messageId,
+        mimeType,
+        size: buffer.length,
+      });
+    }
+
     // Generate storage path
     const now = new Date();
     const yyyy = now.getUTCFullYear();
@@ -132,7 +170,7 @@ async function storeImageHandler(req: NextRequest, authContext: AuthContext): Pr
       throw new ApiErrorResponse('Failed to upload image', ErrorCode.INTERNAL_SERVER_ERROR);
     }
 
-    // Create attachment record
+    // Create attachment record with metadata
     const { data: attachment, error: attachmentErr } = await supabase
       .from('chat_attachments')
       .insert({
@@ -145,6 +183,10 @@ async function storeImageHandler(req: NextRequest, authContext: AuthContext): Pr
         storage_bucket: BUCKET,
         storage_path: path,
         draft_id: null, // Assistant images are not drafts
+        width,
+        height,
+        checksum,
+        metadata,
         status: 'ready',
       })
       .select('id, storage_path')
