@@ -24,6 +24,11 @@ Modern, fused 3-row chat composer with attachments, tier gating, and per-message
   - Pro → clicking opens a centered settings modal with an ON/OFF toggle. "Max results" slider is disabled at 3 with an info tooltip explaining Enterprise-only configurability.
   - Enterprise → clicking opens a centered settings modal with ON/OFF toggle and a "Max results" slider (1–5). Value is persisted per user and applied per message; server clamps to [1,10].
   - Tooltip was removed; aria-label reflects ON/OFF state.
+- Image Generation:
+  - Anonymous/free → clicking opens a centered "Upgrade for AI Image Generation" modal.
+  - Pro/Enterprise → clicking toggles image generation on/off for the current message with visual feedback.
+  - When enabled, compatible models (e.g., DALL-E) will generate images based on user prompts.
+  - Generated images are automatically stored and displayed in the chat.
 - Gating (images & search): outside click and Escape close any gating/settings modals; no analytics are emitted for these modals.
 
 ## Props
@@ -38,7 +43,8 @@ Modern, fused 3-row chat composer with attachments, tier gating, and per-message
 - `message`: current textarea value
 - `attachments`: files with status (pending/failed/ready)
 - `webSearchOn`: per-message boolean (eligible tiers only)
-- `gatingOpen`: false or one of 'images' | 'search' (upgrade/gating modal)
+- `imageGenerationOn`: per-message boolean (Pro+ tiers only)
+- `gatingOpen`: false or one of 'images' | 'search' | 'imageGeneration' (upgrade/gating modal)
 - `searchModalOpen`: boolean (settings modal for eligible tiers)
 
 ## Handlers

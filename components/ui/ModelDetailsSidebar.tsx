@@ -344,6 +344,33 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                           </span>
                         </div>
                         <div className="flex justify-between">
+                          <span className="text-gray-600 dark:text-gray-400">Output:</span>
+                          <span className="font-mono text-sm text-gray-900 dark:text-white">
+                            {(() => {
+                              const modalities = model.output_modalities || [];
+                              const allowedModalities = modalities.filter((m: string) => 
+                                m.toLowerCase() === 'text' || m.toLowerCase() === 'image'
+                              );
+                              
+                              if (allowedModalities.length === 0) return 'Text';
+                              
+                              // Capitalize and sort with Text first
+                              const capitalizedModalities = allowedModalities.map(m => 
+                                m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()
+                              );
+                              
+                              // Ensure Text appears first if present
+                              const sortedModalities = capitalizedModalities.sort((a, b) => {
+                                if (a === 'Text') return -1;
+                                if (b === 'Text') return 1;
+                                return 0;
+                              });
+                              
+                              return sortedModalities.join(', ');
+                            })()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Context Length:</span>
                           <span className="font-medium text-gray-900 dark:text-white">
                             {formatNumber(model.context_length)} tokens

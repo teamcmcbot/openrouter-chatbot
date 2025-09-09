@@ -8,7 +8,9 @@ import rehypeHighlight from "rehype-highlight";
 import { ChatMessage } from "../../lib/types/chat";
 import { formatMessageTime } from "../../lib/utils/dateFormat";
 import { detectMarkdownContent } from "../../lib/utils/markdown";
+import { formatTokenDisplay } from "../../lib/utils/tokenCalculations";
 import { useAuthStore } from "../../stores/useAuthStore";
+import InlineAttachmentFull from "./InlineAttachmentFull";
 import { 
   CustomCodeBlock, 
   CustomTable, 
@@ -366,24 +368,97 @@ export default function MessageList({
                   )}
                 </div>
 
-                {/* Linked image attachments (history and recent) */}
-                {message.has_attachments && Array.isArray(message.attachment_ids) && message.attachment_ids.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {message.attachment_ids.map((attId, idx) => {
-                      const alt = sanitizeAttachmentName(undefined) || fallbackImageLabel(idx);
-                      return (
-                        <InlineAttachment
-                          key={attId}
-                          id={attId}
-                          alt={alt || undefined}
-                          onClick={() => handleOpenImage(attId, alt || undefined)}
-                          width={96}
-                          height={96}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
+                {/* Combined image rendering: output_images (fresh) + attachment_ids (history)
+                   UX: If exactly 1 image total, show it inline full-width (up to 480px height).
+                   If multiple, show responsive thumbnail grid for all images. */}
+                {(() => {
+                  // Collect all images for this message
+                  const outputImages = message.role === 'assistant' && Array.isArray(message.output_images) ? message.output_images : [];
+                  const attachmentIds = message.has_attachments && Array.isArray(message.attachment_ids) ? message.attachment_ids : [];
+                  
+                  // Total image count determines rendering style
+                  const totalImages = outputImages.length + attachmentIds.length;
+                  
+                  if (totalImages === 0) return null;
+                  
+                  // Single image: full-width display
+                  if (totalImages === 1) {
+                    const isSingleOutput = outputImages.length === 1;
+                    
+                    return (
+                      <div className="mt-4" data-testid={isSingleOutput ? "assistant-output-image-single" : "assistant-attachment-single"}>
+                        {isSingleOutput ? (
+                          // Existing output image logic
+                          <button
+                            type="button"
+                            onClick={() => setLightbox({ open: true, url: outputImages[0], alt: 'Generated image' })}
+                            className="group relative text-left rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 bg-white dark:bg-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer mx-auto max-w-full"
+                            title="Click to view full size"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={outputImages[0]}
+                              alt="Generated image"
+                              className="max-w-full h-auto max-h-[480px] object-contain bg-black/5 dark:bg-white/5 transition-opacity group-hover:opacity-95 mx-auto"
+                              loading="lazy"
+                            />
+                            <span className="absolute bottom-2 right-2 bg-black/50 text-white text-[11px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">Open</span>
+                          </button>
+                        ) : (
+                          // NEW: Single attachment full-width display  
+                          <InlineAttachmentFull
+                            id={attachmentIds[0]}
+                            alt={sanitizeAttachmentName(undefined) || fallbackImageLabel(0)}
+                            onClick={() => handleOpenImage(attachmentIds[0], sanitizeAttachmentName(undefined) || fallbackImageLabel(0))}
+                          />
+                        )}
+                      </div>
+                    );
+                  }
+                  
+                  // Multiple images: thumbnail grid
+                  return (
+                    <div className="mt-3 flex flex-wrap gap-2 sm:gap-3" data-testid={outputImages.length > 0 ? "assistant-output-images" : "assistant-attachments-grid"}>
+                      {/* Render output images as thumbnails */}
+                      {outputImages.map((dataUrl, idx) => (
+                        <button
+                          key={`${message.id}-outimg-${idx}`}
+                          type="button"
+                          className="relative group flex-none w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          onClick={() => setLightbox({ open: true, url: dataUrl, alt: `Generated image ${idx + 1}` })}
+                          title="Click to enlarge"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={dataUrl}
+                            alt={"Generated image " + (idx + 1)}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                          <span className="absolute bottom-0 left-0 right-0 bg-black/40 text-[10px] text-white px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">View</span>
+                        </button>
+                      ))}
+                      
+                      {/* Render attachment images as thumbnails */}
+                      {attachmentIds.map((attId, idx) => {
+                        const alt = sanitizeAttachmentName(undefined) || fallbackImageLabel(idx);
+                        return (
+                          <div
+                            key={attId}
+                            className="flex-none w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28"
+                          >
+                            <InlineAttachment
+                              id={attId}
+                              alt={alt || undefined}
+                              onClick={() => handleOpenImage(attId, alt || undefined)}
+                              className="w-full h-full"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
 
                 {/* URL Citations (Sources) */}
                 {message.role === "assistant" && Array.isArray(message.annotations) && message.annotations.length > 0 && (
@@ -458,12 +533,28 @@ export default function MessageList({
                     </div>
 
                     {/* Group 2: Tokens Info */}
-                    {message.role === "assistant" && (
-                      <div className="flex items-center text-xs text-gray-600 dark:text-gray-300">
-                        Input: {message.input_tokens || 0}, Output: {message.output_tokens || 0}, 
-                        Total: {message.total_tokens} tokens
-                      </div>
-                    )}
+                    {message.role === "assistant" && (() => {
+                      const tokenInfo = formatTokenDisplay(
+                        message.input_tokens,
+                        message.output_tokens,
+                        message.total_tokens,
+                        message.output_image_tokens
+                      );
+                      
+                      return (
+                        <div className="flex items-center text-xs text-gray-600 dark:text-gray-300">
+                          {tokenInfo.showDetailed ? (
+                            <>
+                              Input: {tokenInfo.input}, Text: {tokenInfo.textOutput}, Images: {tokenInfo.image}, Total: {tokenInfo.total} tokens
+                            </>
+                          ) : (
+                            <>
+                              Input: {tokenInfo.input}, Output: {tokenInfo.output}, Total: {tokenInfo.total} tokens
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Group 3 (always on the far right or its own row) */}

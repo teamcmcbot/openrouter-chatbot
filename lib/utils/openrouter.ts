@@ -168,7 +168,7 @@ export async function getOpenRouterCompletion(
   temperature?: number,
   systemPrompt?: string,
   authContext?: AuthContext | null,
-  options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
+  options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; modalities?: ('text' | 'image')[] }
 ): Promise<OpenRouterResponse> {
   if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is not set');
   const selectedModel = model ?? OPENROUTER_API_MODEL;
@@ -188,7 +188,7 @@ export async function getOpenRouterCompletion(
   const finalMessages = appendSystemPrompt(messages, finalSystemPrompt);
 
   type ReasoningOption = { effort?: 'low' | 'medium' | 'high' };
-  type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption };
+  type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption; modalities?: ('text' | 'image')[] };
   const requestBody: OpenRouterRequestWithReasoning = {
     model: selectedModel,
     messages: finalMessages,
@@ -209,6 +209,11 @@ export async function getOpenRouterCompletion(
     requestBody.plugins = [{ id: 'web', max_results: maxResults }];
   }
   if (options?.reasoning) requestBody.reasoning = options.reasoning;
+  if (options?.modalities && options.modalities.length > 0) {
+    // Only include unique, valid modalities (currently text/image)
+    const unique = Array.from(new Set(options.modalities.filter(m => m === 'text' || m === 'image')));
+    if (unique.length > 0) requestBody.modalities = unique as ('text' | 'image')[];
+  }
 
   let lastError: Error | null = null;
   let lastErrorDetails: string | undefined;
@@ -444,7 +449,7 @@ export async function getOpenRouterCompletionStream(
   temperature?: number,
   systemPrompt?: string,
   authContext?: AuthContext | null,
-  options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
+  options?: { webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; modalities?: ('text' | 'image')[] }
 ): Promise<ReadableStream> {
   // STREAM_DEBUG toggle
   const STREAM_DEBUG = process.env.STREAM_DEBUG === '1';
@@ -467,7 +472,7 @@ export async function getOpenRouterCompletionStream(
 
   const finalMessages = appendSystemPrompt(messages, finalSystemPrompt);
   type ReasoningOption = { effort?: 'low' | 'medium' | 'high' };
-  type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption };
+  type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption; modalities?: ('text' | 'image')[] };
   const requestBody: OpenRouterRequestWithReasoning = {
     model: selectedModel,
     messages: finalMessages,
@@ -489,6 +494,10 @@ export async function getOpenRouterCompletionStream(
     requestBody.plugins = [{ id: 'web', max_results: maxResults }];
   }
   if (options?.reasoning) requestBody.reasoning = options.reasoning;
+  if (options?.modalities && options.modalities.length > 0) {
+    const unique = Array.from(new Set(options.modalities.filter(m => m === 'text' || m === 'image')));
+    if (unique.length > 0) requestBody.modalities = unique as ('text' | 'image')[];
+  }
 
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
@@ -526,6 +535,7 @@ export async function getOpenRouterCompletionStream(
     reasoning?: string;
     reasoning_details?: Record<string, unknown>[];
     annotations?: { type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }[];
+  images?: string[]; // aggregated base64 data URLs (deduped)
   } = {};
 
   const reader = response.body.getReader();
@@ -582,6 +592,45 @@ export async function getOpenRouterCompletionStream(
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       let sseBuffer = '';
+  // Phase 3 image streaming support
+  // Diagnostics counters (will be downgraded after stabilization)
+  let imageDeltaEvents = 0;
+  let imageDeltaTotal = 0;
+  const seenImages = new Set<string>();
+  function collectAndNormalizeImages(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    const out: string[] = [];
+    for (const item of raw) {
+      if (!item) continue;
+      if (typeof item === 'string') {
+        if (item.startsWith('data:image/')) out.push(item);
+        continue;
+      }
+      if (typeof item === 'object') {
+        const obj = item as Record<string, unknown>;
+        // openrouter style { image_url: { url } } or { url } or { data }
+        interface ImageUrlWrapper { url?: string }
+        const imageUrlWrapper = ((): ImageUrlWrapper | undefined => {
+          const v = obj['image_url'];
+            if (v && typeof v === 'object') {
+              const candidate = v as Record<string, unknown>;
+              const urlVal = candidate['url'];
+              if (typeof urlVal === 'string') return { url: urlVal };
+            }
+            return undefined;
+        })();
+        const maybe = (imageUrlWrapper && typeof imageUrlWrapper.url === 'string')
+          ? imageUrlWrapper.url
+          : typeof obj.url === 'string'
+            ? obj.url as string
+            : typeof obj.data === 'string'
+              ? (obj.data as string)
+              : undefined;
+        if (maybe && maybe.startsWith('data:image/')) out.push(maybe);
+      }
+    }
+    return out;
+  }
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -625,6 +674,36 @@ export async function getOpenRouterCompletionStream(
                 reasoning?: unknown;
               };
               const d = data as SSEChunk;
+
+              // Image delta aggregation & marker emission
+              try {
+                const imgDeltaRaw = d.choices?.[0]?.delta && (d.choices[0].delta as Record<string, unknown>)?.images;
+                const imgFinalRaw = d.choices?.[0]?.message && (d.choices[0].message as Record<string, unknown>)?.images;
+                const newlyFound: string[] = [];
+                const pushImages = (arr: string[]) => {
+                  for (const url of arr) {
+                    if (!seenImages.has(url)) {
+                      seenImages.add(url);
+                      newlyFound.push(url);
+                    }
+                  }
+                };
+                if (imgDeltaRaw) pushImages(collectAndNormalizeImages(imgDeltaRaw));
+                if (imgFinalRaw) pushImages(collectAndNormalizeImages(imgFinalRaw));
+                if (newlyFound.length) {
+                  imageDeltaEvents++;
+                  imageDeltaTotal += newlyFound.length;
+                  if (!streamMetadata.images) streamMetadata.images = [];
+                  streamMetadata.images.push(...newlyFound);
+                  // Emit incremental marker so client can show images ASAP
+                  if (STREAM_MARKERS_ENABLED) {
+                    // Ensure marker starts on a fresh line so downstream line splitter isolates it
+                    const out = `\n__IMAGE_DELTA_CHUNK__${JSON.stringify({ type: 'images', data: newlyFound })}\n`;
+                    controller.enqueue(encoder.encode(out));
+                  }
+                  logger.debug('STREAM_IMAGE_DIAG event', { deltaCount: newlyFound.length, total: streamMetadata.images.length });
+                }
+              } catch { /* swallow image handling errors to avoid stream abort */ }
 
               if (d.usage) streamMetadata.usage = d.usage;
               if (d.id) streamMetadata.id = d.id;
@@ -715,6 +794,8 @@ export async function getOpenRouterCompletionStream(
       } catch (err) {
         if (STREAM_DEBUG) logger.error('STREAM_DEBUG stream error', err);
         controller.error(err);
+      } finally {
+        try { if (imageDeltaEvents > 0) logger.info('STREAM_IMAGE_DIAG summary', { imageDeltaEvents, imageDeltaTotal }); } catch {}
       }
     },
   });

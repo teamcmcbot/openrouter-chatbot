@@ -10,6 +10,10 @@ export function AuthStatus() {
 
   useEffect(() => {
     const supabase = createClient()
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -46,7 +50,9 @@ export function AuthStatus() {
         <button
           onClick={async () => {
             const supabase = createClient()
-            await supabase.auth.signOut()
+            if (supabase) {
+              await supabase.auth.signOut()
+            }
             window.location.href = '/'
           }}
           className="text-sm text-gray-500 hover:text-gray-700 underline"

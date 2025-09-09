@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * Tests for streaming flag persistence and contentType sanitization via GET/POST /api/chat/sync
  */

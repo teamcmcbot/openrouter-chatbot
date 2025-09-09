@@ -64,6 +64,10 @@ export const useAuthStore = create<AuthStore>()(
           logger.info('auth.google.signIn.start');
           
           const supabase = createClient();
+          if (!supabase) {
+            logger.error('auth.google.signIn.client.unavailable');
+            return;
+          }
           const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
@@ -95,6 +99,11 @@ export const useAuthStore = create<AuthStore>()(
           logger.info('auth.signOut.start');
           
           const supabase = createClient();
+          if (!supabase) {
+            logger.error('auth.signOut.client.unavailable');
+            set({ isLoading: false });
+            return;
+          }
           const { error } = await supabase.auth.signOut();
           
           if (error) {
@@ -126,6 +135,10 @@ export const useAuthStore = create<AuthStore>()(
       initialize: async () => {
         try {
           const supabase = createClient();
+          if (!supabase) {
+            logger.error('auth.initialize.client.unavailable');
+            return;
+          }
 
           // Get initial session
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -139,8 +152,8 @@ export const useAuthStore = create<AuthStore>()(
           // Set initial session
           get().setSession(session);
 
-          // Listen for auth changes
-          const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          // Listen for auth changes  
+          const { data: { subscription } } = supabase!.auth.onAuthStateChange(
             async (event, session) => {
                 const maskedEmail = session?.user?.email
                   ? session.user.email.replace(/(.{2}).+(@.+)/, '$1***$2')

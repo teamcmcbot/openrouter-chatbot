@@ -14,7 +14,7 @@ function streamFromChunks(chunks: string[]): ReadableStream<Uint8Array> {
   });
 }
 
-async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
+async function readAllStreaming(stream: ReadableStream<Uint8Array>): Promise<string> {
   const reader = stream.getReader();
   let out = "";
   while (true) {
@@ -57,7 +57,7 @@ describe("getOpenRouterCompletionStream - SSE handling", () => {
   type Msg = { role: "user" | "assistant" | "system"; content: string };
   const messages: Msg[] = [{ role: "user", content: "hi" }];
     const outStream = await getOpenRouterCompletionStream(messages, undefined, 100, 0.1);
-    const text = await readAll(outStream);
+    const text = await readAllStreaming(outStream);
     expect(text).toContain("Hello");
     // metadata sentinel should be present
     expect(text).toContain("__METADATA__");
@@ -85,12 +85,12 @@ describe("getOpenRouterCompletionStream - SSE handling", () => {
       webSearch: true,
       webMaxResults: 3,
     });
-    const text = await readAll(outStream);
+    const text = await readAllStreaming(outStream);
 
     // Should emit at least one annotations chunk
     const annLines = text
       .split("\n")
-      .filter((l) => l.startsWith("__ANNOTATIONS_CHUNK__"));
+      .filter((l: string) => l.startsWith("__ANNOTATIONS_CHUNK__"));
     expect(annLines.length).toBeGreaterThanOrEqual(1);
 
     // Final metadata should include deduped 2 URLs
@@ -116,7 +116,7 @@ describe("getOpenRouterCompletionStream - SSE handling", () => {
 
     // No reasoning option -> no reasoning chunk
     const streamNo = await getOpenRouterCompletionStream(messages);
-    const textNo = await readAll(streamNo);
+    const textNo = await readAllStreaming(streamNo);
     expect(textNo).not.toContain("__REASONING_CHUNK__");
 
     // With reasoning option -> reasoning chunk present
@@ -125,7 +125,7 @@ describe("getOpenRouterCompletionStream - SSE handling", () => {
     const streamYes = await getOpenRouterCompletionStream(messages, undefined, undefined, undefined, undefined, null, {
       reasoning: { effort: "low" },
     });
-    const textYes = await readAll(streamYes);
+    const textYes = await readAllStreaming(streamYes);
     expect(textYes).toContain("__REASONING_CHUNK__");
   });
 });

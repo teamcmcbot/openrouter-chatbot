@@ -23,6 +23,7 @@ interface StreamChatRequest {
   webMaxResults?: number; // Enterprise-only: preferred max results (UI 1–5; server clamps 1–10). Pro is forced to 3.
   reasoning?: { effort: "low" | "medium" | "high" }; // Enable reasoning
   attachmentIds?: string[]; // Image attachment IDs
+  imageGeneration?: boolean; // Enable AI image generation (Pro/Enterprise)
 }
 ```
 
@@ -36,9 +37,10 @@ curl -X POST /api/chat/stream \
     "message": "Explain quantum computing",
     "model": "anthropic/claude-3-haiku",
     "temperature": 0.7,
-  "webSearch": true,
-  "webMaxResults": 5,
-    "reasoning": { "effort": "low" }
+    "webSearch": true,
+    "webMaxResults": 5,
+    "reasoning": { "effort": "low" },
+    "imageGeneration": true
   }'
 ```
 
@@ -66,7 +68,9 @@ Complete metadata delivered at the end as a single JSON line:
   "usage": {
     "prompt_tokens": 45,
     "completion_tokens": 156,
-    "total_tokens": 201
+    "total_tokens": 201,
+    "image_tokens": 0,
+    "image_cost": 0.00
   },
   "request_id": "msg_1755941032316_d369jl4as",
   "timestamp": "2025-08-23T09:24:04.178Z",
@@ -92,7 +96,14 @@ Complete metadata delivered at the end as a single JSON line:
     }
   ],
   "has_websearch": true,
-  "websearch_result_count": 3
+  "websearch_result_count": 3,
+  "images": [
+    {
+      "url": "https://storage.supabase.co/object/sign/...",
+      "attachmentId": "att_abc123",
+      "mimeType": "image/png"
+    }
+  ]
 }}
 ```
 
@@ -104,6 +115,58 @@ Cache-Control: no-cache
 Connection: keep-alive
 Transfer-Encoding: chunked
 ```
+
+### Image Generation Support
+
+The streaming endpoint supports AI image generation with identical functionality to the standard chat endpoint:
+
+#### Request Configuration
+
+```typescript
+const request: StreamChatRequest = {
+  message: "Create a picture of a mountain landscape",
+  model: "openai/dall-e-3",
+  imageGeneration: true,
+};
+```
+
+#### Streaming Behavior
+
+1. **Text Response**: Assistant response streams normally
+2. **Image Processing**: Images are generated after text completion
+3. **Storage**: Images are automatically stored via `/api/chat/images/store`
+4. **Final Metadata**: Image URLs and metadata included in `__FINAL_METADATA__`
+
+#### Final Metadata with Images
+
+```json
+{
+  "__FINAL_METADATA__": {
+    "response": "I've created a beautiful mountain landscape for you.",
+    "usage": {
+      "prompt_tokens": 15,
+      "completion_tokens": 12,
+      "total_tokens": 27,
+      "image_tokens": 1000,
+      "image_cost": 0.04
+    },
+    "images": [
+      {
+        "url": "https://storage.supabase.co/object/sign/...",
+        "attachmentId": "att_abc123",
+        "mimeType": "image/png"
+      }
+    ]
+  }
+}
+```
+
+#### Tier Requirements
+
+- **Allowed**: Pro and Enterprise users only
+- **Models**: Must support image generation (e.g., DALL-E models)
+- **Rate Limiting**: Uses Tier A limits (most restrictive due to cost)
+- **Cost Tracking**: Separate tracking for image generation tokens and costs
 
 ### Frontend Integration
 
@@ -300,11 +363,12 @@ INSERT INTO chat_messages (
   id, session_id, role, content, model,
   reasoning, reasoning_details, total_tokens,
   input_tokens, output_tokens, completion_id,
+  output_image_tokens, output_image_costs,
   has_websearch, websearch_result_count,
   message_timestamp, elapsed_ms
 ) VALUES (...);
 
--- Attachments linked if present
+-- Attachments linked if present (including generated images)
 UPDATE chat_attachments
 SET message_id = $1, session_id = $2
 WHERE id = ANY($3);

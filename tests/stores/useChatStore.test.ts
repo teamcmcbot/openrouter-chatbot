@@ -1,4 +1,3 @@
-import { renderHook, act } from '@testing-library/react';
 import { useChatStore, useChat } from '../../stores';
 
 // Simple test to see if imports work

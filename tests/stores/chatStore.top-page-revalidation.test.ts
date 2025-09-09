@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * Tests strict top-page revalidation behavior in loadUserConversations
  * - The top 20 list is reset to the server ordering

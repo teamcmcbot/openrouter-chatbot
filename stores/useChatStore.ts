@@ -13,6 +13,7 @@ import { STORAGE_KEYS } from "../lib/constants";
 import { createLogger } from "./storeUtils";
 import { useAuthStore } from "./useAuthStore";
 import { syncManager } from "../lib/utils/syncManager";
+import { persistAssistantImages } from "../lib/utils/persistAssistantImages";
 // Phase 3: Import token management utilities
 import { 
   estimateTokenCount, 
@@ -25,6 +26,57 @@ import { checkRateLimitHeaders } from "../lib/utils/rateLimitNotifications";
 import { emitAnonymousError, emitAnonymousUsage } from "../lib/analytics/anonymous";
 
 const logger = createLogger("ChatStore");
+
+// Phase 3 (streaming images): Memory-only image retention configuration
+const IMAGE_RETENTION = {
+  PER_MESSAGE_MAX: 4, // max images kept per assistant message
+  CONVERSATION_MAX_BYTES: 3 * 1024 * 1024, // 3MB soft cap per conversation
+};
+
+// Measure approximate size of data URL images (base64 length) – heuristic only
+const approximateImagesBytes = (images?: string[]) => {
+  if (!Array.isArray(images)) return 0;
+  return images.reduce((sum, dataUrl) => sum + (typeof dataUrl === 'string' ? dataUrl.length : 0), 0);
+};
+
+// Create a shallow cloned conversation with image payloads trimmed according to limits
+function applyImageLimits(conv: Conversation): Conversation {
+  let bytesSoFar = 0;
+  const messages = conv.messages.map(m => {
+    if (m.role !== 'assistant' || !Array.isArray(m.output_images) || m.output_images.length === 0) return m;
+    // Enforce per-message cap (keep earliest images first – order should reflect generation order)
+    let imgs = m.output_images.slice(0, IMAGE_RETENTION.PER_MESSAGE_MAX);
+    // If we already exceeded conversation cap, drop images entirely
+    const imagesBytes = approximateImagesBytes(imgs);
+    if (bytesSoFar + imagesBytes > IMAGE_RETENTION.CONVERSATION_MAX_BYTES) {
+      imgs = [];
+    } else {
+      bytesSoFar += imagesBytes;
+      // If adding next message would overflow, future messages will be dropped
+    }
+    if (imgs.length !== m.output_images.length) {
+      return { ...m, output_images: imgs.length > 0 ? imgs : undefined };
+    }
+    return m;
+  });
+  return { ...conv, messages };
+}
+
+// Strip all image data (used during persistence) so images stay memory-only
+function stripAllImages(conversations: Conversation[]): Conversation[] {
+  return conversations.map(c => ({
+    ...c,
+    messages: c.messages.map(m => {
+      if (m.role === 'assistant' && m.output_images) {
+  // Clone while removing images; retain other fields (maintain ChatMessage structural typing)
+  const clone = { ...m };
+        delete clone.output_images;
+        return clone;
+      }
+      return m;
+    })
+  }));
+}
 
 // In-flight guard for per-session message loads to prevent duplicate fetches
 const messagesInflight = new Set<string>();
@@ -269,7 +321,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             return selectedMessages;
           },
 
-          sendMessage: async (content, model, options) => {
+          sendMessage: async (content, model, options: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput?: boolean } | undefined) => {
             if (!content.trim() || get().isLoading) {
               logger.warn("Cannot send message: empty content or already loading");
               return;
@@ -297,6 +349,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               requested_web_search: options?.webSearch,
               requested_web_max_results: options?.webMaxResults,
               requested_reasoning_effort: options?.reasoning?.effort,
+              // Phase 2: image output request flag for retry & persistence mapping
+              requested_image_output: options?.imageOutput || false,
             };
 
             logger.debug("Sending message", { conversationId: currentConversationId, content: content.substring(0, 50) + "..." });
@@ -322,7 +376,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               logger.debug(`[Send Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               logger.debug(`[Send Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput?: boolean };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -383,6 +437,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     webSearch: options?.webSearch,
                     webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
+                    imageOutput: !!options?.imageOutput,
                   };
                 } else {
                   // Build request with conversation context
@@ -395,6 +450,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     webSearch: options?.webSearch,
                     webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
+                    imageOutput: !!options?.imageOutput,
                   };
                 }
                 
@@ -405,7 +461,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 logger.debug(`[Send Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch, webMaxResults: options?.webMaxResults, reasoning: options?.reasoning };
+                requestBody = { message: content, current_message_id: userMessage.id, attachmentIds: options?.attachmentIds, draftId: options?.draftId, webSearch: options?.webSearch, webMaxResults: options?.webMaxResults, reasoning: options?.reasoning, imageOutput: !!options?.imageOutput };
                 if (model) {
                   requestBody.model = model;
                 }
@@ -493,6 +549,10 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 total_tokens: data.usage?.total_tokens ?? 0,
                 input_tokens: data.usage?.prompt_tokens ?? 0,
                 output_tokens: data.usage?.completion_tokens ?? 0,
+                // Phase 4A: Extract image tokens from completion_tokens_details if present
+                ...(data.usage?.completion_tokens_details?.image_tokens && {
+                  output_image_tokens: data.usage.completion_tokens_details.image_tokens
+                }),
                 user_message_id: data.request_id, // Link to the user message that triggered this response
                 model: data.model || model,
                 contentType: data.contentType || "text",
@@ -504,6 +564,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 annotations: Array.isArray(data.annotations) ? data.annotations : undefined,
                 reasoning: typeof respWithReasoning.reasoning === 'string' ? respWithReasoning.reasoning : undefined,
                 reasoning_details: respWithReasoning.reasoning_details && Array.isArray(respWithReasoning.reasoning_details) ? respWithReasoning.reasoning_details : undefined,
+                // Phase 2: Map transient output_images (data URLs) for inline gallery rendering
+                output_images: Array.isArray(data.output_images) && data.output_images.length > 0 ? data.output_images : undefined,
               };
 
               // Add assistant response and update conversation metadata
@@ -603,6 +665,23 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         title: shouldIncludeTitle ? updatedConv?.title : undefined
                       });
                       
+                      // Phase 4A: Create cleaned assistant message for database persistence (same as streaming)
+                      const assistantMessageForDB = { ...assistantMessage };
+                      
+                      // Remove data URLs from output_images for database payload (keep count only)
+                      if (assistantMessageForDB.output_images && assistantMessageForDB.output_images.length > 0) {
+                        // Add image count for database tracking
+                        assistantMessageForDB.output_image_count = assistantMessage.output_images!.length;
+                        
+                        // Remove actual data URLs from database payload (too large for DB)
+                        delete assistantMessageForDB.output_images;
+                      }
+                      
+                      // Calculate text-only output_tokens (total - image_tokens) for database
+                      if (assistantMessageForDB.output_image_tokens && assistantMessageForDB.output_tokens) {
+                        assistantMessageForDB.output_tokens = assistantMessageForDB.output_tokens - assistantMessageForDB.output_image_tokens;
+                      }
+                      
                       // Save user and assistant messages as a pair - now with correct input_tokens and optional title
                       const payload: {
                         messages: ChatMessage[];
@@ -610,7 +689,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         sessionTitle?: string;
                         attachmentIds?: string[];
                       } = {
-                        messages: [updatedUserMessage, assistantMessage],
+                        messages: [updatedUserMessage, assistantMessageForDB],
                         sessionId: currentConversationId,
                         attachmentIds: options?.attachmentIds,
                       };
@@ -627,6 +706,38 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                       });
                       // Update lastSyncTime after successful persistence
                       set({ lastSyncTime: new Date().toISOString(), syncError: null });
+                      
+                      // Phase 4A: Persist assistant images AFTER database sync (fixes timing race condition)
+                      if (assistantMessage.output_images && assistantMessage.output_images.length > 0) {
+                        persistAssistantImages(
+                          assistantMessage.output_images, 
+                          assistantMessage.id, 
+                          currentConversationId
+                        ).then((persistedUrls: string[]) => {
+                          // Update the assistant message with persisted URLs (swap data URLs for signed URLs)
+                          set((state) => ({
+                            conversations: state.conversations.map((conv) =>
+                              conv.id === currentConversationId
+                                ? {
+                                    ...conv,
+                                    messages: conv.messages.map(msg =>
+                                      msg.id === assistantMessage.id 
+                                        ? { ...msg, output_images: persistedUrls }
+                                        : msg
+                                    ),
+                                  }
+                                : conv
+                            ),
+                          }));
+                        }).catch((error: unknown) => {
+                          logger.warn('Failed to persist assistant images, keeping data URLs', { 
+                            messageId: assistantMessage.id, 
+                            error 
+                          });
+                          // Images remain as data URLs - graceful degradation
+                        });
+                      }
+                      
                       toast.success('Message saved successfully!', { id: 'chat-message-saved' });
                       logger.debug("Message pair saved successfully with correct tokens", { 
                         userMessageId: updatedUserMessage.id,
@@ -640,13 +751,31 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         conversationId: currentConversationId
                       });
                       // Fallback to original userMessage if updated one not found
+                      
+                      // Phase 4A: Create cleaned assistant message for database persistence (fallback path)
+                      const assistantMessageForDB = { ...assistantMessage };
+                      
+                      // Remove data URLs from output_images for database payload (keep count only)
+                      if (assistantMessageForDB.output_images && assistantMessageForDB.output_images.length > 0) {
+                        // Add image count for database tracking
+                        assistantMessageForDB.output_image_count = assistantMessage.output_images!.length;
+                        
+                        // Remove actual data URLs from database payload (too large for DB)
+                        delete assistantMessageForDB.output_images;
+                      }
+                      
+                      // Calculate text-only output_tokens (total - image_tokens) for database
+                      if (assistantMessageForDB.output_image_tokens && assistantMessageForDB.output_tokens) {
+                        assistantMessageForDB.output_tokens = assistantMessageForDB.output_tokens - assistantMessageForDB.output_image_tokens;
+                      }
+                      
                       const payload: {
                         messages: ChatMessage[];
                         sessionId: string;
                         sessionTitle?: string;
                         attachmentIds?: string[];
                       } = {
-                        messages: [userMessage, assistantMessage],
+                        messages: [userMessage, assistantMessageForDB],
                         sessionId: currentConversationId,
                         attachmentIds: options?.attachmentIds,
                       };
@@ -663,6 +792,38 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                       });
                       // Update lastSyncTime after successful persistence (fallback path)
                       set({ lastSyncTime: new Date().toISOString(), syncError: null });
+                      
+                      // Phase 4A: Persist assistant images AFTER database sync (fallback path)
+                      if (assistantMessage.output_images && assistantMessage.output_images.length > 0) {
+                        persistAssistantImages(
+                          assistantMessage.output_images, 
+                          assistantMessage.id, 
+                          currentConversationId
+                        ).then((persistedUrls: string[]) => {
+                          // Update the assistant message with persisted URLs (swap data URLs for signed URLs)
+                          set((state) => ({
+                            conversations: state.conversations.map((conv) =>
+                              conv.id === currentConversationId
+                                ? {
+                                    ...conv,
+                                    messages: conv.messages.map(msg =>
+                                      msg.id === assistantMessage.id 
+                                        ? { ...msg, output_images: persistedUrls }
+                                        : msg
+                                    ),
+                                  }
+                                : conv
+                            ),
+                          }));
+                        }).catch((error: unknown) => {
+                          logger.warn('Failed to persist assistant images, keeping data URLs', { 
+                            messageId: assistantMessage.id, 
+                            error 
+                          });
+                          // Images remain as data URLs - graceful degradation
+                        });
+                      }
+                      
                       toast.success('Message saved successfully!', { id: 'chat-message-saved' });
                     }
                   } catch (error) {
@@ -1051,7 +1212,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             messageId: string,
             content: string,
             model?: string,
-            options?: { attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } }
+            options?: { attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput?: boolean }
           ) => {
             if (!content.trim() || get().isLoading) {
               logger.warn("Cannot retry message: empty content or already loading");
@@ -1092,7 +1253,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               logger.debug(`[Retry Message] Context-aware mode: ${isContextAwareEnabled ? 'ENABLED' : 'DISABLED'}`);
               logger.debug(`[Retry Message] Model: ${model || 'default'}`);
 
-              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' } };
+              let requestBody: { message: string; model?: string; messages?: ChatMessage[]; current_message_id?: string; attachmentIds?: string[]; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput?: boolean };
 
               if (isContextAwareEnabled) {
                 // Phase 3: Get model-specific token limits and select context
@@ -1120,6 +1281,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   originalModel: model,
                   // Store that this retry is using non-streaming mode
                   was_streaming: false,
+                  requested_image_output: options?.imageOutput || false,
                 };
                 
                 // Build complete message array (context + retry message)
@@ -1162,6 +1324,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     webSearch: options?.webSearch,
                     webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
+                    imageOutput: !!options?.imageOutput,
                   };
                 } else {
                   requestBody = {
@@ -1172,6 +1335,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                     webSearch: options?.webSearch,
                     webMaxResults: options?.webMaxResults,
                     reasoning: options?.reasoning,
+                    imageOutput: !!options?.imageOutput,
                   };
                 }
                 
@@ -1182,7 +1346,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 logger.debug(`[Retry Message] Sending NEW format with ${requestBody.messages?.length || 0} messages`);
               } else {
                 // Legacy format
-                requestBody = { message: content, current_message_id: messageId };
+                requestBody = { message: content, current_message_id: messageId, imageOutput: !!options?.imageOutput };
                 if (model) {
                   requestBody.model = model;
                 }
@@ -1874,12 +2038,25 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               .sort(sortByLastTimestampDesc)
               .slice(0, limit);
           },
+          // Ephemeral image retention enforcement (memory-only)
+          enforceImageRetention: (conversationId: string) => {
+            set((state) => {
+              const conv = state.conversations.find(c => c.id === conversationId);
+              if (!conv) return {} as unknown as Partial<ChatState>; // no update
+              const limited = applyImageLimits(conv);
+              if (limited === conv) return {} as unknown as Partial<ChatState>; // no change
+              return {
+                conversations: state.conversations.map(c => c.id === conversationId ? limited : c),
+              };
+            });
+          },
         }),
         {
           name: STORAGE_KEYS.CHAT,
           storage: createJSONStorage(() => localStorage),
           partialize: (state) => ({
-            conversations: state.conversations,
+            // IMPORTANT: strip all output_images so large base64 blobs never hit localStorage
+            conversations: stripAllImages(state.conversations),
             currentConversationId: state.currentConversationId,
             // Note: conversationErrorBanners intentionally NOT persisted (session-only)
           }),

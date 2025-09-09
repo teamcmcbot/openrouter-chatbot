@@ -204,7 +204,7 @@ jest.mock('../../lib/supabase/server', () => {
   return {
     createClient: jest.fn(async () => ({
       auth: {
-        getUser: jest.fn(async (_token?: string) => ({ data: { user: { id: 'u1', email: 'u@test.dev' } }, error: null })),
+        getUser: jest.fn(async () => ({ data: { user: { id: 'u1', email: 'u@test.dev' } }, error: null })),
       },
       from: (tableName: string) => {
         type Filters = Partial<Record<string, unknown>>;
@@ -336,7 +336,7 @@ jest.mock('../../lib/supabase/server', () => {
       },
       storage: {
         from: (bucket: string) => ({
-          upload: async (path: string, _data?: unknown, _opts?: unknown) => { storageSet.add(`${bucket}/${path}`); return { data: { path }, error: null }; },
+          upload: async (path: string) => { storageSet.add(`${bucket}/${path}`); return { data: { path }, error: null }; },
           remove: async (paths: string[]) => { paths.forEach(p => storageSet.delete(`${bucket}/${p}`)); return { data: null, error: null }; },
           createSignedUrl: async (path: string) => ({ data: { signedUrl: `https://signed/${bucket}/${path}` }, error: null }),
         }),

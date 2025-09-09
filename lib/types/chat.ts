@@ -48,6 +48,16 @@ export interface ChatMessage {
   requested_web_search?: boolean;
   requested_web_max_results?: number;
   requested_reasoning_effort?: "low" | "medium" | "high";
+  // Whether user requested assistant image output for this message (for exact-option retry)
+  requested_image_output?: boolean;
+
+  // Phase 2 (non-persisted) assistant output images (data URLs) for inline display only.
+  // These are not stored in DB yet; will be replaced by attachments in Phase 2.5.
+  output_images?: string[];
+  /** Raw output image token count (from completion_tokens_details.image_tokens); persisted for pricing (assistant only). */
+  output_image_tokens?: number;
+  /** Number of output images generated (for database tracking when data URLs are removed). */
+  output_image_count?: number;
 }
 
 export interface ChatRequest {
@@ -63,6 +73,13 @@ export interface ChatResponse {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    prompt_tokens_details?: {
+      cached_tokens?: number;
+    };
+    completion_tokens_details?: {
+      reasoning_tokens?: number;
+      image_tokens?: number;
+    };
   };
   request_id?: string; // NEW: Links response to user message that triggered it
   timestamp: string;
@@ -78,4 +95,6 @@ export interface ChatResponse {
   // Reasoning payload from provider if available
   reasoning?: string;
   reasoning_details?: Record<string, unknown>[];
+  // Phase 2: temporary array of data URLs when image output requested (not persisted)
+  output_images?: string[];
 }

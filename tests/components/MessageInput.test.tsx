@@ -21,7 +21,11 @@ describe('MessageInput', () => {
     fireEvent.change(textarea, { target: { value: 'Hello, world!' } });
     fireEvent.click(sendButton);
     
-    expect(mockSendMessage).toHaveBeenCalledWith('Hello, world!', {"webSearch": false});
+    // Allow additional evolving option keys (reasoning, imageOutput, etc.)
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      'Hello, world!',
+      expect.objectContaining({ webSearch: false })
+    );
   });
 
   it('disables input when disabled prop is true', () => {

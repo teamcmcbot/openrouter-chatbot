@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { logger } from "../lib/utils/logger";
 import { ChatMessage } from "../lib/types/chat";
+import { persistAssistantImages } from "../lib/utils/persistAssistantImages";
 
 interface ChatError {
   message: string;
@@ -12,11 +13,20 @@ interface ChatError {
   timestamp?: string;
 }
 
+interface SendOptions {
+  attachmentIds?: string[];
+  draftId?: string;
+  webSearch?: boolean;
+  webMaxResults?: number;
+  reasoning?: { effort?: 'low' | 'medium' | 'high' };
+  imageOutput?: boolean; // NEW: request assistant image output when supported
+}
+
 interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
   error: ChatError | null;
-  sendMessage: (content: string, model?: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; reasoning?: { effort?: 'low' | 'medium' | 'high' } }) => Promise<void>;
+  sendMessage: (content: string, model?: string, options?: SendOptions) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
   clearMessageError: (messageId: string) => void;
@@ -27,7 +37,7 @@ export function useChat(): UseChatReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ChatError | null>(null);
 
-  const sendMessage = useCallback(async (content: string, model?: string) => {
+  const sendMessage = useCallback(async (content: string, model?: string, options?: SendOptions) => {
     if (!content.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
@@ -35,6 +45,11 @@ export function useChat(): UseChatReturn {
       content: content.trim(),
       role: "user",
       timestamp: new Date(),
+  // Preserve request-side options for exact retry (Phase 2: image output)
+  requested_image_output: options?.imageOutput || false,
+  requested_web_search: options?.webSearch,
+  requested_web_max_results: options?.webMaxResults,
+  requested_reasoning_effort: options?.reasoning?.effort,
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -47,11 +62,23 @@ export function useChat(): UseChatReturn {
         model?: string;
         messages?: ChatMessage[];
         current_message_id?: string;
+        attachmentIds?: string[];
+        draftId?: string;
         webSearch?: boolean;
+        webMaxResults?: number;
+        reasoning?: { effort?: 'low' | 'medium' | 'high' };
+        imageOutput?: boolean;
       } = {
         message: content,
         messages: [userMessage], // Send the user message with its ID
-        current_message_id: userMessage.id
+        current_message_id: userMessage.id,
+        ...(options?.attachmentIds && { attachmentIds: options.attachmentIds }),
+        ...(options?.draftId && { draftId: options.draftId }),
+        ...(options?.webSearch !== undefined && { webSearch: options.webSearch }),
+        ...(options?.webMaxResults !== undefined && { webMaxResults: options.webMaxResults }),
+        ...(options?.reasoning && { reasoning: options.reasoning }),
+  // Always include explicit boolean so backend can distinguish omission
+  imageOutput: !!options?.imageOutput,
       };
       if (model) {
         requestBody.model = model;
@@ -85,14 +112,6 @@ export function useChat(): UseChatReturn {
         throw new Error(data.error);
       }
 
-  logger.debug('Raw API response data:', data);
-  logger.debug('Usage object:', data.usage);
-  logger.debug('Individual token values:', {
-        prompt_tokens: data.usage?.prompt_tokens,
-        completion_tokens: data.usage?.completion_tokens,
-        total_tokens: data.usage?.total_tokens
-      });
-
       type ChatResponseWithReasoning = { reasoning?: string; reasoning_details?: Record<string, unknown>[] };
       const respWithReasoning = data as ChatResponseWithReasoning;
       const assistantMessage: ChatMessage = {
@@ -104,20 +123,49 @@ export function useChat(): UseChatReturn {
         total_tokens: data.usage?.total_tokens ?? 0,
         input_tokens: data.usage?.prompt_tokens ?? 0, // NEW: input tokens from API
         output_tokens: data.usage?.completion_tokens ?? 0, // NEW: output tokens from API
+        // Phase 4A: Extract image tokens from completion_tokens_details if present
+        ...(data.usage?.completion_tokens_details?.image_tokens && {
+          output_image_tokens: data.usage.completion_tokens_details.image_tokens
+        }),
         user_message_id: data.request_id, // NEW: link to user message that triggered this response
         model: data.model || model,
         contentType: data.contentType || "text",
         completion_id: data.id,
         reasoning: typeof respWithReasoning.reasoning === 'string' ? respWithReasoning.reasoning : undefined,
         reasoning_details: respWithReasoning.reasoning_details && Array.isArray(respWithReasoning.reasoning_details) ? respWithReasoning.reasoning_details : undefined,
+  // Phase 2: non-persisted output images (data URLs) from API
+  output_images: Array.isArray(data.output_images) ? data.output_images : undefined,
+  requested_image_output: !!options?.imageOutput,
       };
 
   logger.debug('Created assistant message:', assistantMessage);
-  logger.debug('Assistant message tokens:', {
-        input_tokens: assistantMessage.input_tokens,
-        output_tokens: assistantMessage.output_tokens,
-        total_tokens: assistantMessage.total_tokens
-      });
+
+      // Phase 4A: Persist assistant images if present (best-effort, non-blocking)
+      if (assistantMessage.output_images && assistantMessage.output_images.length > 0) {
+        // Get current session ID (we'll need to derive this from context)
+        // For now, generate a temporary session ID - this will need to be improved
+        // when we integrate with proper session management
+        const sessionId = `temp_${Date.now()}`;
+        
+        persistAssistantImages(
+          assistantMessage.output_images, 
+          assistantMessage.id, 
+          sessionId
+        ).then(persistedUrls => {
+          // Update the assistant message with persisted URLs (swap data URLs for signed URLs)
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessage.id 
+              ? { ...msg, output_images: persistedUrls }
+              : msg
+          ));
+        }).catch(error => {
+          logger.warn('Failed to persist assistant images, keeping data URLs', { 
+            messageId: assistantMessage.id, 
+            error 
+          });
+          // Images remain as data URLs - graceful degradation
+        });
+      }
 
       // Update user message with input tokens when assistant response arrives
       setMessages(prev => {

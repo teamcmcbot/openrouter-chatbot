@@ -61,6 +61,10 @@ export function SimpleAuthButton() {
           return
         }
         const supabase = createClient()
+        if (!supabase) {
+          if (isMounted) setIsAdmin(false)
+          return
+        }
         const { data, error } = await supabase
           .from('profiles')
           .select('account_type')

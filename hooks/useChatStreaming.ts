@@ -10,6 +10,7 @@ import { createLogger } from '../stores/storeUtils';
 import { isStreamingDebugEnabled, streamDebug } from '../lib/utils/streamDebug';
 import { checkRateLimitHeaders } from '../lib/utils/rateLimitNotifications';
 import { getModelTokenLimits } from '../lib/utils/tokens';
+import { persistAssistantImages } from '../lib/utils/persistAssistantImages';
 
 const logger = createLogger("ChatStreaming");
 
@@ -30,7 +31,8 @@ interface UseChatStreamingReturn {
     draftId?: string; 
   webSearch?: boolean; 
   webMaxResults?: number;
-    reasoning?: { effort?: 'low' | 'medium' | 'high' } 
+  reasoning?: { effort?: 'low' | 'medium' | 'high' };
+  imageOutput?: boolean;
   }) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
@@ -97,7 +99,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
       draftId?: string; 
       webSearch?: boolean; 
       webMaxResults?: number;
-      reasoning?: { effort?: 'low' | 'medium' | 'high' } 
+  reasoning?: { effort?: 'low' | 'medium' | 'high' };
+  imageOutput?: boolean;
     }
   ) => {
   if (!content.trim() || storeIsLoading || isStreaming) {
@@ -133,6 +136,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
   requested_web_search: options?.webSearch,
   requested_web_max_results: options?.webMaxResults,
   requested_reasoning_effort: options?.reasoning?.effort,
+  requested_image_output: options?.imageOutput,
     };
 
     if (streamingEnabled) {
@@ -182,6 +186,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
           webSearch: options?.webSearch,
           webMaxResults: options?.webMaxResults,
           reasoning: options?.reasoning,
+          // Always include explicit boolean (false included) for parity with non-stream route
+          imageOutput: !!options?.imageOutput,
         };
 
   const response = await fetch('/api/chat/stream', {
@@ -231,7 +237,18 @@ export function useChatStreaming(): UseChatStreamingReturn {
         let fullContent = '';
         let finalMetadata: {
           response?: string;
-          usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+          usage?: { 
+            prompt_tokens: number; 
+            completion_tokens: number; 
+            total_tokens: number;
+            prompt_tokens_details?: {
+              cached_tokens?: number;
+            };
+            completion_tokens_details?: {
+              reasoning_tokens?: number;
+              image_tokens?: number;
+            };
+          };
           request_id?: string;
           timestamp?: string;
           elapsed_ms?: number;
@@ -243,18 +260,20 @@ export function useChatStreaming(): UseChatStreamingReturn {
           annotations?: Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>;
           has_websearch?: boolean;
           websearch_result_count?: number;
+          images?: string[];
         } | null = null;
 
   // Read the stream
         // Local accumulators to avoid relying on async state updates
         let reasoningAccum = '';
-        try {
-          let buffer = '';
+  // Incremental image streaming removed: collect only from final metadata
+  // Incremental streaming images removed; final images only from metadata
+  let buffer = '';
+  try {
           
           while (true) {
     const { done, value } = await reader.read();
-            
-            if (done) break;
+    if (done) break;
             
             const chunk = decoder.decode(value, { stream: true });
   // DEBUG: chunk snapshot (truncated)
@@ -269,6 +288,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
             for (const line of lines) {
               if (!line.trim()) continue;
               
+              // (Removed) incremental image parsing/delta markers
+
               // Check for annotation chunks FIRST
               if (line.startsWith('__ANNOTATIONS_CHUNK__')) {
         try {
@@ -355,6 +376,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
                 const potentialJson = JSON.parse(line.trim());
                 if (potentialJson.__FINAL_METADATA__) {
                   finalMetadata = potentialJson.__FINAL_METADATA__;
+                  // If images came only in final metadata, adopt them (only if none streamed)
+                  // If images only arrive in final metadata, adopt them later during assistant message creation (no incremental handling)
                   try { logger.debug('[STREAM-NORMAL] final metadata received'); } catch {}
                   if (streamingDebug) streamDebug('STREAM-NORMAL final metadata');
                   // Don't break here - continue reading to ensure stream is complete
@@ -369,7 +392,13 @@ export function useChatStreaming(): UseChatStreamingReturn {
                 const head = line.slice(0, 60);
                 logger.debug(`[STREAM-NORMAL] appending content line head='${head.replace(/\n/g, ' ')}'`);
               } catch {}
-              fullContent += line + '\n';
+              // Strip any accidental inline image delta markers before appending
+              const sanitized = line
+                .replace(/__IMAGE_DELTA_CHUNK__\{[^\n]*\}/g, '')
+                .trimEnd();
+              if (sanitized.length > 0) {
+                fullContent += sanitized + '\n';
+              }
               setStreamingContent(fullContent);
             }
             
@@ -441,7 +470,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
                 // Safe to append only if not starting with known markers
                 if (!startsWithReasoning && !startsWithAnnotations) {
                   try { logger.debug(`[STREAM-NORMAL] buffer appended as content`); } catch {}
-                  fullContent += buffer;
+                  const sanitizedBuffer = buffer.replace(/__IMAGE_DELTA_CHUNK__\{[^\n]*\}/g, '');
+                  fullContent += sanitizedBuffer;
                   setStreamingContent(fullContent);
                   buffer = '';
                 } else {
@@ -456,15 +486,103 @@ export function useChatStreaming(): UseChatStreamingReturn {
             }
           }
         } finally {
+          // After loop EOF: final attempt to parse remaining buffer (no trailing newline case)
+          if (buffer && !finalMetadata) {
+            try { logger.debug(`[STREAM-NORMAL][EOF-FINAL] buffer len=${buffer.length}, head='${buffer.slice(0,80).replace(/\n/g,'\\n')}'`); } catch {}
+            if (streamingDebug) streamDebug('STREAM-NORMAL EOF-FINAL buffer', { len: buffer.length, head: buffer.slice(0,80) });
+            let handled = false;
+            try {
+              const potentialJson = JSON.parse(buffer.trim());
+              if (potentialJson.__FINAL_METADATA__) {
+                finalMetadata = potentialJson.__FINAL_METADATA__;
+                handled = true;
+              }
+            } catch {}
+            if (!handled) {
+              const startsWithReasoning = buffer.startsWith('__REASONING_CHUNK__');
+              const startsWithAnnotations = buffer.startsWith('__ANNOTATIONS_CHUNK__');
+              try {
+                if (startsWithReasoning) {
+                  const reasoningData = JSON.parse(buffer.replace('__REASONING_CHUNK__',''));
+                  if (reasoningData?.type === 'reasoning' && typeof reasoningData.data === 'string' && reasoningData.data.trim()) {
+                    reasoningAccum += reasoningData.data;
+                    setStreamingReasoning(prev => prev + reasoningData.data);
+                    handled = true;
+                  }
+                } else if (startsWithAnnotations) {
+                  const annotationData = JSON.parse(buffer.replace('__ANNOTATIONS_CHUNK__',''));
+                  if (annotationData?.type === 'annotations' && Array.isArray(annotationData.data)) {
+                    for (const ann of annotationData.data as Array<{ type: 'url_citation'; url: string; title?: string; content?: string; start_index?: number; end_index?: number }>) {
+                      if (!ann || typeof ann.url !== 'string') continue;
+                      const key = ann.url.toLowerCase();
+                      const existing = annotationsMapRef.current.get(key);
+                      if (!existing) {
+                        annotationsMapRef.current.set(key, { ...ann, type: 'url_citation' });
+                      } else {
+                        annotationsMapRef.current.set(key, {
+                          type: 'url_citation',
+                          url: existing.url || ann.url,
+                          title: ann.title || existing.title,
+                          content: ann.content || existing.content,
+                          start_index: typeof ann.start_index === 'number' ? ann.start_index : existing.start_index,
+                          end_index: typeof ann.end_index === 'number' ? ann.end_index : existing.end_index,
+                        });
+                      }
+                    }
+                    setStreamingAnnotations(Array.from(annotationsMapRef.current.values()));
+                    handled = true;
+                  }
+                }
+              } catch {}
+              if (!handled && !startsWithReasoning && !startsWithAnnotations) {
+                const sanitized = buffer.replace(/__IMAGE_DELTA_CHUNK__\{[^\n]*\}/g,'');
+                if (sanitized.trim().length > 0) {
+                  fullContent += sanitized + (sanitized.endsWith('\n') ? '' : '\n');
+                }
+              }
+            }
+          }
           reader.releaseLock();
         }
 
   // Use final content from metadata if available, otherwise use accumulated content
-  const finalContent = finalMetadata?.response || fullContent;
+  let finalContent = finalMetadata?.response || fullContent;
+  // Fallback scrub: if raw __FINAL_METADATA__ JSON was appended (missed earlier parse), extract & apply
+  if (!finalMetadata) {
+    const lines = finalContent.split(/\n+/).filter(l => l.trim().length > 0);
+    const lastLine = lines[lines.length - 1];
+    if (lastLine && lastLine.includes('__FINAL_METADATA__')) {
+      try {
+        const possible = JSON.parse(lastLine.trim());
+        if (possible && possible.__FINAL_METADATA__) {
+          finalMetadata = possible.__FINAL_METADATA__;
+          // Remove raw JSON line from displayed content
+          lines.pop();
+          // finalMetadata now set; use non-null assertion for TS
+          finalContent = ((finalMetadata!.response) || lines.join('\n')).trimEnd();
+        }
+      } catch {}
+    }
+  }
   // Finalize annotations from accumulator map
   const mergedAnnotations = Array.from(annotationsMapRef.current.values());
         
-  // Create assistant message with metadata
+        // Remove transient draft assistant if present before committing final assistant message
+        useChatStore.setState(state => ({
+          conversations: state.conversations.map(c => c.id === conversationId ? { ...c, messages: c.messages.filter(m => !(m.role === 'assistant' && m.was_streaming && m.id.startsWith('draft_stream_'))) } : c)
+        }));
+
+        // Fallback image extraction (final content scan) if imageOutput requested but no delta images arrived
+        let finalOutputImages: string[] | undefined;
+        if (options?.imageOutput) {
+          // Adopt images from final metadata only (no incremental accumulation)
+          if (finalMetadata?.images && Array.isArray(finalMetadata.images) && finalMetadata.images.length > 0) {
+            const dedup = Array.from(new Set(finalMetadata.images.filter(i => typeof i === 'string' && i.startsWith('data:image/'))));
+            if (dedup.length > 0) finalOutputImages = dedup;
+          }
+        }
+
+        // Create assistant message with metadata
   const assistantMessage: ChatMessage = {
           id: `msg_${Date.now() + 1}`,
           content: finalContent,
@@ -476,10 +594,15 @@ export function useChatStreaming(): UseChatStreamingReturn {
           total_tokens: finalMetadata?.usage?.total_tokens || 0,
           input_tokens: finalMetadata?.usage?.prompt_tokens || 0,
           output_tokens: finalMetadata?.usage?.completion_tokens || 0,
+          // Phase 4A: Extract image tokens from completion_tokens_details if present
+          ...(finalMetadata?.usage?.completion_tokens_details?.image_tokens && {
+            output_image_tokens: finalMetadata.usage.completion_tokens_details.image_tokens
+          }),
           elapsed_ms: finalMetadata?.elapsed_ms || 0,
           completion_id: finalMetadata?.id,
           // Mark assistant message as streamed
           was_streaming: true,
+          ...(options?.imageOutput && finalOutputImages && finalOutputImages.length > 0 && { output_images: finalOutputImages, requested_image_output: true }),
           // ENHANCED: Use locally accumulated reasoning first, then state, then metadata
           ...(reasoningAccum && { reasoning: reasoningAccum }),
           ...(!reasoningAccum && streamingReasoning && { reasoning: streamingReasoning }),
@@ -573,6 +696,26 @@ export function useChatStreaming(): UseChatStreamingReturn {
           // Only persist for authenticated users; skip for anonymous
           const { user } = useAuthStore.getState();
           if (user?.id) {
+            // Phase 4A: Create cleaned assistant message for database persistence
+            const assistantMessageForDB = { ...assistantMessage };
+            
+            // Remove data URLs from output_images for database payload (keep count only)
+            if (assistantMessageForDB.output_images && assistantMessageForDB.output_images.length > 0) {
+              // Add image count for database tracking
+              assistantMessageForDB.output_image_count = assistantMessage.output_images!.length;
+              
+              // Remove actual data URLs from database payload (too large for DB)
+              delete assistantMessageForDB.output_images;
+            }
+            
+            // Calculate text-only output_tokens (total - image_tokens) for database
+            if (assistantMessageForDB.output_image_tokens && assistantMessageForDB.output_tokens) {
+              assistantMessageForDB.output_tokens = assistantMessageForDB.output_tokens - assistantMessageForDB.output_image_tokens;
+            }
+            
+            // Update syncPayload with cleaned message
+            syncPayload.messages[1] = assistantMessageForDB;
+
             const syncResponse = await fetch('/api/chat/messages', {
               method: 'POST',
               headers: {
@@ -585,6 +728,38 @@ export function useChatStreaming(): UseChatStreamingReturn {
               logger.warn('Failed to sync messages to database:', syncResponse.status);
             } else {
               // logger.debug('Messages synced to database successfully');
+              
+              // Phase 4A: Persist assistant images AFTER database sync (fixes timing race condition)
+              if (assistantMessage.output_images && assistantMessage.output_images.length > 0) {
+                persistAssistantImages(
+                  assistantMessage.output_images, 
+                  assistantMessage.id, 
+                  conversationId
+                ).then(persistedUrls => {
+                  // Update the assistant message with persisted URLs (swap data URLs for signed URLs)
+                  useChatStore.setState((state) => ({
+                    conversations: state.conversations.map((conv) =>
+                      conv.id === conversationId
+                        ? {
+                            ...conv,
+                            messages: conv.messages.map(msg =>
+                              msg.id === assistantMessage.id
+                                ? { ...msg, output_images: persistedUrls }
+                                : msg
+                            ),
+                          }
+                        : conv
+                    ),
+                  }));
+                }).catch(error => {
+                  logger.warn('Failed to persist assistant images, keeping data URLs', { 
+                    messageId: assistantMessage.id, 
+                    conversationId,
+                    error 
+                  });
+                  // Images remain as data URLs - graceful degradation
+                });
+              }
             }
           } else {
             logger.debug('Skipping /api/chat/messages persistence for anonymous user');
@@ -744,6 +919,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
       webSearch?: boolean;
       webMaxResults?: number;
       reasoning?: { effort?: 'low' | 'medium' | 'high' };
+  imageOutput?: boolean;
     }
   ) => {
   if (!content.trim() || storeIsLoading || isStreaming) {
@@ -835,6 +1011,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           webSearch: options?.webSearch,
           webMaxResults: options?.webMaxResults,
           reasoning: options?.reasoning,
+          ...(options?.imageOutput && { imageOutput: true }),
         };
 
   const response = await fetch('/api/chat/stream', {
@@ -1080,7 +1257,21 @@ export function useChatStreaming(): UseChatStreamingReturn {
         }
 
         // Use final content from metadata if available, otherwise use accumulated content
-        const finalContent = finalMetadata?.response || fullContent;
+        let finalContent = finalMetadata?.response || fullContent;
+        if (!finalMetadata) {
+          const lines = finalContent.split(/\n+/).filter(l => l.trim().length > 0);
+          const lastLine = lines[lines.length - 1];
+          if (lastLine && lastLine.includes('__FINAL_METADATA__')) {
+            try {
+              const possible = JSON.parse(lastLine.trim());
+              if (possible && possible.__FINAL_METADATA__) {
+                finalMetadata = possible.__FINAL_METADATA__;
+                lines.pop();
+                finalContent = ((finalMetadata!.response) || lines.join('\n')).trimEnd();
+              }
+            } catch {}
+          }
+        }
   const mergedAnnotations = Array.from(retryAnnotationsMap.values());
 
   // Create assistant message with metadata

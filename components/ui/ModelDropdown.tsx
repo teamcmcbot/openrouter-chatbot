@@ -414,6 +414,12 @@ export default function ModelDropdown({
                                     MM
                                   </span>
                                 )}
+                                {/* Image Generation badge (output image support) */}
+                                {(model as ModelInfo).output_modalities?.includes('image') && (
+                                  <span className="text-[9px] bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300 px-1 py-0.5 rounded border border-pink-200 dark:border-pink-700">
+                                    IMG
+                                  </span>
+                                )}
                                 {/* Reasoning badge */}
                                 {(model as ModelInfo).supported_parameters.includes('reasoning') && (
                                   <span className="text-[9px] bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 px-1 py-0.5 rounded">
