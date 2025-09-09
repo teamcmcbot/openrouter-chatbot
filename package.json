@@ -27,7 +27,7 @@
     "dotenv": "^17.2.1",
     "highlight.js": "^11.11.1",
     "image-size": "^2.0.2",
-    "next": "15.3.5",
+    "next": "^15.5.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.5.2",
