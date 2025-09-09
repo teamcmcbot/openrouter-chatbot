@@ -11,6 +11,7 @@ export interface TierFeatures {
   webSearch: boolean; // Pro+
   reasoning: boolean; // Enterprise only
   imageAttachments: boolean; // Pro+
+  imageGeneration: boolean; // Enterprise only
 }
 
 export const TIER_LABELS: Record<Tier, string> = {
@@ -32,8 +33,8 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
 
 // Keep aligned with the feature gating matrix in docs/subscription-tier-access.md
 export const TIER_FEATURES: Record<Tier, TierFeatures> = {
-  anonymous: { webSearch: false, reasoning: false, imageAttachments: false },
-  free: { webSearch: false, reasoning: false, imageAttachments: false },
-  pro: { webSearch: true, reasoning: false, imageAttachments: true },
-  enterprise: { webSearch: true, reasoning: true, imageAttachments: true },
+  anonymous: { webSearch: false, reasoning: false, imageAttachments: false, imageGeneration: false },
+  free: { webSearch: false, reasoning: false, imageAttachments: false, imageGeneration: false },
+  pro: { webSearch: true, reasoning: false, imageAttachments: true, imageGeneration: false },
+  enterprise: { webSearch: true, reasoning: true, imageAttachments: true, imageGeneration: true },
 };

@@ -229,6 +229,14 @@ async function chatHandler(request: NextRequest, authContext: AuthContext): Prom
         logger.warn('Model reasoning support re-validation skipped (fetch failed or model not found)');
       }
     }
+
+    // Enterprise gating for image generation
+    if (imageOutput) {
+      const tier = authContext.profile?.subscription_tier;
+      if (tier !== 'enterprise') {
+        throw new ApiErrorResponse('Image Generation is available for enterprise accounts only', ErrorCode.FORBIDDEN);
+      }
+    }
     
   // Phase 4: Calculate model-aware max tokens
   const tier = (authContext.profile?.subscription_tier || 'anonymous') as SubscriptionTier;

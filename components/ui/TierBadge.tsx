@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheckIcon, GlobeAltIcon, LightBulbIcon, PaperClipIcon } from "@heroicons/react/24/outline";
+import { ShieldCheckIcon, GlobeAltIcon, LightBulbIcon, PaperClipIcon, PhotoIcon } from "@heroicons/react/24/outline";
 import Tooltip from "./Tooltip";
 import React, { useEffect, useState } from "react";
 import { TIER_LABELS, TIER_LIMITS, TIER_FEATURES, Tier } from "../../lib/constants/tiers";
@@ -157,7 +157,8 @@ export default function TierBadge({
                 <>
                   <Row label="Web Search" enabled={f.webSearch} icon={GlobeAltIcon} />
                   <Row label="Reasoning" enabled={f.reasoning} icon={LightBulbIcon} />
-                  <Row label="Image attachments" enabled={f.imageAttachments} icon={PaperClipIcon} />
+                  <Row label="Image Attachments" enabled={f.imageAttachments} icon={PaperClipIcon} />
+                  <Row label="Image Generation" enabled={f.imageGeneration} icon={PhotoIcon} />
                 </>
               );
             })()}

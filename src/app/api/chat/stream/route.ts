@@ -185,6 +185,14 @@ async function chatStreamHandler(request: NextRequest, authContext: AuthContext)
       }
     }
 
+    // Enterprise gating for image generation (same as non-streaming)
+    if (imageOutput) {
+      const tier = authContext.profile?.subscription_tier;
+      if (tier !== 'enterprise') {
+        throw new ApiErrorResponse('Image Generation is available for enterprise accounts only', ErrorCode.FORBIDDEN);
+      }
+    }
+
     // Token validation (same as non-streaming)
   const tier = (authContext.profile?.subscription_tier || 'anonymous') as SubscriptionTier;
   const tokenStrategy = await getModelTokenLimits(enhancedData.model, { tier });
