@@ -831,6 +831,40 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 COMMENT ON FUNCTION public.get_global_model_costs IS 'Admin-only: aggregate model costs by day/week/month between dates inclusive.';
 
 -- =============================================================================
+-- ADMIN ANALYTICS: ERROR COUNT
+-- =============================================================================
+
+-- Admin-only count of error messages between dates inclusive
+CREATE OR REPLACE FUNCTION public.get_error_count(
+    p_start_date DATE,
+    p_end_date DATE
+)
+RETURNS BIGINT
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $fn$
+DECLARE
+    v_count BIGINT := 0;
+BEGIN
+    IF NOT public.is_admin(auth.uid()) THEN
+        RAISE EXCEPTION 'Insufficient privileges';
+    END IF;
+
+    SELECT COUNT(*) INTO v_count
+    FROM public.chat_messages m
+    WHERE m.message_timestamp >= p_start_date
+      AND m.message_timestamp < (p_end_date + 1)
+      AND m.error_message IS NOT NULL
+      AND m.error_message <> '';
+
+    RETURN v_count;
+END;
+$fn$;
+
+COMMENT ON FUNCTION public.get_error_count(DATE, DATE) IS 'Admin-only: count of error messages between dates inclusive.';
+
+-- =============================================================================
 -- ADMIN ANALYTICS: RECENT ERRORS (ENRICHED MODEL)
 -- =============================================================================
 

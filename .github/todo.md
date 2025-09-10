@@ -20,7 +20,7 @@ Chatbot todo:
 - [x] Model sync not properly detecting “new” models.
 - [ ] Upload images migration to UploadThings?
 - [ ] Proper supabase setup, local + GitHub integration + supabase mcp?
-- [ ] Database cleanup, unused tables, columns, functions etc..
+- [x] Database cleanup, unused tables, columns, functions etc..
 - [ ] Production readiness check
 - [x] upgrade recharts to latest version 3.2.0
 - [x] Gemini image model, image generation implementation

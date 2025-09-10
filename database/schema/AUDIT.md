@@ -17,41 +17,42 @@ This document summarizes the merging of SQL scripts into the final schema files 
 
 #### `profiles`
 
-- **Source Files**: `01-complete-user-management.sql`, `03-complete-user-enhancements.sql`, `04-complete-system-final.sql`, `05-model-access-migration.sql`
-- **Merged Changes**:
-  - Initial creation from `01-complete-user-management.sql`.
-  - Columns `allowed_models`, `ui_preferences`, `session_preferences` added via `ALTER TABLE` in `03-complete-user-enhancements.sql`. These are now part of the main `CREATE TABLE` statement.
-  - `ui_preferences` and `session_preferences` defaults were enhanced in `04-complete-system-final.sql`; these enhanced defaults are now in the `CREATE TABLE`.
-  - The `allowed_models` column was removed in `05-model-access-migration.sql` as model access is now managed by the `model_access` table.
+- Initial creation from `01-complete-user-management.sql`.
+
+#### (Removed Sept 2025) `system_cache` / `system_stats`
+
+- **Status**: Dropped (unused; replaced by Redis & external analytics). Historical definitions omitted from clean baseline.
   - `default_model` column was made nullable and its default was dropped in `05-model-access-migration.sql`.
 - **Final Definition**: `database/schema/01-users.sql`
 
-#### `user_activity_log`
+#### (Removed Sept 2025) `export_user_data()`
 
+- **Status**: Dropped as unused (no API/UI integration). Use application-layer export if reintroduced.
 - **Source Files**: `01-complete-user-management.sql`
 - **Merged Changes**: Initial creation. No `ALTER TABLE` statements affecting its structure in subsequent files.
-- **Final Definition**: `database/schema/01-users.sql`
 
-#### `user_usage_daily`
+#### (Removed earlier) `get_session_with_messages()` / `sync_user_conversations()`
 
-- **Source Files**: `03-complete-user-enhancements.sql`
-- **Merged Changes**: Initial creation in `03-complete-user-enhancements.sql`.
-- **Final Definition**: `database/schema/01-users.sql`
+- **Status**: Legacy chat functions removed during chat refactors; superseded by direct queries and pagination logic.
 
 #### `chat_sessions`
 
-- **Source Files**: `02-complete-chat-history.sql`
+#### `cleanup_old_data()`
+
+- **Source Files**: `04-complete-system-final.sql`, retention simplification patch (Sept 2025).
+- **Status**: Simplified to single integer parameter; removes legacy cache/system stats references.
+- **Final Definition**: `database/schema/04-system.sql` (version `retention-simple-v1`).
+- **Final Definition**: `database/schema/02-chat.sql`
+
+#### `analyze_database_health()`
+
+- **Status**: Active, unchanged aside from contextual table removals.
 - **Merged Changes**: Initial creation. No structural changes in subsequent files.
 - **Final Definition**: `database/schema/02-chat.sql`
 
-#### `chat_messages`
+#### (Removed earlier) `get_user_recent_sessions()`
 
-- **Source Files**: `02-complete-chat-history.sql`
-- **Merged Changes**: Initial creation. No structural changes in subsequent files.
-- **Final Definition**: `database/schema/02-chat.sql`
-
-#### `model_access`
-
+- **Status**: Superseded; logic folded into application-level queries.
 - **Source Files**: `03-complete-user-enhancements.sql`, `05-model-access-migration.sql`
 - **Merged Changes**:
   - Initially created in `03-complete-user-enhancements.sql` with a simpler structure (`model_id`, `tier`, `is_active`, etc.).
@@ -247,14 +248,14 @@ This document summarizes the merging of SQL scripts into the final schema files 
 
 ### Views
 
-#### `api_user_summary`
+#### (Removed Sept 2025) `api_user_summary`
 
-- **Source Files**: `04-complete-system-final.sql`, `05-model-access-migration.sql`
-- **Merged Changes**:
-  - Initially created in `04-complete-system-final.sql`. It selected from `profiles.allowed_models`.
-  - Dropped in `05-model-access-migration.sql` due to schema changes.
-  - Recreated in `06-model-access-functions.sql` (implicitly, as it was part of the functions to be recreated). The new version correctly omits the non-existent `allowed_models` column from `profiles`.
-- **Final Definition**: `database/schema/04-system.sql`
+- **Status**: Dropped (unused; removed via patch `remove-api-user-summary/001_drop_api_user_summary.sql`).
+- **Historical Notes**:
+  - Originally introduced in `04-complete-system-final.sql` to aggregate per-user usage/session counts.
+  - Adjusted during model access refactors (`05-model-access-migration.sql`, `06-model-access-functions.sql`) to remove dependency on deprecated `profiles.allowed_models`.
+  - Determined to be unused by application/API queries; metrics now derived ad‑hoc or via specific functions.
+- **Action**: Omitted from clean baseline; fresh deployments do not create this view.
 
 ---
 

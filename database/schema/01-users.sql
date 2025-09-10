@@ -789,57 +789,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to export user data (GDPR compliance)
-CREATE OR REPLACE FUNCTION public.export_user_data(user_uuid UUID)
-RETURNS JSONB AS $$
-DECLARE
-    profile_data JSONB;
-    conversations_data JSONB;
-    activity_data JSONB;
-    usage_data JSONB;
-BEGIN
-    -- Get profile data
-    SELECT to_jsonb(p.*) INTO profile_data
-    FROM public.profiles p
-    WHERE id = user_uuid;
-
-    -- Get conversations data
-    SELECT jsonb_agg(
-        jsonb_build_object(
-            'session', to_jsonb(s.*),
-            'messages', (
-                SELECT jsonb_agg(to_jsonb(m.*))
-                FROM public.chat_messages m
-                WHERE m.session_id = s.id
-                ORDER BY m.message_timestamp
-            )
-        )
-    ) INTO conversations_data
-    FROM public.chat_sessions s
-    WHERE s.user_id = user_uuid;
-
-    -- Get activity data
-    SELECT jsonb_agg(to_jsonb(a.*)) INTO activity_data
-    FROM public.user_activity_log a
-    WHERE a.user_id = user_uuid
-    ORDER BY a.timestamp DESC;
-
-    -- Get usage data
-    SELECT jsonb_agg(to_jsonb(u.*)) INTO usage_data
-    FROM public.user_usage_daily u
-    WHERE u.user_id = user_uuid
-    ORDER BY u.usage_date DESC;
-
-    RETURN jsonb_build_object(
-        'export_date', NOW(),
-        'user_id', user_uuid,
-        'profile', profile_data,
-        'conversations', COALESCE(conversations_data, '[]'::jsonb),
-        'activity_log', COALESCE(activity_data, '[]'::jsonb),
-        'usage_stats', COALESCE(usage_data, '[]'::jsonb)
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- (Removed) export_user_data(user_uuid UUID) function deprecated Sept 2025 (never used in application layer)
 
 -- =============================================================================
 -- TRIGGERS

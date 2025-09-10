@@ -50,7 +50,7 @@ Audit table for model synchronization runs (manual or scheduled). Stores start/e
 
 ### `system_cache` & `system_stats`
 
-Caching and health‑monitoring tables introduced in Phase 4 for optimization and reporting.
+Originally introduced in Phase 4 for proto caching + stats aggregation. Marked for removal (Sept 2025) – superseded by Redis caching and external analytics. See patch `system-table-removal/001_drop_system_tables.sql`.
 
 ---
 

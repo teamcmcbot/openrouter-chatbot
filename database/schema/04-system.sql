@@ -5,145 +5,82 @@
 -- functions, triggers, RLS policies, and views.
 
 -- =============================================================================
--- SYSTEM OPTIMIZATION TABLES
--- =============================================================================
-
--- Cache table for frequently accessed data
-CREATE TABLE public.system_cache (
-    cache_key VARCHAR(255) PRIMARY KEY,
-    cache_value JSONB NOT NULL,
-    expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
-
--- System statistics and health monitoring
-CREATE TABLE public.system_stats (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    stat_date DATE NOT NULL,
-
-    -- User statistics
-    total_users INTEGER DEFAULT 0,
-    active_users_today INTEGER DEFAULT 0,
-    new_users_today INTEGER DEFAULT 0,
-
-    -- Usage statistics
-    total_conversations INTEGER DEFAULT 0,
-    total_messages INTEGER DEFAULT 0,
-    total_tokens INTEGER DEFAULT 0,
-
-    -- Performance metrics
-    avg_response_time DECIMAL(10,3) DEFAULT 0,
-    error_rate DECIMAL(5,4) DEFAULT 0,
-
-    -- Storage statistics
-    database_size_mb DECIMAL(15,2) DEFAULT 0,
-
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-
-    UNIQUE(stat_date)
-);
+-- (Removed) system_cache & system_stats tables were deprecated (Sept 2025) in favor of Redis and external analytics.
 
 -- =============================================================================
 -- INDEXES FOR OPTIMIZATION
 -- =============================================================================
 
--- Cache indexes
-CREATE INDEX idx_system_cache_expires ON public.system_cache(expires_at) WHERE expires_at IS NOT NULL;
-
--- Stats indexes
-CREATE INDEX idx_system_stats_date ON public.system_stats(stat_date DESC);
+-- (Removed) related indexes for deprecated tables
 
 -- =============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- =============================================================================
 
--- Enable RLS on new tables
-ALTER TABLE public.system_cache ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
-
--- System cache policies (admin only for write, all for read if applicable)
-CREATE POLICY "All authenticated users can view system cache" ON public.system_cache
-    FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "Only admins can modify system cache" ON public.system_cache
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND subscription_tier = 'admin'
-        )
-    );
-
--- System stats policies (all authenticated users can view, admins can write)
-CREATE POLICY "All authenticated users can view system stats" ON public.system_stats
-    FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "Only admins can modify system stats" ON public.system_stats
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND subscription_tier = 'admin'
-        )
-    );
+-- (Removed) RLS policies for deprecated tables
 
 -- =============================================================================
 -- UTILITY FUNCTIONS
 -- =============================================================================
 
--- Function to clean up old data
-CREATE OR REPLACE FUNCTION public.cleanup_old_data(
-    days_to_keep INTEGER DEFAULT 90
-)
+-- Simplified single-parameter cleanup covering all analytics tables.
+-- NOTE: Manual admin call only. days_to_keep applies uniformly.
+CREATE OR REPLACE FUNCTION public.cleanup_old_data(days_to_keep INTEGER DEFAULT 90)
 RETURNS JSONB AS $$
 DECLARE
-    cleanup_date TIMESTAMPTZ;
-    deleted_activity INTEGER;
-    deleted_usage INTEGER;
-    deleted_cache INTEGER;
+    v_started_at TIMESTAMPTZ := NOW();
+    v_cutoff_ts TIMESTAMPTZ := NOW() - (days_to_keep || ' days')::INTERVAL;
+    v_cutoff_date DATE := CURRENT_DATE - (days_to_keep || ' days')::INTERVAL;
+    del_activity BIGINT := 0;
+    del_usage BIGINT := 0;
+    del_anon_usage BIGINT := 0;
+    del_anon_model_usage BIGINT := 0;
+    del_anon_errors BIGINT := 0;
+    del_token_costs BIGINT := 0;
+    del_cta BIGINT := 0;
+    del_sync BIGINT := 0;
 BEGIN
-    cleanup_date := NOW() - (days_to_keep || ' days')::INTERVAL;
+    DELETE FROM public.user_activity_log WHERE timestamp < v_cutoff_ts;
+    GET DIAGNOSTICS del_activity = ROW_COUNT;
 
-    -- Clean up old activity logs (keep last N days)
-    DELETE FROM public.user_activity_log
-    WHERE timestamp < cleanup_date;
-    GET DIAGNOSTICS deleted_activity = ROW_COUNT;
+    DELETE FROM public.user_usage_daily WHERE usage_date < v_cutoff_date;
+    GET DIAGNOSTICS del_usage = ROW_COUNT;
 
-    -- Clean up old usage data (keep last N days)
-    DELETE FROM public.user_usage_daily
-    WHERE usage_date < CURRENT_DATE - (days_to_keep || ' days')::INTERVAL;
-    GET DIAGNOSTICS deleted_usage = ROW_COUNT;
+    DELETE FROM public.anonymous_usage_daily WHERE usage_date < v_cutoff_date;
+    GET DIAGNOSTICS del_anon_usage = ROW_COUNT;
 
-    -- Clean up expired cache entries
-    DELETE FROM public.system_cache
-    WHERE expires_at IS NOT NULL AND expires_at < NOW();
-    GET DIAGNOSTICS deleted_cache = ROW_COUNT;
+    DELETE FROM public.anonymous_model_usage_daily WHERE usage_date < v_cutoff_date;
+    GET DIAGNOSTICS del_anon_model_usage = ROW_COUNT;
 
-    -- Update system stats
-    INSERT INTO public.system_stats (
-        stat_date,
-        total_users,
-        total_conversations,
-        total_messages
-    )
-    SELECT
-        CURRENT_DATE,
-        (SELECT COUNT(*) FROM public.profiles),
-        (SELECT COUNT(*) FROM public.chat_sessions),
-        (SELECT COUNT(*) FROM public.chat_messages)
-    ON CONFLICT (stat_date) DO UPDATE SET
-        total_users = EXCLUDED.total_users,
-        total_conversations = EXCLUDED.total_conversations,
-        total_messages = EXCLUDED.total_messages;
+    DELETE FROM public.anonymous_error_events WHERE event_timestamp < v_cutoff_ts;
+    GET DIAGNOSTICS del_anon_errors = ROW_COUNT;
+
+    DELETE FROM public.message_token_costs WHERE message_timestamp < v_cutoff_ts;
+    GET DIAGNOSTICS del_token_costs = ROW_COUNT;
+
+    DELETE FROM public.cta_events WHERE created_at < v_cutoff_ts;
+    GET DIAGNOSTICS del_cta = ROW_COUNT;
+
+    DELETE FROM public.model_sync_log WHERE COALESCE(sync_completed_at, sync_started_at) < v_cutoff_ts;
+    GET DIAGNOSTICS del_sync = ROW_COUNT;
 
     RETURN jsonb_build_object(
         'success', true,
-        'cleanup_date', cleanup_date,
+        'started_at', v_started_at,
+        'completed_at', NOW(),
+        'days_to_keep', days_to_keep,
+        'cutoff_timestamp', v_cutoff_ts,
         'deleted_records', jsonb_build_object(
-            'activity_logs', deleted_activity,
-            'usage_records', deleted_usage,
-            'cache_entries', deleted_cache
+            'user_activity_log', del_activity,
+            'user_usage_daily', del_usage,
+            'anonymous_usage_daily', del_anon_usage,
+            'anonymous_model_usage_daily', del_anon_model_usage,
+            'anonymous_error_events', del_anon_errors,
+            'message_token_costs', del_token_costs,
+            'cta_events', del_cta,
+            'model_sync_log', del_sync
         ),
-        'cleanup_completed_at', NOW()
+        'schema_version', 'retention-simple-v1'
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -187,41 +124,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- VIEWS
 -- =============================================================================
 
--- Create a comprehensive view for API usage
-CREATE OR REPLACE VIEW public.api_user_summary AS
-SELECT
-    p.id,
-    p.email,
-    p.full_name,
-    p.avatar_url,
-    p.subscription_tier,
-    p.credits,
-    p.default_model,
-    p.temperature,
-    p.system_prompt,
-    p.ui_preferences,
-    p.session_preferences,
-    p.last_active,
-    COALESCE(recent_usage.messages_today, 0) as messages_today,
-    COALESCE(recent_usage.tokens_today, 0) as tokens_today,
-    COALESCE(session_count.total_sessions, 0) as total_sessions
-FROM public.profiles p
-LEFT JOIN (
-    SELECT
-        user_id,
-        SUM(messages_sent + messages_received) as messages_today,
-        SUM(total_tokens) as tokens_today
-    FROM public.user_usage_daily
-    WHERE usage_date = CURRENT_DATE
-    GROUP BY user_id
-) recent_usage ON p.id = recent_usage.user_id
-LEFT JOIN (
-    SELECT
-        user_id,
-        COUNT(*) as total_sessions
-    FROM public.chat_sessions
-    GROUP BY user_id
-) session_count ON p.id = session_count.user_id;
+-- (Removed) api_user_summary view (dropped via patch remove-api-user-summary/001_drop_api_user_summary.sql on 2025-09-10; unused in application).
 
 -- =============================================================================
 -- ANALYTICS VIEWS (PHASE 4)

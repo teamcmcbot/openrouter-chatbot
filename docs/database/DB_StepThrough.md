@@ -12,8 +12,8 @@
 | public.user_usage_daily  | Tracks daily user activity and usage statistics                                            | None                                                                            | track_user_usage() function updates/inserts records here (called after chat activity)                                                |
 | public.model_access      | Manages user access to different AI models                                                 | None                                                                            | Updated via model tier changes, but no direct triggers/functions listed                                                              |
 | public.model_sync_log    | Logs model sync runs (manual/scheduled), with attribution                                  | None                                                                            | Populated by sync_openrouter_models(); readable by admins via RLS (public.is_admin)                                                  |
-| public.system_cache      | Caches system-wide settings and preferences                                                | None                                                                            | No triggers/functions; currently unused                                                                                              |
-| public.system_stats      | System statistics table                                                                    | None                                                                            | No triggers/functions; currently unused                                                                                              |
+| REMOVAL system_cache     | (Pending removal Sept 2025) Legacy cache table replaced by Redis                           | None                                                                            | Dropped via patch system-table-removal/001 (planned)                                                                                 |
+| REMOVAL system_stats     | (Pending removal Sept 2025) Legacy stats aggregation (unused)                              | None                                                                            | Dropped via patch system-table-removal/001 (planned)                                                                                 |
 
 ## Triggers
 
@@ -78,8 +78,8 @@
 | idx_model_access_openrouter_seen    | public.model_access(openrouter_last_seen)                                                           | Optimizes queries by last seen                           | 03-models.sql                     |
 | idx_model_sync_log_status           | public.model_sync_log(sync_status, sync_started_at DESC)                                            | Optimizes queries for recent syncs by status             | 03-models.sql                     |
 | idx_profiles_account_type_admin     | public.profiles(account_type) WHERE account_type = 'admin'                                          | Speeds up admin lookups                                  | 01-users.sql                      |
-| idx_system_cache_expires            | public.system_cache(expires_at) WHERE expires_at IS NOT NULL                                        | Optimizes queries for expiring cache entries             | 04-complete-system-final.sql      |
-| idx_system_stats_date               | public.system_stats(stat_date DESC)                                                                 | Optimizes queries for system stats by date               | 04-complete-system-final.sql      |
+| (REMOVED) idx_system_cache_expires  | public.system_cache(expires_at) WHERE expires_at IS NOT NULL                                        | To be removed with table                                 | 04-complete-system-final.sql      |
+| (REMOVED) idx_system_stats_date     | public.system_stats(stat_date DESC)                                                                 | To be removed with table                                 | 04-complete-system-final.sql      |
 
 ## Views
 
