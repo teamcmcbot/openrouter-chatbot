@@ -171,7 +171,10 @@ describe('Banned user chat-only enforcement', () => {
 
   test('POST /api/chat returns 403 account_banned for banned users', async () => {
     const { POST } = await import('../../src/app/api/chat/route');
-    const req = { json: async () => ({ messages: [{ role: 'user', content: 'hi' }], model: 'deepseek/deepseek-r1-0528:free' }) } as any;
+    const req = { 
+      json: async () => ({ messages: [{ role: 'user', content: 'hi' }], model: 'deepseek/deepseek-r1-0528:free' }),
+      headers: new Map()  // Add proper headers object
+    } as any;
     const res = await POST(req as any);
     expect(res.status).toBe(403);
     const text = await readTextBody(res as any);

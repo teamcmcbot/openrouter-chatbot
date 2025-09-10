@@ -5,7 +5,7 @@ import { Redis } from '@upstash/redis';
 import { AuthContext, AuthErrorCode, UserProfile } from '../types/auth';
 import { createAuthError, handleAuthError } from '../utils/errors';
 import { logger } from '../utils/logger';
-import { addRateLimitHeaders } from './auth';
+import { addRateLimitHeaders } from '../utils/rateLimitHeaders';
 
 // Initialize Redis - uses UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
 let redis: Redis | null = null;
