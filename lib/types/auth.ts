@@ -15,6 +15,12 @@ export interface UserProfile {
   system_prompt: string;
   subscription_tier: "free" | "pro" | "enterprise";
   account_type?: "user" | "admin"; // Admin role independent of subscription tier
+  // Ban-related fields (Phase 1)
+  is_banned?: boolean;
+  banned_at?: string | null; // ISO timestamp
+  banned_until?: string | null; // ISO timestamp
+  ban_reason?: string | null;
+  violation_strikes?: number;
   credits: number;
   created_at: string;
   updated_at: string;
@@ -105,6 +111,9 @@ export enum AuthErrorCode {
   // Server errors
   AUTH_SERVICE_UNAVAILABLE = "AUTH_SERVICE_UNAVAILABLE",
   PROFILE_FETCH_FAILED = "PROFILE_FETCH_FAILED",
+
+  // Account status
+  ACCOUNT_BANNED = "ACCOUNT_BANNED",
 }
 
 /**
@@ -134,4 +143,6 @@ export interface AuthMiddlewareOptions {
   allowAnonymous?: boolean;
   requireProfile?: boolean;
   minimumTier?: UserProfile['subscription_tier'];
+  // When false, skip ban checks in middleware (useful for read-only endpoints)
+  enforceBan?: boolean;
 }

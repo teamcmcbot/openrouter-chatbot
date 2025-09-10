@@ -3,7 +3,7 @@ import { createClient } from '../../../../../lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { coerceReasoningDetailsToArray } from '../../../../../lib/utils/reasoning';
 import { ChatMessage } from '../../../../../lib/types/chat';
-import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { withProtectedAuth, withAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
@@ -628,8 +628,10 @@ async function postMessagesHandler(request: NextRequest, authContext: AuthContex
 }
 
 // Apply middleware to handlers with TierC rate limiting
-export const GET = withProtectedAuth(
-  withTieredRateLimit(getMessagesHandler, { tier: 'tierC' })
+// Allow banned users to read message history; enforce auth + ownership, but skip ban enforcement
+export const GET = withAuth(
+  withTieredRateLimit(getMessagesHandler, { tier: 'tierC' }),
+  { required: true, requireProfile: true, enforceBan: false }
 );
 export const POST = withProtectedAuth(
   withTieredRateLimit(postMessagesHandler, { tier: 'tierC' })

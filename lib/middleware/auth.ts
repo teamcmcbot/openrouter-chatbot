@@ -10,11 +10,16 @@ import {
   extractAuthContext, 
   hasPermission 
 } from '../utils/auth';
+import { getAuthSnapshot, setAuthSnapshot } from '../utils/authSnapshot';
 import { 
   createAuthError, 
   handleAuthError 
 } from '../utils/errors';
 import { logger } from '../utils/logger';
+
+// Default behavior for ban enforcement in base auth middleware.
+// Protected/tier/admin wrappers override this to true by default where appropriate.
+const DEFAULT_ENFORCE_BAN = false;
 
 /**
  * Authentication middleware for API routes
@@ -58,6 +63,61 @@ export function withAuth<T extends NextRequest>(
         );
         
         return handleAuthError(authError);
+      }
+
+  // Ban enforcement (after profile fetch). If authenticated with profile, block banned users.
+  // Allow per-route override via options.enforceBan (default DEFAULT_ENFORCE_BAN)
+  const enforceBan = options.enforceBan ?? DEFAULT_ENFORCE_BAN;
+  if (enforceBan && authContext.isAuthenticated && authContext.profile) {
+        const userId = authContext.user!.id;
+        const profile = authContext.profile;
+
+        // Try Redis auth snapshot
+        try {
+          const snap = await getAuthSnapshot(userId);
+          const nowMs = Date.now();
+          if (snap) {
+            const banned = snap.isBanned || (!!snap.bannedUntil && new Date(snap.bannedUntil).getTime() > nowMs);
+            if (banned) {
+              const authError = createAuthError(
+                AuthErrorCode.ACCOUNT_BANNED,
+                undefined,
+                undefined,
+                false,
+                'Contact support to appeal the ban'
+              );
+              return handleAuthError(authError);
+            }
+          } else {
+            // Cache miss: set snapshot from profile minimal fields
+            const tier = (profile.subscription_tier === 'pro' || profile.subscription_tier === 'enterprise') ? profile.subscription_tier : 'free';
+            const acct: 'user' | 'admin' | null = profile.account_type === 'admin' ? 'admin' : (profile.account_type === 'user' ? 'user' : null);
+            await setAuthSnapshot(userId, {
+              v: 1,
+              isBanned: !!profile.is_banned,
+              bannedUntil: profile.banned_until || null,
+              tier,
+              accountType: acct,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        } catch (err) {
+          // Cache errors are non-fatal; continue with DB/profile fallback
+          logger.debug('Auth snapshot cache error (non-fatal)', { error: err instanceof Error ? err.message : String(err) });
+        }
+
+        // Fallback check from profile itself (authoritative)
+        const isTempBanned = !!profile.banned_until && new Date(profile.banned_until).getTime() > Date.now();
+        if (profile.is_banned || isTempBanned) {
+          const authError = createAuthError(
+            AuthErrorCode.ACCOUNT_BANNED,
+            undefined,
+            undefined,
+            false,
+            'Contact support to appeal the ban'
+          );
+          return handleAuthError(authError);
+        }
       }
 
       // Check minimum tier requirement
@@ -109,11 +169,15 @@ export function withAuth<T extends NextRequest>(
  * Middleware for protected endpoints (requires authentication)
  */
 export function withProtectedAuth<T extends NextRequest>(
-  handler: (req: T, context: AuthContext) => Promise<NextResponse>
+  handler: (req: T, context: AuthContext) => Promise<NextResponse>,
+  options?: { enforceBan?: boolean }
 ) {
+  // Default: enforce bans for protected routes; allow per-route override
+  const enforceBan = options?.enforceBan ?? true;
   return withAuth(handler, { 
     required: true, 
-    requireProfile: true 
+    requireProfile: true,
+    enforceBan,
   });
 }
 
@@ -125,7 +189,8 @@ export function withEnhancedAuth<T extends NextRequest>(
 ) {
   return withAuth(handler, { 
     required: false, 
-    allowAnonymous: true 
+    allowAnonymous: true,
+    enforceBan: false, // Enhanced endpoints typically read-only; allow access when banned unless overridden
   });
 }
 
@@ -139,7 +204,8 @@ export function withTierAuth<T extends NextRequest>(
   return withAuth(handler, { 
     required: true, 
     requireProfile: true,
-    minimumTier 
+  minimumTier,
+  enforceBan: true,
   });
 }
 
@@ -166,7 +232,7 @@ export function withAdminAuth<T extends NextRequest>(
     }
 
     return handler(req, context);
-  }, { required: true, requireProfile: true });
+  }, { required: true, requireProfile: true, enforceBan: true });
 }
 
 /**
@@ -257,27 +323,3 @@ export function withConversationOwnership<T extends NextRequest>(
   });
 }
 
-/**
- * Rate limiting headers helper
- */
-export function addRateLimitHeaders(
-  response: NextResponse,
-  authContext: AuthContext,
-  remaining: number = 0
-): NextResponse {
-  const rateLimitInfo = {
-    limit: authContext.features.maxRequestsPerHour,
-    remaining,
-    reset: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
-  };
-
-  response.headers.set('X-RateLimit-Limit', rateLimitInfo.limit.toString());
-  response.headers.set('X-RateLimit-Remaining', rateLimitInfo.remaining.toString());
-  response.headers.set('X-RateLimit-Reset', rateLimitInfo.reset);
-
-  if (remaining === 0) {
-    response.headers.set('Retry-After', '3600'); // 1 hour
-  }
-
-  return response;
-}

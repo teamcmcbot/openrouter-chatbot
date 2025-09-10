@@ -182,6 +182,9 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
     fullName: userData?.profile.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || "Guest User",
     subscription: userData?.profile.subscription_tier || "free",
     credits: userData?.profile.credits || 0,
+    isBanned: Boolean(userData?.profile.is_banned) || (userData?.profile.banned_until ? new Date(userData.profile.banned_until).getTime() > Date.now() : false),
+    bannedUntil: userData?.profile.banned_until || null,
+    banReason: userData?.profile.ban_reason || null,
   };
 
   // Subscription (tier) label used by TierBadge
@@ -449,12 +452,25 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                   </button>
                 </div>
               </div>
-              {userProfile.credits > 0 && (
-                <div className="space-y-1">
-                  <p className="text-gray-500 dark:text-gray-400">Credits</p>
-                  <p className="font-medium">{userProfile.credits}</p>
+              <div className="space-y-1">
+                <p className="text-gray-500 dark:text-gray-400">Account Status</p>
+                <div className="font-medium">
+                  {userProfile.isBanned ? (
+                    <div className="inline-flex items-center gap-2 text-red-600 dark:text-red-400">
+                      <span className="inline-block w-2 h-2 rounded-full bg-red-600 dark:bg-red-400" />
+                      <span>Banned{userProfile.bannedUntil ? ` until ${new Date(userProfile.bannedUntil).toLocaleString()}` : ''}</span>
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
+                      <span>Active</span>
+                    </div>
+                  )}
+                  {userProfile.isBanned && userProfile.banReason && (
+                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">Reason: {userProfile.banReason}</div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </section>
 

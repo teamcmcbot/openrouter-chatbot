@@ -42,6 +42,7 @@ export enum ErrorCode {
   TOKEN_LIMIT_EXCEEDED = 'token_limit_exceeded',
   AUTH_SERVICE_UNAVAILABLE = 'auth_service_unavailable',
   PROFILE_FETCH_FAILED = 'profile_fetch_failed',
+  ACCOUNT_BANNED = 'account_banned',
 }
 
 const errorStatusMap: Record<ErrorCode, number> = {
@@ -75,6 +76,7 @@ const errorStatusMap: Record<ErrorCode, number> = {
   [ErrorCode.TOKEN_LIMIT_EXCEEDED]: 413, // Payload Too Large
   [ErrorCode.AUTH_SERVICE_UNAVAILABLE]: 503,
   [ErrorCode.PROFILE_FETCH_FAILED]: 500,
+  [ErrorCode.ACCOUNT_BANNED]: 403,
 };
 
 export class ApiErrorResponse extends Error {
@@ -219,6 +221,8 @@ function getDefaultAuthErrorMessage(code: AuthErrorCode): string {
       return 'Authentication service is temporarily unavailable';
     case AuthErrorCode.PROFILE_FETCH_FAILED:
       return 'Failed to fetch user profile';
+    case AuthErrorCode.ACCOUNT_BANNED:
+      return 'Your account is banned. Contact support if you believe this is a mistake';
     default:
       return 'Authentication error occurred';
   }
@@ -257,6 +261,8 @@ export function authErrorToErrorCode(authCode: AuthErrorCode): ErrorCode {
       return ErrorCode.AUTH_SERVICE_UNAVAILABLE;
     case AuthErrorCode.PROFILE_FETCH_FAILED:
       return ErrorCode.PROFILE_FETCH_FAILED;
+    case AuthErrorCode.ACCOUNT_BANNED:
+      return ErrorCode.ACCOUNT_BANNED;
     default:
       return ErrorCode.INTERNAL_SERVER_ERROR;
   }

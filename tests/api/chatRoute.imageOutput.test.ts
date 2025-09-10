@@ -40,7 +40,7 @@ const authContext: AuthContext = {
 };
 
 jest.mock('../../lib/middleware/auth', () => ({
-  withEnhancedAuth: (handler: (req: unknown, auth: AuthContext) => unknown) => (req: unknown) => handler(req, authContext),
+  withAuth: (handler: (req: unknown, auth: AuthContext) => unknown) => (req: unknown) => handler(req, authContext),
 }));
 jest.mock('../../lib/middleware/redisRateLimitMiddleware', () => ({
   withRedisRateLimitEnhanced: (handler: (req: unknown, auth?: unknown) => unknown) => handler,

@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage, subscribeWithSelector, devtools } from 'zustand/middleware';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { ModelInfo } from '../lib/types/openrouter';
 import { ModelState, ModelSelectors, CachedModelData, isEnhancedModels } from './types/model';
 import { STORAGE_KEYS, CACHE_CONFIG } from '../lib/constants';
@@ -492,6 +492,16 @@ if (typeof window !== 'undefined') {
 }
 
 // Backward compatibility hooks
+const useOnceWhenReady = (ready: boolean, fn: () => void) => {
+  const attemptedRef = React.useRef(false);
+  useEffect(() => {
+    if (!attemptedRef.current && ready) {
+      attemptedRef.current = true;
+      fn();
+    }
+  }, [ready, fn]);
+};
+
 export const useModelData = () => {
   const {
     models,
@@ -504,13 +514,11 @@ export const useModelData = () => {
     fetchModels,
   } = useModelStore();
 
-  // Initialize models when hydrated (similar to the original useModelData behavior)
-  useEffect(() => {
-    if (isHydrated && models.length === 0 && !isLoading) {
-      logger.info('Initializing model data on mount');
-      fetchModels();
-    }
-  }, [isHydrated, models.length, isLoading, fetchModels]);
+  // Initialize models once when hydrated and idle
+  useOnceWhenReady(isHydrated && models.length === 0 && !isLoading, () => {
+    logger.info('Initializing model data on mount');
+    fetchModels();
+  });
 
   // Don't return data until hydrated to prevent SSR mismatch
   if (!isHydrated) {
@@ -548,13 +556,11 @@ export const useModelSelection = () => {
     fetchModels,
   } = useModelStore();
 
-  // Auto-fetch models when hydrated (similar to useModelData behavior)
-  useEffect(() => {
-    if (isHydrated && availableModels.length === 0 && !isLoading) {
-      logger.info('Initializing model data on mount');
-      fetchModels();
-    }
-  }, [isHydrated, availableModels.length, isLoading, fetchModels]);
+  // Auto-fetch models once when hydrated and idle
+  useOnceWhenReady(isHydrated && availableModels.length === 0 && !isLoading, () => {
+    logger.info('Initializing model data on mount');
+    fetchModels();
+  });
 
   // Don't return data until hydrated to prevent SSR mismatch
   if (!isHydrated) {
