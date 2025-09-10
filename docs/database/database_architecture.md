@@ -57,21 +57,21 @@ Caching and health‑monitoring tables introduced in Phase 4 for optimization a
 ## Important Functions
 
 - `handle_user_profile_sync` – Triggered by `auth.users` to create or update a profile when the user signs in.
-- `sync_profile_from_auth` – Manual profile sync.
 - `update_session_stats` & `update_session_timestamp` – Maintain session statistics.
 - `get_user_recent_sessions` – Returns the latest sessions with summary info.
   (Note: legacy helper functions `get_session_with_messages` and `sync_user_conversations` were removed as unused.)
 - `track_user_usage` – Records daily usage totals.
 - `get_user_allowed_models` / `can_user_use_model` – Determines which models a user may access.
 - `update_user_tier` – Changes a user’s subscription tier (valid values: `free`, `pro`, `enterprise`; admin privilege is managed by `profiles.account_type`).
-- `update_user_preferences` – Updates UI, session or model preferences.
 - `get_user_complete_profile` – Returns a profile with allowed models and recent usage.
 - `is_admin(p_user_id uuid)` – Helper used in RLS and server-side checks to determine if a profile is an admin based on `account_type`.
 - `cleanup_old_data` – Removes old logs and expired cache entries.
 - `export_user_data` – Exports all data for a user (GDPR compliance).
 - `analyze_database_health` – Generates database‑wide metrics.
 
-All functions are defined in `database/01‑04` SQL files.
+Removed (September 2025 cleanup): `sync_profile_from_auth`, `update_user_preferences`, and helper `jsonb_deep_merge` (all unused by application code).
+
+All active functions are defined in `database/01‑04` SQL files. Removed functions were dropped from both production and schema files for clarity.
 
 ---
 
@@ -106,7 +106,7 @@ The triggers ensure `chat_sessions` remain up‑to‑date whenever these APIs mo
 
 ### Usage Analytics and Preferences
 
-The server can call `track_user_usage` to record message counts and tokens. Preference updates can be applied with `update_user_preferences`, though the application does not yet call this function directly.
+The server calls `track_user_usage` (indirectly via triggers) to record message counts and tokens. The former `update_user_preferences` function was removed; the application updates preference columns directly where needed.
 
 ### Maintenance
 

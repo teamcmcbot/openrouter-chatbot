@@ -98,11 +98,11 @@ This document summarizes the merging of SQL scripts into the final schema files 
 - **Merged Changes**: Initial creation. No changes in subsequent files.
 - **Final Definition**: `database/schema/01-users.sql`
 
-#### `sync_profile_from_auth()`
+#### `sync_profile_from_auth()` (Removed Sept 2025)
 
 - **Source Files**: `01-complete-user-management.sql`
-- **Merged Changes**: Initial creation. No changes in subsequent files.
-- **Final Definition**: `database/schema/01-users.sql`
+- **Status**: Removed as unused (manual sync replaced by trigger-based `handle_user_profile_sync`).
+- **Action**: Dropped from schema and docs; safe for fresh deployments to omit.
 
 #### `track_user_usage()`
 
@@ -134,14 +134,17 @@ This document summarizes the merging of SQL scripts into the final schema files 
 - **Merged Changes**: Initial creation. No changes in subsequent files.
 - **Final Definition**: `database/schema/01-users.sql`
 
-#### `update_user_preferences()`
+#### `update_user_preferences()` (Removed Sept 2025)
 
-- **Source Files**: `04-complete-system-final.sql`, `05-model-access-migration.sql`, `06-model-access-functions.sql`
-- **Merged Changes**:
-  - Initially created in `04-complete-system-final.sql`. This version handled `ui`, `session`, and `model` preferences, including updating `profiles.allowed_models`.
-  - Dropped in `05-model-access-migration.sql` (due to `model_access` changes and `profiles.allowed_models` removal).
-  - Recreated in `06-model-access-functions.sql` with a modified logic for the `model` preference type, removing the update to `allowed_models` array as that column was removed from `profiles`.
-- **Final Definition**: `database/schema/01-users.sql` (latest implementation, with `jsonb_deep_merge` helper included).
+- **Source Files**: `04-complete-system-final.sql`, later revisions.
+- **Status**: Removed as unused; application performs direct column updates instead.
+- **Notes**: Depended on `jsonb_deep_merge` (also removed). Any future preference abstractions should be implemented at API layer, not via DB function.
+
+#### `jsonb_deep_merge()` (Removed Sept 2025)
+
+- **Purpose**: Recursive JSONB merge helper used only by `update_user_preferences`.
+- **Status**: Removed; native jsonb concatenation and path operators are sufficient.
+- **Action**: Omitted from clean schema baseline.
 
 #### `get_user_complete_profile()`
 
@@ -282,7 +285,8 @@ This document summarizes the merging of SQL scripts into the final schema files 
 2.  **`model_access` Table Overhaul**:
 
     - The table was significantly refactored from a tier-based system to a more flexible flag-based system (`is_free`, `is_pro`, `is_enterprise`) and enriched with fields mirroring the OpenRouter API.
-    - Functions depending on it (`get_user_allowed_models`, `can_user_use_model`, `update_user_preferences`, `get_user_complete_profile`, `api_user_summary`) were updated accordingly, with their latest versions retained.
+
+- Functions depending on it (`get_user_allowed_models`, `can_user_use_model`, `get_user_complete_profile`, `api_user_summary`) were updated accordingly. Legacy `update_user_preferences` removed.
 
 3.  **Function Consolidation**:
 
