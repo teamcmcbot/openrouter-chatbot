@@ -112,6 +112,7 @@ The application implements comprehensive Redis-based rate limiting:
 - **[serverless-caching-completion-summary.md](./serverless-caching-completion-summary.md)** - Caching implementation
 - **[session-title-optimization.md](./session-title-optimization.md)** - Session title optimization
 - **[frontend-rate-limiting-fixes-completion-summary.md](./frontend-rate-limiting-fixes-completion-summary.md)** - Frontend rate limiting fixes
+- **[2025-09-db-schema-cleanup.md](./updates/2025-09-db-schema-cleanup.md)** - September 2025 database schema cleanup and retention simplification
 
 ### Store Documentation (`/stores/`)
 

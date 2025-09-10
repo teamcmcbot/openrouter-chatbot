@@ -12,8 +12,8 @@
 | public.user_usage_daily  | Tracks daily user activity and usage statistics                                            | None                                                                            | track_user_usage() function updates/inserts records here (called after chat activity)                                                |
 | public.model_access      | Manages user access to different AI models                                                 | None                                                                            | Updated via model tier changes, but no direct triggers/functions listed                                                              |
 | public.model_sync_log    | Logs model sync runs (manual/scheduled), with attribution                                  | None                                                                            | Populated by sync_openrouter_models(); readable by admins via RLS (public.is_admin)                                                  |
-| REMOVAL system_cache     | (Pending removal Sept 2025) Legacy cache table replaced by Redis                           | None                                                                            | Dropped via patch system-table-removal/001 (planned)                                                                                 |
-| REMOVAL system_stats     | (Pending removal Sept 2025) Legacy stats aggregation (unused)                              | None                                                                            | Dropped via patch system-table-removal/001 (planned)                                                                                 |
+| REMOVED system_cache     | (Removed Sept 2025) Legacy cache table replaced by Redis                                    | None                                                                            | Dropped via patch system-table-removal/001_drop_system_tables.sql                              |
+| REMOVED system_stats     | (Removed Sept 2025) Legacy stats aggregation (unused)                                       | None                                                                            | Dropped via patch system-table-removal/001_drop_system_tables.sql                              |
 
 ## Triggers
 
@@ -45,8 +45,8 @@
 | REMOVED jsonb_deep_merge(a jsonb, b jsonb)                                                      | (Removed Sept 2025) JSONB deep merge helper used only by removed preference function                        | N/A                                                                    | N/A                                                 |
 | REMOVED update_user_preferences(user_uuid UUID, preference_type VARCHAR(50), preferences JSONB) | (Removed Sept 2025) Unused preference update helper; app updates columns directly                           | N/A                                                                    | N/A                                                 |
 | public.get_user_complete_profile(user_uuid UUID)                                                | Returns a user's complete profile, preferences, allowed models, and usage stats                             | None                                                                   | public.get_user_allowed_models                      |
-| public.cleanup_old_data(days_to_keep INTEGER DEFAULT 90)                                        | Cleans up old activity logs, usage data, and expired cache entries                                          | public.user_activity_log, public.user_usage_daily, public.system_cache | None (may call internal SQL functions for deletion) |
-| public.export_user_data(user_uuid UUID)                                                         | Exports all user data for GDPR compliance                                                                   | None                                                                   | None                                                |
+| public.cleanup_old_data(days_to_keep INTEGER DEFAULT 90)                                        | Cleans up analytics tables (activity, usage, anonymous usage/errors, token costs, CTA, sync logs)           | user_activity_log, user_usage_daily, anonymous_usage_daily, anonymous_model_usage_daily, anonymous_error_events, message_token_costs, cta_events, model_sync_log | None |
+| REMOVED export_user_data(user_uuid UUID)                                                        | (Removed Sept 2025) Unused GDPR export helper; implement at API layer if reintroduced                        | N/A                                                                    | N/A                                                 |
 | public.analyze_database_health()                                                                | Analyzes database health, table sizes, and index usage                                                      | None                                                                   | None                                                |
 
               |
@@ -85,7 +85,7 @@
 
 | View Name               | Description                                                                         | Tables/Views it reads from                                     | Source File                  |
 | ----------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------- |
-| public.api_user_summary | Provides a summary of API usage per user, including session counts and recent usage | public.profiles, public.chat_sessions, public.user_usage_daily | 04-complete-system-final.sql |
+| (REMOVED) public.api_user_summary | (Removed Sept 2025) Aggregated per-user usage view (unused by application) | N/A | remove-api-user-summary/001_drop_api_user_summary.sql |
 
 ## Scenarios
 

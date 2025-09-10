@@ -26,10 +26,11 @@ Use the Admin UI Dry Run to preview, then Purge to delete via Storage API. This 
 3. `database/schema/03-models.sql`
 4. `database/schema/04-system.sql`
 
-What you get:
+What you get (current baseline Sept 2025):
 
-- Tables: profiles, chat_sessions, chat_messages, model_access, user_activity_log, user_usage_daily, model_sync_log, admin_audit_log, system_cache, system_stats
-- Views: api_user_summary, v_sync_stats, v_model_counts_public, v_model_sync_activity_daily
+- Tables: profiles, chat_sessions, chat_messages, model_access, user_activity_log, user_usage_daily, anonymous_usage_daily, anonymous_model_usage_daily, anonymous_error_events, message_token_costs, model_sync_log, admin_audit_log, cta_events
+- Views: v_sync_stats, v_model_counts_public, v_model_sync_activity_daily
+- Functions: cleanup_old_data (unified retention), analyze_database_health, error analytics helpers, model access helpers, auditing helpers
 - RLS policies + triggers
 
 ## 3) Create the storage bucketrequisites
@@ -168,11 +169,11 @@ Run all six schema files from the repo in this order (Dashboard → SQL Editor):
 5. `database/schema/05-storage.sql`
 6. `database/schema/06-anonymous.sql`
 
-What you get:
+What you get (current baseline Sept 2025):
 
-- **Core Tables**: profiles, chat_sessions, chat_messages, model_access, user_activity_log, user_usage_daily, model_sync_log, admin_audit_log, system_cache, system_stats
-- **Anonymous Analytics**: anonymous_usage_daily, anonymous_error_events (for usage tracking without accounts)
-- **Views**: api_user_summary, v_sync_stats, v_model_counts_public, v_model_sync_activity_daily
+- **Core Tables**: profiles, chat_sessions, chat_messages, model_access, user_activity_log, user_usage_daily, message_token_costs, model_sync_log, admin_audit_log, cta_events
+- **Anonymous Analytics**: anonymous_usage_daily, anonymous_model_usage_daily, anonymous_error_events (for usage tracking without accounts)
+- **Views**: v_sync_stats, v_model_counts_public, v_model_sync_activity_daily
 - **Storage Policies**: RLS policies for attachments-images bucket (read own, insert own, delete own)
 - **Functions & Triggers**: User profile management, session handling, analytics aggregation
 - **Row Level Security**: Comprehensive RLS policies for all tables

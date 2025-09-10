@@ -48,9 +48,9 @@ Defines which AI models are available to each subscription tier and associated l
 
 Audit table for model synchronization runs (manual or scheduled). Stores start/end timestamps, counts, status, errors, duration, and `added_by_user_id` to attribute who triggered a sync. Admins can view this table via an RLS policy that checks `public.is_admin(auth.uid())`.
 
-### `system_cache` & `system_stats`
+### (Removed) `system_cache` & `system_stats`
 
-Originally introduced in Phase 4 for proto caching + stats aggregation. Marked for removal (Sept 2025) – superseded by Redis caching and external analytics. See patch `system-table-removal/001_drop_system_tables.sql`.
+Removed Sept 2025 (patch `system-table-removal/001_drop_system_tables.sql`). Replaced by Redis caching and external analytics; no longer part of baseline schema.
 
 ---
 
@@ -65,11 +65,10 @@ Originally introduced in Phase 4 for proto caching + stats aggregation. Marked f
 - `update_user_tier` – Changes a user’s subscription tier (valid values: `free`, `pro`, `enterprise`; admin privilege is managed by `profiles.account_type`).
 - `get_user_complete_profile` – Returns a profile with allowed models and recent usage.
 - `is_admin(p_user_id uuid)` – Helper used in RLS and server-side checks to determine if a profile is an admin based on `account_type`.
-- `cleanup_old_data` – Removes old logs and expired cache entries.
-- `export_user_data` – Exports all data for a user (GDPR compliance).
+- `cleanup_old_data` – Unified retention cleanup across activity, usage, anonymous usage/model usage, anonymous errors, token cost, CTA, and model sync logs.
 - `analyze_database_health` – Generates database‑wide metrics.
 
-Removed (September 2025 cleanup): `sync_profile_from_auth`, `update_user_preferences`, and helper `jsonb_deep_merge` (all unused by application code).
+Removed (September 2025 cleanup): `sync_profile_from_auth`, `update_user_preferences`, helper `jsonb_deep_merge`, `export_user_data`, `api_user_summary` view, and tables `system_cache` / `system_stats` (all unused by application code).
 
 All active functions are defined in `database/01‑04` SQL files. Removed functions were dropped from both production and schema files for clarity.
 
@@ -169,10 +168,9 @@ Execute the scripts in `/database` sequentially (01‑04) using the Supabase SQL
 - Includes cost and rate‑limit fields.
 - RLS: read‑only for authenticated users.
 
-#### `system_cache` & `system_stats`
+#### (Removed) `system_cache` & `system_stats`
 
-- Caching and system metrics tables used by maintenance tasks.
-- Typically accessed by service role or admin policies.
+Removed in Sept 2025 cleanup. No longer created; references in earlier docs are historical only.
 
 Advanced policies for moderation and rate limits are provided in
 `database/policies/enhanced_security.sql`.
