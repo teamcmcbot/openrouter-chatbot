@@ -10,35 +10,36 @@
 
 ### Remediation: v_sync_stats
 
-Status: In progress (UI now consumes stats, patch created to harden view access and performance).
+Status: Complete – view now explicitly marked `security_invoker=true`; performance + security changes deployed, API & UI consuming wrapper function. Pending optional explicit automated non-admin denial test (manual verification acceptable).
 
-1. Usage Confirmation
+1. Usage Confirmation (DONE)
 
-   - Endpoint: `/api/admin/analytics/overview` returns `sync` object.
-   - UI: `AnalyticsPanel` Overview tab now renders cards (success rate, avg duration, runs/failures 24h, last success timestamp) for authenticated/admin segment only.
+   - Endpoint: `/api/admin/analytics/overview` now calls `supabase.rpc('get_sync_stats')` and returns `sync` object.
+   - UI: `AnalyticsPanel` Overview tab renders cards (success rate, avg total & db duration, runs/failures 24h, last success timestamp) for admin users.
 
-2. Performance Improvement
+2. Performance Improvement (DONE)
 
-   - Original implementation: multiple scalar subqueries (repeated scans of `model_sync_log`).
-   - Patch (`database/patches/v_sync_stats_hardening/01_optimize_and_secure_v_sync_stats.sql`) rewrites view using a single CTE aggregation (`base`, `last_success`, `agg`).
-   - Expected effect: fewer planner executions / scans, simpler statistics usage by Postgres.
+   - Original: multiple scalar subqueries.
+   - Current: single CTE aggregation (`base`, `last_success`, `agg`).
+   - Impact: single pass over `model_sync_log`; simpler planner path.
 
-3. Security Hardening
+3. Security Hardening (DONE)
 
-   - Problem: Advisor flagged SECURITY DEFINER view (escalated privileges risk).
-   - Approach: Replace SECURITY DEFINER view with plain view + SECURITY DEFINER wrapper function `get_sync_stats()` that enforces `public.is_admin(auth.uid())` check.
-   - Direct SELECT revoked from PUBLIC; only `service_role` retains view read. Application (admin dashboard) must call RPC instead of raw view when refactored.
+   - Replaced SECURITY DEFINER view with plain view + SECURITY DEFINER wrapper `get_sync_stats()` enforcing `public.is_admin(auth.uid())`.
+   - Explicitly set `security_invoker=true` on the view (linter clarity; default is invoker but flag removes ambiguity / stale snapshot risk).
+   - Revoked public SELECT on view; granted SELECT only to `service_role`; function EXECUTE to `authenticated`, `service_role`.
+   - Application exclusively uses RPC (no direct view access).
 
-4. API Adjustment (Next step)
+4. API Adjustment (DONE)
 
-   - Modify `/api/admin/analytics/overview` to call `supabase.rpc('get_sync_stats')` instead of `from('v_sync_stats')` after patch deploy.
-   - Present code includes TODO comment; implementation pending migration deployment.
+   - `/api/admin/analytics/overview` updated; TODO removed. Tests (`adminAnalytics.test.ts`) pass using RPC path.
 
-5. Rollout Plan
+5. Rollout Summary (DONE; optional automated negative test outstanding)
 
-   - Apply patch in staging; verify: `SELECT * FROM public.get_sync_stats();` as admin succeeds; non-admin receives `insufficient_privilege`.
-   - Update API handler; run test suite.
-   - Merge patch into canonical schema file (`04-system.sql`) post-approval.
+   - Patch applied & verified via admin call.
+   - API handler updated; full Jest suite green.
+   - Schema changes merged into `database/schema/03-models.sql` (not `04-system.sql`).
+   - Non-admin negative test manually executed (expect permission error). Optional: add automated test later.
 
 6. Future Enhancements
 
@@ -46,10 +47,10 @@ Status: In progress (UI now consumes stats, patch created to harden view access 
    - Add index suggestions (partial on `sync_status='completed'` for `sync_completed_at` and general on `sync_started_at`).
 
 7. Verification Checklist
-   - [ ] Patch applied in database environment.
-   - [ ] RPC call returns one row with all expected fields.
-   - [ ] Non-admin user cannot execute `get_sync_stats`.
-   - [ ] Overview endpoint updated to use RPC.
-   - [ ] UI displays values with no console/log errors.
+   - [x] Patch applied in database environment.
+   - [x] RPC call returns one row with all expected fields.
+   - [x] Non-admin user cannot execute `get_sync_stats` (manual verification; optional to automate).
+   - [x] Overview endpoint updated to use RPC.
+   - [x] UI displays values with no console/log errors.
 
 ---

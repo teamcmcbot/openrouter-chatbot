@@ -424,7 +424,8 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Aggregated sync stats view (mirrors patch logic)
-CREATE OR REPLACE VIEW public.v_sync_stats AS
+CREATE OR REPLACE VIEW public.v_sync_stats
+WITH (security_invoker = true) AS
 WITH base AS (
     SELECT id, sync_status, sync_started_at, sync_completed_at, duration_ms, db_duration_ms
     FROM public.model_sync_log
