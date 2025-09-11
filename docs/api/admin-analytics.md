@@ -150,7 +150,7 @@ Anonymous ErrorRow differences
 GET /api/admin/analytics/usage
 
 - Purpose: DAU/messages/tokens per day
-- Sources: `user_model_costs_daily`, `message_token_costs`, `anonymous_usage_daily`, `anonymous_model_usage_daily`
+- Sources: `get_admin_user_model_costs_daily` (RPC-first), fallback `user_model_costs_daily`, `message_token_costs`, `anonymous_usage_daily`, `anonymous_model_usage_daily`
 - Query params
   - `start`, `end` (ISO date)
 - Response
@@ -173,8 +173,12 @@ GET /api/admin/analytics/usage
 
 Notes
 
-- DAU computed from distinct user_ids in `user_model_costs_daily` per day
-- total_messages from `message_token_costs` count in range
+- RPC-first: calls `get_admin_user_model_costs_daily(p_start, p_end)` with admin check; falls back to `user_model_costs_daily` if RPC unavailable.
+- DAU computed from distinct user_ids per day (RPC or view), and total_messages from `message_token_costs` count in range.
+
+Changelog
+
+- 2025-09-12: Usage endpoint now uses hardened RPC `get_admin_user_model_costs_daily` with fallback to view.
 
 ---
 

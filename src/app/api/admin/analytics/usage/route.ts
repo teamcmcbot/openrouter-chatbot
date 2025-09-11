@@ -26,12 +26,19 @@ async function handler(req: NextRequest, auth: AuthContext) {
     // Aggregate per day using RLS-safe sources
     // - user_model_costs_daily (inherits admin read via message_token_costs) for daily users/messages/tokens
     // - message_token_costs for total messages in window
-    const [dailyRows, totalMsgRows, anonDailyAgg, anonModelDaily] = await Promise.all([
-      supabase
-        .from('user_model_costs_daily')
-        .select('usage_date, user_id, assistant_messages, total_tokens')
-        .gte('usage_date', startISO)
-        .lt('usage_date', endExclusive),
+    // Prefer RPC; if unavailable (local/test), fall back to view
+    const rpcDaily = await supabase
+      .rpc('get_admin_user_model_costs_daily', { p_start: startISO, p_end: toISODate(range.end) });
+
+  const dailyRows = (rpcDaily.error || !rpcDaily.data)
+      ? await supabase
+          .from('user_model_costs_daily')
+          .select('usage_date, user_id, assistant_messages, total_tokens')
+          .gte('usage_date', startISO)
+          .lt('usage_date', endExclusive)
+      : rpcDaily;
+
+    const [totalMsgRows, anonDailyAgg, anonModelDaily] = await Promise.all([
       supabase
         .from('message_token_costs')
         .select('id', { count: 'exact', head: true })

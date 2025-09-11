@@ -783,6 +783,110 @@ SELECT
 FROM public.message_token_costs
 GROUP BY user_id, (message_timestamp AT TIME ZONE 'UTC')::date, model_id;
 
+-- Harden view semantics and privileges, and expose RPCs for user/admin access
+
+-- Explicitly set invoker semantics (prevents SECURITY DEFINER behavior)
+DO $$
+BEGIN
+        IF EXISTS (
+                SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='user_model_costs_daily'
+        ) THEN
+                EXECUTE 'ALTER VIEW public.user_model_costs_daily SET (security_invoker = true)';
+        END IF;
+END$$;
+
+-- Restrict direct SELECT on the view: service_role only (app uses RPCs)
+REVOKE ALL ON TABLE public.user_model_costs_daily FROM PUBLIC;
+GRANT SELECT ON TABLE public.user_model_costs_daily TO service_role;
+
+-- Per-user RPC: current-user daily model costs between dates (optional model filter)
+-- SECURITY INVOKER; respects RLS on message_token_costs
+CREATE OR REPLACE FUNCTION public.get_user_model_costs_daily(
+    p_start DATE,
+    p_end   DATE,
+    p_model_id TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+    usage_date DATE,
+    model_id   VARCHAR(100),
+    total_tokens BIGINT,
+    total_cost  DECIMAL(18,6)
+)
+LANGUAGE sql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+    SELECT
+        (mtc.message_timestamp AT TIME ZONE 'UTC')::date AS usage_date,
+        COALESCE(mtc.model_id, 'unknown') AS model_id,
+        SUM(mtc.total_tokens)::bigint       AS total_tokens,
+        ROUND(SUM(mtc.total_cost), 6)       AS total_cost
+    FROM public.message_token_costs mtc
+    WHERE mtc.user_id = auth.uid()
+        AND mtc.message_timestamp >= p_start
+        AND mtc.message_timestamp < (p_end + 1)
+        AND (p_model_id IS NULL OR mtc.model_id = p_model_id)
+    GROUP BY 1, 2
+    ORDER BY 1 ASC;
+$$;
+
+COMMENT ON FUNCTION public.get_user_model_costs_daily(DATE, DATE, TEXT)
+    IS 'Per-user RPC: daily model costs between dates inclusive; SECURITY INVOKER and respects RLS.';
+
+-- Admin RPC: all users daily messages/tokens between dates
+-- SECURITY DEFINER; enforces admin check explicitly
+CREATE OR REPLACE FUNCTION public.get_admin_user_model_costs_daily(
+    p_start DATE,
+    p_end   DATE
+)
+RETURNS TABLE (
+    usage_date DATE,
+    user_id UUID,
+    assistant_messages BIGINT,
+    total_tokens BIGINT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF NOT public.is_admin(auth.uid()) THEN
+        RAISE EXCEPTION 'insufficient_privilege';
+    END IF;
+
+    RETURN QUERY
+    SELECT
+        (mtc.message_timestamp AT TIME ZONE 'UTC')::date AS usage_date,
+        mtc.user_id,
+        COUNT(*)::bigint         AS assistant_messages,
+        SUM(mtc.total_tokens)::bigint AS total_tokens
+    FROM public.message_token_costs mtc
+    WHERE mtc.message_timestamp >= p_start
+        AND mtc.message_timestamp < (p_end + 1)
+    GROUP BY 1, 2
+    ORDER BY 1 ASC;
+END;
+$$;
+
+COMMENT ON FUNCTION public.get_admin_user_model_costs_daily(DATE, DATE)
+    IS 'Admin RPC: per-user daily messages/tokens between dates inclusive; requires admin and uses SECURITY DEFINER.';
+
+-- Grants for RPCs
+DO $$ BEGIN
+    BEGIN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_user_model_costs_daily(DATE, DATE, TEXT) TO authenticated';
+    EXCEPTION WHEN undefined_object THEN NULL; END;
+    BEGIN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_user_model_costs_daily(DATE, DATE, TEXT) TO service_role';
+    EXCEPTION WHEN undefined_object THEN NULL; END;
+    BEGIN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_admin_user_model_costs_daily(DATE, DATE) TO authenticated';
+    EXCEPTION WHEN undefined_object THEN NULL; END;
+    BEGIN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_admin_user_model_costs_daily(DATE, DATE) TO service_role';
+    EXCEPTION WHEN undefined_object THEN NULL; END;
+END $$;
+
 -- Admin-only global aggregation function
 CREATE OR REPLACE FUNCTION public.get_global_model_costs(
     p_start_date DATE,

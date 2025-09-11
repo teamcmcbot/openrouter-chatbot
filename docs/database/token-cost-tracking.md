@@ -1,7 +1,7 @@
 # Token Cost Tracking
 
-Status: Draft Implementation (Per-model view + admin aggregation)
-Updated: 2025-08-12
+Status: Hardened (Invoker view + RPCs)
+Updated: 2025-09-12
 
 ## Overview
 
@@ -11,8 +11,11 @@ Forward-only tracking of assistant message token costs using per-token (prompt/c
 
 - Fact table: `public.message_token_costs` (one row per assistant message)
 - Triggered function: `public.calculate_and_record_message_cost()` (AFTER INSERT ON `chat_messages`)
-- Daily per-user per-model view: `public.user_model_costs_daily`
+- Daily per-user per-model view: `public.user_model_costs_daily` (explicit `security_invoker=true`; direct SELECT restricted to server roles)
 - Admin aggregation function: `public.get_global_model_costs(start_date, end_date, granularity)`
+- RPCs:
+  - `public.get_user_model_costs_daily(p_start date, p_end date, p_model_id text default null)` SECURITY INVOKER
+  - `public.get_admin_user_model_costs_daily(p_start date, p_end date)` SECURITY DEFINER (admin-guarded)
 - Increment target: `public.user_usage_daily.estimated_cost` updated atomically
 - RLS: row visibility restricted to owner; admins via `public.is_admin()` helper
 
@@ -83,6 +86,9 @@ SELECT * FROM public.get_global_model_costs(CURRENT_DATE - 7, CURRENT_DATE, 'day
 Use `database/maintenance/dev_reset_conversations.sql` to wipe conversation & cost data in development.
 
 ## Future Enhancements
+
+- Consider materialized views for global monthly aggregates.
+- Add monitoring to ensure RPC paths are used (and view access remains restricted) in production.
 
 - Pricing history snapshots
 - Backfill with historical pricing
