@@ -181,24 +181,29 @@ Notes
 GET /api/admin/analytics/models
 
 - Purpose: Model portfolio counts + recent activity
-- Sources: `v_model_counts_public`, `v_model_sync_activity_daily`
+- Sources: `v_model_counts_public`, `get_model_sync_activity_daily` (wrapper over `v_model_sync_activity_daily`)
 - Query params
   - none
 - Response
   {
   ok: boolean,
   counts: { total_count: number, new_count: number, active_count: number, inactive_count: number, disabled_count: number },
-  recent: Array<{ day: string, flagged_new: number, flagged_active: number, flagged_inactive: number, flagged_disabled: number }>
+  recent: Array<{ day: string, models_added: number, models_marked_inactive: number, models_reactivated: number }>
   }
+
+Security notes
+
+- `get_model_sync_activity_daily` is SECURITY DEFINER, enforces admin via `public.is_admin(auth.uid())`, and only `authenticated`/`service_role` have EXECUTE.
+- Underlying view has `security_invoker=true`; PUBLIC SELECT revoked.
 
 Important semantics
 
-- `recent.flagged_*` are grouped by updated_at day and reflect final status among rows updated that day; they do not represent creations
-- Known issue: "New" appears as 0 when new rows are flipped to active/disabled same-day. See `backlog/trigger-sync-not-detecting-new-status.md` for fix plan (use created_at for daily added or add transition history)
+- `recent` rows reflect sync job transitions (adds, inactive markings, reactivations) over the last N days (default 30) and are not a status snapshot.
 
 ---
 
 Changelog
 
+- 2025-09-11: Models endpoint now uses hardened RPC `get_model_sync_activity_daily`; updated recent row field names (models_added, models_marked_inactive, models_reactivated) and added security notes.
 - 2025-09-03: Added segmented responses (`segments.authenticated`/`segments.anonymous`) across analytics endpoints; added `?segment=anonymous` to errors endpoint; documented anonymous metrics fields (anon_sessions, total_tokens, estimated costs)
 - 2025-09-02: First publication of Admin Analytics API docs (overview, costs, performance, usage, models)

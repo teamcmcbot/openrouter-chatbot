@@ -125,11 +125,12 @@ jest.mock('../../lib/supabase/server', () => ({
         return Promise.resolve({ data: [], error: null });
       },
     }),
-    rpc: (fn: 'get_global_model_costs' | 'get_error_count' | 'get_recent_errors' | 'get_sync_stats') => {
+  rpc: (fn: 'get_global_model_costs' | 'get_error_count' | 'get_recent_errors' | 'get_sync_stats' | 'get_model_sync_activity_daily') => {
       if (fn === 'get_global_model_costs') return Promise.resolve({ data: seedCostsRows, error: null });
       if (fn === 'get_error_count') return Promise.resolve({ data: seedErrorCount, error: null });
       if (fn === 'get_recent_errors') return Promise.resolve({ data: seedRecentErrors, error: null });
       if (fn === 'get_sync_stats') return Promise.resolve({ data: { last_success_at: day(-1).toISOString(), success_rate_30d: 0.99, avg_duration_ms_30d: 123.45, avg_db_duration_ms_30d: 100.12, runs_24h: 2, failures_24h: 0 }, error: null });
+      if (fn === 'get_model_sync_activity_daily') return Promise.resolve({ data: seedRecentDaily, error: null });
       return Promise.resolve({ data: null, error: null });
     },
   }))

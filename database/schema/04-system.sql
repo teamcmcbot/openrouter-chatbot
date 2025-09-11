@@ -164,7 +164,7 @@ SELECT
 FROM public.model_access;
 
 -- Admin-only daily model sync activity (last 30 days)
--- Supersedes v_model_recent_activity_admin
+-- Hardened: explicit security_invoker, restricted SELECT, wrapper RPC with admin check.
 CREATE OR REPLACE VIEW public.v_model_sync_activity_daily AS
 SELECT
     DATE_TRUNC('day', COALESCE(sync_completed_at, sync_started_at)) AS day,
@@ -174,9 +174,55 @@ SELECT
     COUNT(*) AS runs
 FROM public.model_sync_log
 WHERE sync_status = 'completed'
-    AND COALESCE(sync_completed_at, sync_started_at) >= NOW() - INTERVAL '30 days'
-GROUP BY 1
-ORDER BY day DESC;
+  AND COALESCE(sync_completed_at, sync_started_at) >= NOW() - INTERVAL '30 days'
+GROUP BY 1; -- Ordering applied by caller
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='v_model_sync_activity_daily'
+    ) THEN
+        EXECUTE 'ALTER VIEW public.v_model_sync_activity_daily SET (security_invoker = true)';
+    END IF;
+END$$;
+
+REVOKE ALL ON TABLE public.v_model_sync_activity_daily FROM PUBLIC;
+GRANT SELECT ON TABLE public.v_model_sync_activity_daily TO service_role;
+GRANT SELECT ON TABLE public.v_model_sync_activity_daily TO postgres;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname='public'
+          AND p.proname='get_model_sync_activity_daily'
+          AND pg_get_function_identity_arguments(p.oid) = 'p_days integer'
+    ) THEN
+        EXECUTE 'DROP FUNCTION public.get_model_sync_activity_daily(p_days integer)';
+    END IF;
+END$$;
+
+CREATE OR REPLACE FUNCTION public.get_model_sync_activity_daily(p_days integer DEFAULT 30)
+RETURNS TABLE(day date, models_added int, models_marked_inactive int, models_reactivated int) AS $$
+DECLARE
+    safe_days integer := LEAST(GREATEST(p_days,1),365);
+BEGIN
+    IF NOT public.is_admin(auth.uid()) THEN
+        RAISE EXCEPTION 'insufficient_privilege';
+    END IF;
+    RETURN QUERY
+    SELECT v.day::date AS day,
+           v.models_added::int,
+           v.models_marked_inactive::int,
+           v.models_reactivated::int
+    FROM public.v_model_sync_activity_daily v
+    WHERE v.day::date >= (CURRENT_DATE - (safe_days - 1))
+    ORDER BY v.day::date DESC;
+END;$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+REVOKE ALL ON FUNCTION public.get_model_sync_activity_daily(integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_model_sync_activity_daily(integer) TO authenticated, service_role;
 
 -- =============================================================================
 -- ADMIN AUDIT LOG (PHASE 4)
