@@ -135,9 +135,11 @@ export class ModelSyncService {
       const supabase = await this.getSupabaseClient();
       
       // Call the database function with the models data
+      const externalStart = new Date().toISOString(); // capture just before RPC to approximate total duration including network fetch already done
       const { data, error } = await supabase.rpc('sync_openrouter_models', {
         models_data: models,
         p_added_by_user_id: triggeredByUserId ?? null,
+        p_external_start: externalStart,
       });
 
       if (error) {

@@ -86,8 +86,9 @@ CREATE TABLE public.model_sync_log (
     error_message TEXT,
     error_details JSONB,
 
-    -- Performance metrics
-    duration_ms INTEGER,
+    -- Performance metrics (duration_ms = total elapsed incl. fetch; db_duration_ms = in-DB work only)
+    duration_ms BIGINT,
+    db_duration_ms BIGINT,
 
     -- Attribution
     added_by_user_id UUID,
@@ -227,7 +228,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Function to sync models from OpenRouter API
 CREATE OR REPLACE FUNCTION public.sync_openrouter_models(
     models_data JSONB,
-    p_added_by_user_id UUID DEFAULT NULL
+    p_added_by_user_id UUID DEFAULT NULL,
+    p_external_start TIMESTAMPTZ DEFAULT NULL
 )
 RETURNS JSONB AS $$
 DECLARE
@@ -238,38 +240,35 @@ DECLARE
     count_models_marked_inactive INTEGER := 0;
     count_models_reactivated INTEGER := 0;
     total_models INTEGER;
-    start_time TIMESTAMPTZ := NOW();
+    db_start_time TIMESTAMPTZ := NOW();
+    effective_start TIMESTAMPTZ;
     current_model_ids TEXT[];
     previous_status VARCHAR(20);
     updated_rows INTEGER;
+    total_duration_ms BIGINT;
+    db_only_duration_ms BIGINT;
 BEGIN
-    -- Start sync log
-    INSERT INTO public.model_sync_log (sync_status, total_openrouter_models, added_by_user_id)
-    VALUES ('running', jsonb_array_length(models_data), p_added_by_user_id)
+    IF p_external_start IS NOT NULL AND p_external_start < db_start_time THEN
+        effective_start := p_external_start;
+    ELSE
+        effective_start := db_start_time;
+    END IF;
+
+    INSERT INTO public.model_sync_log (sync_status, total_openrouter_models, added_by_user_id, sync_started_at)
+    VALUES ('running', jsonb_array_length(models_data), p_added_by_user_id, effective_start)
     RETURNING id INTO sync_log_id;
 
-    -- Get total count
     total_models := jsonb_array_length(models_data);
 
-    -- Collect all current model IDs from OpenRouter
     SELECT array_agg(model_element->>'id') INTO current_model_ids
     FROM jsonb_array_elements(models_data) AS model_element;
 
-    -- Process each model from OpenRouter
     FOR model_record IN SELECT * FROM jsonb_array_elements(models_data)
     LOOP
-        -- Check if this model was previously inactive (for reactivation tracking)
         SELECT status INTO previous_status
         FROM public.model_access
         WHERE model_id = model_record->>'id';
 
-    -- Try UPDATE first; if no row updated, perform INSERT.
-    -- Rationale: In PL/pgSQL, after INSERT ... ON CONFLICT DO UPDATE ("UPSERT"),
-    -- the FOUND flag evaluates to true regardless of whether a new row was inserted
-    -- or an existing row was updated. That makes it unsuitable for distinguishing
-    -- inserts vs updates. By doing UPDATE first and checking ROW_COUNT, we can
-    -- reliably detect if an existing row was updated, and only perform INSERT when
-    -- no rows were updated.
         UPDATE public.model_access
         SET
             canonical_slug = model_record->>'canonical_slug',
@@ -366,15 +365,16 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- Mark models as inactive if they're no longer in OpenRouter
     UPDATE public.model_access
     SET status = 'inactive', updated_at = NOW()
     WHERE model_id NOT IN (SELECT unnest(current_model_ids))
-    AND status != 'inactive';
+      AND status != 'inactive';
 
     GET DIAGNOSTICS count_models_marked_inactive = ROW_COUNT;
 
-    -- Complete sync log
+    db_only_duration_ms := CEIL(EXTRACT(EPOCH FROM (NOW() - db_start_time)) * 1000)::bigint;
+    total_duration_ms := CEIL(EXTRACT(EPOCH FROM (NOW() - effective_start)) * 1000)::bigint;
+
     UPDATE public.model_sync_log
     SET
         sync_status = 'completed',
@@ -383,7 +383,8 @@ BEGIN
         models_updated = count_models_updated,
         models_marked_inactive = count_models_marked_inactive,
         models_reactivated = count_models_reactivated,
-        duration_ms = EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000
+        duration_ms = total_duration_ms,
+        db_duration_ms = db_only_duration_ms
     WHERE id = sync_log_id;
 
     RETURN jsonb_build_object(
@@ -394,27 +395,84 @@ BEGIN
         'models_updated', count_models_updated,
         'models_marked_inactive', count_models_marked_inactive,
         'models_reactivated', count_models_reactivated,
-        'duration_ms', EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000
+        'duration_ms', total_duration_ms,
+        'db_duration_ms', db_only_duration_ms
     );
 
 EXCEPTION WHEN OTHERS THEN
-    -- Log error
+    db_only_duration_ms := CEIL(EXTRACT(EPOCH FROM (NOW() - db_start_time)) * 1000)::bigint;
+    total_duration_ms := CEIL(EXTRACT(EPOCH FROM (NOW() - effective_start)) * 1000)::bigint;
+
     UPDATE public.model_sync_log
     SET
         sync_status = 'failed',
         sync_completed_at = NOW(),
         error_message = SQLERRM,
         error_details = jsonb_build_object('sqlstate', SQLSTATE),
-        duration_ms = EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000
+        duration_ms = total_duration_ms,
+        db_duration_ms = db_only_duration_ms
     WHERE id = sync_log_id;
 
     RETURN jsonb_build_object(
         'success', false,
         'error', SQLERRM,
-        'sync_log_id', sync_log_id
+        'sync_log_id', sync_log_id,
+        'duration_ms', total_duration_ms,
+        'db_duration_ms', db_only_duration_ms
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Aggregated sync stats view (mirrors patch logic)
+CREATE OR REPLACE VIEW public.v_sync_stats AS
+WITH base AS (
+    SELECT id, sync_status, sync_started_at, sync_completed_at, duration_ms, db_duration_ms
+    FROM public.model_sync_log
+), last_success AS (
+    SELECT id AS last_success_id, sync_completed_at AS last_success_at
+    FROM base
+    WHERE sync_status = 'completed'
+    ORDER BY sync_completed_at DESC NULLS LAST
+    LIMIT 1
+), agg AS (
+    SELECT
+        (SELECT last_success_id FROM last_success) AS last_success_id,
+        (SELECT last_success_at FROM last_success) AS last_success_at,
+        CASE WHEN COUNT(*) FILTER (WHERE sync_started_at >= now() - interval '30 days') = 0 THEN 0::numeric
+             ELSE ROUND(
+                 (SUM(CASE WHEN sync_status='completed' AND sync_started_at >= now() - interval '30 days' THEN 1 ELSE 0 END)::numeric
+                    * 100
+                    / COUNT(*) FILTER (WHERE sync_started_at >= now() - interval '30 days')
+                 ), 2)
+        END AS success_rate_30d,
+        ROUND( (AVG(duration_ms) FILTER (WHERE sync_status='completed' AND sync_started_at >= now() - interval '30 days'))::numeric, 2) AS avg_duration_ms_30d,
+        ROUND( (AVG(db_duration_ms) FILTER (WHERE sync_status='completed' AND sync_started_at >= now() - interval '30 days'))::numeric, 2) AS avg_db_duration_ms_30d,
+        COUNT(*) FILTER (WHERE sync_started_at >= now() - interval '24 hours') AS runs_24h,
+        COUNT(*) FILTER (WHERE sync_status='failed' AND sync_started_at >= now() - interval '24 hours') AS failures_24h
+    FROM base
+)
+SELECT * FROM agg;
+
+REVOKE ALL ON TABLE public.v_sync_stats FROM PUBLIC;
+GRANT SELECT ON TABLE public.v_sync_stats TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_sync_stats()
+RETURNS public.v_sync_stats
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    r public.v_sync_stats%ROWTYPE;
+BEGIN
+    IF NOT public.is_admin(auth.uid()) THEN
+        RAISE EXCEPTION 'insufficient_privilege';
+    END IF;
+    SELECT * INTO r FROM public.v_sync_stats;
+    RETURN r;
+END;$$;
+
+REVOKE ALL ON FUNCTION public.get_sync_stats() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_sync_stats() TO authenticated, service_role;
 
 -- Function to update model tier access (for admin use)
 CREATE OR REPLACE FUNCTION public.update_model_tier_access(

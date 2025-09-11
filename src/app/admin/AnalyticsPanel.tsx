@@ -56,6 +56,15 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
         top_models: OverviewTopModel[];
       };
     };
+    // Added sync stats (mirrors v_sync_stats view)
+    sync?: {
+      last_success_id: string | null;
+      last_success_at: string | null;
+      success_rate_30d: number | null; // percent
+      avg_duration_ms_30d: number | null;
+      runs_24h: number | null;
+      failures_24h: number | null;
+    } | null;
   }
   interface CostsResponse {
     ok: boolean;
@@ -129,6 +138,36 @@ function RangePicker({ value, onChange }: { value: RangeKey; onChange: (v: Range
                   <div className="text-xl font-semibold">{overview.data.totals?.messages ?? 0}</div>
                 </div>
               </>
+            )}
+            {/* Sync stats cards (always show for authenticated segment if available) */}
+            {segment === 'authenticated' && overview.data.sync && (
+              <div className="p-3 border rounded-md md:col-span-3">
+                <div className="text-xs text-gray-500 mb-2">Model Sync (30d)</div>
+                <div className="grid sm:grid-cols-5 gap-3 text-xs">
+                  <div>
+                    <div className="text-gray-500">Success rate</div>
+                    <div className="text-base font-semibold mt-0.5">{overview.data.sync.success_rate_30d ?? 0}%</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Avg duration</div>
+                    <div className="text-base font-semibold mt-0.5">{overview.data.sync.avg_duration_ms_30d ?? 0} ms</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Runs (24h)</div>
+                    <div className="text-base font-semibold mt-0.5">{overview.data.sync.runs_24h ?? 0}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Failures (24h)</div>
+                    <div className="text-base font-semibold mt-0.5">{overview.data.sync.failures_24h ?? 0}</div>
+                  </div>
+                  <div className="sm:col-span-1 col-span-full">
+                    <div className="text-gray-500">Last success</div>
+                    <div className="text-[11px] font-mono mt-0.5 break-all leading-tight">
+                      {overview.data.sync.last_success_at ? new Date(overview.data.sync.last_success_at).toLocaleString() : '—'}
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
             <div className="p-3 border rounded-md md:col-span-3">
               <div className="text-xs text-gray-500 mb-2">Top models (by cost)</div>
