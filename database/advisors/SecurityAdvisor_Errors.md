@@ -14,7 +14,7 @@ There are several SECURITY DEFINER views in the database schema that have been f
 ## List of SECURITY DEFINER Views
 
 - v_sync_stats (fixed)
-- v_model_sync_activity_daily (planned)
+- v_model_sync_activity_daily (fixed)
 - v_user_usage_daily_metrics (not addressed)
 - v_model_counts_public (not addressed)
 - user_model_costs_daily (not addressed)
@@ -133,5 +133,98 @@ Follow-up / Next Steps
 - Future: Consider zero-filling missing days via generate_series if UI needs continuity.
 
 No open questions remain for this object.
+
+---
+
+### Remediation: user_model_costs_daily (Proposed)
+
+Status: Pending review – view currently flagged by Security Advisor. This section documents purpose, usage, risks, and a minimal, safe remediation plan. Implementation will follow after your approval.
+
+1. Purpose and current definition
+
+- Purpose: Per-user, per-model, per-day aggregates used by both user-facing usage charts and admin analytics (DAU/messages/tokens).
+- Definition (from `database/schema/02-chat.sql`):
+  - `CREATE OR REPLACE VIEW public.user_model_costs_daily AS
+  SELECT user_id,
+             (message_timestamp AT TIME ZONE 'UTC')::date AS usage_date,
+             model_id,
+             SUM(prompt_tokens) AS prompt_tokens,
+             SUM(completion_tokens) AS completion_tokens,
+             SUM(total_tokens) AS total_tokens,
+             ROUND(SUM(total_cost), 6) AS total_cost,
+             COUNT(*) AS assistant_messages
+  FROM public.message_token_costs
+  GROUP BY user_id, (message_timestamp AT TIME ZONE 'UTC')::date, model_id;`
+- Underlying table: `public.message_token_costs` has RLS enabled with policies:
+  - Users can view their own message costs.
+  - Admins can view all message costs.
+
+2. Frontend/API usage inventory
+
+- User endpoint: `src/app/api/usage/costs/models/daily/route.ts`
+  - Queries `.from('user_model_costs_daily')` filtered by `user_id = auth.user.id` and date range, with a fallback to raw `message_token_costs` if the view is missing.
+- Admin endpoint: `src/app/api/admin/analytics/usage/route.ts`
+  - Queries `.from('user_model_costs_daily')` to assemble DAU/messages/tokens per day (authenticated segment), plus anonymous aggregates from dedicated anon views.
+
+3. Risk analysis (why linter flagged it)
+
+- Security Advisor reports the view as SECURITY DEFINER. In Postgres, views default to definer semantics unless `security_invoker=true` is explicitly set. Definer semantics risk bypassing the invoking user’s RLS, potentially exposing other users’ aggregated data when accessed directly.
+- Consequences if left as-is:
+  - A non-admin could potentially access rows beyond their RLS allowance through view owner privileges.
+  - Inconsistent enforcement vs. base table policies.
+
+4. Remediation plan (minimal, backward-compatible)
+
+- Set explicit invoker semantics and align privileges so existing API routes continue to work without code changes.
+  1.  ALTER VIEW to enforce invoker rights:
+      - `ALTER VIEW public.user_model_costs_daily SET (security_invoker = true);`
+  2.  Tighten privileges to intended roles:
+      - `REVOKE ALL ON public.user_model_costs_daily FROM PUBLIC;`
+      - `GRANT SELECT ON public.user_model_costs_daily TO authenticated, service_role;`
+      - Do NOT grant to `anon`.
+  3.  Keep ORDER BY out of the view (already absent). Apply ordering at API level.
+  4.  No column/type changes required; API expects: `usage_date (date)`, `model_id (text)`, `total_tokens (int/bigint)`, `total_cost (numeric)`, `assistant_messages (count)`.
+  5.  Documentation: note invoker requirement and privilege scope in `/docs/database/token-cost-tracking.md`.
+
+5. Optional hardening (can be deferred)
+
+- Introduce RPC wrappers for stricter control and future evolution:
+  - `public.get_user_model_costs_daily(p_start date, p_end date, p_model_id text default null)`
+    - SECURITY INVOKER; filters by `user_id = auth.uid()` and date range; returns limited columns.
+  - `public.get_admin_model_costs_daily(p_start date, p_end date)`
+    - SECURITY DEFINER; enforces `public.is_admin(auth.uid())`; returns per-day aggregates needed by admin analytics.
+- If adopting RPCs, we could grant SELECT on the view only to `service_role` and let functions mediate access. This matches the pattern used for `v_model_sync_activity_daily` and `v_sync_stats`.
+
+6. Patch outline (to be created after approval)
+
+File: `/database/patches/security_definer_views/002_user_model_costs_daily.sql`
+
+```
+-- Ensure view uses invoker rights and narrow privileges
+DO $$ BEGIN
+   -- Make view invoker-secure
+   EXECUTE 'ALTER VIEW public.user_model_costs_daily SET (security_invoker = true)';
+
+   -- Restrict privileges
+   EXECUTE 'REVOKE ALL ON public.user_model_costs_daily FROM PUBLIC';
+   EXECUTE 'GRANT SELECT ON public.user_model_costs_daily TO authenticated';
+   EXECUTE 'GRANT SELECT ON public.user_model_costs_daily TO service_role';
+END $$;
+```
+
+If we choose the RPC path now, include the function(s) as described in §5 and adjust GRANTs accordingly (SELECT to `service_role` only; EXECUTE to `authenticated`/`service_role` on the functions).
+
+7. Verification checklist
+
+- [ ] Linter: `security_definer_view` finding disappears for `user_model_costs_daily`.
+- [ ] User route `/api/usage/costs/models/daily` returns data for the signed-in user across the selected range.
+- [ ] Admin route `/api/admin/analytics/usage` returns daily series and totals unchanged.
+- [ ] Permission check: a non-admin cannot access other users’ rows via direct SQL or REST (RLS enforced under invoker semantics).
+- [ ] No regressions in tests: run full Jest suite.
+
+8. Questions for you
+
+- Do you want the minimal fix (invoker + GRANTs) or adopt the stricter RPC pattern now (moving both routes off direct view access)?
+- If moving to RPC, should the user endpoint also switch to an RPC (`get_user_model_costs_daily`) for consistency with recent hardenings?
 
 ---
