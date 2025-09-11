@@ -163,6 +163,21 @@ SELECT
     COUNT(*) AS total_count
 FROM public.model_access;
 
+-- Harden: explicit invoker semantics and clear privileges
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='v_model_counts_public'
+    ) THEN
+        EXECUTE 'ALTER VIEW public.v_model_counts_public SET (security_invoker = true)';
+    END IF;
+END$$;
+
+REVOKE ALL ON TABLE public.v_model_counts_public FROM PUBLIC;
+GRANT SELECT ON TABLE public.v_model_counts_public TO anon;
+GRANT SELECT ON TABLE public.v_model_counts_public TO authenticated;
+GRANT SELECT ON TABLE public.v_model_counts_public TO service_role;
+
 -- Admin-only daily model sync activity (last 30 days)
 -- Hardened: explicit security_invoker, restricted SELECT, wrapper RPC with admin check.
 CREATE OR REPLACE VIEW public.v_model_sync_activity_daily AS

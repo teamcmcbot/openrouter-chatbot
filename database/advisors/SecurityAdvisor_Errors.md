@@ -222,3 +222,95 @@ If we choose the RPC path now, include the function(s) as described in §5 and a
 - If future needs require additional fields, prefer evolving RPC return shape over altering the view.
 
 ---
+
+### Remediation: v_model_counts_public (Proposed)
+
+Status: Proposed – keep the view as a public-safe aggregate but make its security explicit. Apply `security_invoker=true` and explicit GRANTs aligned with intended exposure. No RPC required unless we later restrict public access.
+
+1. Purpose and current definition
+
+- Purpose: Single-row aggregate of model status counts used in admin analytics (and suitable for public/landing metrics if desired). It exposes only counts by status across `model_access`.
+- Current definition (from `database/schema/04-system.sql`):
+  - `CREATE OR REPLACE VIEW public.v_model_counts_public AS
+  SELECT COUNT(*) FILTER (WHERE status='new') AS new_count,
+             COUNT(*) FILTER (WHERE status='active') AS active_count,
+             COUNT(*) FILTER (WHERE status='inactive') AS inactive_count,
+             COUNT(*) FILTER (WHERE status='disabled') AS disabled_count,
+             COUNT(*) AS total_count
+  FROM public.model_access;`
+- Underlying table security: `public.model_access` has RLS enabled with policy: "All users can view model access" (USING true). No PII; data is model catalog metadata.
+
+2. Usage inventory
+
+- API routes (admin):
+  - `src/app/api/admin/analytics/overview/route.ts` → `supabase.from('v_model_counts_public').select('*').limit(1)`
+  - `src/app/api/admin/analytics/models/route.ts` → `supabase.from('v_model_counts_public').select('*').limit(1)`
+- Tests: `tests/api/adminAnalytics.test.ts` stubs the view response (seedCounts).
+- Docs: `docs/admin/analytics.md` notes v_model_counts_public is “safe for public / can be shown anywhere.”
+
+3. Why the linter flagged it
+
+- Supabase Security Advisor reported the view as SECURITY DEFINER. While Postgres views default to definer privileges, this view doesn’t need elevated rights and reads only from a table that is already world-readable via RLS policy (USING true). Still, we prefer to:
+  - Make invoker semantics explicit (`security_invoker=true`) to avoid ambiguity and future regressions.
+  - Set explicit GRANTs to reflect intended public/anonymous access rather than relying on defaults.
+
+4. Remediation options
+
+- Option A (recommended): Public-safe view with explicit invoker + grants
+
+  - Set `security_invoker=true`.
+  - Revoke PUBLIC privileges, then grant SELECT to `anon`, `authenticated`, and `service_role` explicitly.
+  - Keep existing API usage (simple `.from('v_model_counts_public')`). No RPC needed.
+  - Document the rationale in schema comments and docs (public aggregate, no sensitive data).
+
+- Option B (stricter): Restrict direct SELECT; expose via RPC
+  - Revoke SELECT from `anon`/`authenticated`; grant only to `service_role`.
+  - Add `public.get_model_counts_public()` SECURITY DEFINER RPC without admin check (just returns the single row), and have API call the RPC.
+  - Pros: Centralizes access; Cons: Extra moving parts for minimal security gain given data is non-sensitive.
+
+Recommendation: Option A. It satisfies the linter, keeps intent clear, and avoids churn in admin endpoints and tests.
+
+5. Patch outline (SQL)
+
+File: `/database/patches/security_definer_views/003_v_model_counts_public.sql`
+
+```
+-- Ensure invoker semantics and explicit privileges for a public-safe aggregate view
+DO $$ BEGIN
+   -- Make view invoker-secure (idempotent guard not strictly needed; ALTER VIEW is safe if exists)
+   IF EXISTS (
+      SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='v_model_counts_public'
+   ) THEN
+      EXECUTE 'ALTER VIEW public.v_model_counts_public SET (security_invoker = true)';
+   END IF;
+
+   -- Tighten and then explicitly grant expected access
+   EXECUTE 'REVOKE ALL ON public.v_model_counts_public FROM PUBLIC';
+   EXECUTE 'GRANT SELECT ON public.v_model_counts_public TO anon';
+   EXECUTE 'GRANT SELECT ON public.v_model_counts_public TO authenticated';
+   EXECUTE 'GRANT SELECT ON public.v_model_counts_public TO service_role';
+END $$;
+```
+
+If Option B is preferred later, add an RPC and switch API calls; otherwise, no application changes are required.
+
+6. API impact
+
+- None under Option A. Existing `.select('*').limit(1)` continues to work for admins (and would also work for anonymous endpoints if we ever expose such a route).
+- Tests remain valid; no changes to mocks needed.
+
+7. Verification checklist
+
+- [ ] Apply patch in a dev database and re-run the Security Advisor; confirm the finding for `v_model_counts_public` is cleared.
+- [ ] Manual SQL: `select * from public.v_model_counts_public;` returns one row with the 5 fields, for both anon and authenticated sessions.
+- [ ] Admin API endpoints (`/api/admin/analytics/overview` and `/api/admin/analytics/models`) still return the counts segment with no changes.
+- [ ] Jest suite passes without modifications.
+- [ ] Docs: add a short note that this view is explicitly invoker + anon-select for public-safe usage.
+
+8. Open questions for confirmation
+
+1) Do we want the counts accessible to unauthenticated users (e.g., potential landing page widgets)? Current docs say “safe for public” – confirm this is still desired.
+2) Any additional fields desired (e.g., counts by tier flags) before we freeze the interface? If yes, we’ll update the definition and tests together.
+3) Should we add a tiny canary test that asserts the view returns exactly one row with all five fields present?
+
+Upon confirmation, I’ll prepare the patch file, run the build/tests, and then merge the changes into `database/schema/04-system.sql` and update the docs.

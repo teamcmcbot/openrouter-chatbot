@@ -50,6 +50,7 @@ UI wiring notes
 ## Security & RLS
 
 - These are plain views. Enforce admin-only access to admin\_\* views by ensuring RLS on base tables and wrapping data access with admin-only endpoints.
+- v_model_counts_public: explicitly set security_invoker=true; SELECT is granted to anon, authenticated, and service_role (public-safe aggregate; no PII).
 - Prefer server-side APIs protected with `withAdminAuth` to fetch these metrics.
 
 ## Next Steps
