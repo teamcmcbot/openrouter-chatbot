@@ -37,6 +37,7 @@ export class ModelSyncService {
    * Main sync method that orchestrates the entire model synchronization process
    */
   async syncModels(triggeredByUserId?: string): Promise<SyncResult> {
+    const externalStart = new Date().toISOString(); // capture before network fetch to include fetch+validation time
     const startTime = Date.now();
     
     try {
@@ -46,7 +47,7 @@ export class ModelSyncService {
       const models = await this.fetchAndValidateModels();
       
       // Step 2: Call database sync function
-  const result = await this.syncModelsToDatabase(models, triggeredByUserId);
+      const result = await this.syncModelsToDatabase(models, triggeredByUserId, externalStart);
       
       const durationMs = Date.now() - startTime;
       
@@ -119,7 +120,7 @@ export class ModelSyncService {
   /**
    * Sync models to database using the database function
    */
-  private async syncModelsToDatabase(models: OpenRouterModel[], triggeredByUserId?: string): Promise<{
+  private async syncModelsToDatabase(models: OpenRouterModel[], triggeredByUserId?: string, externalStart?: string): Promise<{
     success: boolean;
     sync_log_id: string;
     total_processed: number;
@@ -135,11 +136,11 @@ export class ModelSyncService {
       const supabase = await this.getSupabaseClient();
       
       // Call the database function with the models data
-      const externalStart = new Date().toISOString(); // capture just before RPC to approximate total duration including network fetch already done
+      // externalStart passed from caller (captured pre-fetch)
       const { data, error } = await supabase.rpc('sync_openrouter_models', {
         models_data: models,
         p_added_by_user_id: triggeredByUserId ?? null,
-        p_external_start: externalStart,
+        p_external_start: externalStart ?? null,
       });
 
       if (error) {
