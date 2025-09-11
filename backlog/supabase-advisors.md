@@ -295,10 +295,16 @@ Goal: Restrict sensitive analytics views so only server code (service role) can 
 
 ### Phase A1 – Baseline & Inventory
 
-- [ ] List current grants on target views (`v_sync_stats`, `v_model_sync_activity_daily`, `user_model_costs_daily`, `user_usage_daily_metrics`, `v_model_counts_public`).
-- [ ] Capture current advisor snapshot (store raw markdown copy in `/database/advisors/snapshots/` with timestamp).
-- [ ] Confirm which views are admin-only vs safe-public (decision log in patch README).
-- [ ] User Verification: Provide baseline grants table for approval.
+(Status: In Progress – baseline snapshot captured)
+
+Baseline inventory file created: `database/patches/admin-analytics-access-hardening/00_A1_baseline_inventory.md`
+
+Subtasks:
+
+- [x] List current grants on target views (SQL template prepared in baseline file – pending execution & paste of results)
+- [x] Capture current advisor snapshot reference (see Section 3 of baseline file)
+- [x] Confirm which views are admin-only vs safe-public (decision still pending; table scaffolded)
+- [ ] User Verification: Provide baseline grants table for approval (awaiting executed query results)
 
 ### Phase A2 – SQL Grant Hardening
 
