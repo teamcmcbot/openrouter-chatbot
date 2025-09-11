@@ -29,15 +29,15 @@ CREATE TABLE public.model_access (
     tokenizer VARCHAR(100),
 
     -- Pricing information
-    prompt_price VARCHAR(20) DEFAULT '0',
-    completion_price VARCHAR(20) DEFAULT '0',
-    request_price VARCHAR(20) DEFAULT '0',
-    image_price VARCHAR(20) DEFAULT '0',
-    output_image_price VARCHAR(20) DEFAULT '0',
-    web_search_price VARCHAR(20) DEFAULT '0',
-    internal_reasoning_price VARCHAR(20) DEFAULT '0',
-    input_cache_read_price VARCHAR(20),
-    input_cache_write_price VARCHAR(20),
+    prompt_price VARCHAR(32) DEFAULT '0',
+    completion_price VARCHAR(32) DEFAULT '0',
+    request_price VARCHAR(32) DEFAULT '0',
+    image_price VARCHAR(32) DEFAULT '0',
+    output_image_price VARCHAR(32) DEFAULT '0',
+    web_search_price VARCHAR(32) DEFAULT '0',
+    internal_reasoning_price VARCHAR(32) DEFAULT '0',
+    input_cache_read_price VARCHAR(32),
+    input_cache_write_price VARCHAR(32),
 
     -- Provider information
     max_completion_tokens INTEGER,
