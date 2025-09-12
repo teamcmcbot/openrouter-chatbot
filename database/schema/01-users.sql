@@ -152,6 +152,7 @@ CREATE INDEX idx_activity_log_action ON public.user_activity_log(action);
 
 -- Moderation actions indexes
 CREATE INDEX idx_moderation_actions_user_date ON public.moderation_actions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_moderation_actions_created_by ON public.moderation_actions(created_by);
 
 -- Usage tracking indexes
 CREATE INDEX idx_usage_daily_user_date ON public.user_usage_daily(user_id, usage_date DESC);

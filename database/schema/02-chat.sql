@@ -149,16 +149,7 @@ CREATE INDEX idx_chat_messages_user_message_id
 CREATE INDEX idx_chat_messages_tokens_role
     ON public.chat_messages(role, input_tokens, output_tokens)
     WHERE input_tokens > 0 OR output_tokens > 0;
--- Messages with attachments (optional index)
-CREATE INDEX idx_chat_messages_has_attachments_true
-    ON public.chat_messages(has_attachments)
-    WHERE has_attachments = true;
--- Messages with web search (optional indexes)
-CREATE INDEX idx_chat_messages_has_websearch_true
-    ON public.chat_messages(has_websearch)
-    WHERE has_websearch = true;
-CREATE INDEX idx_chat_messages_websearch_count
-    ON public.chat_messages(websearch_result_count);
+-- Note: Removed optional flags indexes (has_attachments, has_websearch, websearch_count) as unused in production.
 
 -- Chat attachments indexes
 CREATE INDEX idx_chat_attachments_message_id ON public.chat_attachments(message_id);
