@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * Verify chat-only ban enforcement:
  * - Banned users are blocked on POST /api/chat and POST /api/chat/stream (403 account_banned)

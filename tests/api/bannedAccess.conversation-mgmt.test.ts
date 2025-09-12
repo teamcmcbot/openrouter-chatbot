@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * Verify conversation management endpoints are allowed for banned users (chat-only ban policy):
  * - GET/POST/DELETE /api/chat/sessions
