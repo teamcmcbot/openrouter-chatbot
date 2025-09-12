@@ -169,44 +169,44 @@ ALTER TABLE public.moderation_actions ENABLE ROW LEVEL SECURITY;
 
 -- Profile policies
 CREATE POLICY "Users can view their own profile" ON public.profiles
-    FOR SELECT USING (auth.uid() = id);
+    FOR SELECT USING ((select auth.uid()) = id);
 
 CREATE POLICY "Users can update their own profile" ON public.profiles
-    FOR UPDATE USING (auth.uid() = id);
+    FOR UPDATE USING ((select auth.uid()) = id);
 
 CREATE POLICY "Users can insert their own profile" ON public.profiles
-    FOR INSERT WITH CHECK (auth.uid() = id);
+    FOR INSERT WITH CHECK ((select auth.uid()) = id);
 
 -- Admin override policies
 CREATE POLICY "Admins can view any profile" ON public.profiles
-    FOR SELECT USING (public.is_admin(auth.uid()));
+    FOR SELECT USING (public.is_admin((select auth.uid())));
 
 CREATE POLICY "Admins can update any profile" ON public.profiles
-    FOR UPDATE USING (public.is_admin(auth.uid()));
+    FOR UPDATE USING (public.is_admin((select auth.uid())));
 
 -- Activity log policies
 CREATE POLICY "Users can view their own activity" ON public.user_activity_log
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING ((select auth.uid()) = user_id);
 
 -- Usage daily policies
 CREATE POLICY "Users can view their own usage" ON public.user_usage_daily
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users can insert their own usage" ON public.user_usage_daily
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+    FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users can update their own usage" ON public.user_usage_daily
-    FOR UPDATE USING (auth.uid() = user_id);
+    FOR UPDATE USING ((select auth.uid()) = user_id);
 
 -- Moderation actions policies (admins only)
 CREATE POLICY "Admins can view moderation actions" ON public.moderation_actions
-    FOR SELECT USING (public.is_admin(auth.uid()));
+    FOR SELECT USING (public.is_admin((select auth.uid())));
 
 CREATE POLICY "Admins can insert moderation actions" ON public.moderation_actions
-    FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
+    FOR INSERT WITH CHECK (public.is_admin((select auth.uid())));
 
 CREATE POLICY "Admins can update moderation actions" ON public.moderation_actions
-    FOR UPDATE USING (public.is_admin(auth.uid())) WITH CHECK (public.is_admin(auth.uid()));
+    FOR UPDATE USING (public.is_admin((select auth.uid()))) WITH CHECK (public.is_admin((select auth.uid())));
 
 -- =============================================================================
 -- UTILITY FUNCTIONS

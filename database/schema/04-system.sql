@@ -269,7 +269,7 @@ BEGIN
     ) THEN
         EXECUTE 'DROP POLICY "Only admins can read audit logs" ON public.admin_audit_log';
     END IF;
-    EXECUTE 'CREATE POLICY "Only admins can read audit logs" ON public.admin_audit_log FOR SELECT USING (public.is_admin(auth.uid()))';
+    EXECUTE 'CREATE POLICY "Only admins can read audit logs" ON public.admin_audit_log FOR SELECT USING (public.is_admin((select auth.uid())))';
 END$$;
 
 -- Deny direct INSERTs; use SECURITY DEFINER function
@@ -329,14 +329,14 @@ BEGIN
     ) THEN
         EXECUTE 'DROP POLICY "Admin can read CTA events" ON public.cta_events';
     END IF;
-    EXECUTE 'CREATE POLICY "Admin can read CTA events" ON public.cta_events FOR SELECT USING (public.is_admin(auth.uid()))';
+    EXECUTE 'CREATE POLICY "Admin can read CTA events" ON public.cta_events FOR SELECT USING (public.is_admin((select auth.uid())))';
 
     IF EXISTS (
         SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='cta_events' AND policyname='Allow inserts from server roles'
     ) THEN
         EXECUTE 'DROP POLICY "Allow inserts from server roles" ON public.cta_events';
     END IF;
-    EXECUTE 'CREATE POLICY "Allow inserts from server roles" ON public.cta_events FOR INSERT WITH CHECK (auth.role() = ''service_role'' OR auth.role() = ''authenticated'')';
+    EXECUTE 'CREATE POLICY "Allow inserts from server roles" ON public.cta_events FOR INSERT WITH CHECK ((select auth.role()) = ''service_role'' OR (select auth.role()) = ''authenticated'')';
 END$$;
 
 -- Retention helper

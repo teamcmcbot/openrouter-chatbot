@@ -17,7 +17,7 @@ BEGIN
       ON storage.objects FOR SELECT
       USING (
         bucket_id = 'attachments-images'
-        AND owner = auth.uid()
+        AND owner = (select auth.uid())
       );
   END IF;
 END$$;
@@ -34,7 +34,7 @@ BEGIN
       ON storage.objects FOR INSERT
       WITH CHECK (
         bucket_id = 'attachments-images'
-        AND owner = auth.uid()
+        AND owner = (select auth.uid())
       );
   END IF;
 END$$;
@@ -51,7 +51,7 @@ BEGIN
       ON storage.objects FOR DELETE
       USING (
         bucket_id = 'attachments-images'
-        AND owner = auth.uid()
+        AND owner = (select auth.uid())
       );
   END IF;
 END$$;
@@ -68,11 +68,11 @@ BEGIN
       ON storage.objects FOR UPDATE
       USING (
         bucket_id = 'attachments-images'
-        AND owner = auth.uid()
+        AND owner = (select auth.uid())
       )
       WITH CHECK (
         bucket_id = 'attachments-images'
-        AND owner = auth.uid()
+        AND owner = (select auth.uid())
       );
   END IF;
 END$$;

@@ -189,23 +189,23 @@ ALTER TABLE public.chat_message_annotations ENABLE ROW LEVEL SECURITY;
 
 -- Chat Sessions Policies
 CREATE POLICY "Users can view their own chat sessions" ON public.chat_sessions
-    FOR SELECT USING (user_id = auth.uid());
+    FOR SELECT USING (user_id = (select auth.uid()));
 
 CREATE POLICY "Users can create their own chat sessions" ON public.chat_sessions
-    FOR INSERT WITH CHECK (user_id = auth.uid());
+    FOR INSERT WITH CHECK (user_id = (select auth.uid()));
 
 CREATE POLICY "Users can update their own chat sessions" ON public.chat_sessions
-    FOR UPDATE USING (user_id = auth.uid());
+    FOR UPDATE USING (user_id = (select auth.uid()));
 
 CREATE POLICY "Users can delete their own chat sessions" ON public.chat_sessions
-    FOR DELETE USING (user_id = auth.uid());
+    FOR DELETE USING (user_id = (select auth.uid()));
 
 -- Chat Messages Policies (using session ownership)
 CREATE POLICY "Users can view messages from their sessions" ON public.chat_messages
     FOR SELECT USING (
         session_id IN (
             SELECT id FROM public.chat_sessions
-            WHERE user_id = auth.uid()
+            WHERE user_id = (select auth.uid())
         )
     );
 
@@ -213,7 +213,7 @@ CREATE POLICY "Users can create messages in their sessions" ON public.chat_messa
     FOR INSERT WITH CHECK (
         session_id IN (
             SELECT id FROM public.chat_sessions
-            WHERE user_id = auth.uid()
+            WHERE user_id = (select auth.uid())
         )
     );
 
@@ -221,7 +221,7 @@ CREATE POLICY "Users can update messages in their sessions" ON public.chat_messa
     FOR UPDATE USING (
         session_id IN (
             SELECT id FROM public.chat_sessions
-            WHERE user_id = auth.uid()
+            WHERE user_id = (select auth.uid())
         )
     );
 
@@ -229,24 +229,24 @@ CREATE POLICY "Users can delete messages in their sessions" ON public.chat_messa
     FOR DELETE USING (
         session_id IN (
             SELECT id FROM public.chat_sessions
-            WHERE user_id = auth.uid()
+            WHERE user_id = (select auth.uid())
         )
     );
 
 -- Chat Attachments Policies
 CREATE POLICY "Users can view their own attachments" ON public.chat_attachments
-    FOR SELECT USING (user_id = auth.uid());
+    FOR SELECT USING (user_id = (select auth.uid()));
 
 CREATE POLICY "Users can insert their own attachments" ON public.chat_attachments
-    FOR INSERT WITH CHECK (user_id = auth.uid());
+    FOR INSERT WITH CHECK (user_id = (select auth.uid()));
 
 CREATE POLICY "Users can update their own attachments" ON public.chat_attachments
-    FOR UPDATE USING (user_id = auth.uid())
+    FOR UPDATE USING (user_id = (select auth.uid()))
     WITH CHECK (
-        user_id = auth.uid()
+    user_id = (select auth.uid())
         AND (
             session_id IS NULL OR session_id IN (
-                SELECT id FROM public.chat_sessions WHERE user_id = auth.uid()
+                SELECT id FROM public.chat_sessions WHERE user_id = (select auth.uid())
             )
         )
         AND (
@@ -254,21 +254,21 @@ CREATE POLICY "Users can update their own attachments" ON public.chat_attachment
                 SELECT 1
                 FROM public.chat_messages m
                 JOIN public.chat_sessions s ON s.id = m.session_id
-                WHERE m.id = message_id AND s.user_id = auth.uid()
+                WHERE m.id = message_id AND s.user_id = (select auth.uid())
             )
         )
     );
 
 CREATE POLICY "Users can delete their own attachments" ON public.chat_attachments
-    FOR DELETE USING (user_id = auth.uid());
+    FOR DELETE USING (user_id = (select auth.uid()));
 
 -- Chat Message Annotations Policies
 CREATE POLICY "Users can view their own message annotations" ON public.chat_message_annotations
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING ((select auth.uid()) = user_id);
 CREATE POLICY "Users can insert their own message annotations" ON public.chat_message_annotations
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+    FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
 CREATE POLICY "Users can delete their own message annotations" ON public.chat_message_annotations
-    FOR DELETE USING (auth.uid() = user_id);
+    FOR DELETE USING ((select auth.uid()) = user_id);
 
 -- =============================================================================
 -- UTILITY FUNCTIONS
@@ -522,13 +522,13 @@ CREATE INDEX idx_message_token_costs_user_message_id ON public.message_token_cos
 ALTER TABLE public.message_token_costs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their own message costs" ON public.message_token_costs
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING ((select auth.uid()) = user_id);
 CREATE POLICY "Admins can view all message costs" ON public.message_token_costs
-    FOR SELECT USING (public.is_admin(auth.uid()));
+    FOR SELECT USING (public.is_admin((select auth.uid())));
 CREATE POLICY "Users can insert their own message costs" ON public.message_token_costs
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+    FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
 CREATE POLICY "Admins can insert any message costs" ON public.message_token_costs
-    FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
+    FOR INSERT WITH CHECK (public.is_admin((select auth.uid())));
 
 -- Function to calculate and record message cost (per token pricing)
 CREATE OR REPLACE FUNCTION public.calculate_and_record_message_cost()

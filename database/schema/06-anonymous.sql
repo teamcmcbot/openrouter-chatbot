@@ -65,7 +65,7 @@ BEGIN
     ) THEN
         EXECUTE 'DROP POLICY "Admins can read anonymous usage" ON public.anonymous_usage_daily';
     END IF;
-    EXECUTE 'CREATE POLICY "Admins can read anonymous usage" ON public.anonymous_usage_daily FOR SELECT USING (public.is_admin(auth.uid()))';
+    EXECUTE 'CREATE POLICY "Admins can read anonymous usage" ON public.anonymous_usage_daily FOR SELECT USING (public.is_admin((select auth.uid())))';
 
     IF EXISTS (
         SELECT 1 FROM pg_policies
@@ -86,7 +86,7 @@ BEGIN
     ) THEN
         EXECUTE 'DROP POLICY "Admins can read anonymous model usage" ON public.anonymous_model_usage_daily';
     END IF;
-    EXECUTE 'CREATE POLICY "Admins can read anonymous model usage" ON public.anonymous_model_usage_daily FOR SELECT USING (public.is_admin(auth.uid()))';
+    EXECUTE 'CREATE POLICY "Admins can read anonymous model usage" ON public.anonymous_model_usage_daily FOR SELECT USING (public.is_admin((select auth.uid())))';
 
     IF EXISTS (
         SELECT 1 FROM pg_policies
@@ -360,7 +360,7 @@ BEGIN
     ) THEN
         EXECUTE 'DROP POLICY "Admins can read anonymous errors" ON public.anonymous_error_events';
     END IF;
-    EXECUTE 'CREATE POLICY "Admins can read anonymous errors" ON public.anonymous_error_events FOR SELECT USING (public.is_admin(auth.uid()))';
+    EXECUTE 'CREATE POLICY "Admins can read anonymous errors" ON public.anonymous_error_events FOR SELECT USING (public.is_admin((select auth.uid())))';
 
     IF EXISTS (
         SELECT 1 FROM pg_policies

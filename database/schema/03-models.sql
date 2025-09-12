@@ -121,15 +121,15 @@ CREATE POLICY "All users can view model access" ON public.model_access
     FOR SELECT USING (true);
 
 CREATE POLICY "Only admins can view sync logs" ON public.model_sync_log
-    FOR SELECT USING (public.is_admin(auth.uid()));
+    FOR SELECT USING (public.is_admin((select auth.uid())));
 
 -- Allow admins to insert sync logs (used by sync function invoked under user context)
 CREATE POLICY "Admins can insert sync logs" ON public.model_sync_log
-    FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
+    FOR INSERT WITH CHECK (public.is_admin((select auth.uid())));
 
 -- Allow admins to update sync logs (to mark completed/failed)
 CREATE POLICY "Admins can update sync logs" ON public.model_sync_log
-    FOR UPDATE USING (public.is_admin(auth.uid())) WITH CHECK (public.is_admin(auth.uid()));
+    FOR UPDATE USING (public.is_admin((select auth.uid()))) WITH CHECK (public.is_admin((select auth.uid())));
 
 -- =============================================================================
 -- UTILITY FUNCTIONS

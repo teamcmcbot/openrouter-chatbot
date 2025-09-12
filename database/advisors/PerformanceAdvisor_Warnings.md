@@ -1,3 +1,5 @@
+# Performance Advisor Warnings
+
 | name                         | title                        | level | facing   | categories      | description                                                                                                                                                                                                                                                 | detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | remediation                                                                                      | metadata                                                                | cache_key                                                                                         |
 | ---------------------------- | ---------------------------- | ----- | -------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | auth_rls_initplan            | Auth RLS Initialization Plan | WARN  | EXTERNAL | ["PERFORMANCE"] | Detects if calls to \`current_setting()\` and \`auth.<function>()\` in RLS policies are being unnecessarily re-evaluated for each row                                                                                                                       | Table \`public.profiles\` has a row level security policy \`Users can view their own profile\` that re-evaluates current_setting() or auth.<function>() for each row. This produces suboptimal query performance at scale. Resolve the issue by replacing \`auth.<function>()\` with \`(select auth.<function>())\`. See [docs](https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select) for more info.                               | https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan            | {"name":"profiles","type":"table","schema":"public"}                    | auth_rls_init_plan_public_profiles_Users can view their own profile                               |
@@ -56,3 +58,59 @@
 | multiple_permissive_policies | Multiple Permissive Policies | WARN  | EXTERNAL | ["PERFORMANCE"] | Detects if multiple permissive row level security policies are present on a table for the same \`role\` and \`action\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query. | Table \`public.profiles\` has multiple permissive policies for role \`authenticator\` for action \`UPDATE\`. Policies include \`{"Admins can update any profile","Users can update their own profile"}\`                                                                                                                                                                                                                                                                       | https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies | {"name":"profiles","type":"table","schema":"public"}                    | multiple_permissive_policies_public_profiles_authenticator_UPDATE                                 |
 | multiple_permissive_policies | Multiple Permissive Policies | WARN  | EXTERNAL | ["PERFORMANCE"] | Detects if multiple permissive row level security policies are present on a table for the same \`role\` and \`action\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query. | Table \`public.profiles\` has multiple permissive policies for role \`dashboard_user\` for action \`SELECT\`. Policies include \`{"Admins can view any profile","Users can view their own profile"}\`                                                                                                                                                                                                                                                                          | https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies | {"name":"profiles","type":"table","schema":"public"}                    | multiple_permissive_policies_public_profiles_dashboard_user_SELECT                                |
 | multiple_permissive_policies | Multiple Permissive Policies | WARN  | EXTERNAL | ["PERFORMANCE"] | Detects if multiple permissive row level security policies are present on a table for the same \`role\` and \`action\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query. | Table \`public.profiles\` has multiple permissive policies for role \`dashboard_user\` for action \`UPDATE\`. Policies include \`{"Admins can update any profile","Users can update their own profile"}\`                                                                                                                                                                                                                                                                      | https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies | {"name":"profiles","type":"table","schema":"public"}                    | multiple_permissive_policies_public_profiles_dashboard_user_UPDATE                                |
+
+## Analysis and decisions (2025-09-12)
+
+Summary
+
+- auth_rls_initplan: Fix across the board (low-risk hardening, performance-only). Prioritize hot-path tables first.
+- multiple_permissive_policies: Recommended to consolidate where semantics allow; can defer for admin-only/low-traffic tables.
+
+Details by category
+
+- auth_rls_initplan — “Auth RLS Initialization Plan”
+
+  - What it means: Policies that call auth.<fn>() or current_setting(...) directly can be re-evaluated per row. Wrapping them in a scalar subquery forces a one-time evaluation, improving plans at scale.
+  - Remediation pattern (no behavior change):
+    - Replace auth.uid() → (select auth.uid())
+    - Replace auth.role() → (select auth.role())
+    - Replace current_setting('request.jwt.claim.sub', true) → (select current_setting('request.jwt.claim.sub', true))
+    - Apply inside USING and WITH CHECK of the affected policies.
+  - Fix decisions and priority:
+    - High priority (user-facing, frequent access):
+      - public.profiles — policies: Users can view/update/insert their own profile; Admins can view/update any profile → Fix
+      - public.chat_sessions — view/create/update/delete own sessions → Fix
+      - public.chat_messages — view/create/update/delete in own sessions → Fix
+      - public.message_token_costs — user/admin view/insert paths → Fix
+    - Medium priority:
+      - public.chat_attachments — all CRUD → Fix
+      - public.chat_message_annotations — view/insert/delete own → Fix
+      - public.user_activity_log — view own activity → Fix
+      - public.user_usage_daily — view/insert/update own → Fix
+    - Low priority (admin-only/operational):
+      - public.model_sync_log — admin view/insert/update → Fix (can defer)
+      - public.admin_audit_log — admin read → Fix (can defer)
+      - public.cta_events — admin read; server inserts → Fix (can defer)
+      - public.anonymous_usage_daily, public.anonymous_model_usage_daily, public.anonymous_error_events — admin read → Fix (can defer)
+      - public.moderation_actions — admin view/insert/update → Fix (can defer)
+
+- multiple_permissive_policies — “Multiple Permissive Policies”
+  - What it means: For the same table+role+action, more than one permissive policy exists, so Postgres evaluates multiple expressions and ORs them. Works functionally, but adds overhead and can obscure intent.
+  - Remediation options:
+    - Consolidate into a single policy per table+role+action with an OR of conditions, e.g. USING (is_admin() OR user_id = (select auth.uid())).
+    - Alternatively, keep separate policies for clarity and accept minor overhead (safe to defer on low-traffic paths).
+  - Decisions:
+    - public.message_token_costs — roles anon/authenticated/authenticator/dashboard_user for SELECT and INSERT have duplicate permissive policies → Recommended: Consolidate per role/action. Keep behavior identical by OR-combining “Admins can …” with “Users can …”. Priority: High (hot-path analytics).
+    - public.profiles — roles anon/authenticated/authenticator/dashboard_user for SELECT/UPDATE have duplicate permissive policies → Recommended: Consolidate per role/action. Priority: Medium (moderate frequency; still worth simplifying).
+
+Implementation notes (for future patch)
+
+- Use ALTER POLICY to update USING/WITH CHECK in place (no drop needed):
+  - ALTER POLICY policy_name ON schema.table USING (<updated_expr>) WITH CHECK (<updated_expr>);
+- Validate with EXPLAIN to confirm initplan optimization on representative queries.
+- No app code changes expected; behavior remains identical when expressions are semantically preserved.
+
+Verification checklist
+
+- Re-run the Performance Advisor after changes; all listed auth_rls_initplan warnings should clear.
+- For multiple_permissive_policies, the duplicates should disappear where consolidation was applied.
