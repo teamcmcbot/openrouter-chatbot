@@ -521,14 +521,16 @@ CREATE INDEX idx_message_token_costs_user_message_id ON public.message_token_cos
 -- RLS for cost table
 ALTER TABLE public.message_token_costs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view their own message costs" ON public.message_token_costs
-    FOR SELECT USING ((select auth.uid()) = user_id);
-CREATE POLICY "Admins can view all message costs" ON public.message_token_costs
-    FOR SELECT USING (public.is_admin((select auth.uid())));
-CREATE POLICY "Users can insert their own message costs" ON public.message_token_costs
-    FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
-CREATE POLICY "Admins can insert any message costs" ON public.message_token_costs
-    FOR INSERT WITH CHECK (public.is_admin((select auth.uid())));
+-- Consolidated policies
+CREATE POLICY "View message costs" ON public.message_token_costs
+    FOR SELECT USING (
+        public.is_admin((select auth.uid())) OR (select auth.uid()) = user_id
+    );
+
+CREATE POLICY "Insert message costs" ON public.message_token_costs
+    FOR INSERT WITH CHECK (
+        public.is_admin((select auth.uid())) OR (select auth.uid()) = user_id
+    );
 
 -- Function to calculate and record message cost (per token pricing)
 CREATE OR REPLACE FUNCTION public.calculate_and_record_message_cost()

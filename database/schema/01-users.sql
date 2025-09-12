@@ -167,22 +167,22 @@ ALTER TABLE public.user_activity_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_usage_daily ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.moderation_actions ENABLE ROW LEVEL SECURITY;
 
--- Profile policies
-CREATE POLICY "Users can view their own profile" ON public.profiles
-    FOR SELECT USING ((select auth.uid()) = id);
+-- Consolidated profile policies
+CREATE POLICY "View profiles" ON public.profiles
+    FOR SELECT USING (
+        public.is_admin((select auth.uid())) OR (select auth.uid()) = id
+    );
 
-CREATE POLICY "Users can update their own profile" ON public.profiles
-    FOR UPDATE USING ((select auth.uid()) = id);
+CREATE POLICY "Update profiles" ON public.profiles
+    FOR UPDATE USING (
+        public.is_admin((select auth.uid())) OR (select auth.uid()) = id
+    ) WITH CHECK (
+        public.is_admin((select auth.uid())) OR (select auth.uid()) = id
+    );
 
+-- Insert remains separate (no admin-wide insert policy needed)
 CREATE POLICY "Users can insert their own profile" ON public.profiles
     FOR INSERT WITH CHECK ((select auth.uid()) = id);
-
--- Admin override policies
-CREATE POLICY "Admins can view any profile" ON public.profiles
-    FOR SELECT USING (public.is_admin((select auth.uid())));
-
-CREATE POLICY "Admins can update any profile" ON public.profiles
-    FOR UPDATE USING (public.is_admin((select auth.uid())));
 
 -- Activity log policies
 CREATE POLICY "Users can view their own activity" ON public.user_activity_log
