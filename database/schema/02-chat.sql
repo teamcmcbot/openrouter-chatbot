@@ -384,7 +384,7 @@ BEGIN
         RETURN NEW;
     END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 -- Function to update session timestamp on updates
 CREATE OR REPLACE FUNCTION public.update_session_timestamp()
@@ -394,7 +394,7 @@ BEGIN
     NEW.last_activity = NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 -- Function to get user's recent chat sessions (for API)
 CREATE OR REPLACE FUNCTION public.get_user_recent_sessions(
@@ -431,7 +431,7 @@ BEGIN
     ORDER BY s.updated_at DESC
     LIMIT session_limit;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- get_session_with_messages and sync_user_conversations removed: not used by code or triggers.
 
@@ -454,7 +454,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 -- =============================================================================
 -- TRIGGERS
@@ -540,7 +540,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 -- Trigger for assistant message cost insertion
 DROP TRIGGER IF EXISTS after_assistant_message_cost ON public.chat_messages;
@@ -554,7 +554,7 @@ CREATE OR REPLACE FUNCTION public.recompute_image_cost_for_user_message(
 ) RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $$
 DECLARE
     v_user_msg_id TEXT := NULL;          -- Actual user message id (if present)
@@ -746,7 +746,7 @@ CREATE OR REPLACE FUNCTION public.on_chat_attachment_link_recompute()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $$
 BEGIN
     IF NEW.message_id IS NOT NULL
@@ -814,7 +814,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 SECURITY INVOKER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $$
     SELECT
         (mtc.message_timestamp AT TIME ZONE 'UTC')::date AS usage_date,
@@ -930,7 +930,7 @@ BEGIN
     GROUP BY 1, 2
     ORDER BY usage_period ASC, total_cost DESC;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 COMMENT ON FUNCTION public.get_global_model_costs IS 'Admin-only: aggregate model costs by day/week/month between dates inclusive.';
 
@@ -945,7 +945,7 @@ CREATE OR REPLACE FUNCTION public.get_error_count(
 )
 RETURNS BIGINT
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 LANGUAGE plpgsql
 AS $fn$
 DECLARE
@@ -990,7 +990,7 @@ RETURNS TABLE (
     elapsed_ms INTEGER
 )
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $fn$
 BEGIN
     IF NOT public.is_admin(auth.uid()) THEN

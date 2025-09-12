@@ -83,7 +83,7 @@ BEGIN
         'schema_version', 'retention-simple-v1'
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Function to analyze database health
 CREATE OR REPLACE FUNCTION public.analyze_database_health()
@@ -118,7 +118,7 @@ BEGIN
 
     RETURN health_data;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- =============================================================================
 -- VIEWS
@@ -234,7 +234,7 @@ BEGIN
     FROM public.v_model_sync_activity_daily v
     WHERE v.day::date >= (CURRENT_DATE - (safe_days - 1))
     ORDER BY v.day::date DESC;
-END;$$ LANGUAGE plpgsql SECURITY DEFINER;
+END;$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 REVOKE ALL ON FUNCTION public.get_model_sync_activity_daily(integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_model_sync_activity_daily(integer) TO authenticated, service_role;
@@ -294,7 +294,7 @@ BEGIN
     INSERT INTO public.admin_audit_log(actor_user_id, action, target, payload)
     VALUES (p_actor_user_id, p_action, p_target, p_payload);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- =============================================================================
 -- CTA EVENTS ANALYTICS (MERGED FROM PATCH analytics-cta-events/001_create_cta_events.sql)
@@ -350,7 +350,7 @@ BEGIN
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- RPC for safe ingestion from web tier
 DO $$

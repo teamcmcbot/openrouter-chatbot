@@ -105,7 +105,7 @@ RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
-END; $$ LANGUAGE plpgsql;
+END; $$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 DROP TRIGGER IF EXISTS on_anonymous_usage_update ON public.anonymous_usage_daily;
 CREATE TRIGGER on_anonymous_usage_update
@@ -122,7 +122,7 @@ CREATE OR REPLACE FUNCTION public.ingest_anonymous_usage(p_payload jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $$
 DECLARE
     v_hash TEXT;
@@ -296,7 +296,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $fn$
 DECLARE
     v_trunc TEXT := 'day';
@@ -378,7 +378,7 @@ CREATE OR REPLACE FUNCTION public.ingest_anonymous_error(p_payload jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $$
 DECLARE
     v_hash TEXT;
@@ -456,7 +456,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $$
 BEGIN
     IF NOT public.is_admin(auth.uid()) THEN
@@ -480,7 +480,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_anonymous_errors(days_to_keep integer 
 RETURNS int
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $$
 DECLARE
     v_cutoff timestamptz := date_trunc('day', NOW()) - make_interval(days => days_to_keep);

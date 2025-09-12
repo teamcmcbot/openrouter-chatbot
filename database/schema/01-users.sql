@@ -225,7 +225,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 -- Function to log user activity
 CREATE OR REPLACE FUNCTION public.log_user_activity(
@@ -245,7 +245,7 @@ BEGIN
 
     RETURN activity_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Helper: check if a user is admin
 CREATE OR REPLACE FUNCTION public.is_admin(p_user_id uuid)
@@ -377,7 +377,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Ban a user (permanent when p_until is null, temporary otherwise)
 CREATE OR REPLACE FUNCTION public.ban_user(
@@ -605,7 +605,7 @@ BEGIN
         last_active = NOW()
     WHERE id = p_user_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Function to update user tier
 CREATE OR REPLACE FUNCTION public.update_user_tier(
@@ -664,7 +664,7 @@ BEGIN
         'updated_at', NOW()
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Function to get user's complete profile with enhanced analytics
 CREATE OR REPLACE FUNCTION public.get_user_complete_profile(user_uuid UUID)
@@ -787,7 +787,7 @@ BEGIN
         )
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- (Removed) export_user_data(user_uuid UUID) function deprecated Sept 2025 (never used in application layer)
 

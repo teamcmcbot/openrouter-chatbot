@@ -187,7 +187,7 @@ BEGIN
         END,
         ma.model_name;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Function to check if user can use a specific model
 CREATE OR REPLACE FUNCTION public.can_user_use_model(
@@ -223,7 +223,7 @@ BEGIN
 
     RETURN model_available;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Function to sync models from OpenRouter API
 CREATE OR REPLACE FUNCTION public.sync_openrouter_models(
@@ -421,7 +421,7 @@ EXCEPTION WHEN OTHERS THEN
         'db_duration_ms', db_only_duration_ms
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Aggregated sync stats view (mirrors patch logic)
 CREATE OR REPLACE VIEW public.v_sync_stats
@@ -461,6 +461,7 @@ CREATE OR REPLACE FUNCTION public.get_sync_stats()
 RETURNS public.v_sync_stats
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = 'pg_catalog, public'
 AS $$
 DECLARE
     r public.v_sync_stats%ROWTYPE;

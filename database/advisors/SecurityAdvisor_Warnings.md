@@ -1,3 +1,5 @@
+# Security Advisor Errors
+
 | name                            | title                                                   | level | facing   | categories   | description                                                        | detail                                                                                                                                                                                         | remediation                                                                                              | metadata                                                                         | cache_key                                                                                              |
 | ------------------------------- | ------------------------------------------------------- | ----- | -------- | ------------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | function_search_path_mutable    | Function Search Path Mutable                            | WARN  | EXTERNAL | ["SECURITY"] | Detects functions where the search_path parameter is not set.      | Function \`public.sync_openrouter_models\` has a role mutable search_path                                                                                                                      | https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable         | {"name":"sync_openrouter_models","type":"function","schema":"public"}            | function_search_path_mutable_public_sync_openrouter_models_7c55c364ec8586f3578397d730d27a42            |
@@ -25,3 +27,61 @@
 | function_search_path_mutable    | Function Search Path Mutable                            | WARN  | EXTERNAL | ["SECURITY"] | Detects functions where the search_path parameter is not set.      | Function \`public.handle_user_profile_sync\` has a role mutable search_path                                                                                                                    | https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable         | {"name":"handle_user_profile_sync","type":"function","schema":"public"}          | function_search_path_mutable_public_handle_user_profile_sync_cd123fbeb8a100dc8b1c3ffe1122442e          |
 | auth_leaked_password_protection | Leaked Password Protection Disabled                     | WARN  | EXTERNAL | ["SECURITY"] | Leaked password protection is currently disabled.                  | Supabase Auth prevents the use of compromised passwords by checking against HaveIBeenPwned.org. Enable this feature to enhance security.                                                       | https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection | {"type":"auth","entity":"Auth"}                                                  | auth_leaked_password_protection                                                                        |
 | vulnerable_postgres_version     | Current Postgres version has security patches available | WARN  | EXTERNAL | ["SECURITY"] | Upgrade your postgres database to apply important security patches | We have detected that the current version of postgres, supabase-postgres-17.4.1.054, has outstanding security patches available. Upgrade your database to receive the latest security patches. | https://supabase.com/docs/guides/platform/upgrading                                                      | {"type":"compliance","entity":"Config"}                                          | vulnerable_postgres_version                                                                            |
+
+## Analysis and implementation plan
+
+Decision summary
+
+- function_search_path_mutable → Fix. Pin each function’s search_path and prefer schema-qualified references. No app code changes expected when signatures stay the same.
+- auth_leaked_password_protection → Ignore. App uses Google OAuth only; disable email/password provider; feature is Pro-only.
+- vulnerable_postgres_version → Fix. Schedule managed upgrade to apply security patches.
+
+Why function_search_path_mutable matters
+
+- Unpinned search_path allows name shadowing/hijacking if a caller’s path includes writable schemas. Functions may resolve unqualified names to the wrong object.
+- Pinning search_path to a minimal trusted set (pg_catalog, public) makes name resolution deterministic and safer, especially for SECURITY DEFINER functions.
+
+Scope (functions to harden)
+
+- public.sync_openrouter_models
+- public.cleanup_cta_events
+- public.get_global_model_costs
+- public.ingest_cta_event
+- public.update_updated_at_column
+- public.log_user_activity
+- public.write_admin_audit
+- public.update_session_timestamp
+- public.get_user_allowed_models
+- public.can_user_use_model
+- public.update_model_tier_access
+- public.get_user_recent_sessions
+- public.update_session_stats
+- public.update_user_tier
+- public.\_set_updated_at
+- public.analyze_database_health
+- public.cleanup_old_data
+- public.calculate_and_record_message_cost
+- public.track_user_usage
+- public.track_session_creation
+- public.get_user_complete_profile
+- public.handle_user_profile_sync
+
+Implementation plan (low-risk)
+
+1. Add a single idempotent patch that alters each function to pin search_path using: ALTER FUNCTION ... SET search_path = 'pg_catalog, public'. This avoids redefining bodies and works for all overloads via catalog-driven iteration.
+2. Prefer schema-qualifying built-ins and objects in future edits (e.g., pg_catalog.now(), public.table_name), but this patch focuses on pinning search_path only.
+3. Wrap in one transaction (DO block) and emit NOTICEs per function for auditability.
+
+Operational impact
+
+- No application code changes. Function signatures remain the same; triggers and RPC references continue to work.
+- Order generally does not matter; for neatness, the patch updates all matching overloads automatically.
+
+Verification steps
+
+- Re-run the Supabase database linter; warning 0011 should clear for the listed functions.
+- Smoke-test common DB paths (insert/update rows that trigger update_updated_at_column; call a couple of RPCs).
+
+Rollback plan
+
+- Run a companion DO block to ALTER FUNCTION ... RESET search_path for the same set if needed.
