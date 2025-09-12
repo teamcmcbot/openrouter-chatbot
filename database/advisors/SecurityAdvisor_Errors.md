@@ -15,8 +15,8 @@ There are several SECURITY DEFINER views in the database schema that have been f
 
 - v_sync_stats (fixed)
 - v_model_sync_activity_daily (fixed)
-- v_user_usage_daily_metrics (not addressed)
-- v_model_counts_public (not addressed)
+- user_usage_daily_metrics (fixed)
+- v_model_counts_public (fixed)
 - user_model_costs_daily (fixed)
 
 | name                  | title                 | level | facing   | categories   | description                                                                                                                                                                                         | detail                                                                                    | remediation                                                                               | metadata                                                               | cache_key                                                |
@@ -29,7 +29,172 @@ There are several SECURITY DEFINER views in the database schema that have been f
 
 ---
 
-### Remediation: v_sync_stats
+### Remediation: user_usage_daily_metrics (Complete)
+
+Status: Complete – Dropped via `database/patches/security_definer_views/004_drop_user_usage_daily_metrics.sql`. The view was unused and flagged as SECURITY DEFINER; removing it cleared the Supabase Security Advisor finding. No schema consolidation needed because the view was not present under `/database/schema/`.
+
+Resolution Note: Linter refreshed clean after applying patch 004. If a similar convenience is needed later, prefer RPCs or computed columns in queries.
+
+1. Purpose and current definition
+
+- Purpose: Convenience analytics view derived from `public.user_usage_daily`, adding computed columns for seconds and minutes from `generation_ms`, and exposing daily aggregates per user.
+- Current definition (from `/database/patches/elapsed-time-ms/001-elapsed-time-ms-migration.sql`):
+  - `CREATE OR REPLACE VIEW public.user_usage_daily_metrics AS
+SELECT user_id, usage_date, generation_ms,
+           ROUND(generation_ms / 1000.0, 3) AS generation_seconds,
+           ROUND(generation_ms / 60000.0, 3) AS generation_minutes,
+           messages_sent, messages_received, total_tokens,
+           input_tokens, output_tokens, sessions_created,
+           models_used, estimated_cost, updated_at
+FROM public.user_usage_daily;`
+- Underlying table: `public.user_usage_daily` has RLS with policies restricting access to the row owner (and admins via functions), so base data is protected.
+
+2. Frontend/API usage inventory
+
+- Code search found no usages of `user_usage_daily_metrics` in API routes, components, or tests. Current endpoints use either `user_model_costs_daily` RPCs or `get_user_complete_profile()` for per-user stats.
+- This suggests the metrics view is currently unused by the application layer. Keeping it as a public object without clear consumers increases maintenance and linter noise.
+
+3. Risk analysis (why linter flagged it)
+
+- Supabase Security Advisor reports the view as SECURITY DEFINER, which could run with creator privileges and bypass RLS on `user_usage_daily` if the owner has broader rights. Even if no immediate exploit exists, leaving definer semantics on a per-user aggregate view is unnecessary risk and inconsistent with our pattern.
+
+4. Remediation options
+
+- Option A (recommended if unused): Drop the view
+
+  - Drop `public.user_usage_daily_metrics` and remove any grants. If a similar convenience is needed later, prefer RPCs or computed columns in queries.
+  - Pros: Simplifies schema, resolves linter finding, no behavior change (no current consumers).
+  - Cons: None identified, given no app usage.
+
+- Option B (if we want to keep it): Harden to invoker + restrict direct SELECT
+  - Set `security_invoker=true` on the view.
+  - Revoke PUBLIC; grant SELECT only to `service_role` (and optionally `authenticated` if we decide to allow direct selects under RLS).
+  - Prefer RPC wrappers for explicit access paths:
+    - `public.get_user_usage_daily_metrics(p_start date, p_end date)` SECURITY INVOKER: filters by `auth.uid()` and returns only the caller’s rows and desired columns.
+    - `public.get_admin_user_usage_daily_metrics(p_start date, p_end date)` SECURITY DEFINER: enforces `public.is_admin(auth.uid())` then returns needed admin aggregates.
+  - Update any future API usage to call RPCs instead of direct view selects.
+
+5. Patch outline (SQL)
+
+Files to add under `/database/patches/security_definer_views/` after approval:
+
+- If Option A (Drop): `004_drop_user_usage_daily_metrics.sql`
+
+```
+DO $$ BEGIN
+    IF EXISTS (
+       SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='user_usage_daily_metrics'
+    ) THEN
+       EXECUTE 'DROP VIEW public.user_usage_daily_metrics';
+    END IF;
+END $$;
+```
+
+- If Option B (Harden): `004_user_usage_daily_metrics_harden.sql`
+
+```
+DO $$ BEGIN
+    IF EXISTS (
+       SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='user_usage_daily_metrics'
+    ) THEN
+       EXECUTE 'ALTER VIEW public.user_usage_daily_metrics SET (security_invoker = true)';
+       EXECUTE 'REVOKE ALL ON public.user_usage_daily_metrics FROM PUBLIC';
+       EXECUTE 'GRANT SELECT ON public.user_usage_daily_metrics TO service_role';
+       -- Optional: allow authenticated if we accept RLS-mediated direct reads
+       -- EXECUTE ''GRANT SELECT ON public.user_usage_daily_metrics TO authenticated'';
+    END IF;
+END $$;
+```
+
+Optional RPCs (if Option B):
+
+```
+CREATE OR REPLACE FUNCTION public.get_user_usage_daily_metrics(
+   p_start date,
+   p_end date
+) RETURNS TABLE (
+   usage_date date,
+   messages_sent int,
+   messages_received int,
+   total_tokens int,
+   input_tokens int,
+   output_tokens int,
+   sessions_created int,
+   generation_ms bigint,
+   generation_seconds numeric,
+   generation_minutes numeric,
+   estimated_cost numeric
+) LANGUAGE sql SECURITY INVOKER AS $$
+   SELECT u.usage_date,
+             u.messages_sent, u.messages_received,
+             u.total_tokens, u.input_tokens, u.output_tokens,
+             u.sessions_created, u.generation_ms,
+             ROUND(u.generation_ms / 1000.0, 3) AS generation_seconds,
+             ROUND(u.generation_ms / 60000.0, 3) AS generation_minutes,
+             u.estimated_cost
+   FROM public.user_usage_daily u
+   WHERE u.user_id = auth.uid()
+      AND u.usage_date BETWEEN p_start AND p_end
+   ORDER BY u.usage_date DESC;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_admin_user_usage_daily_metrics(
+   p_start date,
+   p_end date
+) RETURNS TABLE (
+   user_id uuid,
+   usage_date date,
+   messages_sent int,
+   messages_received int,
+   total_tokens int,
+   input_tokens int,
+   output_tokens int,
+   sessions_created int,
+   generation_ms bigint,
+   generation_seconds numeric,
+   generation_minutes numeric,
+   estimated_cost numeric
+) LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+   IF NOT public.is_admin(auth.uid()) THEN
+      RAISE EXCEPTION 'insufficient_privilege';
+   END IF;
+   RETURN QUERY
+   SELECT u.user_id, u.usage_date,
+             u.messages_sent, u.messages_received,
+             u.total_tokens, u.input_tokens, u.output_tokens,
+             u.sessions_created, u.generation_ms,
+             ROUND(u.generation_ms / 1000.0, 3),
+             ROUND(u.generation_ms / 60000.0, 3),
+             u.estimated_cost
+   FROM public.user_usage_daily u
+   WHERE u.usage_date BETWEEN p_start AND p_end
+   ORDER BY u.usage_date DESC;
+END;$$;
+
+GRANT EXECUTE ON FUNCTION public.get_user_usage_daily_metrics(date,date) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_admin_user_usage_daily_metrics(date,date) TO authenticated, service_role;
+```
+
+6. API impact
+
+- Option A: None (no consumers found). Remove any residual references if discovered later.
+- Option B: If we add RPCs, update any new or future endpoints to call the RPCs following our middleware + tiered rate limiting standards.
+
+7. Verification checklist
+
+- [x] Apply patch 004 in dev and re-run Security Advisor; finding for `user_usage_daily_metrics` cleared.
+- [x] N/A – View dropped (no RPCs or direct SELECT to validate).
+- [x] Full Jest suite: PASS (no app code changes required for this drop).
+- [x] Docs: this advisor entry updated to reflect resolution.
+
+8. Open questions for confirmation
+
+1) Resolved – Dropped as unused via patch 004.
+2) N/A – View removed; future needs should go through RPCs.
+3) N/A – If reintroduced, define via RPC with minimal surface area.
+
+### Remediation: v_sync_stats (Complete)
 
 Status: Complete – view now explicitly marked `security_invoker=true`; performance + security changes deployed, API & UI consuming wrapper function. Pending optional explicit automated non-admin denial test (manual verification acceptable).
 
@@ -223,7 +388,7 @@ If we choose the RPC path now, include the function(s) as described in §5 and a
 
 ---
 
-### Remediation: v_model_counts_public (Proposed)
+### Remediation: v_model_counts_public (Complete)
 
 Status: Proposed – keep the view as a public-safe aggregate but make its security explicit. Apply `security_invoker=true` and explicit GRANTs aligned with intended exposure. No RPC required unless we later restrict public access.
 
@@ -232,12 +397,12 @@ Status: Proposed – keep the view as a public-safe aggregate but make its secur
 - Purpose: Single-row aggregate of model status counts used in admin analytics (and suitable for public/landing metrics if desired). It exposes only counts by status across `model_access`.
 - Current definition (from `database/schema/04-system.sql`):
   - `CREATE OR REPLACE VIEW public.v_model_counts_public AS
-  SELECT COUNT(*) FILTER (WHERE status='new') AS new_count,
-             COUNT(*) FILTER (WHERE status='active') AS active_count,
-             COUNT(*) FILTER (WHERE status='inactive') AS inactive_count,
-             COUNT(*) FILTER (WHERE status='disabled') AS disabled_count,
-             COUNT(*) AS total_count
-  FROM public.model_access;`
+SELECT COUNT(*) FILTER (WHERE status='new') AS new_count,
+           COUNT(*) FILTER (WHERE status='active') AS active_count,
+           COUNT(*) FILTER (WHERE status='inactive') AS inactive_count,
+           COUNT(*) FILTER (WHERE status='disabled') AS disabled_count,
+           COUNT(*) AS total_count
+FROM public.model_access;`
 - Underlying table security: `public.model_access` has RLS enabled with policy: "All users can view model access" (USING true). No PII; data is model catalog metadata.
 
 2. Usage inventory
@@ -301,11 +466,11 @@ If Option B is preferred later, add an RPC and switch API calls; otherwise, no a
 
 7. Verification checklist
 
-- [ ] Apply patch in a dev database and re-run the Security Advisor; confirm the finding for `v_model_counts_public` is cleared.
-- [ ] Manual SQL: `select * from public.v_model_counts_public;` returns one row with the 5 fields, for both anon and authenticated sessions.
-- [ ] Admin API endpoints (`/api/admin/analytics/overview` and `/api/admin/analytics/models`) still return the counts segment with no changes.
-- [ ] Jest suite passes without modifications.
-- [ ] Docs: add a short note that this view is explicitly invoker + anon-select for public-safe usage.
+- [x] Apply patch in a dev database and re-run the Security Advisor; confirm the finding for `v_model_counts_public` is cleared.
+- [x] Manual SQL: `select * from public.v_model_counts_public;` returns one row with the 5 fields, for both anon and authenticated sessions.
+- [x] Admin API endpoints (`/api/admin/analytics/overview` and `/api/admin/analytics/models`) still return the counts segment with no changes.
+- [x] Jest suite passes without modifications.
+- [x] Docs: add a short note that this view is explicitly invoker + anon-select for public-safe usage.
 
 8. Open questions for confirmation
 
