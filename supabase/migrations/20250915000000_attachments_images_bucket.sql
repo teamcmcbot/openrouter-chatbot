@@ -1,17 +1,13 @@
--- =============================================================================
--- STORAGE POLICIES (Supabase Storage)
--- =============================================================================
--- This file defines bucket-scoped RLS policies for Storage. RLS on storage.objects
--- is managed by Supabase and typically enabled by default. We add idempotent
--- DO blocks to create per-bucket policies for `attachments-images`.
+-- Attachments images bucket: create/update with desired settings + RLS policies
+-- This migration is flat under supabase/migrations so it runs with `supabase db reset`
+-- Idempotent: safe to run multiple times
 
--- -----------------------------------------------------------------------------
--- Buckets: canonical configuration for `attachments-images`
--- -----------------------------------------------------------------------------
--- Create or update the bucket with desired settings so a fresh clone has it.
+-- Bucket settings to match Studio screenshot:
 -- - private bucket (public = false)
 -- - file size limit = 10 MB
 -- - allowed mime types = image/png, image/jpeg, image/webp
+
+-- Upsert bucket so settings are enforced even if bucket already exists
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'attachments-images',
@@ -26,7 +22,10 @@ SET name = EXCLUDED.name,
     file_size_limit = EXCLUDED.file_size_limit,
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
--- Read own objects in attachments-images
+-- Note: RLS on storage.objects is managed by the Storage extension and is
+-- typically already enabled. Avoid toggling it here to prevent ownership errors.
+
+-- Policies scoped to this bucket. Create only if missing.
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -43,7 +42,6 @@ BEGIN
   END IF;
 END$$;
 
--- Insert own objects into attachments-images
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -60,7 +58,6 @@ BEGIN
   END IF;
 END$$;
 
--- Delete own objects in attachments-images
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -77,7 +74,6 @@ BEGIN
   END IF;
 END$$;
 
--- Update (rename/move) own objects in attachments-images
 DO $$
 BEGIN
   IF NOT EXISTS (
