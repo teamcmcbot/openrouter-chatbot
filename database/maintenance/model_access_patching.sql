@@ -1,25 +1,19 @@
---Models Access
-
-select * from model_access;
+select model_id,is_free,is_pro,is_enterprise,output_image_price from model_access where is_free=true or is_pro=true or is_enterprise=true;
 select status, count(*) from model_access group by status;
+update model_access set status='active';
 
--- Check new models
-select * from model_access where status='new';
-select model_id from model_access where status='new';
+-- free models 
+update model_access set status='active', is_free=true where model_id in ('z-ai/glm-4.5-air:free','moonshotai/kimi-k2:free','deepseek/deepseek-chat-v3.1:free','deepseek/deepseek-r1-0528:free','google/gemini-2.0-flash-exp:free','google/gemini-2.5-flash-lite');
 
--- To enable for Free tier and up:
--- openai/gpt-oss-20b, 
-update model_access set is_free=true, is_pro=true, is_enterprise=true where model_id in ('openai/gpt-oss-20b');
+-- pro models
+update model_access set status='active', is_pro=true where model_id in ('z-ai/glm-4.5-air:free','moonshotai/kimi-k2:free','deepseek/deepseek-chat-v3.1:free','deepseek/deepseek-r1-0528:free','google/gemini-2.0-flash-exp:free','google/gemini-2.5-flash-lite','mistralai/magistral-small-2506','openai/gpt-4o-mini');
 
--- To enable for Pro tier and up:
--- openai/gpt-oss-120b, 
-update model_access set is_free=false, is_pro=true, is_enterprise=true where model_id in ('openai/gpt-oss-120b');
+-- enterprise models
+update model_access set status='active', is_enterprise=true where model_id in ('z-ai/glm-4.5-air:free','moonshotai/kimi-k2:free','deepseek/deepseek-chat-v3.1:free','deepseek/deepseek-r1-0528:free','google/gemini-2.0-flash-exp:free','google/gemini-2.5-flash-lite','mistralai/magistral-small-2506','openai/gpt-4o-mini','anthropic/claude-3-haiku','x-ai/grok-3-mini','openai/gpt-5','openai/gpt-5-nano','openai/gpt-5-mini','google/gemini-2.5-flash-image-preview');
 
--- To enable for Enterprise tier:
--- anthropic/claude-opus-4.1
--- tngtech/deepseek-r1t-chimera
-update model_access set is_free=false, is_pro=false, is_enterprise=true where model_id in ('anthropic/claude-opus-4.1');
+--google/gemini-2.5-flash-image-preview output image price
+update model_access set output_image_price='0.00003' where model_id='google/gemini-2.5-flash-image-preview';
 
-
--- Set new models to active
-update model_access set status='active' where status='new';
+select * from profiles;
+update profiles set account_type='admin', subscription_tier='enterprise' where id='';
+update profiles set subscription_tier='pro' where id='';

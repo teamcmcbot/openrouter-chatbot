@@ -1,6 +1,6 @@
 # GET /api/usage/costs/models/daily
 
-Last Updated: 2025-08-13
+Last Updated: 2025-09-12
 Status: Stable (Phase 3)
 Auth: withProtectedAuth (user must be authenticated)
 
@@ -49,7 +49,10 @@ Notes:
 
 ## Behavior & Logic
 
-1. Fetches rows from `user_model_costs_daily` view for the user/date range. If the view is missing, falls back to aggregating raw `message_token_costs` rows.
+1. RPC-first: calls `get_user_model_costs_daily(p_start, p_end, p_model_id?)` for the user/date range.
+
+- If the RPC is unavailable, falls back to the `user_model_costs_daily` view; if the view is missing, aggregates from raw `message_token_costs` rows.
+
 2. Totals by model computed separately.
 3. Top N models chosen for tokens; top N chosen for cost (independent sets).
 4. For each day, contributions of non-top models are summed into `others` per chart.
@@ -76,7 +79,8 @@ Currently no HTTP caching headers are set (dynamic). Future improvement: short-l
 ## Security
 
 - Protected by `withProtectedAuth` middleware.
-- DB RLS ensures only rows for `auth.uid()` are visible.
+- RPC `get_user_model_costs_daily` is SECURITY INVOKER and respects RLS on `message_token_costs`.
+- Direct SELECT on `user_model_costs_daily` is restricted to server roles; the app prefers the RPC.
 
 ## Future Enhancements
 

@@ -23,6 +23,7 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 - **[redis-rate-limiting-setup.md](./ops/redis-rate-limiting-setup.md)** - Redis setup guide for development and production
 - **[redis-rate-limiting-troubleshooting.md](./ops/redis-rate-limiting-troubleshooting.md)** - Troubleshooting guide for Redis rate limiting
 - **[supabase-setup.md](./ops/supabase-setup.md)** - Supabase setup: apply schema, create bucket, expose `storage` schema
+- **[supabase-cli-guide.md](./ops/supabase-cli-guide.md)** - Supabase CLI usage (init/link, local stack, migrations, push/reset, seeding)
 - **[sentry-setup.md](./ops/sentry-setup.md)** - Server-only errors with tags (`route`, `requestId`, `model` for chat)
 - **[sentry-troubleshooting.md](./ops/sentry-troubleshooting.md)** - Troubleshooting Sentry setup and missing events
 - Deployment guides and operational procedures
@@ -35,6 +36,7 @@ This directory contains comprehensive documentation for the OpenRouter Chatbot a
 ### Database Documentation (`/database/`)
 
 - Database schema, migrations, and query guides
+- **[migrations-workflow.md](./database/migrations-workflow.md)** - Migration lifecycle: local → dev → prod, naming, idempotency, rollback
 
 ### Other Guides
 
@@ -112,6 +114,7 @@ The application implements comprehensive Redis-based rate limiting:
 - **[serverless-caching-completion-summary.md](./serverless-caching-completion-summary.md)** - Caching implementation
 - **[session-title-optimization.md](./session-title-optimization.md)** - Session title optimization
 - **[frontend-rate-limiting-fixes-completion-summary.md](./frontend-rate-limiting-fixes-completion-summary.md)** - Frontend rate limiting fixes
+- **[2025-09-db-schema-cleanup.md](./updates/2025-09-db-schema-cleanup.md)** - September 2025 database schema cleanup and retention simplification
 
 ### Store Documentation (`/stores/`)
 

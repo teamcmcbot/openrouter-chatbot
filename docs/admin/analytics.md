@@ -50,6 +50,7 @@ UI wiring notes
 ## Security & RLS
 
 - These are plain views. Enforce admin-only access to admin\_\* views by ensuring RLS on base tables and wrapping data access with admin-only endpoints.
+- v_model_counts_public: explicitly set security_invoker=true; SELECT is granted to anon, authenticated, and service_role (public-safe aggregate; no PII).
 - Prefer server-side APIs protected with `withAdminAuth` to fetch these metrics.
 
 ## Next Steps
@@ -70,7 +71,15 @@ See details and response shapes in `docs/api/admin-analytics.md`.
 
 ## Semantics note on "New" (Models)
 
-`v_model_sync_activity_daily` aggregates per-day sums from `model_sync_log` over the last 30 days: models_added, models_marked_inactive, models_reactivated. This reflects actual sync job results rather than final statuses by updated_at.
+`v_model_sync_activity_daily` (now consumed exclusively via the hardened SECURITY DEFINER RPC `get_model_sync_activity_daily(p_days integer)`) aggregates per-day sums from `model_sync_log` over the last N days (default 30): `models_added`, `models_marked_inactive`, `models_reactivated`.
+
+Hardening pattern applied:
+
+- View explicitly marked `security_invoker=true` and direct SELECT revoked from PUBLIC.
+- EXECUTE permission granted on the wrapper function only to `authenticated` and `service_role` roles; function enforces admin via `public.is_admin(auth.uid())`.
+- API route `/api/admin/analytics/models` calls `supabase.rpc('get_model_sync_activity_daily', { p_days: 30 })` instead of selecting from the view.
+
+Semantics: These counts reflect sync job outcomes (state transitions) rather than final model status at end-of-day. A model added and then disabled same day contributes to `models_added` and may not appear as active in status snapshots.
 
 ## Audit log (admin_audit_log)
 
@@ -95,6 +104,7 @@ RLS:
 
 Changelog
 
+- 2025-09-11: Updated model sync activity section to document hardened RPC usage.
 - 2025-09-03: Added segment toggle documentation and anonymous metrics semantics. Updated UI wiring notes and errors list behavior.
 
 - SELECT allowed for admins only via policy "Only admins can read audit logs".

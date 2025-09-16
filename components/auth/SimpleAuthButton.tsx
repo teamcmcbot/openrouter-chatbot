@@ -15,6 +15,9 @@ import { useTheme } from '../../stores/useUIStore'
 import { useUserData } from '../../hooks/useUserData'
 import { logger } from '../../lib/utils/logger'
 
+// Module-level in-flight dedupe for admin checks per user
+const ADMIN_CHECK_IN_FLIGHT: Map<string, Promise<boolean>> = new Map()
+
 export function SimpleAuthButton() {
   const [showModal, setShowModal] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
@@ -23,6 +26,8 @@ export function SimpleAuthButton() {
   const menuRef = useRef<HTMLDivElement>(null)
   const { theme, setTheme } = useTheme()
   const { updatePreferences } = useUserData({ enabled: false })
+  // Track whether we've applied the first-login delay for a given user to avoid duplicates
+  const adminDelayAppliedRef = useRef<Set<string>>(new Set())
 
   // Helper to normalize any legacy/system theme to binary
   const normalizeTheme = (t?: string): 'light' | 'dark' => (t === 'light' ? 'light' : 'dark')
@@ -65,17 +70,49 @@ export function SimpleAuthButton() {
           if (isMounted) setIsAdmin(false)
           return
         }
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('account_type')
-          .eq('id', user.id)
-          .single()
-        if (error) {
-          logger.warn('auth.simpleButton.fetchAccountType.failed', { message: error.message })
-          if (isMounted) setIsAdmin(false)
-          return
+
+        const currentUserId = user.id
+  const createdAt = (user as unknown as { created_at?: string })?.created_at
+        // Build a shared in-flight promise (includes first-login delay + query)
+        const runAdminCheck = async (): Promise<boolean> => {
+          // First-login delay: mark applied before awaiting to avoid duplicate waits
+          const isFirstForUser = !adminDelayAppliedRef.current.has(currentUserId)
+          if (isFirstForUser && typeof createdAt === 'string') {
+            adminDelayAppliedRef.current.add(currentUserId)
+            const createdMs = Date.parse(createdAt)
+            if (!Number.isNaN(createdMs)) {
+              const ageMs = Date.now() - createdMs
+              if (ageMs >= 0 && ageMs <= 60_000) {
+                const delayMs = 3_000 // fixed 3s delay for recent new accounts
+                await new Promise((r) => setTimeout(r, delayMs))
+              }
+            }
+          }
+
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('account_type')
+            .eq('id', user.id)
+            .single()
+          if (error) {
+            logger.warn('auth.simpleButton.fetchAccountType.failed', { message: error.message })
+            return false
+          }
+          return (data?.account_type as string) === 'admin'
         }
-        if (isMounted) setIsAdmin((data?.account_type as string) === 'admin')
+
+        let promise = ADMIN_CHECK_IN_FLIGHT.get(currentUserId)
+        if (!promise) {
+          promise = runAdminCheck()
+          ADMIN_CHECK_IN_FLIGHT.set(currentUserId, promise)
+        }
+        try {
+          const isAdminResult = await promise
+          if (isMounted) setIsAdmin(isAdminResult)
+        } finally {
+          // Allow future checks to run; concurrent awaiters will handle missing delete safely
+          ADMIN_CHECK_IN_FLIGHT.delete(currentUserId)
+        }
       } catch (e) {
         logger.warn('auth.simpleButton.checkAdmin.exception', { err: (e as Error)?.message })
         if (isMounted) setIsAdmin(false)
@@ -85,7 +122,7 @@ export function SimpleAuthButton() {
     return () => {
       isMounted = false
     }
-  }, [user?.id])
+  }, [user, user?.id])
 
   // Close menu on outside click or Escape
   useEffect(() => {

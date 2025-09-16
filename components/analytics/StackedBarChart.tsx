@@ -84,7 +84,13 @@ export function StackedBarChart({ data, metric, height = 240, hideSingleDay }: P
           <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-800" />
           <XAxis dataKey="date" tick={{ fontSize:11 }} tickFormatter={(d: string)=> new Date(d).toLocaleDateString(undefined,{ day:'2-digit', month:'short' })} />
           <YAxis tick={{ fontSize:11 }} width={50} tickFormatter={abbreviate} />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip 
+            content={<CustomTooltip />} 
+            cursor={{ 
+              fill: 'rgba(156, 163, 175, 0.1)', // gray-400 with 10% opacity for light mode
+              className: 'fill-gray-400/10 dark:fill-gray-600/20' // More subtle in dark mode
+            }} 
+          />
           {modelKeys.map((m, idx) => (
             <Bar key={m} dataKey={m} stackId="a" name={m} fill={COLORS[idx % COLORS.length]} radius={idx === modelKeys.length-1 ? [3,3,0,0]: undefined} />
           ))}

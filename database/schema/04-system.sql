@@ -5,148 +5,85 @@
 -- functions, triggers, RLS policies, and views.
 
 -- =============================================================================
--- SYSTEM OPTIMIZATION TABLES
--- =============================================================================
-
--- Cache table for frequently accessed data
-CREATE TABLE public.system_cache (
-    cache_key VARCHAR(255) PRIMARY KEY,
-    cache_value JSONB NOT NULL,
-    expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
-
--- System statistics and health monitoring
-CREATE TABLE public.system_stats (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    stat_date DATE NOT NULL,
-
-    -- User statistics
-    total_users INTEGER DEFAULT 0,
-    active_users_today INTEGER DEFAULT 0,
-    new_users_today INTEGER DEFAULT 0,
-
-    -- Usage statistics
-    total_conversations INTEGER DEFAULT 0,
-    total_messages INTEGER DEFAULT 0,
-    total_tokens INTEGER DEFAULT 0,
-
-    -- Performance metrics
-    avg_response_time DECIMAL(10,3) DEFAULT 0,
-    error_rate DECIMAL(5,4) DEFAULT 0,
-
-    -- Storage statistics
-    database_size_mb DECIMAL(15,2) DEFAULT 0,
-
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-
-    UNIQUE(stat_date)
-);
+-- (Removed) system_cache & system_stats tables were deprecated (Sept 2025) in favor of Redis and external analytics.
 
 -- =============================================================================
 -- INDEXES FOR OPTIMIZATION
 -- =============================================================================
 
--- Cache indexes
-CREATE INDEX idx_system_cache_expires ON public.system_cache(expires_at) WHERE expires_at IS NOT NULL;
-
--- Stats indexes
-CREATE INDEX idx_system_stats_date ON public.system_stats(stat_date DESC);
+-- (Removed) related indexes for deprecated tables
 
 -- =============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- =============================================================================
 
--- Enable RLS on new tables
-ALTER TABLE public.system_cache ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
-
--- System cache policies (admin only for write, all for read if applicable)
-CREATE POLICY "All authenticated users can view system cache" ON public.system_cache
-    FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "Only admins can modify system cache" ON public.system_cache
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND subscription_tier = 'admin'
-        )
-    );
-
--- System stats policies (all authenticated users can view, admins can write)
-CREATE POLICY "All authenticated users can view system stats" ON public.system_stats
-    FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "Only admins can modify system stats" ON public.system_stats
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid()
-            AND subscription_tier = 'admin'
-        )
-    );
+-- (Removed) RLS policies for deprecated tables
 
 -- =============================================================================
 -- UTILITY FUNCTIONS
 -- =============================================================================
 
--- Function to clean up old data
-CREATE OR REPLACE FUNCTION public.cleanup_old_data(
-    days_to_keep INTEGER DEFAULT 90
-)
+-- Simplified single-parameter cleanup covering all analytics tables.
+-- NOTE: Manual admin call only. days_to_keep applies uniformly.
+CREATE OR REPLACE FUNCTION public.cleanup_old_data(days_to_keep INTEGER DEFAULT 90)
 RETURNS JSONB AS $$
 DECLARE
-    cleanup_date TIMESTAMPTZ;
-    deleted_activity INTEGER;
-    deleted_usage INTEGER;
-    deleted_cache INTEGER;
+    v_started_at TIMESTAMPTZ := NOW();
+    v_cutoff_ts TIMESTAMPTZ := NOW() - (days_to_keep || ' days')::INTERVAL;
+    v_cutoff_date DATE := CURRENT_DATE - (days_to_keep || ' days')::INTERVAL;
+    del_activity BIGINT := 0;
+    del_usage BIGINT := 0;
+    del_anon_usage BIGINT := 0;
+    del_anon_model_usage BIGINT := 0;
+    del_anon_errors BIGINT := 0;
+    del_token_costs BIGINT := 0;
+    del_cta BIGINT := 0;
+    del_sync BIGINT := 0;
 BEGIN
-    cleanup_date := NOW() - (days_to_keep || ' days')::INTERVAL;
+    DELETE FROM public.user_activity_log WHERE timestamp < v_cutoff_ts;
+    GET DIAGNOSTICS del_activity = ROW_COUNT;
 
-    -- Clean up old activity logs (keep last N days)
-    DELETE FROM public.user_activity_log
-    WHERE timestamp < cleanup_date;
-    GET DIAGNOSTICS deleted_activity = ROW_COUNT;
+    DELETE FROM public.user_usage_daily WHERE usage_date < v_cutoff_date;
+    GET DIAGNOSTICS del_usage = ROW_COUNT;
 
-    -- Clean up old usage data (keep last N days)
-    DELETE FROM public.user_usage_daily
-    WHERE usage_date < CURRENT_DATE - (days_to_keep || ' days')::INTERVAL;
-    GET DIAGNOSTICS deleted_usage = ROW_COUNT;
+    DELETE FROM public.anonymous_usage_daily WHERE usage_date < v_cutoff_date;
+    GET DIAGNOSTICS del_anon_usage = ROW_COUNT;
 
-    -- Clean up expired cache entries
-    DELETE FROM public.system_cache
-    WHERE expires_at IS NOT NULL AND expires_at < NOW();
-    GET DIAGNOSTICS deleted_cache = ROW_COUNT;
+    DELETE FROM public.anonymous_model_usage_daily WHERE usage_date < v_cutoff_date;
+    GET DIAGNOSTICS del_anon_model_usage = ROW_COUNT;
 
-    -- Update system stats
-    INSERT INTO public.system_stats (
-        stat_date,
-        total_users,
-        total_conversations,
-        total_messages
-    )
-    SELECT
-        CURRENT_DATE,
-        (SELECT COUNT(*) FROM public.profiles),
-        (SELECT COUNT(*) FROM public.chat_sessions),
-        (SELECT COUNT(*) FROM public.chat_messages)
-    ON CONFLICT (stat_date) DO UPDATE SET
-        total_users = EXCLUDED.total_users,
-        total_conversations = EXCLUDED.total_conversations,
-        total_messages = EXCLUDED.total_messages;
+    DELETE FROM public.anonymous_error_events WHERE event_timestamp < v_cutoff_ts;
+    GET DIAGNOSTICS del_anon_errors = ROW_COUNT;
+
+    DELETE FROM public.message_token_costs WHERE message_timestamp < v_cutoff_ts;
+    GET DIAGNOSTICS del_token_costs = ROW_COUNT;
+
+    DELETE FROM public.cta_events WHERE created_at < v_cutoff_ts;
+    GET DIAGNOSTICS del_cta = ROW_COUNT;
+
+    DELETE FROM public.model_sync_log WHERE COALESCE(sync_completed_at, sync_started_at) < v_cutoff_ts;
+    GET DIAGNOSTICS del_sync = ROW_COUNT;
 
     RETURN jsonb_build_object(
         'success', true,
-        'cleanup_date', cleanup_date,
+        'started_at', v_started_at,
+        'completed_at', NOW(),
+        'days_to_keep', days_to_keep,
+        'cutoff_timestamp', v_cutoff_ts,
         'deleted_records', jsonb_build_object(
-            'activity_logs', deleted_activity,
-            'usage_records', deleted_usage,
-            'cache_entries', deleted_cache
+            'user_activity_log', del_activity,
+            'user_usage_daily', del_usage,
+            'anonymous_usage_daily', del_anon_usage,
+            'anonymous_model_usage_daily', del_anon_model_usage,
+            'anonymous_error_events', del_anon_errors,
+            'message_token_costs', del_token_costs,
+            'cta_events', del_cta,
+            'model_sync_log', del_sync
         ),
-        'cleanup_completed_at', NOW()
+        'schema_version', 'retention-simple-v1'
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Function to analyze database health
 CREATE OR REPLACE FUNCTION public.analyze_database_health()
@@ -181,47 +118,13 @@ BEGIN
 
     RETURN health_data;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- =============================================================================
 -- VIEWS
 -- =============================================================================
 
--- Create a comprehensive view for API usage
-CREATE OR REPLACE VIEW public.api_user_summary AS
-SELECT
-    p.id,
-    p.email,
-    p.full_name,
-    p.avatar_url,
-    p.subscription_tier,
-    p.credits,
-    p.default_model,
-    p.temperature,
-    p.system_prompt,
-    p.ui_preferences,
-    p.session_preferences,
-    p.last_active,
-    COALESCE(recent_usage.messages_today, 0) as messages_today,
-    COALESCE(recent_usage.tokens_today, 0) as tokens_today,
-    COALESCE(session_count.total_sessions, 0) as total_sessions
-FROM public.profiles p
-LEFT JOIN (
-    SELECT
-        user_id,
-        SUM(messages_sent + messages_received) as messages_today,
-        SUM(total_tokens) as tokens_today
-    FROM public.user_usage_daily
-    WHERE usage_date = CURRENT_DATE
-    GROUP BY user_id
-) recent_usage ON p.id = recent_usage.user_id
-LEFT JOIN (
-    SELECT
-        user_id,
-        COUNT(*) as total_sessions
-    FROM public.chat_sessions
-    GROUP BY user_id
-) session_count ON p.id = session_count.user_id;
+-- (Removed) api_user_summary view (dropped via patch remove-api-user-summary/001_drop_api_user_summary.sql on 2025-09-10; unused in application).
 
 -- =============================================================================
 -- ANALYTICS VIEWS (PHASE 4)
@@ -260,8 +163,23 @@ SELECT
     COUNT(*) AS total_count
 FROM public.model_access;
 
+-- Harden: explicit invoker semantics and clear privileges
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='v_model_counts_public'
+    ) THEN
+        EXECUTE 'ALTER VIEW public.v_model_counts_public SET (security_invoker = true)';
+    END IF;
+END$$;
+
+REVOKE ALL ON TABLE public.v_model_counts_public FROM PUBLIC;
+GRANT SELECT ON TABLE public.v_model_counts_public TO anon;
+GRANT SELECT ON TABLE public.v_model_counts_public TO authenticated;
+GRANT SELECT ON TABLE public.v_model_counts_public TO service_role;
+
 -- Admin-only daily model sync activity (last 30 days)
--- Supersedes v_model_recent_activity_admin
+-- Hardened: explicit security_invoker, restricted SELECT, wrapper RPC with admin check.
 CREATE OR REPLACE VIEW public.v_model_sync_activity_daily AS
 SELECT
     DATE_TRUNC('day', COALESCE(sync_completed_at, sync_started_at)) AS day,
@@ -271,9 +189,55 @@ SELECT
     COUNT(*) AS runs
 FROM public.model_sync_log
 WHERE sync_status = 'completed'
-    AND COALESCE(sync_completed_at, sync_started_at) >= NOW() - INTERVAL '30 days'
-GROUP BY 1
-ORDER BY day DESC;
+  AND COALESCE(sync_completed_at, sync_started_at) >= NOW() - INTERVAL '30 days'
+GROUP BY 1; -- Ordering applied by caller
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='v_model_sync_activity_daily'
+    ) THEN
+        EXECUTE 'ALTER VIEW public.v_model_sync_activity_daily SET (security_invoker = true)';
+    END IF;
+END$$;
+
+REVOKE ALL ON TABLE public.v_model_sync_activity_daily FROM PUBLIC;
+GRANT SELECT ON TABLE public.v_model_sync_activity_daily TO service_role;
+GRANT SELECT ON TABLE public.v_model_sync_activity_daily TO postgres;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname='public'
+          AND p.proname='get_model_sync_activity_daily'
+          AND pg_get_function_identity_arguments(p.oid) = 'p_days integer'
+    ) THEN
+        EXECUTE 'DROP FUNCTION public.get_model_sync_activity_daily(p_days integer)';
+    END IF;
+END$$;
+
+CREATE OR REPLACE FUNCTION public.get_model_sync_activity_daily(p_days integer DEFAULT 30)
+RETURNS TABLE(day date, models_added int, models_marked_inactive int, models_reactivated int) AS $$
+DECLARE
+    safe_days integer := LEAST(GREATEST(p_days,1),365);
+BEGIN
+    IF NOT public.is_admin(auth.uid()) THEN
+        RAISE EXCEPTION 'insufficient_privilege';
+    END IF;
+    RETURN QUERY
+    SELECT v.day::date AS day,
+           v.models_added::int,
+           v.models_marked_inactive::int,
+           v.models_reactivated::int
+    FROM public.v_model_sync_activity_daily v
+    WHERE v.day::date >= (CURRENT_DATE - (safe_days - 1))
+    ORDER BY v.day::date DESC;
+END;$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
+
+REVOKE ALL ON FUNCTION public.get_model_sync_activity_daily(integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_model_sync_activity_daily(integer) TO authenticated, service_role;
 
 -- =============================================================================
 -- ADMIN AUDIT LOG (PHASE 4)
@@ -305,7 +269,7 @@ BEGIN
     ) THEN
         EXECUTE 'DROP POLICY "Only admins can read audit logs" ON public.admin_audit_log';
     END IF;
-    EXECUTE 'CREATE POLICY "Only admins can read audit logs" ON public.admin_audit_log FOR SELECT USING (public.is_admin(auth.uid()))';
+    EXECUTE 'CREATE POLICY "Only admins can read audit logs" ON public.admin_audit_log FOR SELECT USING (public.is_admin((select auth.uid())))';
 END$$;
 
 -- Deny direct INSERTs; use SECURITY DEFINER function
@@ -330,7 +294,7 @@ BEGIN
     INSERT INTO public.admin_audit_log(actor_user_id, action, target, payload)
     VALUES (p_actor_user_id, p_action, p_target, p_payload);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- =============================================================================
 -- CTA EVENTS ANALYTICS (MERGED FROM PATCH analytics-cta-events/001_create_cta_events.sql)
@@ -365,14 +329,14 @@ BEGIN
     ) THEN
         EXECUTE 'DROP POLICY "Admin can read CTA events" ON public.cta_events';
     END IF;
-    EXECUTE 'CREATE POLICY "Admin can read CTA events" ON public.cta_events FOR SELECT USING (public.is_admin(auth.uid()))';
+    EXECUTE 'CREATE POLICY "Admin can read CTA events" ON public.cta_events FOR SELECT USING (public.is_admin((select auth.uid())))';
 
     IF EXISTS (
         SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='cta_events' AND policyname='Allow inserts from server roles'
     ) THEN
         EXECUTE 'DROP POLICY "Allow inserts from server roles" ON public.cta_events';
     END IF;
-    EXECUTE 'CREATE POLICY "Allow inserts from server roles" ON public.cta_events FOR INSERT WITH CHECK (auth.role() = ''service_role'' OR auth.role() = ''authenticated'')';
+    EXECUTE 'CREATE POLICY "Allow inserts from server roles" ON public.cta_events FOR INSERT WITH CHECK ((select auth.role()) = ''service_role'' OR (select auth.role()) = ''authenticated'')';
 END$$;
 
 -- Retention helper
@@ -386,7 +350,7 @@ BEGIN
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- RPC for safe ingestion from web tier
 DO $$

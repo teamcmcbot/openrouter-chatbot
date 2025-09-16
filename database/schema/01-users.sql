@@ -152,6 +152,7 @@ CREATE INDEX idx_activity_log_action ON public.user_activity_log(action);
 
 -- Moderation actions indexes
 CREATE INDEX idx_moderation_actions_user_date ON public.moderation_actions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_moderation_actions_created_by ON public.moderation_actions(created_by);
 
 -- Usage tracking indexes
 CREATE INDEX idx_usage_daily_user_date ON public.user_usage_daily(user_id, usage_date DESC);
@@ -167,70 +168,50 @@ ALTER TABLE public.user_activity_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_usage_daily ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.moderation_actions ENABLE ROW LEVEL SECURITY;
 
--- Profile policies
-CREATE POLICY "Users can view their own profile" ON public.profiles
-    FOR SELECT USING (auth.uid() = id);
+-- Consolidated profile policies
+CREATE POLICY "View profiles" ON public.profiles
+    FOR SELECT USING (
+        public.is_admin((select auth.uid())) OR (select auth.uid()) = id
+    );
 
-CREATE POLICY "Users can update their own profile" ON public.profiles
-    FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Update profiles" ON public.profiles
+    FOR UPDATE USING (
+        public.is_admin((select auth.uid())) OR (select auth.uid()) = id
+    ) WITH CHECK (
+        public.is_admin((select auth.uid())) OR (select auth.uid()) = id
+    );
 
+-- Insert remains separate (no admin-wide insert policy needed)
 CREATE POLICY "Users can insert their own profile" ON public.profiles
-    FOR INSERT WITH CHECK (auth.uid() = id);
-
--- Admin override policies
-CREATE POLICY "Admins can view any profile" ON public.profiles
-    FOR SELECT USING (public.is_admin(auth.uid()));
-
-CREATE POLICY "Admins can update any profile" ON public.profiles
-    FOR UPDATE USING (public.is_admin(auth.uid()));
+    FOR INSERT WITH CHECK ((select auth.uid()) = id);
 
 -- Activity log policies
 CREATE POLICY "Users can view their own activity" ON public.user_activity_log
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING ((select auth.uid()) = user_id);
 
 -- Usage daily policies
 CREATE POLICY "Users can view their own usage" ON public.user_usage_daily
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users can insert their own usage" ON public.user_usage_daily
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+    FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users can update their own usage" ON public.user_usage_daily
-    FOR UPDATE USING (auth.uid() = user_id);
+    FOR UPDATE USING ((select auth.uid()) = user_id);
 
 -- Moderation actions policies (admins only)
 CREATE POLICY "Admins can view moderation actions" ON public.moderation_actions
-    FOR SELECT USING (public.is_admin(auth.uid()));
+    FOR SELECT USING (public.is_admin((select auth.uid())));
 
 CREATE POLICY "Admins can insert moderation actions" ON public.moderation_actions
-    FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
+    FOR INSERT WITH CHECK (public.is_admin((select auth.uid())));
 
 CREATE POLICY "Admins can update moderation actions" ON public.moderation_actions
-    FOR UPDATE USING (public.is_admin(auth.uid())) WITH CHECK (public.is_admin(auth.uid()));
+    FOR UPDATE USING (public.is_admin((select auth.uid()))) WITH CHECK (public.is_admin((select auth.uid())));
 
 -- =============================================================================
 -- UTILITY FUNCTIONS
 -- =============================================================================
-
--- Helper function for jsonb deep merge
-CREATE OR REPLACE FUNCTION jsonb_deep_merge(a jsonb, b jsonb)
-RETURNS jsonb AS $$
-DECLARE
-    result jsonb := a;
-    key text;
-    value jsonb;
-BEGIN
-    FOR key, value IN SELECT * FROM jsonb_each(b)
-    LOOP
-        IF jsonb_typeof(value) = 'object' AND result ? key AND jsonb_typeof(result -> key) = 'object' THEN
-            result := jsonb_set(result, ARRAY[key], jsonb_deep_merge(result -> key, value));
-        ELSE
-            result := jsonb_set(result, ARRAY[key], value);
-        END IF;
-    END LOOP;
-    RETURN result;
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Function to update updated_at timestamp and initialize usage stats
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
@@ -245,7 +226,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 -- Function to log user activity
 CREATE OR REPLACE FUNCTION public.log_user_activity(
@@ -265,7 +246,7 @@ BEGIN
 
     RETURN activity_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Helper: check if a user is admin
 CREATE OR REPLACE FUNCTION public.is_admin(p_user_id uuid)
@@ -397,7 +378,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Ban a user (permanent when p_until is null, temporary otherwise)
 CREATE OR REPLACE FUNCTION public.ban_user(
@@ -524,93 +505,6 @@ GRANT EXECUTE ON FUNCTION public.is_banned(uuid) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ban_user(uuid, timestamptz, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.unban_user(uuid, text) TO authenticated;
 
--- Function to manually sync profile data for existing users
-CREATE OR REPLACE FUNCTION public.sync_profile_from_auth(user_uuid UUID)
-RETURNS JSONB AS $$
-DECLARE
-    auth_user RECORD;
-    profile_updated INTEGER := 0;
-    changes JSONB := '{}'::jsonb;
-BEGIN
-    -- Get user data from auth.users
-    SELECT * INTO auth_user
-    FROM auth.users
-    WHERE id = user_uuid;
-
-    IF NOT FOUND THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'User not found in auth.users'
-        );
-    END IF;
-
-    -- Check if profile exists and update
-    IF EXISTS (SELECT 1 FROM public.profiles WHERE id = user_uuid) THEN
-        -- Update profile with auth data
-        UPDATE public.profiles SET
-            email = auth_user.email,
-            full_name = COALESCE(
-                auth_user.raw_user_meta_data->>'full_name',
-                auth_user.raw_user_meta_data->>'name',
-                full_name,
-                split_part(auth_user.email, '@', 1)
-            ),
-            avatar_url = COALESCE(
-                auth_user.raw_user_meta_data->>'avatar_url',
-                avatar_url
-            ),
-            last_active = NOW(),
-            updated_at = NOW()
-        WHERE id = user_uuid;
-
-        GET DIAGNOSTICS profile_updated = ROW_COUNT;
-
-        IF profile_updated > 0 THEN
-            changes := jsonb_build_object(
-                'email_synced', true,
-                'profile_synced', true,
-                'synced_at', NOW()
-            );
-
-            -- Log the manual sync
-            PERFORM public.log_user_activity(
-                user_uuid,
-                'profile_manual_sync',
-                'profile',
-                user_uuid::text,
-                changes
-            );
-        END IF;
-    ELSE
-        -- Create profile if it doesn't exist
-        INSERT INTO public.profiles (id, email, full_name, avatar_url, last_active)
-        VALUES (
-            user_uuid,
-            auth_user.email,
-            COALESCE(
-                auth_user.raw_user_meta_data->>'full_name',
-                auth_user.raw_user_meta_data->>'name',
-                split_part(auth_user.email, '@', 1)
-            ),
-            auth_user.raw_user_meta_data->>'avatar_url',
-            NOW()
-        );
-
-        profile_updated := 1;
-        changes := jsonb_build_object(
-            'profile_created', true,
-            'created_at', NOW()
-        );
-    END IF;
-
-    RETURN jsonb_build_object(
-        'success', true,
-        'updated', profile_updated > 0,
-        'changes', changes
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- Hardening: prevent non-admins from editing ban columns directly via profile updates
 CREATE OR REPLACE FUNCTION public.protect_ban_columns()
 RETURNS trigger
@@ -712,7 +606,7 @@ BEGIN
         last_active = NOW()
     WHERE id = p_user_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Function to update user tier
 CREATE OR REPLACE FUNCTION public.update_user_tier(
@@ -771,78 +665,7 @@ BEGIN
         'updated_at', NOW()
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Function to update user preferences
-CREATE OR REPLACE FUNCTION public.update_user_preferences(
-    user_uuid UUID,
-    preference_type VARCHAR(50), -- 'ui', 'session', 'model'
-    preferences JSONB
-)
-RETURNS JSONB AS $$
-DECLARE
-    updated_count INTEGER;
-    current_prefs JSONB;
-BEGIN
-    -- Validate preference type
-    IF preference_type NOT IN ('ui', 'session', 'model') THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'Invalid preference type. Must be: ui, session, or model'
-        );
-    END IF;
-
-    -- Update based on preference type
-    CASE preference_type
-        WHEN 'ui' THEN
-            UPDATE public.profiles
-            SET ui_preferences = jsonb_deep_merge(COALESCE(ui_preferences, '{}'::jsonb), preferences),
-                updated_at = NOW()
-            WHERE id = user_uuid;
-
-        WHEN 'session' THEN
-            UPDATE public.profiles
-            SET session_preferences = jsonb_deep_merge(COALESCE(session_preferences, '{}'::jsonb), preferences),
-                updated_at = NOW()
-            WHERE id = user_uuid;
-
-        WHEN 'model' THEN
-            UPDATE public.profiles
-            SET default_model = COALESCE(preferences->>'default_model', default_model),
-                temperature = COALESCE((preferences->>'temperature')::decimal, temperature),
-                system_prompt = COALESCE(preferences->>'system_prompt', system_prompt),
-                updated_at = NOW()
-            WHERE id = user_uuid;
-    END CASE;
-
-    GET DIAGNOSTICS updated_count = ROW_COUNT;
-
-    IF updated_count = 0 THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'User not found'
-        );
-    END IF;
-
-    -- Log the preference update
-    PERFORM public.log_user_activity(
-        user_uuid,
-        'preferences_updated',
-        'profile',
-        user_uuid::text,
-        jsonb_build_object(
-            'preference_type', preference_type,
-            'updated_fields', preferences
-        )
-    );
-
-    RETURN jsonb_build_object(
-        'success', true,
-        'preference_type', preference_type,
-        'updated_at', NOW()
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- Function to get user's complete profile with enhanced analytics
 CREATE OR REPLACE FUNCTION public.get_user_complete_profile(user_uuid UUID)
@@ -965,59 +788,9 @@ BEGIN
         )
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
--- Function to export user data (GDPR compliance)
-CREATE OR REPLACE FUNCTION public.export_user_data(user_uuid UUID)
-RETURNS JSONB AS $$
-DECLARE
-    profile_data JSONB;
-    conversations_data JSONB;
-    activity_data JSONB;
-    usage_data JSONB;
-BEGIN
-    -- Get profile data
-    SELECT to_jsonb(p.*) INTO profile_data
-    FROM public.profiles p
-    WHERE id = user_uuid;
-
-    -- Get conversations data
-    SELECT jsonb_agg(
-        jsonb_build_object(
-            'session', to_jsonb(s.*),
-            'messages', (
-                SELECT jsonb_agg(to_jsonb(m.*))
-                FROM public.chat_messages m
-                WHERE m.session_id = s.id
-                ORDER BY m.message_timestamp
-            )
-        )
-    ) INTO conversations_data
-    FROM public.chat_sessions s
-    WHERE s.user_id = user_uuid;
-
-    -- Get activity data
-    SELECT jsonb_agg(to_jsonb(a.*)) INTO activity_data
-    FROM public.user_activity_log a
-    WHERE a.user_id = user_uuid
-    ORDER BY a.timestamp DESC;
-
-    -- Get usage data
-    SELECT jsonb_agg(to_jsonb(u.*)) INTO usage_data
-    FROM public.user_usage_daily u
-    WHERE u.user_id = user_uuid
-    ORDER BY u.usage_date DESC;
-
-    RETURN jsonb_build_object(
-        'export_date', NOW(),
-        'user_id', user_uuid,
-        'profile', profile_data,
-        'conversations', COALESCE(conversations_data, '[]'::jsonb),
-        'activity_log', COALESCE(activity_data, '[]'::jsonb),
-        'usage_stats', COALESCE(usage_data, '[]'::jsonb)
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- (Removed) export_user_data(user_uuid UUID) function deprecated Sept 2025 (never used in application layer)
 
 -- =============================================================================
 -- TRIGGERS

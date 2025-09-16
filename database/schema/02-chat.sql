@@ -149,16 +149,7 @@ CREATE INDEX idx_chat_messages_user_message_id
 CREATE INDEX idx_chat_messages_tokens_role
     ON public.chat_messages(role, input_tokens, output_tokens)
     WHERE input_tokens > 0 OR output_tokens > 0;
--- Messages with attachments (optional index)
-CREATE INDEX idx_chat_messages_has_attachments_true
-    ON public.chat_messages(has_attachments)
-    WHERE has_attachments = true;
--- Messages with web search (optional indexes)
-CREATE INDEX idx_chat_messages_has_websearch_true
-    ON public.chat_messages(has_websearch)
-    WHERE has_websearch = true;
-CREATE INDEX idx_chat_messages_websearch_count
-    ON public.chat_messages(websearch_result_count);
+-- Note: Removed optional flags indexes (has_attachments, has_websearch, websearch_count) as unused in production.
 
 -- Chat attachments indexes
 CREATE INDEX idx_chat_attachments_message_id ON public.chat_attachments(message_id);
@@ -189,23 +180,23 @@ ALTER TABLE public.chat_message_annotations ENABLE ROW LEVEL SECURITY;
 
 -- Chat Sessions Policies
 CREATE POLICY "Users can view their own chat sessions" ON public.chat_sessions
-    FOR SELECT USING (user_id = auth.uid());
+    FOR SELECT USING (user_id = (select auth.uid()));
 
 CREATE POLICY "Users can create their own chat sessions" ON public.chat_sessions
-    FOR INSERT WITH CHECK (user_id = auth.uid());
+    FOR INSERT WITH CHECK (user_id = (select auth.uid()));
 
 CREATE POLICY "Users can update their own chat sessions" ON public.chat_sessions
-    FOR UPDATE USING (user_id = auth.uid());
+    FOR UPDATE USING (user_id = (select auth.uid()));
 
 CREATE POLICY "Users can delete their own chat sessions" ON public.chat_sessions
-    FOR DELETE USING (user_id = auth.uid());
+    FOR DELETE USING (user_id = (select auth.uid()));
 
 -- Chat Messages Policies (using session ownership)
 CREATE POLICY "Users can view messages from their sessions" ON public.chat_messages
     FOR SELECT USING (
         session_id IN (
             SELECT id FROM public.chat_sessions
-            WHERE user_id = auth.uid()
+            WHERE user_id = (select auth.uid())
         )
     );
 
@@ -213,7 +204,7 @@ CREATE POLICY "Users can create messages in their sessions" ON public.chat_messa
     FOR INSERT WITH CHECK (
         session_id IN (
             SELECT id FROM public.chat_sessions
-            WHERE user_id = auth.uid()
+            WHERE user_id = (select auth.uid())
         )
     );
 
@@ -221,7 +212,7 @@ CREATE POLICY "Users can update messages in their sessions" ON public.chat_messa
     FOR UPDATE USING (
         session_id IN (
             SELECT id FROM public.chat_sessions
-            WHERE user_id = auth.uid()
+            WHERE user_id = (select auth.uid())
         )
     );
 
@@ -229,24 +220,24 @@ CREATE POLICY "Users can delete messages in their sessions" ON public.chat_messa
     FOR DELETE USING (
         session_id IN (
             SELECT id FROM public.chat_sessions
-            WHERE user_id = auth.uid()
+            WHERE user_id = (select auth.uid())
         )
     );
 
 -- Chat Attachments Policies
 CREATE POLICY "Users can view their own attachments" ON public.chat_attachments
-    FOR SELECT USING (user_id = auth.uid());
+    FOR SELECT USING (user_id = (select auth.uid()));
 
 CREATE POLICY "Users can insert their own attachments" ON public.chat_attachments
-    FOR INSERT WITH CHECK (user_id = auth.uid());
+    FOR INSERT WITH CHECK (user_id = (select auth.uid()));
 
 CREATE POLICY "Users can update their own attachments" ON public.chat_attachments
-    FOR UPDATE USING (user_id = auth.uid())
+    FOR UPDATE USING (user_id = (select auth.uid()))
     WITH CHECK (
-        user_id = auth.uid()
+    user_id = (select auth.uid())
         AND (
             session_id IS NULL OR session_id IN (
-                SELECT id FROM public.chat_sessions WHERE user_id = auth.uid()
+                SELECT id FROM public.chat_sessions WHERE user_id = (select auth.uid())
             )
         )
         AND (
@@ -254,21 +245,21 @@ CREATE POLICY "Users can update their own attachments" ON public.chat_attachment
                 SELECT 1
                 FROM public.chat_messages m
                 JOIN public.chat_sessions s ON s.id = m.session_id
-                WHERE m.id = message_id AND s.user_id = auth.uid()
+                WHERE m.id = message_id AND s.user_id = (select auth.uid())
             )
         )
     );
 
 CREATE POLICY "Users can delete their own attachments" ON public.chat_attachments
-    FOR DELETE USING (user_id = auth.uid());
+    FOR DELETE USING (user_id = (select auth.uid()));
 
 -- Chat Message Annotations Policies
 CREATE POLICY "Users can view their own message annotations" ON public.chat_message_annotations
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING ((select auth.uid()) = user_id);
 CREATE POLICY "Users can insert their own message annotations" ON public.chat_message_annotations
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+    FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
 CREATE POLICY "Users can delete their own message annotations" ON public.chat_message_annotations
-    FOR DELETE USING (auth.uid() = user_id);
+    FOR DELETE USING ((select auth.uid()) = user_id);
 
 -- =============================================================================
 -- UTILITY FUNCTIONS
@@ -384,7 +375,7 @@ BEGIN
         RETURN NEW;
     END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 -- Function to update session timestamp on updates
 CREATE OR REPLACE FUNCTION public.update_session_timestamp()
@@ -394,7 +385,7 @@ BEGIN
     NEW.last_activity = NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 -- Function to get user's recent chat sessions (for API)
 CREATE OR REPLACE FUNCTION public.get_user_recent_sessions(
@@ -431,7 +422,7 @@ BEGIN
     ORDER BY s.updated_at DESC
     LIMIT session_limit;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 -- get_session_with_messages and sync_user_conversations removed: not used by code or triggers.
 
@@ -454,7 +445,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 -- =============================================================================
 -- TRIGGERS
@@ -521,14 +512,16 @@ CREATE INDEX idx_message_token_costs_user_message_id ON public.message_token_cos
 -- RLS for cost table
 ALTER TABLE public.message_token_costs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view their own message costs" ON public.message_token_costs
-    FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Admins can view all message costs" ON public.message_token_costs
-    FOR SELECT USING (public.is_admin(auth.uid()));
-CREATE POLICY "Users can insert their own message costs" ON public.message_token_costs
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Admins can insert any message costs" ON public.message_token_costs
-    FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
+-- Consolidated policies
+CREATE POLICY "View message costs" ON public.message_token_costs
+    FOR SELECT USING (
+        public.is_admin((select auth.uid())) OR (select auth.uid()) = user_id
+    );
+
+CREATE POLICY "Insert message costs" ON public.message_token_costs
+    FOR INSERT WITH CHECK (
+        public.is_admin((select auth.uid())) OR (select auth.uid()) = user_id
+    );
 
 -- Function to calculate and record message cost (per token pricing)
 CREATE OR REPLACE FUNCTION public.calculate_and_record_message_cost()
@@ -540,7 +533,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = 'pg_catalog, public';
 
 -- Trigger for assistant message cost insertion
 DROP TRIGGER IF EXISTS after_assistant_message_cost ON public.chat_messages;
@@ -554,7 +547,7 @@ CREATE OR REPLACE FUNCTION public.recompute_image_cost_for_user_message(
 ) RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $$
 DECLARE
     v_user_msg_id TEXT := NULL;          -- Actual user message id (if present)
@@ -746,7 +739,7 @@ CREATE OR REPLACE FUNCTION public.on_chat_attachment_link_recompute()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $$
 BEGIN
     IF NEW.message_id IS NOT NULL
@@ -782,6 +775,110 @@ SELECT
     COUNT(*) AS assistant_messages
 FROM public.message_token_costs
 GROUP BY user_id, (message_timestamp AT TIME ZONE 'UTC')::date, model_id;
+
+-- Harden view semantics and privileges, and expose RPCs for user/admin access
+
+-- Explicitly set invoker semantics (prevents SECURITY DEFINER behavior)
+DO $$
+BEGIN
+        IF EXISTS (
+                SELECT 1 FROM pg_views WHERE schemaname='public' AND viewname='user_model_costs_daily'
+        ) THEN
+                EXECUTE 'ALTER VIEW public.user_model_costs_daily SET (security_invoker = true)';
+        END IF;
+END$$;
+
+-- Restrict direct SELECT on the view: service_role only (app uses RPCs)
+REVOKE ALL ON TABLE public.user_model_costs_daily FROM PUBLIC;
+GRANT SELECT ON TABLE public.user_model_costs_daily TO service_role;
+
+-- Per-user RPC: current-user daily model costs between dates (optional model filter)
+-- SECURITY INVOKER; respects RLS on message_token_costs
+CREATE OR REPLACE FUNCTION public.get_user_model_costs_daily(
+    p_start DATE,
+    p_end   DATE,
+    p_model_id TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+    usage_date DATE,
+    model_id   VARCHAR(100),
+    total_tokens BIGINT,
+    total_cost  DECIMAL(18,6)
+)
+LANGUAGE sql
+SECURITY INVOKER
+SET search_path = 'pg_catalog, public'
+AS $$
+    SELECT
+        (mtc.message_timestamp AT TIME ZONE 'UTC')::date AS usage_date,
+        COALESCE(mtc.model_id, 'unknown') AS model_id,
+        SUM(mtc.total_tokens)::bigint       AS total_tokens,
+        ROUND(SUM(mtc.total_cost), 6)       AS total_cost
+    FROM public.message_token_costs mtc
+    WHERE mtc.user_id = auth.uid()
+        AND mtc.message_timestamp >= p_start
+        AND mtc.message_timestamp < (p_end + 1)
+        AND (p_model_id IS NULL OR mtc.model_id = p_model_id)
+    GROUP BY 1, 2
+    ORDER BY 1 ASC;
+$$;
+
+COMMENT ON FUNCTION public.get_user_model_costs_daily(DATE, DATE, TEXT)
+    IS 'Per-user RPC: daily model costs between dates inclusive; SECURITY INVOKER and respects RLS.';
+
+-- Admin RPC: all users daily messages/tokens between dates
+-- SECURITY DEFINER; enforces admin check explicitly
+CREATE OR REPLACE FUNCTION public.get_admin_user_model_costs_daily(
+    p_start DATE,
+    p_end   DATE
+)
+RETURNS TABLE (
+    usage_date DATE,
+    user_id UUID,
+    assistant_messages BIGINT,
+    total_tokens BIGINT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF NOT public.is_admin(auth.uid()) THEN
+        RAISE EXCEPTION 'insufficient_privilege';
+    END IF;
+
+    RETURN QUERY
+    SELECT
+        (mtc.message_timestamp AT TIME ZONE 'UTC')::date AS usage_date,
+        mtc.user_id,
+        COUNT(*)::bigint         AS assistant_messages,
+        SUM(mtc.total_tokens)::bigint AS total_tokens
+    FROM public.message_token_costs mtc
+    WHERE mtc.message_timestamp >= p_start
+        AND mtc.message_timestamp < (p_end + 1)
+    GROUP BY 1, 2
+    ORDER BY 1 ASC;
+END;
+$$;
+
+COMMENT ON FUNCTION public.get_admin_user_model_costs_daily(DATE, DATE)
+    IS 'Admin RPC: per-user daily messages/tokens between dates inclusive; requires admin and uses SECURITY DEFINER.';
+
+-- Grants for RPCs
+DO $$ BEGIN
+    BEGIN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_user_model_costs_daily(DATE, DATE, TEXT) TO authenticated';
+    EXCEPTION WHEN undefined_object THEN NULL; END;
+    BEGIN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_user_model_costs_daily(DATE, DATE, TEXT) TO service_role';
+    EXCEPTION WHEN undefined_object THEN NULL; END;
+    BEGIN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_admin_user_model_costs_daily(DATE, DATE) TO authenticated';
+    EXCEPTION WHEN undefined_object THEN NULL; END;
+    BEGIN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_admin_user_model_costs_daily(DATE, DATE) TO service_role';
+    EXCEPTION WHEN undefined_object THEN NULL; END;
+END $$;
 
 -- Admin-only global aggregation function
 CREATE OR REPLACE FUNCTION public.get_global_model_costs(
@@ -826,9 +923,43 @@ BEGIN
     GROUP BY 1, 2
     ORDER BY usage_period ASC, total_cost DESC;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'pg_catalog, public';
 
 COMMENT ON FUNCTION public.get_global_model_costs IS 'Admin-only: aggregate model costs by day/week/month between dates inclusive.';
+
+-- =============================================================================
+-- ADMIN ANALYTICS: ERROR COUNT
+-- =============================================================================
+
+-- Admin-only count of error messages between dates inclusive
+CREATE OR REPLACE FUNCTION public.get_error_count(
+    p_start_date DATE,
+    p_end_date DATE
+)
+RETURNS BIGINT
+SECURITY DEFINER
+SET search_path = 'pg_catalog, public'
+LANGUAGE plpgsql
+AS $fn$
+DECLARE
+    v_count BIGINT := 0;
+BEGIN
+    IF NOT public.is_admin(auth.uid()) THEN
+        RAISE EXCEPTION 'Insufficient privileges';
+    END IF;
+
+    SELECT COUNT(*) INTO v_count
+    FROM public.chat_messages m
+    WHERE m.message_timestamp >= p_start_date
+      AND m.message_timestamp < (p_end_date + 1)
+      AND m.error_message IS NOT NULL
+      AND m.error_message <> '';
+
+    RETURN v_count;
+END;
+$fn$;
+
+COMMENT ON FUNCTION public.get_error_count(DATE, DATE) IS 'Admin-only: count of error messages between dates inclusive.';
 
 -- =============================================================================
 -- ADMIN ANALYTICS: RECENT ERRORS (ENRICHED MODEL)
@@ -852,7 +983,7 @@ RETURNS TABLE (
     elapsed_ms INTEGER
 )
 SECURITY DEFINER
-SET search_path = public
+SET search_path = 'pg_catalog, public'
 AS $fn$
 BEGIN
     IF NOT public.is_admin(auth.uid()) THEN

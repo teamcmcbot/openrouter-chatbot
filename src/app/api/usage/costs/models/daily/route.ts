@@ -31,14 +31,11 @@ async function handler(req: NextRequest, auth: AuthContext) {
 
     // We fetch rows for user & date span from view user_model_costs_daily if exists.
     // Supabase RPC check: easiest is to attempt select; if error complaining relation not found, fallback.
+    // Prefer RPC for stricter access control; falls back to raw table if function missing
     const { data: viewRows, error: viewErr } = await supabase
-      .from('user_model_costs_daily')
-      .select('usage_date, model_id, total_tokens, total_cost')
-      .eq('user_id', user.id)
-      .gte('usage_date', startISO)
-      .lte('usage_date', endISO);
+      .rpc('get_user_model_costs_daily', { p_start: startISO, p_end: endISO, p_model_id: modelId });
 
-    if (viewErr && viewErr.message && /relation .* does not exist/i.test(viewErr.message)) {
+  if (viewErr) {
       // fallback: aggregate from message_token_costs (should rarely happen)
       const start = new Date(range.start.getTime());
       const endPlus = new Date(range.end.getTime() + 24*60*60*1000);

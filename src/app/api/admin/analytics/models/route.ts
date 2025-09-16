@@ -17,10 +17,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
     const supabase = await createClient();
     const [countsRes, recentRes] = await Promise.all([
       supabase.from('v_model_counts_public').select('*').limit(1),
-      supabase
-        .from('v_model_sync_activity_daily')
-        .select('day, models_added, models_marked_inactive, models_reactivated')
-        .order('day', { ascending: true })
+      supabase.rpc('get_model_sync_activity_daily', { p_days: 30 })
     ]);
 
     const res = NextResponse.json({

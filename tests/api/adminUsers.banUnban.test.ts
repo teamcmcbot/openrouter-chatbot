@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * Admin Ban/Unban endpoint tests
  * - Requires admin auth via withAdminAuth

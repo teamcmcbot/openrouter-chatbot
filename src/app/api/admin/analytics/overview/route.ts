@@ -129,9 +129,9 @@ async function handler(req: NextRequest, auth: AuthContext) {
       .slice(0,5);
     const anonCostsTotals = { total_cost: anonSumCost, total_tokens: anonSumTokens, assistant_messages: anonAssistant };
 
-    // Sync stats and model counts (best-effort)
+    // Sync stats via secured function & model counts (best-effort)
     const [syncStatsRes, modelCountsRes] = await Promise.all([
-      supabase.from('v_sync_stats').select('*').limit(1),
+      supabase.rpc('get_sync_stats'),
       supabase.from('v_model_counts_public').select('*').limit(1)
     ]);
 
@@ -159,7 +159,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
           top_models: anonTop
         }
       },
-      sync: (syncStatsRes.data && syncStatsRes.data[0]) || null,
+  sync: syncStatsRes.data || null,
       model_counts: (modelCountsRes.data && modelCountsRes.data[0]) || null
     }, { headers: { 'x-request-id': requestId } });
 
