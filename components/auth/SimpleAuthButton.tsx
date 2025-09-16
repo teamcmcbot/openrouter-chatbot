@@ -15,6 +15,9 @@ import { useTheme } from '../../stores/useUIStore'
 import { useUserData } from '../../hooks/useUserData'
 import { logger } from '../../lib/utils/logger'
 
+// Module-level in-flight dedupe for admin checks per user
+const ADMIN_CHECK_IN_FLIGHT: Map<string, Promise<boolean>> = new Map()
+
 export function SimpleAuthButton() {
   const [showModal, setShowModal] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
@@ -68,36 +71,48 @@ export function SimpleAuthButton() {
           return
         }
 
-        // Apply a small jittered delay on first check for a recent new user (<=60s)
-        // to give DB trigger time to create the profiles row.
         const currentUserId = user.id
   const createdAt = (user as unknown as { created_at?: string })?.created_at
-        const isFirstForUser = !adminDelayAppliedRef.current.has(currentUserId)
-        if (isFirstForUser && typeof createdAt === 'string') {
-          const createdMs = Date.parse(createdAt)
-          if (!Number.isNaN(createdMs)) {
-            const ageMs = Date.now() - createdMs
-            if (ageMs >= 0 && ageMs <= 60_000) {
-              const delayMs = 3_000 // fixed 3s delay for recent new accounts
-              await new Promise((r) => setTimeout(r, delayMs))
-            } else {
+        // Build a shared in-flight promise (includes first-login delay + query)
+        const runAdminCheck = async (): Promise<boolean> => {
+          // First-login delay: mark applied before awaiting to avoid duplicate waits
+          const isFirstForUser = !adminDelayAppliedRef.current.has(currentUserId)
+          if (isFirstForUser && typeof createdAt === 'string') {
+            adminDelayAppliedRef.current.add(currentUserId)
+            const createdMs = Date.parse(createdAt)
+            if (!Number.isNaN(createdMs)) {
+              const ageMs = Date.now() - createdMs
+              if (ageMs >= 0 && ageMs <= 60_000) {
+                const delayMs = 3_000 // fixed 3s delay for recent new accounts
+                await new Promise((r) => setTimeout(r, delayMs))
+              }
             }
-          } else {
           }
-          adminDelayAppliedRef.current.add(currentUserId)
+
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('account_type')
+            .eq('id', user.id)
+            .single()
+          if (error) {
+            logger.warn('auth.simpleButton.fetchAccountType.failed', { message: error.message })
+            return false
+          }
+          return (data?.account_type as string) === 'admin'
         }
 
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('account_type')
-          .eq('id', user.id)
-          .single()
-        if (error) {
-          logger.warn('auth.simpleButton.fetchAccountType.failed', { message: error.message })
-          if (isMounted) setIsAdmin(false)
-          return
+        let promise = ADMIN_CHECK_IN_FLIGHT.get(currentUserId)
+        if (!promise) {
+          promise = runAdminCheck()
+          ADMIN_CHECK_IN_FLIGHT.set(currentUserId, promise)
         }
-        if (isMounted) setIsAdmin((data?.account_type as string) === 'admin')
+        try {
+          const isAdminResult = await promise
+          if (isMounted) setIsAdmin(isAdminResult)
+        } finally {
+          // Allow future checks to run; concurrent awaiters will handle missing delete safely
+          ADMIN_CHECK_IN_FLIGHT.delete(currentUserId)
+        }
       } catch (e) {
         logger.warn('auth.simpleButton.checkAdmin.exception', { err: (e as Error)?.message })
         if (isMounted) setIsAdmin(false)
