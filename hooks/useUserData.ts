@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../stores/useAuthStore';
 import { fetchUserData, updateUserPreferences } from '../lib/services/user-data';
 import type { UserDataResponse, UserPreferencesUpdate } from '../lib/types/user-data';
+import { streamDebug } from '../lib/utils/streamDebug';
 
 interface UseUserDataOptions {
   enabled?: boolean;
@@ -111,6 +112,27 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
         return;
       }
 
+      // Before the very first fetch for this user, if user appears newly-created (<=60s),
+      // wait briefly to let profile triggers complete.
+      const isFirstForUser = lastFetchedUserId !== currentUserId && !CACHE.has(currentUserId) && !IN_FLIGHT.has(currentUserId);
+      const createdAt = (user as unknown as { created_at?: string })?.created_at;
+      let delayMs = 0;
+  if (isFirstForUser && typeof createdAt === 'string') {
+        const createdMs = Date.parse(createdAt);
+        if (!Number.isNaN(createdMs)) {
+          const ageMs = Date.now() - createdMs;
+          if (ageMs >= 0 && ageMs <= 60_000) {
+    delayMs = 3_000; // fixed 3s delay for recent new accounts
+            streamDebug('useUserData.recent_new_user.delay', { userId: currentUserId, ageMs, createdAt, delayMs });
+            await new Promise((r) => setTimeout(r, delayMs));
+          } else {
+            streamDebug('useUserData.recent_new_user.skip_delay', { userId: currentUserId, ageMs, createdAt });
+          }
+        } else {
+          streamDebug('useUserData.recent_new_user.unknown_created_at', { userId: currentUserId, createdAt });
+        }
+      }
+
   const userData = await fetchUserDataShared(currentUserId, { force: false });
       
       // Double-check user hasn't changed during fetch
@@ -133,7 +155,7 @@ export function useUserData(options: UseUserDataOptions = {}): UseUserDataReturn
       setLoading(false);
       setIsFetching(false);
     }
-  }, [user?.id, enabled, data, lastFetchedUserId, isFetching]);
+  }, [user, enabled, data, lastFetchedUserId, isFetching]);
 
   // Separate fetch function for refreshes that doesn't trigger the main loading state
   const fetchDataForRefresh = useCallback(async () => {

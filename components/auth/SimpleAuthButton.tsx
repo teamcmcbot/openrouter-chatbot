@@ -23,6 +23,8 @@ export function SimpleAuthButton() {
   const menuRef = useRef<HTMLDivElement>(null)
   const { theme, setTheme } = useTheme()
   const { updatePreferences } = useUserData({ enabled: false })
+  // Track whether we've applied the first-login delay for a given user to avoid duplicates
+  const adminDelayAppliedRef = useRef<Set<string>>(new Set())
 
   // Helper to normalize any legacy/system theme to binary
   const normalizeTheme = (t?: string): 'light' | 'dark' => (t === 'light' ? 'light' : 'dark')
@@ -65,6 +67,26 @@ export function SimpleAuthButton() {
           if (isMounted) setIsAdmin(false)
           return
         }
+
+        // Apply a small jittered delay on first check for a recent new user (<=60s)
+        // to give DB trigger time to create the profiles row.
+        const currentUserId = user.id
+  const createdAt = (user as unknown as { created_at?: string })?.created_at
+        const isFirstForUser = !adminDelayAppliedRef.current.has(currentUserId)
+        if (isFirstForUser && typeof createdAt === 'string') {
+          const createdMs = Date.parse(createdAt)
+          if (!Number.isNaN(createdMs)) {
+            const ageMs = Date.now() - createdMs
+            if (ageMs >= 0 && ageMs <= 60_000) {
+              const delayMs = 3_000 // fixed 3s delay for recent new accounts
+              await new Promise((r) => setTimeout(r, delayMs))
+            } else {
+            }
+          } else {
+          }
+          adminDelayAppliedRef.current.add(currentUserId)
+        }
+
         const { data, error } = await supabase
           .from('profiles')
           .select('account_type')
@@ -85,7 +107,7 @@ export function SimpleAuthButton() {
     return () => {
       isMounted = false
     }
-  }, [user?.id])
+  }, [user, user?.id])
 
   // Close menu on outside click or Escape
   useEffect(() => {
