@@ -156,7 +156,7 @@ Components needed:
 ├── customer-portal/     # POST - Create portal session for billing management
 ├── webhook/            # POST - Handle Stripe webhooks
 ├── subscription/       # GET - Get current subscription status
-└── cancel-subscription/ # POST - Cancel subscription
+└── cancel-subscription/ # POST - Cancel subscription (optional for MVP; use Billing Portal)
 ```
 
 ## 5. Subscription Tier Management Logic
@@ -247,10 +247,10 @@ async function handleGracePeriods() {
 
 ### Phase 1: Foundation (Week 1)
 
-- [ ] Set up Stripe account and products
-- [ ] Implement database schema changes
-- [ ] Create basic API endpoints
-- [ ] Set up webhook handling
+- [x] Set up Stripe account and products
+- [x] Implement database schema changes
+- [x] Create basic API endpoints
+- [x] Set up webhook handling
 
 ### Phase 2: UI Components (Week 2)
 
@@ -262,7 +262,7 @@ async function handleGracePeriods() {
 ### Phase 3: Integration (Week 3)
 
 - [ ] Connect Stripe Checkout
-- [ ] Implement webhook processors
+- [x] Implement webhook processors
 - [ ] Add subscription status to auth context
 - [ ] Update rate limiting based on tier
 
@@ -605,13 +605,15 @@ Endpoints:
      "stripeSubscriptionId": string | null
      }
 
-4. POST /api/stripe/cancel-subscription
+4. (Optional) POST /api/stripe/cancel-subscription
 
    - Auth: Protected + TierC
    - Purpose: Set cancel_at_period_end = true via Stripe API. DB is updated by webhook.
    - Request JSON: { }
    - Response JSON: { "ok": true }
    - Behavior: If no active subscription, return 400.
+
+- Note: Not required for MVP since cancellations can be performed in the Stripe Billing Portal. Keep for in‑app cancel UX or API consumers.
 
 5. (Optional v1) POST /api/stripe/change-plan
 
@@ -734,19 +736,19 @@ Navigation & UX:
 
 Phase 1A: API + Webhook
 
-- [ ] Create tables: subscriptions, payment_history, stripe_events (idempotency)
-- [ ] Implement POST /api/stripe/checkout-session (Protected, Tier C)
-- [ ] Implement POST /api/stripe/customer-portal (Protected, Tier C)
-- [ ] Implement GET /api/stripe/subscription (Protected, Tier C)
-- [ ] Implement POST /api/stripe/cancel-subscription (Protected, Tier C)
-- [ ] Implement POST /api/stripe/webhook (signature verify + handlers)
-- [ ] Minimal tests for endpoints (mock Stripe) and webhook idempotency
+- [x] Create tables: subscriptions, payment_history, stripe_events (idempotency)
+- [x] Implement POST /api/stripe/checkout-session (Protected, Tier C)
+- [x] Implement POST /api/stripe/customer-portal (Protected, Tier C)
+- [x] Implement GET /api/stripe/subscription (Protected, Tier C)
+- [x] Implement POST /api/stripe/cancel-subscription (Protected, Tier C) — optional for MVP
+- [x] Implement POST /api/stripe/webhook (signature verify + handlers)
+- [x] Minimal tests for endpoints (mock Stripe) and webhook idempotency
 - [ ] API-only verification: subscribe, upgrade/downgrade (portal), cancel, failure paths
 
-Phase 1B: Schema + Docs
+Phase 1B: Schema + Docs — Verified (2025-09-21)
 
-- [ ] Merge patch SQL into /database/schema after approval
-- [ ] Add endpoint docs under /docs/api
+- [x] Merge patch SQL into /database/schema after approval
+- [x] Add endpoint docs under /docs/api
 
 Phase 2: UI (Subscription page)
 
@@ -755,6 +757,34 @@ Phase 2: UI (Subscription page)
 - [ ] Add Manage billing → customer-portal
 - [ ] Show status, renewal date, cancelAtPeriodEnd
 - [ ] Handle errors/empty states
+
+#### Post-Stripe redirect handling (instant UX)
+
+Goal: Make the UI feel instant after users complete actions in Stripe, while still relying entirely on server-side webhooks as the source of truth.
+
+- Redirect markers
+
+  - Checkout: use `STRIPE_SUCCESS_URL` (e.g., `/account/subscription?success=true`).
+  - Billing Portal: pass a `returnPath` when creating the session (POST `/api/stripe/customer-portal`), e.g., `/account/subscription?billing_updated=1`.
+
+- Client behavior on landing
+
+  - On page load, if `success=true` or `billing_updated=1` is present:
+    1. Immediately fetch `GET /api/stripe/subscription` and update the UI.
+    2. If the webhook hasn’t updated the DB yet, show “Updating your subscription…” and start a short backoff poll for up to ~10–20 seconds (e.g., 500ms → 1s → 2s).
+    3. Stop polling once one of these is true:
+       - `subscription_status` is `active` (for upgrades), or
+       - `cancel_at_period_end` flips / status reflects cancellation, or
+       - `subscription_tier` matches the expected plan.
+  - Also refetch on window focus/visibility so returning to the tab reflects the latest state.
+
+- State management
+
+  - If using SWR/React Query, call `mutate`/`invalidateQueries` for the subscription key on landing and on success. If using a store, expose `refreshSubscription()`.
+  - Do not write subscription state from the client; the webhook is authoritative. The client only reads from `GET /api/stripe/subscription`.
+
+- Optional (no polling alternative)
+  - Consider SSE/WebSocket later to push a “subscription.updated” event from the server after webhook processing. Not required for MVP.
 
 Phase 3: Enhancements
 
