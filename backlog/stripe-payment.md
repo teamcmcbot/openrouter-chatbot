@@ -548,3 +548,217 @@ stripe trigger invoice.payment_failed
 ---
 
 This document should be reviewed and updated as implementation progresses. Consider creating separate specs for each phase in `specs` directory.
+
+---
+
+## 14. API-first Implementation Plan (detailed)
+
+We will implement and verify the backend API and webhooks end-to-end with Stripe Sandbox before wiring any UI. This confirms subscribe, cancel, and upgrade/downgrade behavior strictly at the API layer.
+
+### 14.1 Endpoint overview and contracts (Next.js App Router)
+
+- All protected routes must use standardized auth middleware and tiered rate limiting. Do not implement manual auth.
+  - Example: withProtectedAuth(withTieredRateLimit(handler, { tier: "tierC" }))
+- Recommended rate limit tier: Tier C for CRUD/billing endpoints. Do not rate-limit the webhook.
+
+Endpoints:
+
+1. POST /api/stripe/checkout-session
+
+   - Auth: Protected + TierC rate limiting
+   - Purpose: Create a Stripe Checkout session for subscription signup/upgrade.
+   - Request JSON:
+     {
+     "plan": "pro" | "enterprise",
+     "trialDays"?: number,
+     "returnPathSuccess"?: string, // default: STRIPE_SUCCESS_URL
+     "returnPathCancel"?: string // default: STRIPE_CANCEL_URL
+     }
+   - Response JSON: { "url": string }
+   - Behavior:
+     - Ensure a Stripe Customer exists for the user (create/reuse via user_profiles.stripe_customer_id).
+     - Use STRIPE_PRO_PRICE_ID / STRIPE_ENTERPRISE_PRICE_ID.
+     - mode=subscription; success_url/cancel_url = NEXT_PUBLIC_APP_URL + path.
+     - Use an idempotency key (e.g., requestId) to avoid duplicates.
+
+2. POST /api/stripe/customer-portal
+
+   - Auth: Protected + TierC
+   - Purpose: Create a Stripe Billing Portal session for users to manage plan changes, cancellations, payment methods, and invoices.
+   - Request JSON: { "returnPath"?: string }
+   - Response JSON: { "url": string }
+   - Behavior: Requires existing stripe_customer_id.
+
+3. GET /api/stripe/subscription
+
+   - Auth: Protected + TierC
+   - Purpose: Return the current user’s subscription state from our DB (no live Stripe call).
+   - Response JSON (example):
+     {
+     "tier": "free" | "pro" | "enterprise",
+     "status": "inactive" | "active" | "past_due" | "unpaid" | "canceled" | "trialing",
+     "periodStart": string | null,
+     "periodEnd": string | null,
+     "cancelAtPeriodEnd": boolean,
+     "lastUpdated": string,
+     "stripeCustomerId": string | null,
+     "stripeSubscriptionId": string | null
+     }
+
+4. POST /api/stripe/cancel-subscription
+
+   - Auth: Protected + TierC
+   - Purpose: Set cancel_at_period_end = true via Stripe API. DB is updated by webhook.
+   - Request JSON: { }
+   - Response JSON: { "ok": true }
+   - Behavior: If no active subscription, return 400.
+
+5. (Optional v1) POST /api/stripe/change-plan
+
+   - Auth: Protected + TierC
+   - Purpose: Programmatic plan change w/o portal.
+   - Request JSON: { "plan": "pro" | "enterprise", "prorate"?: boolean }
+   - Response JSON: { "ok": true }
+
+6. POST /api/stripe/webhook
+   - Auth: none (Stripe only). No rate limiting.
+   - Security: Verify signature with STRIPE_WEBHOOK_SECRET using the raw body (no JSON.parse before verify).
+   - Response: 200 { received: true } on success; 400 on signature error.
+   - Events: checkout.session.completed, customer.subscription.created|updated|deleted, invoice.payment_succeeded|failed.
+   - Idempotency: Store handled event IDs to avoid duplicate writes.
+
+### 14.2 Webhook event → DB mapping
+
+Idempotent updates on verified events:
+
+- checkout.session.completed
+
+  - If session.mode == 'subscription':
+    - Retrieve subscription and customer from session.
+    - Link stripe_customer_id to user_profiles if missing.
+    - Upsert subscriptions row: status, stripe_subscription_id, stripe_price_id, current_period_start/end, cancel_at_period_end=false.
+    - Update user_profiles: subscription_status='active', subscription_tier from price id ('pro'|'enterprise'), subscription_updated_at=now().
+
+- customer.subscription.created / updated
+
+  - Upsert by stripe_subscription_id.
+  - Update user_profiles.subscription_status based on Stripe status; set subscription_tier from price id mapping; set cancel_at_period_end.
+
+- customer.subscription.deleted
+
+  - Mark subscriptions.status='canceled'; set canceled_at.
+  - Update user_profiles: subscription_status='canceled', subscription_tier='free'.
+
+- invoice.payment_succeeded
+
+  - Insert payment_history (amount, currency, stripe_invoice_id, status='succeeded').
+
+- invoice.payment_failed
+  - Insert/Update payment_history with status='failed'.
+  - Update subscriptions.status='past_due' and user_profiles.subscription_status='past_due'.
+
+Idempotency helper table:
+
+```sql
+CREATE TABLE IF NOT EXISTS stripe_events (
+  id TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 14.3 Data model notes
+
+- Keep unique constraints on stripe_customer_id and stripe_subscription_id.
+- user_profiles.subscription_tier is authoritative for feature gating; derive from subscriptions on webhook updates.
+- Consider a view joining user_profiles + subscriptions for UI reads.
+
+### 14.4 Logging, errors, and security
+
+- Use lib/utils/logger.ts for structured logs; include requestId and route; no console.\* in app code.
+- Do not log PII or raw Stripe payloads; log event types and small, redacted context.
+- Webhook must use req.text() for raw body; verify signature before parsing.
+
+### 14.5 API-only test plan (no UI)
+
+Prereqs: Stripe CLI listening (whsec set), app running.
+
+1. Subscribe
+
+   - POST /api/stripe/checkout-session { plan: "pro" } → open URL → pay with 4242.
+   - Verify webhook events and GET /api/stripe/subscription shows Pro active.
+
+2. Upgrade/Downgrade via Billing Portal
+
+   - POST /api/stripe/customer-portal {} → open URL → change plan → webhooks update DB → GET reflects new tier.
+
+3. Cancel
+
+   - POST /api/stripe/cancel-subscription {} → Stripe sets cancel_at_period_end → webhook updates DB → GET shows cancelAtPeriodEnd.
+
+4. Failure path
+   - stripe trigger invoice.payment_failed → DB shows past_due in GET.
+
+Success: All transitions visible via GET /api/stripe/subscription without any frontend.
+
+## 15. UI Plan and Flow Decisions
+
+Answers to the questions:
+
+- Planning order: Yes, API-first. We will implement endpoints + webhooks, test via CLI/curl, then build the UI.
+
+- Where does tier selection happen?
+
+  - In our app. The Subscription page (/account/subscription) will present Free/Pro/Enterprise, features, and Upgrade buttons.
+  - Clicking Upgrade calls POST /api/stripe/checkout-session with the chosen plan and redirects to the Checkout URL. Stripe Checkout handles payment; we pass the price id.
+
+- How do users manage billing?
+
+  - MVP: Stripe Billing Portal. A "Manage billing" button hits POST /api/stripe/customer-portal and redirects to portal for plan changes, cancellation, payment methods, and invoices. Our DB syncs via webhooks.
+  - Optional later: in-app change plan/cancel flows using endpoints.
+
+- What UI elements will we build?
+  - /account/subscription page showing:
+    - Current tier and status (active/past_due/canceled/trialing)
+    - Renewal date (periodEnd), cancelAtPeriodEnd flag
+    - Upgrade buttons (when eligible)
+    - Manage billing (opens portal)
+    - Basic billing history table (from payment_history) in later phase
+  - MessageInput gating "Upgrade" buttons will navigate to /account/subscription (no in-line picker for MVP).
+
+Navigation & UX:
+
+- Add Subscription to account menu; success/cancel deep links via STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL.
+- Anonymous users attempting to upgrade are prompted to sign in first.
+
+## 16. Detailed task breakdown (API-first → UI)
+
+Phase 1A: API + Webhook
+
+- [ ] Create tables: subscriptions, payment_history, stripe_events (idempotency)
+- [ ] Implement POST /api/stripe/checkout-session (Protected, Tier C)
+- [ ] Implement POST /api/stripe/customer-portal (Protected, Tier C)
+- [ ] Implement GET /api/stripe/subscription (Protected, Tier C)
+- [ ] Implement POST /api/stripe/cancel-subscription (Protected, Tier C)
+- [ ] Implement POST /api/stripe/webhook (signature verify + handlers)
+- [ ] Minimal tests for endpoints (mock Stripe) and webhook idempotency
+- [ ] API-only verification: subscribe, upgrade/downgrade (portal), cancel, failure paths
+
+Phase 1B: Schema + Docs
+
+- [ ] Merge patch SQL into /database/schema after approval
+- [ ] Add endpoint docs under /docs/api
+
+Phase 2: UI (Subscription page)
+
+- [ ] Build /account/subscription
+- [ ] Wire Upgrade buttons → checkout-session redirect
+- [ ] Add Manage billing → customer-portal
+- [ ] Show status, renewal date, cancelAtPeriodEnd
+- [ ] Handle errors/empty states
+
+Phase 3: Enhancements
+
+- [ ] In-app change-plan (optional)
+- [ ] Billing history UI (payment_history)
+- [ ] Cron sync + grace period jobs (see §6)
+- [ ] Observability (logger + Sentry)
