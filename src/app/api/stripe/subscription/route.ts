@@ -19,19 +19,29 @@ async function handler(_req: NextRequest, auth: AuthContext) {
 
     const { data: sub } = await supabase
       .from('subscriptions')
-      .select('stripe_subscription_id, stripe_price_id, status, current_period_start, current_period_end, cancel_at_period_end')
+      .select('stripe_subscription_id, stripe_price_id, status, current_period_start, current_period_end, cancel_at_period_end, canceled_at')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
+    const status = profile?.subscription_status || 'inactive';
+    const periodEnd = sub?.current_period_end || null;
+    const canceledAt = sub?.canceled_at || null;
+    const rawCape = sub?.cancel_at_period_end || false;
+    const ended = periodEnd ? Date.parse(periodEnd) < Date.now() : false;
+    // Do not suppress scheduled-cancel just because canceledAt exists (Stripe may populate it on scheduling).
+    // Only turn it off when the sub actually ended or is in a canceled/inactive state.
+    const normalizedCape = (status === 'canceled' || status === 'inactive' || ended) ? false : rawCape;
+
     return NextResponse.json(
       {
         tier: profile?.subscription_tier || 'free',
-        status: profile?.subscription_status || 'inactive',
+        status,
         periodStart: sub?.current_period_start || null,
-        periodEnd: sub?.current_period_end || null,
-        cancelAtPeriodEnd: sub?.cancel_at_period_end || false,
+        periodEnd,
+        cancelAtPeriodEnd: normalizedCape,
+        canceledAt,
         lastUpdated: new Date().toISOString(),
         stripeCustomerId: profile?.stripe_customer_id || null,
         stripeSubscriptionId: sub?.stripe_subscription_id || null,

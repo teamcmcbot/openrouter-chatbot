@@ -861,3 +861,158 @@ Phase 3: Enhancements
 - [ ] Billing history UI (payment_history)
 - [ ] Cron sync + grace period jobs (see §6)
 - [ ] Observability (logger + Sentry)
+
+## 17. Smart "Continue checkout" routing (existing vs new subscription)
+
+Problem
+
+- From `/account/subscription`, clicking "Continue checkout" always creates a brand‑new subscription via Checkout. If the user already has Pro (or Enterprise), this causes a duplicate subscription and does not show prorated charges.
+
+Goal
+
+- Use a single button that transparently routes:
+  - No existing active subscription → Stripe Checkout (mode=subscription)
+  - Existing active subscription → Stripe Billing Portal, prefilled to update the current subscription to the selected plan, landing on Stripe’s proration confirmation screen (as in Screenshot 3)
+
+Approach (server decides where to send the user)
+
+- Add one smart endpoint that branches based on the user’s current state:
+
+  Route: POST `/api/stripe/start-subscription-flow`
+
+  - Auth: Protected + TierC rate limit (use withProtectedAuth(withTieredRateLimit(...)))
+  - Request JSON: { plan: "pro" | "enterprise", returnPath?: string }
+  - Response JSON: { url: string } // client should redirect to this URL
+
+  Server logic (pseudocode):
+
+  ```ts
+  export const POST = withProtectedAuth(
+    withTieredRateLimit(
+      async (req, auth) => {
+        const { plan, returnPath } = await req.json();
+        const priceId =
+          plan === "pro"
+            ? process.env.STRIPE_PRO_PRICE_ID!
+            : process.env.STRIPE_ENTERPRISE_PRICE_ID!;
+
+        // 1) Ensure stripe customer
+        const customerId = await ensureStripeCustomerForUser(auth.user.id);
+
+        // 2) Find active subscription for this customer/product
+        const sub = await getActiveAppSubscription(customerId); // from our DB; avoid live API when possible
+
+        if (!sub) {
+          // New subscription → Checkout
+          const session = await stripe.checkout.sessions.create({
+            mode: "subscription",
+            customer: customerId,
+            line_items: [{ price: priceId, quantity: 1 }],
+            success_url: joinAppUrl(
+              returnPath ?? process.env.STRIPE_SUCCESS_URL!
+            ),
+            cancel_url: joinAppUrl(process.env.STRIPE_CANCEL_URL!),
+            // optional niceties:
+            allow_promotion_codes: true,
+          });
+          return NextResponse.json({ url: session.url });
+        }
+
+        // Existing subscription → Billing Portal "subscription_update" flow (shows proration)
+        const portal = await stripe.billingPortal.sessions.create({
+          customer: customerId,
+          return_url: joinAppUrl(
+            returnPath ?? "/account/subscription?billing_updated=1"
+          ),
+          flow_data: {
+            type: "subscription_update",
+            subscription_update: {
+              subscription: sub.stripe_subscription_id,
+              items: [{ price: priceId, quantity: 1 }],
+              proration_behavior: "create_prorations",
+            },
+          },
+        });
+        return NextResponse.json({ url: portal.url });
+      },
+      { tier: "tierC" }
+    )
+  );
+  ```
+
+Notes and edge cases
+
+- Multiple subscriptions: store and use the specific app subscription ID on the profile to avoid ambiguity.
+- Scheduled cancellation: the Portal handles undoing `cancel_at_period_end` if the user upgrades; if you DIY via API, be sure to clear that flag.
+- Trialing: upgrades typically end trial early; Portal shows the correct proration. DIY must preview via `invoices.retrieveUpcoming`.
+- Past_due/unpaid: the Portal will prompt for payment and still handle the plan change.
+- Quantities/seats: pass the desired `quantity` in `items` for seat-based plans.
+
+Acceptance criteria
+
+- Existing Pro upgrading to Enterprise lands on a Stripe confirmation page showing prorated “Amount due today.”
+- Existing Enterprise downgrading to Pro can choose immediate or period‑end (Portal default behavior) and returns correctly.
+- New users (no subscription) always go to Checkout and never create duplicates.
+- One endpoint covers both cases; client only needs the plan key and redirects to the returned URL.
+
+Manual test steps
+
+1. User with no subscription → click Continue on Enterprise → redirected to Checkout; complete payment; webhook sets tier=enterprise.
+2. User with active Pro → click Continue on Enterprise → redirected to Portal confirm page with proration; confirm; webhook updates tier=enterprise.
+3. User with active Enterprise → click Continue on Pro → redirected to Portal update; choose immediate/period end; webhook reflects downgrade state.
+4. User with cancel_at_period_end set → upgrade to Enterprise → confirm Portal flow works and clears scheduled cancellation as appropriate.
+
+Security & rate limiting
+
+- Use standardized middleware: `withProtectedAuth(withTieredRateLimit(handler, { tier: "tierC" }))`.
+- Do not log PII or Stripe payloads; use structured logger with small context.
+
+Recommendation
+
+- Implement this smart endpoint and replace the current "Continue checkout" call site to hit it. Keep the existing “Manage billing” button pointing to the general Billing Portal for payment methods and invoices.
+
+## 18. Billing Portal return experience ("Return to merchant")
+
+Problem
+
+- After users complete changes in the Stripe Billing Portal, Stripe shows a “Return to merchant” button and does not auto‑redirect. Some users don’t click it, causing perceived stall.
+
+Options
+
+1. Keep Portal and smooth the UX (recommended)
+
+   - Open Portal in a new tab/window (via `window.open`).
+   - In-app, display a lightweight "Waiting for billing changes…" banner.
+   - Webhook-driven refresh: on `customer.subscription.updated|deleted` and `invoice.payment_succeeded|failed`, update DB and refetch the client state.
+   - Short backoff polling on `/account/subscription` when `?billing_updated=1` is present (e.g., 0.5s → 1s → 2s for up to ~15s) until the subscription state reflects the change.
+   - Use a clear `return_url`, e.g., `/account/subscription?billing_updated=1`.
+   - On the landing page, if the tab was script‑opened, allow a small "Close this tab" button and optionally auto‑close via `window.close()` when permitted by the browser.
+
+2. API-only plan changes (advanced, not required)
+
+   - Use `subscriptions.update` with `items` → target price and `proration_behavior: create_prorations`.
+   - Preview charges with `invoices.retrieveUpcoming` to show “Amount due today” in‑app.
+   - When invoice requires SCA, collect and confirm payment using the Payment Element. This increases scope (payments UI, error states) but gives full redirect control.
+
+3. Hybrid
+   - Keep general management in Portal (payment methods, invoices, cancel) and use the smart routing from §17 for plan changes. This yields proration and minimal code while preserving a first‑class in‑app UX.
+
+Acceptance criteria
+
+- Users never feel “stuck” in the Portal: returning to `/account/subscription` shows the updated tier within a few seconds without manual refresh.
+- `return_url` consistently points back to `/account/subscription` (or a supplied path) and surfaces a success message when `billing_updated=1`.
+- If the Portal was opened in a new tab by the app, the landing page can safely suggest closing the tab and may auto‑close when possible.
+
+Manual test steps
+
+1. From Pro, click Manage billing → Update to Enterprise in Portal → click Return to merchant → app shows new tier and renewal date; no manual refresh needed.
+2. From Enterprise, cancel at period end → Return to merchant → app shows `cancelAtPeriodEnd=true`.
+3. Repeat both while intentionally not clicking Return; switch back to the app tab and verify the banner + webhook/polling refresh reflect the change within ~10–20s.
+
+Trade‑offs
+
+- Portal keeps you PCI‑scope light and handles proration, taxes, refunds, and SCA. API‑only gives full control but requires more payment UI and edge‑case handling.
+
+Decision
+
+- Adopt the Hybrid approach: keep Portal for management; add smart routing for plan changes; add a minimal “waiting for changes” banner and webhook‑driven refresh on the return URL.

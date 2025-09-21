@@ -112,9 +112,13 @@ export async function POST(req: NextRequest) {
           const cpe = (sub as unknown as { current_period_end?: number }).current_period_end
             ?? (sub as unknown as { currentPeriodEnd?: number }).currentPeriodEnd
             ?? (item0?.current_period_end ?? item0?.currentPeriodEnd ?? null);
-          const cape = (sub as unknown as { cancel_at_period_end?: boolean }).cancel_at_period_end
+          let cape = (sub as unknown as { cancel_at_period_end?: boolean }).cancel_at_period_end
             ?? (sub as unknown as { cancelAtPeriodEnd?: boolean }).cancelAtPeriodEnd
             ?? false;
+          // If Stripe has fully canceled the subscription, don't keep the flag set
+          if (status === 'canceled') {
+            cape = false;
+          }
           const canceledAt = (sub as unknown as { canceled_at?: number | null }).canceled_at
             ?? (sub as unknown as { canceledAt?: number | null }).canceledAt
             ?? null;

@@ -26,6 +26,7 @@ interface SubscriptionResp {
   periodStart: string | null;
   periodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  canceledAt?: string | null;
   lastUpdated: string | null;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
@@ -70,6 +71,25 @@ function formatRelativeToNow(iso: string | null) {
     return diffMs >= 0 ? `in ${d} days` : `${d} days ago`;
   } catch {
     return "";
+  }
+}
+
+// Format to dd-MMM-yyyy HH:mm in user's local timezone
+function formatDateTimeLocal(iso: string | null) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    const dd = String(d.getDate()).padStart(2, "0");
+    const months = [
+      "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"
+    ];
+    const mmm = months[d.getMonth()];
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${dd}-${mmm}-${yyyy}, ${hh}:${mm}`;
+  } catch {
+    return "—";
   }
 }
 
@@ -238,6 +258,16 @@ function SubscriptionPageInner() {
   const limits = TIER_LIMITS[(tier as LimitsKey)] ?? TIER_LIMITS["free"]; 
   const renewDate = sub?.periodEnd ?? null;
   const renewRelative = formatRelativeToNow(renewDate);
+  const isNewUser = !sub?.stripeCustomerId && !sub?.stripeSubscriptionId;
+  const showRenew = !isNewUser && (status === "active" || status === "trialing") && !sub?.cancelAtPeriodEnd;
+  const canceledOn = (() => {
+    if (status === "canceled" && renewDate) return renewDate;
+    if (status === "inactive" && renewDate) {
+      const t = new Date(renewDate).getTime();
+      if (!Number.isNaN(t) && t < Date.now()) return renewDate;
+    }
+    return null;
+  })();
 
   const statusPill = (() => {
     const base = "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1";
@@ -251,6 +281,8 @@ function SubscriptionPageInner() {
     } as Record<Status, string>;
     const cls = base + (map[status] || " bg-gray-100 text-gray-700 ring-gray-300 dark:bg-gray-500/15 dark:text-gray-300 dark:ring-gray-500/30");
     const text = status.replace(/_/g, " ");
+    // Hide 'inactive' badge to avoid confusing users when on Free tier
+    if (status === "inactive") return null;
     return <span className={cls}>{text}</span>;
   })();
 
@@ -282,22 +314,25 @@ function SubscriptionPageInner() {
                 {statusPill}
               </div>
               <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                {tier !== "free" ? (
-                  <span>${priceMonthly}/mo</span>
-                ) : (
-                  <span>Free</span>
-                )}
+                <span>${priceMonthly}/mo</span>
               </div>
               <div className="text-sm text-gray-700 dark:text-gray-300">
-                <span>Renews on {formatDateShort(renewDate)}</span>
-                {renewRelative && (
+                <span>Renews on {showRenew && renewDate ? formatDateShort(renewDate) : "—"}</span>
+                {showRenew && renewRelative && (
                   <span className="ml-1 text-gray-500 dark:text-gray-500">({renewRelative})</span>
                 )}
               </div>
               {/* Removed quick chips for limits as requested */}
-              {sub?.cancelAtPeriodEnd && (
+              {(status === "active" || status === "trialing") && sub?.cancelAtPeriodEnd && (
                 <div className="text-sm text-amber-600 mt-1">
-                  Scheduled to cancel at period end
+                  {sub?.periodEnd
+                    ? `Scheduled to cancel at ${formatDateTimeLocal(sub.periodEnd)}`
+                    : "Scheduled to cancel at period end"}
+                </div>
+              )}
+              {canceledOn && (
+                <div className="text-sm text-rose-600 mt-1">
+                  Canceled on {formatDateShort(canceledOn)}
                 </div>
               )}
               {polling && (
