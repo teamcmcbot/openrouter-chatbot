@@ -7,7 +7,8 @@ import { useSearchParams } from "next/navigation";
 import { logger } from "../../../../lib/utils/logger";
 import PlanSelector from "../../../../components/subscription/PlanSelector";
 import BillingHistory from "../../../../components/subscription/BillingHistory";
-import { TIER_LIMITS, TIER_FEATURES } from "../../../../lib/constants/tiers";
+import { TIER_LIMITS, TIER_FEATURES, TIER_LABELS } from "../../../../lib/constants/tiers";
+import { TIER_PRICING_MONTHLY } from "../../../../lib/constants/tiers";
 
 // Types
 export type Tier = "free" | "pro" | "enterprise";
@@ -30,13 +31,45 @@ interface SubscriptionResp {
   stripeSubscriptionId: string | null;
 }
 
-function formatDate(iso: string | null) {
+function formatDateShort(iso: string | null) {
   if (!iso) return "—";
   try {
     const d = new Date(iso);
-    return d.toLocaleString();
+    const dd = String(d.getDate()).padStart(2, "0");
+    const months = [
+      "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"
+    ];
+    const mmm = months[d.getMonth()];
+    const yyyy = d.getFullYear();
+    return `${dd}-${mmm}-${yyyy}`;
   } catch {
-    return iso ?? "—";
+    return "—";
+  }
+}
+
+function formatRelativeToNow(iso: string | null) {
+  if (!iso) return "";
+  try {
+    const target = new Date(iso).getTime();
+    const now = Date.now();
+    const diffMs = target - now;
+    const abs = Math.abs(diffMs);
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    if (abs < minute) return diffMs >= 0 ? "in moments" : "moments ago";
+    if (abs < hour) {
+      const m = Math.round(abs / minute);
+      return diffMs >= 0 ? `in ${m} min` : `${m} min ago`;
+    }
+    if (abs < day) {
+      const h = Math.round(abs / hour);
+      return diffMs >= 0 ? `in ${h} hr` : `${h} hr ago`;
+    }
+    const d = Math.round(abs / day);
+    return diffMs >= 0 ? `in ${d} days` : `${d} days ago`;
+  } catch {
+    return "";
   }
 }
 
@@ -199,6 +232,27 @@ function SubscriptionPageInner() {
 
   const tier = sub?.tier ?? "free";
   const status = sub?.status ?? "inactive";
+  const label = (TIER_LABELS as Record<string, string>)[tier] ?? tier;
+  const priceMonthly = (TIER_PRICING_MONTHLY as Record<string, number>)[tier as keyof typeof TIER_PRICING_MONTHLY] ?? 0;
+  type LimitsKey = keyof typeof TIER_LIMITS;
+  const limits = TIER_LIMITS[(tier as LimitsKey)] ?? TIER_LIMITS["free"]; 
+  const renewDate = sub?.periodEnd ?? null;
+  const renewRelative = formatRelativeToNow(renewDate);
+
+  const statusPill = (() => {
+    const base = "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1";
+    const map: Record<Status, string> = {
+      active: " bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30",
+      trialing: " bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30",
+      past_due: " bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30",
+      unpaid: " bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30",
+      canceled: " bg-gray-100 text-gray-700 ring-gray-300 dark:bg-gray-500/15 dark:text-gray-300 dark:ring-gray-500/30",
+      inactive: " bg-gray-100 text-gray-700 ring-gray-300 dark:bg-gray-500/15 dark:text-gray-300 dark:ring-gray-500/30",
+    } as Record<Status, string>;
+    const cls = base + (map[status] || " bg-gray-100 text-gray-700 ring-gray-300 dark:bg-gray-500/15 dark:text-gray-300 dark:ring-gray-500/30");
+    const text = status.replace(/_/g, " ");
+    return <span className={cls}>{text}</span>;
+  })();
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -223,13 +277,24 @@ function SubscriptionPageInner() {
           </div>
           <div>
             <div>
-              <div className="text-xl font-semibold capitalize">{tier}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Status: {status}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="text-2xl font-semibold">{label}</div>
+                {statusPill}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Renews: {formatDate(sub?.periodEnd ?? null)}
+              <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                {tier !== "free" ? (
+                  <span>${priceMonthly}/mo</span>
+                ) : (
+                  <span>Free</span>
+                )}
               </div>
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                <span>Renews on {formatDateShort(renewDate)}</span>
+                {renewRelative && (
+                  <span className="ml-1 text-gray-500 dark:text-gray-500">({renewRelative})</span>
+                )}
+              </div>
+              {/* Removed quick chips for limits as requested */}
               {sub?.cancelAtPeriodEnd && (
                 <div className="text-sm text-amber-600 mt-1">
                   Scheduled to cancel at period end
@@ -241,53 +306,48 @@ function SubscriptionPageInner() {
                 </div>
               )}
 
-              {/* Divider before limits */}
-              <div className="my-4 border-t border-gray-200 dark:border-gray-700" />
-
-              {/* Inline plan details */}
-              <div className="mt-4 space-y-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Tier-Based Limits</div>
-                  {(() => {
-                    type LimitsKey = keyof typeof TIER_LIMITS;
-                    const key = (tier as LimitsKey);
-                    const limits = TIER_LIMITS[key] ?? TIER_LIMITS["free"];
-                    return (
-                      <>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-700 dark:text-gray-300">Requests/hour</span>
-                          <span className="font-medium">{limits.maxRequestsPerHour?.toLocaleString?.() ?? limits.maxRequestsPerHour}</span>
+              {/* Labeled divider and two-column details */}
+              <div className="mt-5 pt-5 border-t border-gray-200 dark:border-gray-700/60">
+                <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">Limits & features</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Feature Access (left) */}
+                  <div>
+                    <div className="text-[11px] uppercase tracking-wide text-gray-600 dark:text-gray-400 mb-1">Feature Access</div>
+                    {(() => {
+                      type FeaturesKey = keyof typeof TIER_FEATURES;
+                      const k = (tier as FeaturesKey);
+                      const f = TIER_FEATURES[k] ?? TIER_FEATURES["free"];
+                      const Row = ({ label, enabled }: { label: string; enabled: boolean }) => (
+                        <div className="text-sm flex items-center gap-2">
+                          <span className={`inline-block w-1.5 h-1.5 rounded-full ${enabled ? "bg-emerald-500" : "bg-gray-400 dark:bg-gray-500"}`} />
+                          <span className={enabled ? "text-gray-900 dark:text-gray-200" : "text-gray-400 dark:text-gray-500"}>{label}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-700 dark:text-gray-300">Tokens/request</span>
-                          <span className="font-medium">{limits.maxTokensPerRequest?.toLocaleString?.() ?? limits.maxTokensPerRequest}</span>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
+                      );
+                      return (
+                        <>
+                          <Row label="Web Search" enabled={!!f.webSearch} />
+                          <Row label="Reasoning" enabled={!!f.reasoning} />
+                          <Row label="Image Attachments" enabled={!!f.imageAttachments} />
+                          <Row label="Image Generation" enabled={!!f.imageGeneration} />
+                        </>
+                      );
+                    })()}
+                  </div>
 
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Feature Access</div>
-                  {(() => {
-                    type FeaturesKey = keyof typeof TIER_FEATURES;
-                    const k = (tier as FeaturesKey);
-                    const f = TIER_FEATURES[k] ?? TIER_FEATURES["free"];
-                    const Row = ({ label, enabled }: { label: string; enabled: boolean }) => (
-                      <div className="text-sm flex items-center gap-2">
-                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${enabled ? "bg-emerald-500" : "bg-gray-400 dark:bg-gray-500"}`} />
-                        <span className={enabled ? "text-gray-800 dark:text-gray-200" : "text-gray-500"}>{label}</span>
+                  {/* Tier-Based Limits (right) */}
+                  <div>
+                    <div className="text-[11px] uppercase tracking-wide text-gray-600 dark:text-gray-400 mb-1">Tier-Based Limits</div>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400">Requests/hour</span>
+                        <span className="font-medium text-gray-900 dark:text-gray-200">{limits.maxRequestsPerHour?.toLocaleString?.() ?? limits.maxRequestsPerHour}</span>
                       </div>
-                    );
-                    return (
-                      <>
-                        <Row label="Web Search" enabled={!!f.webSearch} />
-                        <Row label="Reasoning" enabled={!!f.reasoning} />
-                        <Row label="Image Attachments" enabled={!!f.imageAttachments} />
-                        <Row label="Image Generation" enabled={!!f.imageGeneration} />
-                      </>
-                    );
-                  })()}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400">Tokens/request</span>
+                        <span className="font-medium text-gray-900 dark:text-gray-200">{limits.maxTokensPerRequest?.toLocaleString?.() ?? limits.maxTokensPerRequest}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
