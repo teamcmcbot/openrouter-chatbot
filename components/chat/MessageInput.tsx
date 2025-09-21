@@ -13,6 +13,7 @@ import { useUserData } from "../../hooks/useUserData";
 import { useBanStatus } from "../../hooks/useBanStatus";
 import type { ModelInfo } from "../../lib/types/openrouter";
 import { MAX_MESSAGE_CHARS } from "../../lib/config/limits";
+import { useRouter } from "next/navigation";
 
 interface MessageInputProps {
   onSendMessage: (message: string, options?: { attachmentIds?: string[]; draftId?: string; webSearch?: boolean; webMaxResults?: number; reasoning?: { effort?: 'low' | 'medium' | 'high' }; imageOutput?: boolean }) => void
@@ -25,6 +26,7 @@ interface MessageInputProps {
 }
 
 export default function MessageInput({ onSendMessage, disabled = false, isSending = false, initialMessage, onOpenModelSelector }: Readonly<MessageInputProps>) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [showCount, setShowCount] = useState(false);
   const [liveMsg, setLiveMsg] = useState<string>(""); // for aria-live threshold announcements
@@ -594,6 +596,17 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
     await performUpload(tempId, tile.file);
   };
 
+  // Navigate for upgrade: anonymous → sign-in with returnTo to subscription; authed → subscription
+  const goToSubscription = () => {
+    setGatingOpen(false);
+    if (!isAuthenticated) {
+      const rt = encodeURIComponent('/account/subscription?src=upgrade');
+      router.push(`/auth/signin?returnTo=${rt}`);
+    } else {
+      router.push('/account/subscription');
+    }
+  };
+
   return (
     <div className="px-4 sm:px-6 py-4">
       {/* Composer Dock (pill) */}
@@ -941,7 +954,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   <div className="mb-3 text-gray-800 dark:text-gray-200">Model-generated images are available for Enterprise accounts.</div>
                   <div className="flex items-center justify-end gap-2">
                     <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
-                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={goToSubscription}>Upgrade</button>
                   </div>
                 </div>
               )}
@@ -963,7 +976,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   <div className="mb-3 text-gray-800 dark:text-gray-200">Your current plan doesn’t include web search. Available on Pro and Enterprise.</div>
                   <div className="flex items-center justify-end gap-2">
                     <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
-                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={goToSubscription}>Upgrade</button>
                   </div>
                 </div>
               )}
@@ -986,7 +999,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   <div className="mb-3 text-gray-800 dark:text-gray-200">Reasoning is available for enterprise accounts only.</div>
                   <div className="flex items-center justify-end gap-2">
                     <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
-                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={goToSubscription}>Upgrade</button>
                   </div>
                 </div>
               )}
@@ -1009,7 +1022,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   <div className="mb-3 text-gray-800 dark:text-gray-200">Your current plan doesn’t include image uploads. Available on Pro and Enterprise.</div>
                   <div className="flex items-center justify-end gap-2">
                     <button type="button" className="px-2.5 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100" onClick={() => setGatingOpen(false)}>Maybe later</button>
-                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setGatingOpen(false)}>Upgrade</button>
+                    <button type="button" className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white" onClick={goToSubscription}>Upgrade</button>
                   </div>
                 </div>
               )}

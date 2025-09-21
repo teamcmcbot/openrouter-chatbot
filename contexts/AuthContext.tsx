@@ -2,6 +2,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
+import { useAuthStore } from '../stores/useAuthStore'
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '../lib/supabase/client'
@@ -157,8 +158,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+  if (context !== undefined) {
+    return context
   }
-  return context
+  // Fallback shim: if legacy AuthContext provider isn't mounted, proxy to Zustand store without using hooks
+  const store = useAuthStore.getState()
+  return {
+    user: store.user,
+    session: store.session,
+    loading: store.isLoading,
+    signInWithGoogle: store.signInWithGoogle,
+    signOut: store.signOut,
+  }
 }

@@ -78,6 +78,10 @@ export function UserMenu() {
 
             {/* Menu Items */}
             <div id="user-menu-actions" className="py-0">
+              <a href="/account/subscription" className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <UserIcon className="w-4 h-4" />
+                Subscription
+              </a>
               <button className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <UserIcon className="w-4 h-4" />
                 Profile

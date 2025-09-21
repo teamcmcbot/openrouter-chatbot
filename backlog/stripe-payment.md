@@ -259,6 +259,75 @@ async function handleGracePeriods() {
 - [ ] Implement checkout flow
 - [ ] Add billing history view
 
+#### 2.1 Sign-in redirect behavior (subscription flow)
+
+Problem: When an unauthenticated user clicks an Upgrade CTA and lands on `/account/subscription`, they currently see a prompt to sign in. Historically, successful sign-in redirected to `/chat`. We need a safe, flexible post-sign-in redirect that can send users back to the page that initiated auth (e.g., `/account/subscription`).
+
+Approach: Add a first-class “return to” mechanism that works for email/password, OTP/magic link, and OAuth provider flows.
+
+- Canonical parameter: `returnTo` (relative path). Example: `/auth/signin?returnTo=%2Faccount%2Fsubscription`.
+- Fallback mechanism: A short‑lived cookie `post_sign_in_redirect` set before starting the auth flow (used when `returnTo` cannot be propagated through provider redirects reliably).
+- Success logic: On auth success, read `returnTo` (query) OR cookie; validate it; perform a client-side `router.replace(returnTo)`; fallback to existing default (`/chat`) when missing/invalid.
+
+Safety rules:
+
+- Only allow internal relative paths beginning with `/`.
+- Disallow absolute URLs and any value containing `://`, `\\`, or control characters.
+- Cap length (e.g., 512 chars) and strip whitespace.
+- Preserve query and hash if present (e.g., `/account/subscription?src=upgrade#billing`).
+
+Implementation tasks (checklist):
+
+- [ ] Add `returnTo` plumbing to all Sign In entry points:
+  - Header `Sign In` button should link to `/auth/signin?returnTo=<encoded pathname+search+hash>` when available.
+  - Any modal/in-page prompt on `/account/subscription` should set the cookie `post_sign_in_redirect` with the same target as a backup.
+- [ ] Create or confirm canonical routes: `/auth/signin` (entry point) and `/auth/callback` (OAuth callback handler).
+- [ ] Create a shared util `getSafeReturnTo(input: string | null): string | null` that enforces the safety rules above.
+- [ ] Extend the sign-in success path (existing auth initializer or `useAuthSuccessToast`) to:
+  - Read `returnTo` from the current URL first; else read `post_sign_in_redirect` cookie.
+  - Use `getSafeReturnTo` and navigate (prefer `router.replace`) to that page; else navigate to `/chat`.
+  - Clear the cookie after use.
+- [ ] For OAuth-based flows (`supabase.auth.signInWithOAuth`), set the cookie before triggering the provider redirect so the value survives the round trip.
+- [ ] For OAuth-based flows, pass `options.redirectTo = ${origin}/auth/callback?returnTo=<encoded target>` so the callback can restore the intended destination (cookie remains as fallback).
+- [ ] For email OTP/magic link, persist `returnTo` similarly; if using `redirectTo` in Supabase, include the `returnTo` in your callback URL’s query so the app can read it on return.
+- [ ] Add unit tests for `getSafeReturnTo` (valid/invalid inputs) and a minimal integration test for “arrive on `/account/subscription` while signed out → sign in → redirected back”.
+- [ ] Update copy on `/account/subscription` for anonymous users to clarify: “Please sign in to manage your subscription. You’ll return here after signing in.”
+
+Edge cases to handle:
+
+- If `returnTo` is `/` or blank → fallback to `/chat` (existing default behavior).
+- If a user opens the sign-in page directly (no `returnTo`, no cookie) → fallback to `/chat`.
+- If the stored target is no longer accessible after sign-in (e.g., route removed) → fallback to `/account/subscription` for subscription-initiated flows, else `/chat`.
+- If a user signs in on a deep page (e.g., `/settings#billing`), preserve the hash/query when redirecting.
+
+User test steps (manual):
+
+1. Anonymous → visit `/account/subscription`. Expect a sign-in prompt.
+2. Click `Sign In`. Authenticate successfully.
+3. After auth, expect to land back on `/account/subscription` (URL preserved). No page flicker to `/chat`.
+4. Repeat from home `/` without any `returnTo`. After auth, expect to land on `/chat` (default).
+5. Try a crafted external `returnTo=https://evil.com` directly. Expect to be ignored and fallback to `/chat`.
+
+Assumptions & notes:
+
+- Root auth provider is Zustand-based; legacy `contexts/AuthContext` is not globally mounted. The redirect logic will live in our existing auth initializer/success hook and will not depend on the legacy context.
+- We will not modify server middleware for this; the client-side redirect on successful sign-in is sufficient for the UX requirement.
+- No changes to API routes are required.
+
+Decisions (approved):
+
+1. Canonical sign-in entry point: Use a dedicated `/auth/signin` page. Any modal flows should route through `/auth/signin?returnTo=...` to centralize behavior.
+2. OAuth callback handling: Use both query and cookie. Pass `redirectTo` to `/auth/callback?returnTo=...` and also set `post_sign_in_redirect` before provider redirect as a fallback.
+3. Default fallback: Keep `/chat` when neither `returnTo` nor cookie is present or valid.
+4. Preservation of query/hash: Preserve full path + query + hash after safety validation (relative path only, length cap, reject `://` and backslashes). We can optionally strip marketing params later, not required for MVP.
+5. Additional targets: Support any internal path. Prioritize tests/docs for `/account/subscription`, `/chat`, and `/settings` (including `#billing`).
+
+Security and reliability:
+
+- Cookie TTL 10 minutes; `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`.
+- Prefer `router.replace` over `push` to avoid back-button loops.
+- Clear the cookie after successful redirect; log minimal, redacted info on invalid `returnTo` and fall back to `/chat`.
+
 ### Phase 3: Integration (Week 3)
 
 - [ ] Connect Stripe Checkout
@@ -730,7 +799,7 @@ Answers to the questions:
 Navigation & UX:
 
 - Add Subscription to account menu; success/cancel deep links via STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL.
-- Anonymous users attempting to upgrade are prompted to sign in first.
+- Anonymous users attempting to upgrade are automatically routed to the canonical sign-in page with a safe return target: `/auth/signin?returnTo=%2Faccount%2Fsubscription%3Fsrc%3Dupgrade%26plan%3D<plan>`. After successful authentication, they are returned to `/account/subscription` with original query/hash preserved. Unsafe or missing return targets fall back to `/chat`.
 
 ## 16. Detailed task breakdown (API-first → UI)
 
@@ -753,7 +822,7 @@ Phase 1B: Schema + Docs — Verified (2025-09-21)
 Phase 2: UI (Subscription page)
 
 - [ ] Build /account/subscription
-- [ ] Wire Upgrade buttons → checkout-session redirect
+- [ ] Wire Upgrade buttons → if unauthenticated, route to `/auth/signin?returnTo=%2Faccount%2Fsubscription%3Fsrc%3Dupgrade%26plan%3D<plan>`; if authenticated, proceed to checkout-session redirect
 - [ ] Add Manage billing → customer-portal
 - [ ] Show status, renewal date, cancelAtPeriodEnd
 - [ ] Handle errors/empty states
