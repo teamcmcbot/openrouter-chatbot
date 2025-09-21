@@ -254,9 +254,9 @@ async function handleGracePeriods() {
 
 ### Phase 2: UI Components (Week 2)
 
-- [ ] Build subscription management page
-- [ ] Create plan selector component
-- [ ] Implement checkout flow
+- [x] Build subscription management page
+- [x] Create plan selector component
+- [x] Implement checkout flow
 - [ ] Add billing history view
 
 #### 2.1 Sign-in redirect behavior (subscription flow)
@@ -278,17 +278,17 @@ Safety rules:
 
 Implementation tasks (checklist):
 
-- [ ] Add `returnTo` plumbing to all Sign In entry points:
+- [x] Add `returnTo` plumbing to all Sign In entry points:
   - Header `Sign In` button should link to `/auth/signin?returnTo=<encoded pathname+search+hash>` when available.
   - Any modal/in-page prompt on `/account/subscription` should set the cookie `post_sign_in_redirect` with the same target as a backup.
-- [ ] Create or confirm canonical routes: `/auth/signin` (entry point) and `/auth/callback` (OAuth callback handler).
-- [ ] Create a shared util `getSafeReturnTo(input: string | null): string | null` that enforces the safety rules above.
-- [ ] Extend the sign-in success path (existing auth initializer or `useAuthSuccessToast`) to:
+- [x] Create or confirm canonical routes: `/auth/signin` (entry point) and `/auth/callback` (OAuth callback handler).
+- [x] Create a shared util `getSafeReturnTo(input: string | null): string | null` that enforces the safety rules above.
+- [x] Extend the sign-in success path (existing auth initializer or `useAuthSuccessToast`) to:
   - Read `returnTo` from the current URL first; else read `post_sign_in_redirect` cookie.
   - Use `getSafeReturnTo` and navigate (prefer `router.replace`) to that page; else navigate to `/chat`.
   - Clear the cookie after use.
-- [ ] For OAuth-based flows (`supabase.auth.signInWithOAuth`), set the cookie before triggering the provider redirect so the value survives the round trip.
-- [ ] For OAuth-based flows, pass `options.redirectTo = ${origin}/auth/callback?returnTo=<encoded target>` so the callback can restore the intended destination (cookie remains as fallback).
+- [x] For OAuth-based flows (`supabase.auth.signInWithOAuth`), set the cookie before triggering the provider redirect so the value survives the round trip.
+- [x] For OAuth-based flows, pass `options.redirectTo = ${origin}/auth/callback?returnTo=<encoded target>` so the callback can restore the intended destination (cookie remains as fallback).
 - [ ] For email OTP/magic link, persist `returnTo` similarly; if using `redirectTo` in Supabase, include the `returnTo` in your callback URL’s query so the app can read it on return.
 - [ ] Add unit tests for `getSafeReturnTo` (valid/invalid inputs) and a minimal integration test for “arrive on `/account/subscription` while signed out → sign in → redirected back”.
 - [ ] Update copy on `/account/subscription` for anonymous users to clarify: “Please sign in to manage your subscription. You’ll return here after signing in.”
@@ -821,11 +821,11 @@ Phase 1B: Schema + Docs — Verified (2025-09-21)
 
 Phase 2: UI (Subscription page)
 
-- [ ] Build /account/subscription
-- [ ] Wire Upgrade buttons → if unauthenticated, route to `/auth/signin?returnTo=%2Faccount%2Fsubscription%3Fsrc%3Dupgrade%26plan%3D<plan>`; if authenticated, proceed to checkout-session redirect
-- [ ] Add Manage billing → customer-portal
-- [ ] Show status, renewal date, cancelAtPeriodEnd
-- [ ] Handle errors/empty states
+- [x] Build /account/subscription
+- [x] Wire Upgrade buttons → if unauthenticated, route to `/auth/signin?returnTo=%2Faccount%2Fsubscription%3Fsrc%3Dupgrade%26plan%3D<plan>`; if authenticated, proceed to checkout-session redirect
+- [x] Add Manage billing → customer-portal
+- [x] Show status, renewal date, cancelAtPeriodEnd
+- [x] Handle errors/empty states
 
 #### Post-Stripe redirect handling (instant UX)
 
