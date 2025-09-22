@@ -389,11 +389,12 @@ function SubscriptionPageInner() {
         </div>
 
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h3 className="font-medium mb-2">Select Plan</h3>
+          <h3 className="font-medium mb-2">{tier === "free" ? "Select Plan" : "Switch Plan"}</h3>
           <PlanSelector
             currentTier={tier}
             onUpgrade={handleUpgrade}
             loading={loading}
+            autoSelectFirst={search?.get("src") === "upgrade"}
           />
         </div>
       </div>

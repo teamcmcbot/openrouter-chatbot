@@ -603,7 +603,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
       const rt = encodeURIComponent('/account/subscription?src=upgrade');
       router.push(`/auth/signin?returnTo=${rt}`);
     } else {
-      router.push('/account/subscription');
+      router.push('/account/subscription?src=upgrade');
     }
   };
 

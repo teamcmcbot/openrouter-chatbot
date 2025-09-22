@@ -4,6 +4,7 @@ import { withProtectedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { logger } from '../../../../../lib/utils/logger';
 import { createClient } from '../../../../../lib/supabase/server';
+import { getSafeReturnTo } from '../../../../../lib/utils/returnTo';
 import type { AuthContext } from '../../../../../lib/types/auth';
 
 type Plan = 'pro' | 'enterprise';
@@ -36,7 +37,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
   try {
     const body = await req.json().catch(() => ({}));
     const plan: Plan = body.plan;
-    const returnPath: string | undefined = body.returnPath; // used for Portal
+  const returnPath: string | undefined = body.returnPath; // used for Portal
     const returnPathSuccess: string = body.returnPathSuccess || process.env.STRIPE_SUCCESS_URL || '/account/subscription?success=true';
     const returnPathCancel: string = body.returnPathCancel || process.env.STRIPE_CANCEL_URL || '/account/subscription?canceled=true';
 
@@ -49,7 +50,10 @@ async function handler(req: NextRequest, auth: AuthContext) {
       return NextResponse.json({ error: 'Price not configured' }, { status: 500 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const defaultPortalPath = '/account/subscription?billing_updated=1';
+  const safeReturnPath = getSafeReturnTo(returnPath) || defaultPortalPath;
+  const targetReturnUrl = `${appUrl}${safeReturnPath}`;
 
     // Ensure Stripe customer exists for this user
     const supabase = await createClient();
@@ -123,7 +127,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
     // Existing subscription → Prefer Billing Portal confirm flow (preselect price) using subscription item id
     const basePortalParams = {
       customer: customerId!,
-      return_url: `${appUrl}${returnPath || '/account/subscription?billing_updated=1'}`,
+      return_url: targetReturnUrl,
     } as const;
 
     try {
@@ -141,6 +145,12 @@ async function handler(req: NextRequest, auth: AuthContext) {
       // Confirm flow: preselect target price using subscription item id
       const confirmFlow: Stripe.BillingPortal.SessionCreateParams.FlowData = {
         type: 'subscription_update_confirm',
+        after_completion: {
+            type: 'redirect',
+            redirect: {
+                return_url: targetReturnUrl,
+            },
+        },
         subscription_update_confirm: {
           subscription: sub!.stripe_subscription_id!,
           items: [{ id: subItemId, price: priceId, quantity: 1 }],
@@ -159,6 +169,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
           subscriptionItemIdSuffix: idSuffix(subItemId),
           priceId,
           returnUrl: basePortalParams.return_url,
+          afterCompletion: 'redirect',
         },
       });
 

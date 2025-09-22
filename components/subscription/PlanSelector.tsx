@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import Button from "../ui/Button";
 import { TIER_FEATURES, TIER_LABELS, TIER_LIMITS } from "../../lib/constants/tiers";
+import ConfirmModal from "../ui/ConfirmModal";
 
 type Tier = "free" | "pro" | "enterprise";
 
@@ -13,9 +14,11 @@ interface PlanSelectorProps {
   currentTier: Tier;
   onUpgrade: (plan: Tier) => void;
   loading?: boolean;
+  // When true, select the first available option on mount (used for src=upgrade deep link)
+  autoSelectFirst?: boolean;
 }
 
-export default function PlanSelector({ currentTier, onUpgrade, loading }: PlanSelectorProps) {
+export default function PlanSelector({ currentTier, onUpgrade, loading, autoSelectFirst = false }: PlanSelectorProps) {
   // Allowed plan options based on current tier
   const options = useMemo(() => {
     const all: Array<{ id: Exclude<Tier, "free">; price: number }> = [
@@ -28,13 +31,20 @@ export default function PlanSelector({ currentTier, onUpgrade, loading }: PlanSe
     return all.filter((p) => p.id === "pro");
   }, [currentTier]);
 
-  const [selected, setSelected] = useState<Exclude<Tier, "free">>(options[0]?.id ?? "pro");
-  // Ensure selected stays valid when currentTier changes
+  const [selected, setSelected] = useState<Exclude<Tier, "free"> | null>(
+    autoSelectFirst ? (options[0]?.id ?? null) : null
+  );
+  // Keep selection valid when options change
   useEffect(() => {
-    if (!options.find((o) => o.id === selected)) {
-      setSelected(options[0]?.id ?? "pro");
+    if (!selected) {
+      // If nothing selected and autoSelectFirst requested, select first available
+      if (autoSelectFirst) setSelected(options[0]?.id ?? null);
+      return;
     }
-  }, [options, selected]);
+    if (!options.find((o) => o.id === selected)) {
+      setSelected(autoSelectFirst ? (options[0]?.id ?? null) : null);
+    }
+  }, [options, selected, autoSelectFirst]);
 
   const featuresList = (tier: Exclude<Tier, "free">) => {
     const f = TIER_FEATURES[tier];
@@ -44,6 +54,23 @@ export default function PlanSelector({ currentTier, onUpgrade, loading }: PlanSe
       { label: "Image Attachments", enabled: f.imageAttachments },
       { label: "Image Generation", enabled: f.imageGeneration },
     ];
+  };
+
+  const [showDowngrade, setShowDowngrade] = useState(false);
+
+  const proceed = () => {
+    if (!selected) return;
+    onUpgrade(selected);
+  };
+
+  const handleContinue = () => {
+    if (!selected) return;
+    // Enterprise -> Pro requires confirmation
+    if (currentTier === "enterprise" && selected === "pro") {
+      setShowDowngrade(true);
+      return;
+    }
+    proceed();
   };
 
   if (options.length === 0) {
@@ -122,12 +149,29 @@ export default function PlanSelector({ currentTier, onUpgrade, loading }: PlanSe
       </div>
 
       <Button
-        onClick={() => onUpgrade(selected)}
+        onClick={handleContinue}
         loading={!!loading}
+        disabled={!selected}
         className="w-full"
       >
         Continue checkout
       </Button>
+
+      {/* Downgrade confirm modal */}
+      <ConfirmModal
+        isOpen={showDowngrade}
+        onCancel={() => setShowDowngrade(false)}
+        onConfirm={() => {
+          setShowDowngrade(false);
+          proceed();
+        }}
+        title="Switch to Pro?"
+        description={
+          "You are downgrading from Enterprise to Pro. This may reduce your limits and features. You can manage billing anytime in the portal."
+        }
+        confirmText="Yes, switch to Pro"
+        cancelText="Keep Enterprise"
+      />
     </div>
   );
 }
