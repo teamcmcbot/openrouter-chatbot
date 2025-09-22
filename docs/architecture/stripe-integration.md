@@ -14,7 +14,7 @@ This document explains how Stripe is integrated into the OpenRouter Chatbot app:
 ## Architecture
 
 1. User initiates upgrade from `/account/subscription`.
-2. POST `/api/stripe/checkout-session` creates a Checkout session and returns a redirect URL.
+2. POST `/api/stripe/start-subscription-flow` creates a subscription Checkout session and returns a redirect URL. (Legacy: `/api/stripe/checkout-session` — see Endpoints.)
 3. After payment, Stripe redirects back to `/account/subscription?success=true`.
 4. Stripe webhooks call `/api/stripe/webhook` (server-to-server) with verified signatures; handlers upsert DB and update the user's subscription tier/status.
 5. The UI polls `/api/stripe/subscription` after return to reflect the updated tier quickly (webhook remains the source of truth).
@@ -24,11 +24,15 @@ This document explains how Stripe is integrated into the OpenRouter Chatbot app:
 
 All protected endpoints use the shared auth + tiered rate-limiting middleware. Do not add manual auth checks.
 
-- POST `/api/stripe/checkout-session` — Protected + Tier C
+- POST `/api/stripe/start-subscription-flow` — Protected + Tier C (Primary)
 
-  - Body: `{ plan: 'pro'|'enterprise', trialDays?: number, returnPathSuccess?: string, returnPathCancel?: string }`
+  - Body: `{ plan: 'pro'|'enterprise', trialDays?: number, returnPathSuccess?: string, returnPathCancel?: string, returnPath?: string }`
   - Response: `{ url: string }`
-  - Behavior: Ensures a Stripe Customer exists; creates a subscription Checkout session using `STRIPE_PRO_PRICE_ID` or `STRIPE_ENTERPRISE_PRICE_ID`; success/cancel URLs default to env.
+  - Behavior: Ensures a Stripe Customer exists; creates a subscription Checkout session using `STRIPE_PRO_PRICE_ID` or `STRIPE_ENTERPRISE_PRICE_ID`. If request body includes `returnPath*`, those override env defaults for success/cancel/portal return.
+
+- POST `/api/stripe/checkout-session` — Protected + Tier C (Legacy)
+
+  - Kept for compatibility with earlier clients. Prefer `start-subscription-flow` for new integrations.
 
 - POST `/api/stripe/customer-portal` — Protected + Tier C
 
@@ -49,6 +53,8 @@ All protected endpoints use the shared auth + tiered rate-limiting middleware. D
 Optional (not required for MVP):
 
 - POST `/api/stripe/cancel-subscription` — Protected + Tier C; sets `cancel_at_period_end=true`.
+- POST `/api/stripe/undo-cancel-subscription` — Protected + Tier C; clears `cancel_at_period_end=false`.
+- GET `/api/stripe/payment-history` — Protected + Tier C; returns recent invoices/payments (minimal fields: id, amount, currency, status, created_at).
 - POST `/api/stripe/change-plan` — Protected + Tier C; programmatic change without the portal.
 
 ## Database schema (supabase)
@@ -110,13 +116,36 @@ STRIPE_PRO_PRICE_ID=price_...
 STRIPE_ENTERPRISE_PRICE_ID=price_...
 # Optional: set to a recent API version to improve portal preselection compatibility
 STRIPE_API_VERSION=2024-06-20
+
+Notes:
+- The client may supply `returnPathSuccess`, `returnPathCancel`, or `returnPath` in the request body to `start-subscription-flow` / `customer-portal`. When present, these override the corresponding env defaults.
 ```
 
 ## Subscription UI behavior
 
 - Page: `/account/subscription` shows current plan header (label, price/mo, status pill, renewal date and countdown, Manage billing button) and a "Limits & features" section.
 - Plan selection cards show features, limits, and prices; CTA launches checkout.
-- After returning from Checkout or Portal, the page detects markers (`success`, `billing_updated`) and triggers a short backoff poll of `/api/stripe/subscription` until the webhook updates land.
+- After returning from Checkout or Portal, the page detects markers (`success`, `billing_updated`) and triggers a short backoff poll of `/api/stripe/subscription` until the webhook updates land. It also refreshes the models list via `GET /api/models` so tier-based model access reflects immediately.
+
+### Return markers & UI feedback
+
+The subscription page reads URL markers on return from Stripe and provides user feedback. After showing a toast, markers are stripped from the URL to avoid duplicates on reload/back.
+
+- `?success=true`
+  - Behavior: Poll `/api/stripe/subscription`; refresh `/api/models`.
+  - Toast: “Subscription updated. Enjoy your new plan!”
+- `?billing_updated=1`
+  - Behavior: Poll subscription; refresh `/api/models`.
+  - Toast: “Billing updated. Models refreshed.”
+- `?canceled=true`
+  - Behavior: No-op logic-wise.
+  - Toast: “Checkout canceled.”
+- `?action=cancel`
+  - Behavior: Shown after scheduling cancel via in-app flow.
+  - Toast: “Cancellation scheduled for period end.”
+- `?action=undo_cancel`
+  - Behavior: Shown after undoing a scheduled cancel via in-app flow.
+  - Toast: “Subscription restored. Your plan remains active.”
 
 ## Sign-in redirect behavior (subscription flow)
 
@@ -126,6 +155,8 @@ STRIPE_API_VERSION=2024-06-20
 - OAuth provider redirects include `redirectTo=/auth/callback?returnTo=...` so the app can restore the intended destination.
 
 ## Local testing (Stripe Test Mode + CLI)
+
+See also: `docs/ops/stripe-local-testing.md` for a step-by-step local testing guide with environment variables, Stripe CLI listen/trigger commands, and expected UI behavior.
 
 1. Install Stripe CLI and log in.
 2. Run the app locally.
@@ -144,7 +175,8 @@ STRIPE_API_VERSION=2024-06-20
 
 - 400 webhook signature error: ensure `whsec_...` matches the currently running `stripe listen` and raw body is used.
 - No webhooks locally: verify Stripe CLI is running and the `--forward-to` URL is correct.
-- Redirect markers seen but no UI change: webhook may be delayed; the client will retry polling briefly and also on window focus.
+- Redirect markers seen but no UI change: webhook may be delayed; the client will retry polling briefly and also on window focus. The page also refreshes `/api/models`; if model access still appears unchanged, wait a few seconds or refocus the window to trigger another fetch.
+- Toasts only appeared once: markers are stripped from the URL after showing notifications to prevent duplicate toasts on remount/back navigation.
 - Billing Portal shows both plans but doesn't preselect the chosen plan: your Stripe account/API version may not support advanced deep-links. The app attempts a sequence of portal flows: advanced (items + proration), items-only, minimal, then plain portal. Setting `STRIPE_API_VERSION` to a newer version can help. Ensure your Portal settings allow customers to switch products.
 
 ## Future enhancements
