@@ -95,6 +95,7 @@ Notes:
 - Server: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - Price IDs: `STRIPE_PRO_PRICE_ID`, `STRIPE_ENTERPRISE_PRICE_ID`
 - URLs: `NEXT_PUBLIC_APP_URL`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`
+- Optional: `STRIPE_API_VERSION` — override the Stripe API version used by the server SDK. Supplying a recent version (e.g., `2024-06-20` or newer) can enable advanced Billing Portal deep-links used to preselect a target plan during plan changes.
 
 Example (`.env.local`):
 
@@ -107,6 +108,8 @@ STRIPE_SUCCESS_URL=/account/subscription?success=true
 STRIPE_CANCEL_URL=/account/subscription?canceled=true
 STRIPE_PRO_PRICE_ID=price_...
 STRIPE_ENTERPRISE_PRICE_ID=price_...
+# Optional: set to a recent API version to improve portal preselection compatibility
+STRIPE_API_VERSION=2024-06-20
 ```
 
 ## Subscription UI behavior
@@ -142,6 +145,7 @@ STRIPE_ENTERPRISE_PRICE_ID=price_...
 - 400 webhook signature error: ensure `whsec_...` matches the currently running `stripe listen` and raw body is used.
 - No webhooks locally: verify Stripe CLI is running and the `--forward-to` URL is correct.
 - Redirect markers seen but no UI change: webhook may be delayed; the client will retry polling briefly and also on window focus.
+- Billing Portal shows both plans but doesn't preselect the chosen plan: your Stripe account/API version may not support advanced deep-links. The app attempts a sequence of portal flows: advanced (items + proration), items-only, minimal, then plain portal. Setting `STRIPE_API_VERSION` to a newer version can help. Ensure your Portal settings allow customers to switch products.
 
 ## Future enhancements
 

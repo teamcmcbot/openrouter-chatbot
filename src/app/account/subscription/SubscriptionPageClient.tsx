@@ -196,14 +196,13 @@ function SubscriptionPageInner() {
   const handleUpgrade = async (plan: Tier) => {
     setLoading(true);
     try {
-      const res = await postJson<{ url: string }>(
-        "/api/stripe/checkout-session",
-        {
-          plan,
-          returnPathSuccess: "/account/subscription?success=true",
-          returnPathCancel: "/account/subscription?canceled=true",
-        }
-      );
+      const res = await postJson<{ url: string }>("/api/stripe/start-subscription-flow", {
+        plan,
+        returnPathSuccess: "/account/subscription?success=true",
+        returnPathCancel: "/account/subscription?canceled=true",
+        // Optional: when updating via Portal, bring users back with a banner
+        returnPath: "/account/subscription?billing_updated=1",
+      });
       window.location.href = res.url;
     } catch (err: unknown) {
       logger.error("ui.subscription.checkout.failed", {
