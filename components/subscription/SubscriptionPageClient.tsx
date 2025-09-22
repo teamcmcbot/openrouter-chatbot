@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { logger } from "../../lib/utils/logger";
 import PlanSelector from "./PlanSelector";
 import BillingHistory from "./BillingHistory";
+import { useModelStore } from "../../stores/useModelStore";
 
 // Types
 export type Tier = "free" | "pro" | "enterprise";
@@ -138,6 +139,24 @@ function SubscriptionPageInner() {
   }, [hasRedirectMarker]);
 
   useEffect(() => {
+    // After billing changes (checkout success or portal updates), refresh the models list
+    if (!hasRedirectMarker) return;
+    try {
+      const refresh = useModelStore.getState().refreshModels;
+      // Fire and forget; store handles caching and network logic
+      refresh().catch(() => {
+        // Intentionally swallow; UI can continue with existing cache
+      });
+      logger.info("ui.subscription.models.refresh.triggered", {
+        ctx: { reason: "billing_redirect_marker" },
+      });
+    } catch {
+      // No-op on any unexpected error
+    }
+    // Only depend on the marker so it runs once per redirect
+  }, [hasRedirectMarker]);
+
+  useEffect(() => {
     // refetch on focus/visibility (authenticated only)
     const onFocus = () => {
       if (!authLoading && user) fetchSubscription().catch(() => {});
@@ -226,15 +245,17 @@ function SubscriptionPageInner() {
                 </div>
               )}
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                onClick={handleManageBilling}
-                loading={portalLoading}
-              >
-                Manage billing
-              </Button>
-            </div>
+            {sub?.stripeCustomerId && (
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={handleManageBilling}
+                  loading={portalLoading}
+                >
+                  Manage billing
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 

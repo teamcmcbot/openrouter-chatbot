@@ -3,12 +3,15 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../../../components/ui/Button";
 import { useAuth } from "../../../../stores/useAuthStore";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { logger } from "../../../../lib/utils/logger";
 import PlanSelector from "../../../../components/subscription/PlanSelector";
 import BillingHistory from "../../../../components/subscription/BillingHistory";
 import { TIER_LIMITS, TIER_FEATURES, TIER_LABELS } from "../../../../lib/constants/tiers";
 import { TIER_PRICING_MONTHLY } from "../../../../lib/constants/tiers";
+import ConfirmModal from "../../../../components/ui/ConfirmModal";
+import { useModelStore } from "../../../../stores/useModelStore";
+import toast from "react-hot-toast";
 
 // Types
 export type Tier = "free" | "pro" | "enterprise";
@@ -85,9 +88,13 @@ function formatDateTimeLocal(iso: string | null) {
     ];
     const mmm = months[d.getMonth()];
     const yyyy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mm = String(d.getMinutes()).padStart(2, "0");
-    return `${dd}-${mmm}-${yyyy}, ${hh}:${mm}`;
+    // 12-hour format with AM/PM
+    const hours24 = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    const ampm = hours24 >= 12 ? "PM" : "AM";
+    const hours12 = hours24 % 12 || 12;
+    const hh = String(hours12).padStart(2, "0");
+    return `${dd}-${mmm}-${yyyy}, ${hh}:${minutes} ${ampm}`;
   } catch {
     return "—";
   }
@@ -117,12 +124,16 @@ async function getJson<T>(url: string): Promise<T> {
 
 function SubscriptionPageInner() {
   const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const search = useSearchParams();
   const [sub, setSub] = useState<SubscriptionResp | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [portalLoading, setPortalLoading] = useState<boolean>(false);
   const [polling, setPolling] = useState<boolean>(false);
   const pollAbort = useRef<boolean>(false);
+  const [cancelLoading, setCancelLoading] = useState<boolean>(false);
+  const [showCancel, setShowCancel] = useState<boolean>(false);
+  const [undoLoading, setUndoLoading] = useState<boolean>(false);
 
   const hasRedirectMarker = useMemo(() => {
     if (!search) return false;
@@ -148,6 +159,42 @@ function SubscriptionPageInner() {
     // initial fetch
     fetchSubscription().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    // Surface user-facing toasts based on redirect markers, then remove them from the URL
+    if (!search) return;
+    try {
+      const success = search.get("success") === "true";
+      const billingUpdated = search.get("billing_updated") === "1";
+      const canceled = search.get("canceled") === "true";
+      const action = search.get("action"); // e.g., cancel | undo_cancel
+
+      // Priority: action-specific → success → billing updated → canceled
+      if (action === "cancel") {
+        toast.success("Cancellation scheduled for period end.");
+      } else if (action === "undo_cancel") {
+        toast.success("Subscription restored. Your plan remains active.");
+      } else if (success) {
+        toast.success("Subscription updated. Enjoy your new plan!");
+      } else if (billingUpdated) {
+        toast.success("Subscription updated.");
+      } else if (canceled) {
+        toast("Checkout canceled.");
+      }
+
+      if (success || billingUpdated || canceled || action) {
+        // Strip the query markers to avoid duplicate toasts on re-mount/back nav
+        const url = new URL(window.location.href);
+        url.searchParams.delete("success");
+        url.searchParams.delete("billing_updated");
+        url.searchParams.delete("canceled");
+        url.searchParams.delete("action");
+        router.replace(url.pathname + (url.search ? url.search : ""));
+      }
+    } catch {
+      // no-op
+    }
+  }, [router, search]);
 
   useEffect(() => {
     // backoff polling after returning from Stripe until webhook updates land
@@ -183,6 +230,24 @@ function SubscriptionPageInner() {
   }, [hasRedirectMarker]);
 
   useEffect(() => {
+    // After billing changes (checkout success or portal updates), refresh the models list
+    if (!hasRedirectMarker) return;
+    try {
+      const refresh = useModelStore.getState().refreshModels;
+      // Fire and forget; store handles caching and network logic
+      refresh().catch(() => {
+        // Intentionally swallow; UI can continue with existing cache
+      });
+      logger.info("ui.subscription.models.refresh.triggered", {
+        ctx: { reason: "billing_redirect_marker" },
+      });
+    } catch {
+      // No-op on any unexpected error
+    }
+    // Only depend on the marker so it runs once per redirect
+  }, [hasRedirectMarker]);
+
+  useEffect(() => {
     // refetch on focus/visibility
     const onFocus = () => fetchSubscription().catch(() => {});
     window.addEventListener("focus", onFocus);
@@ -208,6 +273,7 @@ function SubscriptionPageInner() {
       logger.error("ui.subscription.checkout.failed", {
         msg: (err as Error)?.message,
       });
+      toast.error("Failed to start checkout. Please try again.");
       setLoading(false);
     }
   };
@@ -226,7 +292,38 @@ function SubscriptionPageInner() {
       logger.error("ui.subscription.portal.failed", {
         msg: (err as Error)?.message,
       });
+      toast.error("Failed to open billing portal. Please try again later.");
       setPortalLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setCancelLoading(true);
+    try {
+      await postJson<{ ok: boolean }>("/api/stripe/cancel-subscription");
+      // Redirect with a marker so the page polls until webhook updates land
+      window.location.href = "/account/subscription?billing_updated=1&action=cancel";
+    } catch (err: unknown) {
+      logger.error("ui.subscription.cancel.failed", {
+        msg: (err as Error)?.message,
+      });
+      toast.error("Failed to schedule cancellation. Please try again.");
+      setCancelLoading(false);
+      setShowCancel(false);
+    }
+  };
+
+  const handleUndoCancel = async () => {
+    setUndoLoading(true);
+    try {
+      await postJson<{ ok: boolean }>("/api/stripe/undo-cancel-subscription");
+      window.location.href = "/account/subscription?billing_updated=1&action=undo_cancel";
+    } catch (err: unknown) {
+      logger.error("ui.subscription.undo_cancel.failed", {
+        msg: (err as Error)?.message,
+      });
+      toast.error("Failed to undo cancellation. Please try again.");
+      setUndoLoading(false);
     }
   };
 
@@ -268,6 +365,13 @@ function SubscriptionPageInner() {
     return null;
   })();
 
+  // Action visibility
+  const isPaidTier = tier === "pro" || tier === "enterprise";
+  const periodEndTs = sub?.periodEnd ? Date.parse(sub.periodEnd) : null;
+  const isFuturePeriodEnd = typeof periodEndTs === "number" && !Number.isNaN(periodEndTs) && periodEndTs > Date.now();
+  const canCancel = isPaidTier && status === "active" && !sub?.cancelAtPeriodEnd;
+  const canUndoCancel = isPaidTier && status === "active" && !!sub?.cancelAtPeriodEnd && isFuturePeriodEnd;
+
   const statusPill = (() => {
     const base = "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1";
     const map: Record<Status, string> = {
@@ -294,17 +398,21 @@ function SubscriptionPageInner() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center justify-between mb-2">
+          {/* Row 1: Title + Manage billing (right aligned) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <h2 className="text-lg font-medium">Current Plan</h2>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                onClick={handleManageBilling}
-                loading={portalLoading}
-              >
-                Manage billing
-              </Button>
-            </div>
+            {sub?.stripeCustomerId && (
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
+                  variant="secondary"
+                  onClick={handleManageBilling}
+                  loading={portalLoading}
+                  className="w-full sm:w-auto"
+                >
+                  Manage billing
+                </Button>
+              </div>
+            )}
           </div>
           <div>
             <div>
@@ -312,7 +420,8 @@ function SubscriptionPageInner() {
                 <div className="text-2xl font-semibold">{label}</div>
                 {statusPill}
               </div>
-              <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              {/* Price */}
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 <span>${priceMonthly}/mo</span>
               </div>
               <div className="text-sm text-gray-700 dark:text-gray-300">
@@ -339,6 +448,30 @@ function SubscriptionPageInner() {
                   Updating your subscription…
                 </div>
               )}
+
+              {/* Action row under renew/schedule notice (left-aligned) */}
+              <div className="mt-2 flex gap-2">
+                {canCancel && (
+                  <Button
+                    variant="danger"
+                    onClick={() => setShowCancel(true)}
+                    loading={cancelLoading}
+                    className="w-full sm:w-auto"
+                  >
+                    Cancel subscription
+                  </Button>
+                )}
+                {canUndoCancel && (
+                  <Button
+                    variant="primary"
+                    onClick={handleUndoCancel}
+                    loading={undoLoading}
+                    className="w-full sm:w-auto"
+                  >
+                    Don’t cancel subscription
+                  </Button>
+                )}
+              </div>
 
               {/* Labeled divider and two-column details */}
               <div className="mt-5 pt-5 border-t border-gray-200 dark:border-gray-700/60">
@@ -400,6 +533,17 @@ function SubscriptionPageInner() {
       </div>
 
       <BillingHistory />
+
+      {/* Cancel subscription confirm modal */}
+      <ConfirmModal
+        isOpen={showCancel}
+        onCancel={() => setShowCancel(false)}
+        onConfirm={handleCancelSubscription}
+        title="Cancel subscription?"
+        description="We will schedule your subscription to cancel at the end of the current billing period. You will keep access until then."
+        confirmText="Yes, cancel at period end"
+        cancelText="Keep subscription"
+      />
     </div>
   );
 }

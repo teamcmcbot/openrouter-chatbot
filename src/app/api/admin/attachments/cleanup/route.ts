@@ -5,6 +5,8 @@ import { AuthContext } from '../../../../../../lib/types/auth';
 import { cleanupOrphanImageAttachments } from '../../../../../../lib/services/attachmentsCleanup';
 import { logger } from '../../../../../../lib/utils/logger';
 
+export const dynamic = 'force-dynamic';
+
 async function handler(req: NextRequest, ctx: AuthContext) {
   try {
     void ctx;

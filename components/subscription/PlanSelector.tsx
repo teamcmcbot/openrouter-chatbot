@@ -152,7 +152,7 @@ export default function PlanSelector({ currentTier, onUpgrade, loading, autoSele
         onClick={handleContinue}
         loading={!!loading}
         disabled={!selected}
-        className="w-full"
+        className="w-full disabled:bg-gray-300 disabled:text-gray-600 disabled:hover:bg-gray-300 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 dark:disabled:hover:bg-gray-700"
       >
         Continue checkout
       </Button>
