@@ -51,6 +51,7 @@ export default function ModelDropdown({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isSmallScreen, setIsSmallScreen] = useState<boolean>(false);
   const [fixedTop, setFixedTop] = useState<number>(0);
+  const [panelMaxHeight, setPanelMaxHeight] = useState<number | null>(null);
 
   // Enhanced-only mode going forward; keep guard for safety during transition
   const hasEnhancedData = isEnhancedModels(models);
@@ -125,24 +126,37 @@ export default function ModelDropdown({
   // When opening on small screens, compute top position under trigger
   useEffect(() => {
     if (!isOpen) return;
-    if (!isSmallScreen) return;
     const btn = triggerRef.current;
     if (!btn) return;
-    const computeTop = () => {
+    const computePositions = () => {
       const rect = btn.getBoundingClientRect();
-      setFixedTop(rect.bottom + 8); // 8px gap under trigger
+      if (isSmallScreen) {
+        setFixedTop(rect.bottom + 8); // 8px gap under trigger
+      }
+      // Compute dynamic max height so dropdown doesn't overlap the MessageInput
+      try {
+        const input = document.getElementById('message-input');
+        const inputTop = input ? input.getBoundingClientRect().top : window.innerHeight - 12;
+        const topStart = rect.bottom + 8; // matches the visual gap
+        const available = Math.max(200, Math.floor(inputTop - topStart - 12));
+        // Hard cap to a portion of viewport height for very tall screens
+        const cap = Math.floor(window.innerHeight * 0.8);
+        setPanelMaxHeight(Math.max(200, Math.min(available, cap)));
+      } catch {
+        setPanelMaxHeight(Math.floor(window.innerHeight * 0.8));
+      }
     };
-    computeTop();
+    computePositions();
 
-    // Keep position in sync on resize/scroll/orientation change
-    window.addEventListener('resize', computeTop);
-    window.addEventListener('scroll', computeTop, { passive: true });
-    window.addEventListener('orientationchange', computeTop);
+    // Keep position/height in sync on resize/scroll/orientation change
+    window.addEventListener('resize', computePositions);
+    window.addEventListener('scroll', computePositions, { passive: true });
+    window.addEventListener('orientationchange', computePositions);
 
     return () => {
-      window.removeEventListener('resize', computeTop);
-      window.removeEventListener('scroll', computeTop);
-      window.removeEventListener('orientationchange', computeTop);
+      window.removeEventListener('resize', computePositions);
+      window.removeEventListener('scroll', computePositions);
+      window.removeEventListener('orientationchange', computePositions);
     };
   }, [isOpen, isSmallScreen]);
 
@@ -304,19 +318,21 @@ export default function ModelDropdown({
           className={`${
             isSmallScreen
               ? 'fixed z-[60]'
-              : 'absolute z-[60] top-full mt-1 sm:left-0 sm:translate-x-0'
+              : 'absolute z-[60] top-full sm:left-0 sm:right-auto sm:translate-x-0'
           } ${
             isSmallScreen
               ? 'left-1/2 -translate-x-1/2'
               : ''
           } ${
-            // width constraints: on small use viewport-constrained width; on sm+ use fixed width
-            isSmallScreen ? 'w-[min(36rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]' : 'sm:w-80 w-[min(20rem,calc(100vw-2rem))]'
-          } bg-gray-50 dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-lg dark:shadow-lg ${isSmallScreen ? 'dark:shadow-2xl' : ''} max-h-96 overflow-hidden origin-top sm:origin-top-left`}
-          style={isSmallScreen ? { top: fixedTop } : undefined}
+            // width constraints: mobile uses viewport-constrained width; sm+ uses wider, breakpoint-based widths
+            isSmallScreen
+              ? 'w-[min(36rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]'
+              : 'w-[min(20rem,calc(100vw-2rem))] sm:w-[32rem] md:w-[36rem] lg:w-[40rem] xl:w-[44rem] max-w-[calc(100vw-2rem)]'
+          } bg-gray-50 dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-lg dark:shadow-lg ${isSmallScreen ? 'dark:shadow-2xl' : ''} overflow-hidden origin-top sm:origin-top-left flex flex-col`}
+          style={{ ...(isSmallScreen ? { top: fixedTop } : {}), ...(panelMaxHeight ? { maxHeight: `${panelMaxHeight}px` } : {}) }}
         >
           {/* Search and Filter Header */}
-          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+          <div className="p-3 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 bg-gray-50 dark:bg-gray-800">
             {/* Search Input */}
             <div className="relative mb-3">
               <input
@@ -360,13 +376,13 @@ export default function ModelDropdown({
           </div>
 
           {/* Models List */}
-          <div className="overflow-y-auto max-h-80 pb-8">
+          <div className="overflow-y-auto flex-1 pb-8">
             {filteredModels.length === 0 ? (
               <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
                 No models found matching your criteria
               </div>
             ) : (
-              <div className="py-1 pb-1">
+              <div className="py-1 pb-1 grid grid-cols-1 gap-1">
                 {filteredModels.map((model) => {
                   const modelId = getModelId(model);
                   const displayName = getDisplayName(model);
@@ -378,11 +394,11 @@ export default function ModelDropdown({
                   return (
                     <div key={modelId} className="group">
                       <div
-                        className={`w-full text-left px-3 py-2.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 ${
+                        className={`w-full text-left px-3 py-2.5 lg:py-3 text-xs lg:text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 ${
                           isSelected
-                            ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700"
+                            ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 lg:border-l-2 lg:border-l-emerald-400"
                             : "text-gray-700 dark:text-gray-300"
-                        } flex items-start justify-between gap-2`}
+                        } flex items-start justify-between gap-2 rounded-md lg:shadow-sm`}
                       >
                         <button
                           onClick={() => handleModelSelect(modelId)}
@@ -391,7 +407,7 @@ export default function ModelDropdown({
                           aria-label={`Select ${displayName} model`}
                         >
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-xs leading-tight truncate">
+                            <span className="font-medium text-xs lg:text-sm leading-tight truncate">
                               {displayName}
                             </span>
                             {contextLength && (
@@ -430,12 +446,14 @@ export default function ModelDropdown({
                             )}
                           </div>
                           {hasEnhancedData && description && (
-                            <div className="text-gray-500 dark:text-gray-400 text-[10px] mt-0.5 leading-tight overflow-hidden"
-                                 style={{
-                                   display: '-webkit-box',
-                                   WebkitLineClamp: 2,
-                                   WebkitBoxOrient: 'vertical'
-                                 }}>
+                            <div
+                              className="text-gray-500 dark:text-gray-400 text-[10px] lg:text-xs mt-0.5 leading-tight overflow-hidden"
+                              style={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical'
+                              }}
+                            >
                               {description}
                             </div>
                           )}
@@ -475,8 +493,6 @@ export default function ModelDropdown({
                     </div>
                   );
                 })}
-                {/* spacer to ensure the last row is not clipped beneath rounded borders */}
-                <div aria-hidden className="h-6" />
               </div>
             )}
           </div>
