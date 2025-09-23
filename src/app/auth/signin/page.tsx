@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Button from "../../../../components/ui/Button";
 import { useAuth } from "../../../../stores/useAuthStore";
@@ -21,6 +21,9 @@ function SignInInner() {
   const search = useSearchParams();
   const router = useRouter();
   const { isLoading, isAuthenticated } = useAuth();
+  const [seconds, setSeconds] = useState(5);
+  const [autoRedirect, setAutoRedirect] = useState(true);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const target = useMemo(() => {
     const raw = search?.get("returnTo") ?? null;
@@ -40,7 +43,7 @@ function SignInInner() {
     setReturnCookie(target).catch(() => {});
   }, [isAuthenticated, router, target]);
 
-  const handleGoogle = async () => {
+  const handleGoogle = useCallback(async () => {
     // Include returnTo in redirectTo query so callback can read it
     const rt = target ? encodeURIComponent(target) : "";
     const redirectTo = `${window.location.origin}/auth/callback${rt ? `?returnTo=${rt}` : ""}`;
@@ -56,27 +59,90 @@ function SignInInner() {
     } catch {
       // no-op; UI button shows loading via store state in other flows
     }
-  };
+  }, [target]);
+
+  // Start/stop countdown timer
+  useEffect(() => {
+    // Clear any existing timer first
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (!autoRedirect || isAuthenticated) return;
+    // Reset when starting
+    setSeconds((s) => (s <= 0 || s > 5 ? 5 : s));
+    timerRef.current = setInterval(() => {
+      setSeconds((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [autoRedirect, isAuthenticated]);
+
+  // Trigger redirect when countdown hits 0
+  useEffect(() => {
+    if (!autoRedirect || isAuthenticated) return;
+    if (seconds <= 0) {
+      // Stop timer to avoid duplicate calls
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      void handleGoogle();
+    }
+  }, [seconds, autoRedirect, isAuthenticated, handleGoogle]);
 
   return (
-    <div className="min-h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-md w-full space-y-8 p-8">
-        <div className="text-center">
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">
-            Sign in
-          </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Continue to manage your subscription and chats
-          </p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full max-w-xl sm:max-w-2xl">
+        <div className="bg-white/90 dark:bg-gray-800/80 backdrop-blur rounded-2xl shadow-md border border-gray-200/60 dark:border-gray-700 p-6 sm:p-10">
+          <div className="text-center">
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+              Sign in
+            </h1>
+            <p className="mt-3 text-sm sm:text-base text-gray-700 dark:text-gray-300">
+              {autoRedirect ? (
+                <>
+                  Redirecting to Google in <span className="font-semibold">{seconds}s</span>…
+                  <br className="hidden sm:block" />
+                  You will be returned to <span className="font-mono text-gray-900 dark:text-gray-100">{target || "/chat"}</span> after signing in.
+                </>
+              ) : (
+                <>Auto‑redirect paused. You can sign in now when you’re ready.</>
+              )}
+            </p>
+          </div>
 
-        <div className="mt-8 space-y-4">
-          <Button onClick={handleGoogle} loading={isLoading} className="w-full">
-            Continue with Google
-          </Button>
-          <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-            You will be returned to {target || "/chat"} after signing in.
-          </p>
+          <div className="mt-8 space-y-3">
+            <Button onClick={handleGoogle} loading={isLoading} className="w-full">
+              Continue with Google
+            </Button>
+            <div className="text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+              {autoRedirect ? (
+                <button
+                  type="button"
+                  onClick={() => setAutoRedirect(false)}
+                  className="underline hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  Cancel auto-redirect
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSeconds(5);
+                    setAutoRedirect(true);
+                  }}
+                  className="underline hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  Restart 5s countdown
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
