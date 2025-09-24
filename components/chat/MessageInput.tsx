@@ -361,17 +361,19 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
     };
   }, [imageOutputModalOpen]);
 
-  // Reset Web Search and Reasoning toggles when user changes model selection
+  // Reset toggles on model change; auto-enable image output when supported and allowed
   useEffect(() => {
     const prev = prevSelectedModelRef.current;
     // Only reset when there was a previous selection and it actually changed
     if (prev !== null && selectedModel && selectedModel !== prev) {
       setWebSearchOn(false);
       setReasoningOn(false);
-  setImageOutputOn(false);
+      // Auto-enable Generate Image only if the newly selected model supports image output
+      // and the user is Enterprise (feature-gated).
+      setImageOutputOn(isEnterprise && modelSupportsImageOutput);
     }
     prevSelectedModelRef.current = selectedModel || null;
-  }, [selectedModel]);
+  }, [selectedModel, isEnterprise, modelSupportsImageOutput]);
 
   const handlePickFiles = () => {
     // Disabled via prop: do nothing
