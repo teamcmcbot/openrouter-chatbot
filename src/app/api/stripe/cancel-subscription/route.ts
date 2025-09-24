@@ -15,6 +15,10 @@ async function handler(req: NextRequest, auth: AuthContext) {
       return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
     }
 
+    const body = (await req.json().catch(() => ({}))) as { reason?: string };
+    const rawReason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    const reason = rawReason ? rawReason.slice(0, 500) : '';
+
     const supabase = await createClient();
     const userId = auth.user!.id;
 
@@ -30,12 +34,26 @@ async function handler(req: NextRequest, auth: AuthContext) {
       return NextResponse.json({ error: 'No active subscription' }, { status: 400 });
     }
 
-    await stripe.subscriptions.update(sub.stripe_subscription_id, {
+    const updateParams: Stripe.SubscriptionUpdateParams = {
       cancel_at_period_end: true,
-    });
+    };
+
+    if (reason) {
+      (updateParams as Stripe.SubscriptionUpdateParams & {
+        cancellation_details?: {
+          comment?: string;
+          feedback?: Stripe.Subscription.CancellationDetails.Feedback;
+        };
+      }).cancellation_details = {
+        comment: reason,
+        feedback: 'other',
+      };
+    }
+
+    await stripe.subscriptions.update(sub.stripe_subscription_id, updateParams);
 
     // DB will be updated via webhook
-    logger.info('stripe.cancel.requested', { route });
+    logger.info('stripe.cancel.requested', { route, ctx: { withReason: Boolean(reason) } });
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (err: unknown) {
     logger.error('stripe.cancel.error', err, { route });

@@ -1,4 +1,5 @@
 // Tests for GET /api/stripe/subscription and POST /api/stripe/cancel-subscription
+export {};
 
 // Minimal Next primitives
 jest.mock('next/server', () => {
@@ -66,9 +67,10 @@ jest.mock('../../../lib/supabase/server', () => ({
 }));
 
 // Stripe SDK mock for cancel-subscription
+const stripeUpdateMock: jest.Mock = jest.fn(async () => ({ id: 'sub_123', cancel_at_period_end: true }));
 jest.mock('stripe', () => {
   const StripeMock: any = jest.fn().mockImplementation(() => ({
-    subscriptions: { update: jest.fn(async () => ({ id: 'sub_123', cancel_at_period_end: true })) },
+    subscriptions: { update: stripeUpdateMock },
   }));
   StripeMock.default = StripeMock;
   return StripeMock;
@@ -114,11 +116,48 @@ describe('Stripe subscription GET and cancel-subscription POST', () => {
 
     process.env.STRIPE_SECRET_KEY = 'sk_test';
     const { POST } = await import('../../../src/app/api/stripe/cancel-subscription/route');
-    const req = { method: 'POST' } as any;
+    const req = { method: 'POST', json: async () => ({ reason: 'Need to cut costs ' }) } as any;
     const res = await POST(req);
     expect(res.status).toBe(200);
     const data = await readResBody(res);
     expect(data).toEqual({ ok: true });
+    expect(stripeUpdateMock).toHaveBeenCalledWith(
+      'sub_123',
+      expect.objectContaining({
+        cancel_at_period_end: true,
+        cancellation_details: {
+          comment: 'Need to cut costs',
+          feedback: 'other',
+        },
+      })
+    );
+  });
+
+  test('POST /api/stripe/cancel-subscription omits cancellation details when reason empty', async () => {
+    const serverMod = await import('../../../lib/supabase/server');
+    (serverMod as any).createClient.mockResolvedValueOnce({
+      from: () => ({
+        select: () => ({ eq: () => ({ order: () => ({ limit: () => ({ maybeSingle: async () => ({ data: { stripe_subscription_id: 'sub_123', status: 'active' }, error: null }) }) }) }) })
+      })
+    });
+
+    process.env.STRIPE_SECRET_KEY = 'sk_test';
+    const { POST } = await import('../../../src/app/api/stripe/cancel-subscription/route');
+    const req = { method: 'POST', json: async () => ({ reason: '   ' }) } as any;
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await readResBody(res);
+    expect(data).toEqual({ ok: true });
+    expect(stripeUpdateMock).toHaveBeenLastCalledWith(
+      'sub_123',
+      expect.objectContaining({
+        cancel_at_period_end: true,
+      })
+    );
+    const lastCall = stripeUpdateMock.mock.calls[stripeUpdateMock.mock.calls.length - 1];
+    expect(lastCall).toBeDefined();
+    const lastParams = (lastCall?.[1] ?? {}) as Record<string, unknown>;
+    expect(lastParams).not.toHaveProperty('cancellation_details');
   });
 
   test('POST /api/stripe/cancel-subscription 400 when no active subscription', async () => {
@@ -132,10 +171,11 @@ describe('Stripe subscription GET and cancel-subscription POST', () => {
 
     process.env.STRIPE_SECRET_KEY = 'sk_test';
     const { POST } = await import('../../../src/app/api/stripe/cancel-subscription/route');
-    const req = { method: 'POST' } as any;
+    const req = { method: 'POST', json: async () => ({}) } as any;
     const res = await POST(req);
     expect(res.status).toBe(400);
     const data = await readResBody(res);
     expect(data).toHaveProperty('error');
+    expect(stripeUpdateMock).not.toHaveBeenCalled();
   });
 });

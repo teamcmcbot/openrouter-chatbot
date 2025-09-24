@@ -133,7 +133,9 @@ function SubscriptionPageInner() {
   const pollAbort = useRef<boolean>(false);
   const [cancelLoading, setCancelLoading] = useState<boolean>(false);
   const [showCancel, setShowCancel] = useState<boolean>(false);
+  const [cancelReason, setCancelReason] = useState<string>("");
   const [undoLoading, setUndoLoading] = useState<boolean>(false);
+  const [showUndoConfirm, setShowUndoConfirm] = useState<boolean>(false);
 
   const hasRedirectMarker = useMemo(() => {
     if (!search) return false;
@@ -298,9 +300,11 @@ function SubscriptionPageInner() {
   };
 
   const handleCancelSubscription = async () => {
+    if (cancelLoading) return;
     setCancelLoading(true);
     try {
-      await postJson<{ ok: boolean }>("/api/stripe/cancel-subscription");
+      const reason = cancelReason.trim().slice(0, 500);
+      await postJson<{ ok: boolean }>("/api/stripe/cancel-subscription", reason ? { reason } : undefined);
       // Redirect with a marker so the page polls until webhook updates land
       window.location.href = "/account/subscription?billing_updated=1&action=cancel";
     } catch (err: unknown) {
@@ -309,7 +313,6 @@ function SubscriptionPageInner() {
       });
       toast.error("Failed to schedule cancellation. Please try again.");
       setCancelLoading(false);
-      setShowCancel(false);
     }
   };
 
@@ -454,7 +457,10 @@ function SubscriptionPageInner() {
                 {canCancel && (
                   <Button
                     variant="danger"
-                    onClick={() => setShowCancel(true)}
+                    onClick={() => {
+                      setCancelReason("");
+                      setShowCancel(true);
+                    }}
                     loading={cancelLoading}
                     className="w-full sm:w-auto"
                   >
@@ -464,7 +470,7 @@ function SubscriptionPageInner() {
                 {canUndoCancel && (
                   <Button
                     variant="primary"
-                    onClick={handleUndoCancel}
+                    onClick={() => setShowUndoConfirm(true)}
                     loading={undoLoading}
                     className="w-full sm:w-auto"
                   >
@@ -537,12 +543,43 @@ function SubscriptionPageInner() {
       {/* Cancel subscription confirm modal */}
       <ConfirmModal
         isOpen={showCancel}
-        onCancel={() => setShowCancel(false)}
+        onCancel={() => {
+          setShowCancel(false);
+          setCancelReason("");
+        }}
         onConfirm={handleCancelSubscription}
         title="Cancel subscription?"
         description="We will schedule your subscription to cancel at the end of the current billing period. You will keep access until then."
         confirmText="Yes, cancel at period end"
         cancelText="Keep subscription"
+      >
+        <div className="text-left">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="cancel-reason">
+            Cancellation reason (optional)
+          </label>
+          <textarea
+            id="cancel-reason"
+            rows={3}
+            maxLength={500}
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder="Let us know why you're canceling"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 input-emerald-focus"
+          />
+        </div>
+      </ConfirmModal>
+
+      <ConfirmModal
+        isOpen={showUndoConfirm}
+        onCancel={() => setShowUndoConfirm(false)}
+        onConfirm={() => {
+          setShowUndoConfirm(false);
+          handleUndoCancel();
+        }}
+        title="Resume your subscription?"
+        description="This will remove the scheduled cancellation and keep your current plan renewing each cycle."
+        confirmText="Yes, keep my subscription"
+        cancelText="No, stay canceled"
       />
     </div>
   );
