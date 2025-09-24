@@ -16,9 +16,16 @@ interface PlanSelectorProps {
   loading?: boolean;
   // When true, select the first available option on mount (used for src=upgrade deep link)
   autoSelectFirst?: boolean;
+  requestedPlan?: Exclude<Tier, "free"> | null;
 }
 
-export default function PlanSelector({ currentTier, onUpgrade, loading, autoSelectFirst = false }: PlanSelectorProps) {
+export default function PlanSelector({
+  currentTier,
+  onUpgrade,
+  loading,
+  autoSelectFirst = false,
+  requestedPlan = null,
+}: PlanSelectorProps) {
   // Allowed plan options based on current tier
   const options = useMemo(() => {
     const all: Array<{ id: Exclude<Tier, "free">; price: number }> = [
@@ -31,20 +38,35 @@ export default function PlanSelector({ currentTier, onUpgrade, loading, autoSele
     return all.filter((p) => p.id === "pro");
   }, [currentTier]);
 
-  const [selected, setSelected] = useState<Exclude<Tier, "free"> | null>(
-    autoSelectFirst ? (options[0]?.id ?? null) : null
-  );
+  const requestedSelection = useMemo<Exclude<Tier, "free"> | null>(() => {
+    if (!requestedPlan) return null;
+    return options.some((o) => o.id === requestedPlan) ? requestedPlan : null;
+  }, [options, requestedPlan]);
+
+  const [selected, setSelected] = useState<Exclude<Tier, "free"> | null>(() => {
+    if (requestedSelection) return requestedSelection;
+    return autoSelectFirst ? (options[0]?.id ?? null) : null;
+  });
   // Keep selection valid when options change
   useEffect(() => {
     if (!selected) {
-      // If nothing selected and autoSelectFirst requested, select first available
-      if (autoSelectFirst) setSelected(options[0]?.id ?? null);
+      if (requestedSelection) {
+        setSelected(requestedSelection);
+        return;
+      }
+      if (autoSelectFirst) {
+        setSelected(options[0]?.id ?? null);
+      }
       return;
     }
     if (!options.find((o) => o.id === selected)) {
+      if (requestedSelection) {
+        setSelected(requestedSelection);
+        return;
+      }
       setSelected(autoSelectFirst ? (options[0]?.id ?? null) : null);
     }
-  }, [options, selected, autoSelectFirst]);
+  }, [options, selected, autoSelectFirst, requestedSelection]);
 
   const featuresList = (tier: Exclude<Tier, "free">) => {
     const f = TIER_FEATURES[tier];

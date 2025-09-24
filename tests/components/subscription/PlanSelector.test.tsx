@@ -25,4 +25,22 @@ describe("PlanSelector", () => {
     expect(screen.queryByText(/Pro/i)).not.toBeInTheDocument();
     expect(screen.getByText(/Enterprise/i)).toBeInTheDocument();
   });
+
+  it("prefers requested plan over auto selected default", () => {
+    const onUpgrade = jest.fn();
+    render(
+      <PlanSelector
+        currentTier="free"
+        onUpgrade={onUpgrade}
+        autoSelectFirst
+        requestedPlan="enterprise"
+      />
+    );
+
+    const continueButton = screen.getByRole("button", { name: /Continue checkout/i });
+    expect(continueButton).not.toBeDisabled();
+
+    fireEvent.click(continueButton);
+    expect(onUpgrade).toHaveBeenCalledWith("enterprise");
+  });
 });

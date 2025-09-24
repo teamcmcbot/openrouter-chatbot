@@ -144,6 +144,12 @@ function SubscriptionPageInner() {
     );
   }, [search]);
 
+  const requestedPlan = useMemo<"pro" | "enterprise" | null>(() => {
+    if (!search) return null;
+    const plan = search.get("plan");
+    return plan === "pro" || plan === "enterprise" ? plan : null;
+  }, [search]);
+
   const fetchSubscription = async () => {
     try {
       const data = await getJson<SubscriptionResp>("/api/stripe/subscription");
@@ -534,6 +540,7 @@ function SubscriptionPageInner() {
             onUpgrade={handleUpgrade}
             loading={loading}
             autoSelectFirst={search?.get("src") === "upgrade"}
+            requestedPlan={requestedPlan}
           />
         </div>
       </div>
