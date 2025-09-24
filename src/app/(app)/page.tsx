@@ -14,14 +14,13 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto text-center">
         <div className="mb-4 mt-4">
           <h1 className="text-4xl md:text-6xl font-extrabold text-slate-900 dark:text-white mb-6">
-            Chat with AI{" "}
+            Multi-model AI chat{" "}
             <span className="text-emerald-700 dark:text-emerald-400 block">
               Powered by OpenRouter
             </span>
           </h1>
           <p className="text-xl md:text-2xl text-slate-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
-            Experience the power of advanced AI conversation. Get instant responses, 
-            creative insights, and helpful assistance through our intuitive chat interface.
+            GreenBubble is a ChatGPT alternative where you can swap between Anthropic, OpenAI, Google, and other OpenRouter models without getting locked into a single provider.
           </p>
         </div>
 
@@ -32,7 +31,7 @@ export default function HomePage() {
             onClick={() => trackCtaClick({ page: "landing", cta_id: "start_chat", location: "hero" })}
             className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-white bg-emerald-700 hover:bg-emerald-600 border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
           >
-            Start Chatting Now
+            Start Chatting for Free
             <svg 
               className="ml-2 w-5 h-5" 
               fill="none" 
@@ -64,10 +63,10 @@ export default function HomePage() {
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-              Lightning Fast
+              Choose your model
             </h3>
             <p className="text-slate-600 dark:text-gray-400">
-              Get instant responses powered by cutting-edge AI technology for seamless conversations.
+              Decide which AI (or personality) you want for each chat with just a couple of clicks.
             </p>
           </div>
 
@@ -78,10 +77,10 @@ export default function HomePage() {
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-              Reliable & Secure
+              Stay in control of costs
             </h3>
             <p className="text-slate-600 dark:text-gray-400">
-              Built with privacy in mind and powered by trusted OpenRouter infrastructure.
+              Preview which models fit your budget before you commit, instead of being tied to one provider.
             </p>
           </div>
 
@@ -92,10 +91,10 @@ export default function HomePage() {
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-              Natural Conversations
+              Set the vibe
             </h3>
             <p className="text-slate-600 dark:text-gray-400">
-              Engage in human-like conversations with advanced language understanding.
+              Tell GreenBubble how to respond: formal, playful, or expert—and it keeps that tone for the session.
             </p>
           </div>
         </div>
