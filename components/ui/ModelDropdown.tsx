@@ -367,9 +367,9 @@ export default function ModelDropdown({
                           ? 'Paid'
                           : filter === 'multimodal'
                             ? 'Multi'
-                            : filter === 'reasoning'
-                              ? 'Reason'
-                              : 'Image'; // image
+                : filter === 'reasoning'
+                  ? 'Reason'
+                  : 'Image Generation'; // image
 
                   // Full titles for accessibility tooltips
                   const fullTitle =
@@ -378,7 +378,7 @@ export default function ModelDropdown({
                       : filter === 'reasoning'
                         ? 'Reasoning'
                         : filter === 'image'
-                          ? 'Image generation'
+                          ? 'Image Generation'
                           : shortLabel;
 
                   return (
