@@ -18,7 +18,7 @@ interface ModelDropdownProps {
   // NEW: controlled open state and preset filter
   readonly open?: boolean;
   readonly onOpenChange?: (open: boolean) => void;
-  readonly presetFilter?: 'all' | 'free' | 'paid' | 'multimodal' | 'reasoning';
+  readonly presetFilter?: 'all' | 'free' | 'paid' | 'multimodal' | 'reasoning' | 'image';
 }
 
 // Type guard to check if models are enhanced
@@ -45,7 +45,7 @@ export default function ModelDropdown({
   }, [onOpenChange]);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterBy, setFilterBy] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning'>('all');
+  const [filterBy, setFilterBy] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning' | 'image'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -80,6 +80,8 @@ export default function ModelDropdown({
             return model.input_modalities.length > 1 || model.output_modalities.length > 1;
           case 'reasoning':
             return model.supported_parameters.includes('reasoning');
+          case 'image':
+            return Array.isArray(model.output_modalities) && model.output_modalities.includes('image');
           default:
             return true;
         }
@@ -140,10 +142,10 @@ export default function ModelDropdown({
         const topStart = rect.bottom + 8; // matches the visual gap
         const available = Math.max(200, Math.floor(inputTop - topStart - 12));
         // Hard cap to a portion of viewport height for very tall screens
-        const cap = Math.floor(window.innerHeight * 0.8);
+        const cap = Math.floor(window.innerHeight * 0.65);
         setPanelMaxHeight(Math.max(200, Math.min(available, cap)));
       } catch {
-        setPanelMaxHeight(Math.floor(window.innerHeight * 0.8));
+        setPanelMaxHeight(Math.floor(window.innerHeight * 0.65));
       }
     };
     computePositions();
@@ -350,20 +352,62 @@ export default function ModelDropdown({
 
             {/* Filter Buttons (only for enhanced models) */}
             {hasEnhancedData && (
-              <div className="flex gap-1 flex-wrap">
-                {(['all', 'free', 'paid', 'multimodal', 'reasoning'] as const).map((filter) => (
-                  <button
-                    key={filter}
-                    onClick={() => setFilterBy(filter)}
-                    className={`px-2 py-1 text-xs rounded-md transition-colors ${
-                      filterBy === filter
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    {filter === 'all' ? 'All' : filter.charAt(0).toUpperCase() + filter.slice(1)}
-                  </button>
-                ))}
+              <div
+                className="flex gap-1 flex-nowrap whitespace-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible"
+                aria-label="Model filters"
+              >
+                {(['all', 'free', 'paid', 'multimodal', 'reasoning', 'image'] as const).map((filter) => {
+                  // Visible short labels for compact layout
+                  const shortLabel =
+                    filter === 'all'
+                      ? 'All'
+                      : filter === 'free'
+                        ? 'Free'
+                        : filter === 'paid'
+                          ? 'Paid'
+                          : filter === 'multimodal'
+                            ? 'Multi'
+                            : filter === 'reasoning'
+                              ? 'Reason'
+                              : 'Image'; // image
+
+                  // Full titles for accessibility tooltips
+                  const fullTitle =
+                    filter === 'multimodal'
+                      ? 'Multimodal'
+                      : filter === 'reasoning'
+                        ? 'Reasoning'
+                        : filter === 'image'
+                          ? 'Image generation'
+                          : shortLabel;
+
+                  return (
+                    <button
+                      key={filter}
+                      onClick={() => setFilterBy(filter)}
+                      title={fullTitle}
+                      aria-label={`Filter: ${fullTitle} models`}
+                      aria-pressed={filterBy === filter}
+                      className={`text-[11px] leading-tight px-1.5 py-0.5 sm:text-xs sm:px-2 sm:py-1 rounded-md transition-colors ${
+                        filterBy === filter
+                          ? (
+                              filter === 'multimodal'
+                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                                : filter === 'free'
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                  : filter === 'image'
+                                    ? 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300'
+                                    : filter === 'reasoning'
+                                      ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300'
+                                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                            )
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {shortLabel}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
