@@ -15,8 +15,8 @@ Chatbot todo:
 - [x] Logging in prod?
 - [x] Console and terminal logs clean up, use logger.debug instead of console.log?
 - [x] Sentry integration, server side only for now.
-- [ ] Landing page
-- [ ] Stripe payment? Account upgrade, billing.
+- [x] Landing page
+- [x] Stripe payment? Account upgrade, billing.
 - [x] Model sync not properly detecting “new” models.
 - [ ] Upload images migration to UploadThings?
 - [x] Proper supabase setup, local + GitHub integration + supabase mcp?

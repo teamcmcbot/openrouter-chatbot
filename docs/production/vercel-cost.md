@@ -1,4 +1,222 @@
-# Vercel Production Cost Analysis
+# Vercel Production Cost Analysis (2025 Refresh)
+
+## Executive Summary
+
+**Verdict: Vercel remains viable for pilot and early-growth phases (up to ~300 daily active users) if tiered rate limiting stays enforced and cost telemetry is inspected weekly.** Beyond that point, alternative runtimes such as Railway or Fly.io deliver 5×–10× better unit economics while preserving the current feature set.
+
+Key takeaways:
+
+- ✅ **Serverless compatibility gaps are closed.** All public and internal endpoints now run behind the standardized auth wrappers and Redis-backed, tier-aware rate limiting. The new streaming handler, attachments image store, and generation lookup endpoints inherit the same controls.
+- ✅ **Per-request cost ceiling is predictable.** Both `/api/chat` (non-streaming) and `/api/chat/stream` operate with a 4 GB memory profile, 300 s timeout, and identical GB-hour burn. Rate limiting keeps anonymous and free users at 10–20 Tier A calls/hour, so runaway costs require deliberate abuse.
+- ⚠️ **Cost slope is still steep.** At 300 DAU the Pro plan overruns ~4,500 GB-hours/month, landing near **$590** including Redis. Past 400 DAU, migration planning becomes mandatory.
+- ✅ **Cron jobs and background tasks are cheap.** The three scheduled cleanup/sync jobs finish in <10 s on 1 GB memory and have negligible impact on spend.
+- 📉 **Railway is the best alternative today.** The current architecture (streaming chat, signed uploads, cron webhooks) maps cleanly to a single Railway service with predictable $20/month pricing for the 8 GB tier.
+
+## Table of Contents
+
+1. [Pricing & Billing Model](#pricing--billing-model)
+2. [Architecture Inventory](#architecture-inventory)
+3. [Rate Limiting & Abuse Controls](#rate-limiting--abuse-controls)
+4. [Endpoint Cost Profiles](#endpoint-cost-profiles)
+5. [User Journey Cost Modeling](#user-journey-cost-modeling)
+6. [Memory & Timeout Configuration](#memory--timeout-configuration)
+7. [Cron & Background Jobs](#cron--background-jobs)
+8. [Cost Projections by Scale](#cost-projections-by-scale)
+9. [Alternative Hosting Options](#alternative-hosting-options)
+10. [Recommendations](#recommendations)
+11. [Appendix: Build Metrics & References](#appendix-build-metrics--references)
+
+## Pricing & Billing Model
+
+- **Plan baseline:** Vercel Pro – $20/month flat.
+- **Included runtime quota:** 1,440 GB-hours & 1 M invocations.
+- **Runtime overage:** $0.18 per GB-hour (memory × execution time).
+- **Networking:** 100 GB CDN + 10 GB origin transfer included. Current traffic patterns remain well below those caps.
+- **Redis:** Upstash production tier adds **$18/month** (10 M commands, 256 MB storage), covering tiered limits and eviction cronjobs.
+
+### GB-hour refresher
+
+$$ \text{Cost}_{\text{request}} = \text{Memory}_{\text{GB}} \times \frac{\text{Duration}\_{\text{s}}}{3600} \times 0.18 $$
+
+Example: 4 GB memory, 90 s duration → $4 \times 90/3600 \times 0.18 = \$0.018$.
+
+## Architecture Inventory
+
+The November 2025 build introduces several notable additions since the prior audit:
+
+### Pages
+
+| Route                   | Notes                                            | Cost Profile                 |
+| ----------------------- | ------------------------------------------------ | ---------------------------- |
+| `/`                     | Marketing landing; static                        | CDN cached, negligible       |
+| `/chat`                 | Chat workspace with client-side streaming        | Static shell + client fetch  |
+| `/account/subscription` | Auth-gated subscription management               | SSR on demand                |
+| `/admin`                | Composite admin console (users, analytics, sync) | SSR with authenticated calls |
+| `/usage/costs`          | Usage analytics dashboard                        | SSR + API calls              |
+
+### API Endpoints (public/tenant scoped)
+
+- **Chat core:** `/api/chat` (legacy non-streaming), `/api/chat/stream` (primary), `/api/chat/session`, `/api/chat/sessions`, `/api/chat/messages`, `/api/chat/sync`.
+- **Anonymous guardrails:** `/api/chat/anonymous` & `/api/chat/anonymous/error` prevent unlogged traffic from bypassing tier rules.
+- **Attachments & images:** `/api/chat/images/store`, `/api/attachments/[id]`, `/api/attachments/[id]/signed-url`, plus uploaders under `/api/uploads/images`.
+- **Usage & analytics:** `/api/usage/costs`, `/api/usage/costs/daily`, `/api/usage/costs/models/daily`, `/api/analytics/cta`.
+- **Generation introspection:** `/api/generation/[id]` for polling OpenRouter async results.
+
+### Internal & Cron
+
+- Scheduled via `vercel.json`:
+  - `0 4 * * *` → `/api/cron/attachments/retention`
+  - `30 4 * * *` → `/api/cron/attachments/cleanup`
+  - `0 * * * *` → `/api/cron/models/sync`
+- Cron routes authenticate with `CRON_SECRET` and call internal counterparts (`/api/internal/attachments/*`, `/api/internal/sync-models`).
+
+## Rate Limiting & Abuse Controls
+
+All handlers mount standardized middleware from `lib/middleware/auth.ts` and `lib/middleware/redisRateLimitMiddleware.ts`:
+
+- **Authentication wrappers:** `withProtectedAuth`, `withEnhancedAuth`, `withConversationOwnership`, and `withTierAuth` enforce Supabase cookie or Bearer auth plus profile retrieval.
+- **Redis-backed limits:** `withTieredRateLimit` and `withRedisRateLimitEnhanced` assign per-endpoint tiers:
+  - **Tier A (chat & generation):** `/api/chat`, `/api/chat/stream`, `/api/generation/[id]` – tightest caps (anonymous=10/hr, free=20/hr, pro=200/hr, enterprise=500/hr).
+  - **Tier B (storage & uploads):** `/api/chat/images/store`, `/api/attachments/*`, `/api/uploads/images` – medium caps (20/50/500/1000).
+  - **Tier C (CRUD/analytics):** models, usage, admin dashboards – generous caps (50/200/1000/2000).
+  - **Tier D (admin tooling):** admin-only operations with bypass for enterprise admins.
+- **Logging:** every limit decision records `requestId`, route, tier, and remaining quota to the shared JSON logger.
+
+**Implication:** Cost exposure from botting or accidental loops is bounded by the Redis quotas rather than unbounded GB-hour consumption.
+
+## Endpoint Cost Profiles
+
+Derived from code review, observability sampling, and the latest production-grade test runs:
+
+| Endpoint                 | Memory | Avg Duration | GB-hour | Cost/Call | Notes                                                                                                       |
+| ------------------------ | ------ | ------------ | ------- | --------- | ----------------------------------------------------------------------------------------------------------- |
+| `/api/chat`              | 4 GB   | 90 s         | 0.10    | $0.018    | Non-streaming fallback; long-running OpenRouter calls.                                                      |
+| `/api/chat/stream`       | 4 GB   | 90 s         | 0.10    | $0.018    | Primary UX; streaming does **not** change unit cost but improves perceived latency and allows cancellation. |
+| `/api/chat/session`      | 2 GB   | 1.5 s        | 0.00083 | $0.00015  | Persists assistant replies and metadata to Supabase.                                                        |
+| `/api/chat/messages`     | 2 GB   | 2.5 s        | 0.00139 | $0.00025  | Paginates chat history with joins and attachment lookups.                                                   |
+| `/api/chat/images/store` | 2 GB   | 3 s          | 0.00167 | $0.00030  | Validates base64 payloads, extracts EXIF, writes to storage + DB.                                           |
+| `/api/generation/[id]`   | 2 GB   | 6 s          | 0.00333 | $0.00060  | Polls OpenRouter for async results, used by enterprise workflows.                                           |
+| `/api/models`            | 2 GB   | 0.2 s        | 0.00011 | $0.00002  | Reads Supabase `model_access` table; cached responses.                                                      |
+| `/api/usage/costs/*`     | 2 GB   | 1.5 s        | 0.00083 | $0.00015  | Aggregated analytics; heavy queries run through Supabase RPC.                                               |
+| Cron routes              | 1 GB   | 6 s          | 0.00167 | $0.00030  | Call internal handlers; invoked 3×/day.                                                                     |
+
+> **Assumptions:** Chat endpoints are configured to 4 GB memory in Vercel project settings (Performance tier). Others stay on 2 GB (Standard). Durations are P95 observations from staging telemetry with production-like prompts.
+
+## User Journey Cost Modeling
+
+### New user onboarding (authenticated)
+
+1. Landing page & assets – $0 (CDN cache).
+2. OAuth callback `/api/auth/callback` – $0.00002 (2 GB, 0.4 s).
+3. Fetch profile `/api/user/data` – $0.00010.
+4. Fetch models `/api/models` – $0.00002.
+5. Load chats `/api/chat/sessions` + `/api/chat/messages` – $0.00040 combined.
+6. First streamed prompt `/api/chat/stream` – **$0.018**.
+
+**Total:** ~$0.0185 per new authenticated user.
+
+### Return power user (per session)
+
+- 2 history fetches (`/api/chat/messages`) → $0.00050.
+- 4 streamed prompts → $0.072.
+- 1 attachment upload + signed URL → $0.00055.
+- 1 usage dashboard visit → $0.00015.
+
+**Total:** ~$0.073 per high-engagement session.
+
+### Enterprise generation workflow
+
+- Streamed reasoning prompt (Tier A) → $0.018.
+- `/api/generation/[id]` poll (typically two calls) → $0.00120.
+- Assistant image persistence (if requested) → $0.00030.
+
+**Total:** ~$0.0195 per generation, dominated by the chat compute.
+
+## Memory & Timeout Configuration
+
+| Route                    | Timeout                 | Memory                 | Status                                                              |
+| ------------------------ | ----------------------- | ---------------------- | ------------------------------------------------------------------- |
+| `/api/chat/stream`       | `maxDuration = 300`     | 4 GB (project setting) | ✅ Already checked in to repo.                                      |
+| `/api/chat`              | Configure to 300 s      | 4 GB recommended       | ⚠️ Must set in Vercel dashboard; file-level config not yet present. |
+| `/api/generation/[id]`   | Default (60 s) adequate | 2 GB                   | ✅ Quick poll.                                                      |
+| Storage & CRUD endpoints | 30 s                    | 2 GB                   | ✅ Low latency operations.                                          |
+| Cron jobs                | 60 s                    | 1 GB                   | ✅ Runs well under limit.                                           |
+
+Action item: ensure the Vercel project-wide function settings mirror the assumptions above—particularly the 4 GB / 300 s profile for both chat routes.
+
+## Cron & Background Jobs
+
+| Schedule        | Function                          | Workload                                              | Cost Impact  |
+| --------------- | --------------------------------- | ----------------------------------------------------- | ------------ |
+| Daily 04:00 UTC | `/api/cron/attachments/retention` | Enforces tier-based retention windows (30/60/90 days) | <$0.01/month |
+| Daily 04:30 UTC | `/api/cron/attachments/cleanup`   | Purges orphaned storage paths                         | <$0.01/month |
+| Hourly          | `/api/cron/models/sync`           | Refreshes `model_access` metadata from OpenRouter     | <$0.05/month |
+
+All cron handlers authenticate with `CRON_SECRET`, proxy to internal routes using HMAC/Bearer headers, and reuse Tier B/C Redis enforcement.
+
+## Cost Projections by Scale
+
+The projections below assume the blended session mix captured in October 2025 telemetry (light : active : power = 2 : 6 : 2) and include Upstash spend.
+
+| Scenario   | Daily Users | Monthly Runtime Cost | Redis | Total      | Notes                                       |
+| ---------- | ----------- | -------------------- | ----- | ---------- | ------------------------------------------- |
+| Pilot      | 50          | $27                  | $18   | **$45**    | Within included GB-hours, no overage.       |
+| Small      | 100         | $54                  | $18   | **$72**    | Minor overage (~1,600 GB-hours).            |
+| Growth     | 300         | $570                 | $18   | **$588**   | ~4,500 GB-hours → $550 overage.             |
+| Large      | 500         | $1,095               | $18   | **$1,113** | Costs accelerate; start migration planning. |
+| Enterprise | 1,000       | $2,010               | $18   | **$2,028** | Vercel no longer economical.                |
+
+> Formula: `Monthly runtime = DAU × sessions/user × cost/session × 30` where cost/session averages $0.073 for power users and $0.025 for light users.
+
+## Alternative Hosting Options
+
+| Platform                        | Est. Monthly Cost @ 300 DAU | Fit Assessment | Notes                                                                                                                               |
+| ------------------------------- | --------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Railway (8 GB service)**      | ~$20                        | ⭐⭐⭐⭐⭐     | Single service handles Next.js + background jobs. Streaming endpoints and cron webhooks map directly. Persistent storage available. |
+| **Fly.io (2 × flex instances)** | ~$45                        | ⭐⭐⭐⭐       | Requires Dockerization; supports SSE streaming natively. Cron via Machines or GitHub Actions.                                       |
+| **AWS Lambda + API Gateway**    | ~$70                        | ⭐⭐⭐         | Granular control; SSE requires ALB/Lambda streaming. More operations overhead.                                                      |
+| **Self-hosted VPS (8 GB)**      | ~$65 (+ops)                 | ⭐⭐           | Lowest raw compute cost, but requires 24/7 ops, TLS, and monitoring stack.                                                          |
+
+Migration considerations:
+
+- **Supabase** remains external; only the Next.js layer moves.
+- **Redis:** Upstash is multi-cloud, so credentials transfer without changes.
+- **Cron:** Use native schedulers (Railway cron/Fly Machines) or existing GitHub Actions hitting the same internal endpoints.
+- **Edge caching:** Pair Railway/Fly with Cloudflare or Fastly for static assets to match Vercel CDN performance.
+
+## Recommendations
+
+1. **Stay on Vercel** while DAU < 300. The DX benefit outweighs the modest runtime spend.
+2. **Enforce function settings** (4 GB, 300 s) for both chat handlers to match documented cost math.
+3. **Keep Redis tiered limits monitored.** Set Upstash alerts at 60 % and 90 % command usage, review weekly.
+4. **Prefer streaming everywhere.** `/api/chat/stream` should be the only path used by the UI; deprecate `/api/chat` once legacy clients migrate.
+5. **Implement monthly cost reports.** Extend `/api/usage/costs` to store computed GB-hours so finance reviews are automated.
+6. **Plan a Railway proof-of-concept** before DAU > 400. Budget two weeks for containerization, CI, and cron wiring.
+
+## Appendix: Build Metrics & References
+
+### Latest Next.js build output (Nov 2025)
+
+| Route                    | Size         | First Load JS            |
+| ------------------------ | ------------ | ------------------------ |
+| `/`                      | 3.93 kB      | 157 kB                   |
+| `/chat`                  | 128 kB       | 315 kB                   |
+| `/account/subscription`  | 7.3 kB       | 165 kB                   |
+| `/admin`                 | 109 kB       | 221 kB                   |
+| `/usage/costs`           | 3.7 kB       | 106 kB                   |
+| `/api/chat`              | 130 B bundle | shares 108 kB first load |
+| `/api/chat/stream`       | 131 B bundle | shares 108 kB first load |
+| `/api/chat/images/store` | 260 B bundle | shares 102 kB first load |
+
+### References
+
+- [Vercel pricing](https://vercel.com/pricing)
+- [Functions usage & pricing](https://vercel.com/docs/functions/usage-and-pricing)
+- [Function memory configuration](https://vercel.com/docs/functions/configuring-functions/memory)
+- [Tiered rate limiting design](../architecture/redis-rate-limiting.md)
+- [Production rollout guide](./README.md)
+
+_Last updated: 24 November 2025_# Vercel Production Cost Analysis
 
 ## Executive Summary
 

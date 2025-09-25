@@ -23,10 +23,30 @@ The CLI remembers the last linked project. Re-run `supabase link` to switch.
 
 ## Local stack commands
 
-- Start: `supabase start`
+- Start full local stack (Studio + Postgres + Auth + Storage): `supabase start`
+- Start only the database container (no Studio URL printed): `supabase db start`
 - Stop: `supabase stop`
-- Status: `supabase status`
+- Status (prints connection details and local Studio URL if running): `supabase status`
 - PSQL: `supabase db connect`
+
+Notes:
+
+- `supabase start` brings up the entire stack and, on first run or when containers were stopped, prints URLs similar to:
+  - Studio: http://localhost:54323
+  - API: http://localhost:54321
+  - Auth: http://localhost:54322
+- If you run `supabase db start` and Postgres is already running, the CLI will often only say "Postgres database is already running" and will not re-print URLs. Use `supabase status` to retrieve the current endpoints, including the Studio URL, without restarting services.
+
+FAQ:
+
+- There is no `supabase db stop` subcommand. To stop the local stack, run `supabase stop` (this stops DB, Auth, API, Storage, etc.). If you truly need to stop only the DB container, use Docker directly, for example:
+
+  - List containers and find the DB name:
+    - `docker ps --format "{{.ID}} {{.Names}}" | grep supabase`
+  - Stop just the DB container:
+    - `docker stop <container_id_or_name>`
+
+  Tip: Prefer `supabase stop` to keep the CLI-managed services in a consistent state.
 
 OAuth: Configure in `supabase/config.toml`; secrets in `supabase/.env` (gitignored).
 

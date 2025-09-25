@@ -8,6 +8,8 @@ import AnalyticsPanel from '@/app/admin/AnalyticsPanel';
 import AttachmentsPanel from '@/app/admin/AttachmentsPanel';
 import ClientTabs from '@/app/admin/tabs';
 
+export const dynamic = 'force-dynamic';
+
 async function fetchProfile() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

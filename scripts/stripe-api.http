@@ -1,0 +1,37 @@
+# VS Code REST Client (humao.rest-client) or Hoppscotch compatible
+# Set variables at top; press Send Request above each request
+
+@baseUrl = http://localhost:3000
+@token   = REPLACE_WITH_SUPABASE_JWT
+@cookie  = REPLACE_WITH_FULL_COOKIE_HEADER
+
+### Checkout session (plan=pro)
+POST {{baseUrl}}/api/stripe/checkout-session
+Authorization: Bearer {{token}}
+Cookie: {{cookie}}
+Content-Type: application/json
+
+{
+  "plan": "pro",
+  "trialDays": 0,
+  "returnPathSuccess": "/account/subscription?success=true",
+  "returnPathCancel": "/account/subscription?canceled=true"
+}
+
+### Get subscription snapshot
+GET {{baseUrl}}/api/stripe/subscription
+Authorization: Bearer {{token}}
+Cookie: {{cookie}}
+
+### Cancel subscription
+POST {{baseUrl}}/api/stripe/cancel-subscription
+Authorization: Bearer {{token}}
+Cookie: {{cookie}}
+
+### Customer portal
+POST {{baseUrl}}/api/stripe/customer-portal
+Authorization: Bearer {{token}}
+Cookie: {{cookie}}
+Content-Type: application/json
+
+{}

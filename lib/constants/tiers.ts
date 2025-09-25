@@ -38,3 +38,11 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
   pro: { webSearch: true, reasoning: false, imageAttachments: true, imageGeneration: false },
   enterprise: { webSearch: true, reasoning: true, imageAttachments: true, imageGeneration: true },
 };
+
+// Simple monthly pricing in USD for display purposes
+// Keep in sync with Stripe Prices configured in the backend
+export const TIER_PRICING_MONTHLY: Record<Exclude<Tier, "anonymous">, number> = {
+  free: 0,
+  pro: 5,
+  enterprise: 15,
+};

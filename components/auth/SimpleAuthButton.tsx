@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, ChatBubbleLeftRightIcon, ChartBarIcon } from '@heroicons/react/24/outline'
+import { UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, ChatBubbleLeftRightIcon, ChartBarIcon, CreditCardIcon } from '@heroicons/react/24/outline'
 import { SunIcon as SunSolid, MoonIcon as MoonSolid } from '@heroicons/react/24/solid'
 import { useAuth } from '../../stores/useAuthStore'
 import Button from '../ui/Button'
@@ -301,7 +301,17 @@ export function SimpleAuthButton() {
                 View Usage
               </Link>
 
-              {/* 3) Settings */}
+              {/* 3) Subscription */}
+              <Link
+                href="/account/subscription"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => setShowMenu(false)}
+              >
+                <CreditCardIcon className="w-4 h-4" />
+                Subscription
+              </Link>
+
+              {/* 4) Settings */}
               <button
                 className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => {
@@ -313,7 +323,7 @@ export function SimpleAuthButton() {
                 Settings
               </button>
 
-              {/* 4) Admin Console - admin only */}
+              {/* 5) Admin Console - admin only */}
               {isAdmin && (
                 <Link
                   href="/admin"
@@ -372,9 +382,28 @@ export function SimpleAuthButton() {
           )}
         </button>
         <Button
-          onClick={() => {
-            clearError() // Clear any previous errors
-            setShowModal(true)
+          onClick={async () => {
+            // Route to canonical sign-in with safe returnTo and set fallback cookie first
+            clearError()
+            try {
+              const { pathname, search, hash } = window.location
+              const target = `${pathname}${search}${hash}`
+              try {
+                await fetch('/api/auth/set-return-cookie', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ returnTo: target }),
+                  keepalive: true,
+                })
+              } catch {
+                // Non-fatal; continue navigation
+              }
+              const qp = new URLSearchParams({ returnTo: target }).toString()
+              window.location.href = `/auth/signin?${qp}`
+            } catch {
+              // Best-effort fallback
+              window.location.href = "/auth/signin"
+            }
           }}
           variant="primary"
           size="sm"

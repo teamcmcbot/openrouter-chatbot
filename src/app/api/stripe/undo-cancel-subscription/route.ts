@@ -1,0 +1,50 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { withProtectedAuth } from '../../../../../lib/middleware/auth';
+import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
+import { logger } from '../../../../../lib/utils/logger';
+import { createClient } from '../../../../../lib/supabase/server';
+import type { AuthContext } from '../../../../../lib/types/auth';
+import { getStripeClient } from '../../../../../lib/stripe/server';
+
+async function handler(req: NextRequest, auth: AuthContext) {
+  const route = '/api/stripe/undo-cancel-subscription';
+  const stripe = getStripeClient({ route });
+  try {
+    if (!stripe) {
+      return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
+    }
+
+    if (req.method !== 'POST') {
+      return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
+    }
+
+    const supabase = await createClient();
+    const userId = auth.user!.id;
+
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('stripe_subscription_id, status, cancel_at_period_end')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!sub?.stripe_subscription_id || sub.status !== 'active' || !sub.cancel_at_period_end) {
+      return NextResponse.json({ error: 'No scheduled cancellation to undo' }, { status: 400 });
+    }
+
+    await stripe.subscriptions.update(sub.stripe_subscription_id, {
+      cancel_at_period_end: false,
+    });
+
+    logger.info('stripe.undo_cancel.requested', { route });
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (err: unknown) {
+    logger.error('stripe.undo_cancel.error', err, { route });
+    return NextResponse.json({ error: 'Undo cancel error' }, { status: 500 });
+  }
+}
+
+export const POST = withProtectedAuth(
+  withTieredRateLimit(handler, { tier: 'tierC' })
+);
