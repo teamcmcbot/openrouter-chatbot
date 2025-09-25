@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { logger } from '../../../../../lib/utils/logger';
 import { createClient } from '../../../../../lib/supabase/server';
+import { getStripeClient } from '../../../../../lib/stripe/server';
 
 type Plan = 'pro' | 'enterprise';
 
@@ -12,14 +13,16 @@ const PLAN_TO_PRICE_ENV: Record<Plan, string> = {
   enterprise: process.env.STRIPE_ENTERPRISE_PRICE_ID || '',
 };
 
-// Use account default API version to avoid type drift between SDK and account
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
-
 async function handler(req: NextRequest, auth: import('../../../../../lib/types/auth').AuthContext) {
   const requestId = crypto.randomUUID();
   const route = '/api/stripe/checkout-session';
+  const stripe = getStripeClient({ requestId, route });
 
   try {
+    if (!stripe) {
+      return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
+    }
+
     if (req.method !== 'POST') {
       return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
     }

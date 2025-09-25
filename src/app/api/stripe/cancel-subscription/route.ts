@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { logger } from '../../../../../lib/utils/logger';
 import { createClient } from '../../../../../lib/supabase/server';
 import type { AuthContext } from '../../../../../lib/types/auth';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+import { getStripeClient } from '../../../../../lib/stripe/server';
 
 async function handler(req: NextRequest, auth: AuthContext) {
   const route = '/api/stripe/cancel-subscription';
+  const stripe = getStripeClient({ route });
+
   try {
+    if (!stripe) {
+      return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
+    }
+
     if (req.method !== 'POST') {
       return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
     }

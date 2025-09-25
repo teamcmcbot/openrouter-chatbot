@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { logger } from '../../../../../lib/utils/logger';
 import { createClient } from '../../../../../lib/supabase/server';
 import { getSafeReturnTo } from '../../../../../lib/utils/returnTo';
 import type { AuthContext } from '../../../../../lib/types/auth';
+import { getStripeClient } from '../../../../../lib/stripe/server';
 
 type Plan = 'pro' | 'enterprise';
 
@@ -13,13 +14,6 @@ const PLAN_TO_PRICE_ENV: Record<Plan, string> = {
   pro: process.env.STRIPE_PRO_PRICE_ID || '',
   enterprise: process.env.STRIPE_ENTERPRISE_PRICE_ID || '',
 };
-
-// Stripe client (optionally override API version to enable newer portal flow_data fields)
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  // When STRIPE_API_VERSION is provided (e.g., a 2024+ version), advanced portal deep-links with
-  // flow_data.subscription_update.items/proration_behavior are more likely to be supported.
-  apiVersion: (process.env.STRIPE_API_VERSION as unknown as Stripe.StripeConfig['apiVersion']) || undefined,
-});
 
 function idSuffix(id?: string | null) {
   if (!id || typeof id !== 'string') return null;
@@ -29,15 +23,19 @@ function idSuffix(id?: string | null) {
 async function handler(req: NextRequest, auth: AuthContext) {
   const requestId = crypto.randomUUID();
   const route = '/api/stripe/start-subscription-flow';
+  const stripe = getStripeClient({ requestId, route });
 
   if (req.method !== 'POST') {
     return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
   }
 
   try {
+    if (!stripe) {
+      return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
+    }
     const body = await req.json().catch(() => ({}));
     const plan: Plan = body.plan;
-  const returnPath: string | undefined = body.returnPath; // used for Portal
+    const returnPath: string | undefined = body.returnPath; // used for Portal
     const returnPathSuccess: string = body.returnPathSuccess || process.env.STRIPE_SUCCESS_URL || '/account/subscription?success=true';
     const returnPathCancel: string = body.returnPathCancel || process.env.STRIPE_CANCEL_URL || '/account/subscription?canceled=true';
 
@@ -50,10 +48,10 @@ async function handler(req: NextRequest, auth: AuthContext) {
       return NextResponse.json({ error: 'Price not configured' }, { status: 500 });
     }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const defaultPortalPath = '/account/subscription?billing_updated=1';
-  const safeReturnPath = getSafeReturnTo(returnPath) || defaultPortalPath;
-  const targetReturnUrl = `${appUrl}${safeReturnPath}`;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const defaultPortalPath = '/account/subscription?billing_updated=1';
+    const safeReturnPath = getSafeReturnTo(returnPath) || defaultPortalPath;
+    const targetReturnUrl = `${appUrl}${safeReturnPath}`;
 
     // Ensure Stripe customer exists for this user
     const supabase = await createClient();
@@ -131,9 +129,9 @@ async function handler(req: NextRequest, auth: AuthContext) {
     } as const;
 
     try {
-      // Retrieve subscription to get the subscription item id (confirm flow only supports single item)
-  const stripeSub: Stripe.Response<Stripe.Subscription> = await stripe.subscriptions.retrieve(sub!.stripe_subscription_id!);
-  const items: Stripe.SubscriptionItem[] = stripeSub.items?.data ?? [];
+    // Retrieve subscription to get the subscription item id (confirm flow only supports single item)
+    const stripeSub: Stripe.Response<Stripe.Subscription> = await stripe.subscriptions.retrieve(sub!.stripe_subscription_id!);
+    const items: Stripe.SubscriptionItem[] = stripeSub.items?.data ?? [];
       if (!Array.isArray(items) || items.length !== 1) {
         throw Object.assign(new Error('unsupported_multiple_items'), { code: 'unsupported_multiple_items' });
       }
@@ -146,10 +144,10 @@ async function handler(req: NextRequest, auth: AuthContext) {
       const confirmFlow: Stripe.BillingPortal.SessionCreateParams.FlowData = {
         type: 'subscription_update_confirm',
         after_completion: {
-            type: 'redirect',
-            redirect: {
-                return_url: targetReturnUrl,
-            },
+          type: 'redirect',
+          redirect: {
+            return_url: targetReturnUrl,
+          },
         },
         subscription_update_confirm: {
           subscription: sub!.stripe_subscription_id!,

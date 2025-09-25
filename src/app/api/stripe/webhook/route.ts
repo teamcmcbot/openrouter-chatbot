@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 import { logger } from '../../../../../lib/utils/logger';
 import { createServiceClient } from '../../../../../lib/supabase/service';
+import { getStripeClient } from '../../../../../lib/stripe/server';
 
 // We must read the raw body for Stripe signature verification
 export const config = {
@@ -10,7 +11,6 @@ export const config = {
   },
 };
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string | undefined;
 
 async function readRawBody(req: NextRequest): Promise<Buffer> {
@@ -33,6 +33,11 @@ export async function POST(req: NextRequest) {
     if (!webhookSecret) {
       logger.error('stripe.webhook.missing_secret', undefined, { route });
       return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+    }
+
+    const stripe = getStripeClient({ route, purpose: 'webhook' });
+    if (!stripe) {
+      return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
     }
 
     const rawBody = await readRawBody(req);

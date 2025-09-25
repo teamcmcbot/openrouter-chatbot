@@ -1,6 +1,6 @@
 // src/app/api/admin/users/[id]/ban/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 import { withAdminAuth } from '../../../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../../../lib/types/auth';
@@ -9,27 +9,8 @@ import { createServiceClient } from '../../../../../../../lib/supabase/service';
 import { logger } from '../../../../../../../lib/utils/logger';
 import { deriveRequestIdFromHeaders } from '../../../../../../../lib/utils/headers';
 import { deleteAuthSnapshot } from '../../../../../../../lib/utils/authSnapshot';
+import { getStripeClient } from '../../../../../../../lib/stripe/server';
 
-let stripeClient: Stripe | null = null;
-
-function getStripeClient(requestId: string | null): Stripe | null {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-
-  if (!secretKey) {
-    const error = new Error('STRIPE_SECRET_KEY is not configured');
-    logger.error('admin.users.ban.stripe_missing_secret', error, {
-      requestId,
-      route: '/api/admin/users/[id]/ban',
-    });
-    return null;
-  }
-
-  if (!stripeClient) {
-    stripeClient = new Stripe(secretKey);
-  }
-
-  return stripeClient;
-}
 
 type BanBody = { until?: string | null; reason?: string | null };
 
@@ -38,6 +19,8 @@ async function handler(req: NextRequest, ctx: AuthContext) {
   const requestId = deriveRequestIdFromHeaders(req.headers);
   const url = new URL(req.url);
   const id = url.pathname.split('/').slice(-2)[0]; // .../users/{id}/ban
+
+  const route = '/api/admin/users/[id]/ban';
 
   try {
     if (!id) {
@@ -84,7 +67,7 @@ async function handler(req: NextRequest, ctx: AuthContext) {
     }
 
     if (subscription?.stripe_subscription_id && subscription.status !== 'canceled') {
-      const stripe = getStripeClient(requestId);
+      const stripe = getStripeClient({ requestId, route });
       if (!stripe) {
         return NextResponse.json(
           { success: false, error: 'Stripe not configured' },
