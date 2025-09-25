@@ -1,6 +1,5 @@
 // src/app/api/admin/users/[id]/ban/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import type Stripe from 'stripe';
 import { withAdminAuth } from '../../../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../../../lib/types/auth';
@@ -9,7 +8,7 @@ import { createServiceClient } from '../../../../../../../lib/supabase/service';
 import { logger } from '../../../../../../../lib/utils/logger';
 import { deriveRequestIdFromHeaders } from '../../../../../../../lib/utils/headers';
 import { deleteAuthSnapshot } from '../../../../../../../lib/utils/authSnapshot';
-import { getStripeClient } from '../../../../../../../lib/stripe/server';
+import { createCancelAtPeriodEndParams, getStripeClient } from '../../../../../../../lib/stripe/server';
 
 
 type BanBody = { until?: string | null; reason?: string | null };
@@ -77,21 +76,12 @@ async function handler(req: NextRequest, ctx: AuthContext) {
 
       if (!subscription.cancel_at_period_end) {
         try {
-          const cancellationParams: Stripe.SubscriptionUpdateParams = {
-            cancel_at_period_end: true,
-          };
-
-          (cancellationParams as Stripe.SubscriptionUpdateParams & {
-            cancellation_details?: {
-              comment?: string;
-              feedback?: Stripe.Subscription.CancellationDetails.Feedback;
-            };
-          }).cancellation_details = {
+          const cancellationParams = createCancelAtPeriodEndParams({
             comment: 'Account banned',
             feedback: 'other',
-          };
+          });
 
-          await stripe.subscriptions.update(subscription.stripe_subscription_id, cancellationParams as Stripe.SubscriptionUpdateParams);
+          await stripe.subscriptions.update(subscription.stripe_subscription_id, cancellationParams);
           const { error: updateError } = await serviceSupabase
             .from('subscriptions')
             .update({ cancel_at_period_end: true, updated_at: new Date().toISOString() })

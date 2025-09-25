@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type Stripe from 'stripe';
 import { withProtectedAuth } from '../../../../../lib/middleware/auth';
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { logger } from '../../../../../lib/utils/logger';
 import { createClient } from '../../../../../lib/supabase/server';
 import type { AuthContext } from '../../../../../lib/types/auth';
-import { getStripeClient } from '../../../../../lib/stripe/server';
+import { createCancelAtPeriodEndParams, getStripeClient } from '../../../../../lib/stripe/server';
 
 async function handler(req: NextRequest, auth: AuthContext) {
   const route = '/api/stripe/cancel-subscription';
@@ -25,7 +24,14 @@ async function handler(req: NextRequest, auth: AuthContext) {
     const reason = rawReason ? rawReason.slice(0, 500) : '';
 
     const supabase = await createClient();
-    const userId = auth.user!.id;
+    const user = auth.user;
+
+    if (!user) {
+      logger.error('stripe.cancel.missing_user', undefined, { route });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userId = user.id;
 
     const { data: sub } = await supabase
       .from('subscriptions')
@@ -39,21 +45,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
       return NextResponse.json({ error: 'No active subscription' }, { status: 400 });
     }
 
-    const updateParams: Stripe.SubscriptionUpdateParams = {
-      cancel_at_period_end: true,
-    };
-
-    if (reason) {
-      (updateParams as Stripe.SubscriptionUpdateParams & {
-        cancellation_details?: {
-          comment?: string;
-          feedback?: Stripe.Subscription.CancellationDetails.Feedback;
-        };
-      }).cancellation_details = {
-        comment: reason,
-        feedback: 'other',
-      };
-    }
+    const updateParams = createCancelAtPeriodEndParams(reason ? { comment: reason, feedback: 'other' } : undefined);
 
     await stripe.subscriptions.update(sub.stripe_subscription_id, updateParams);
 

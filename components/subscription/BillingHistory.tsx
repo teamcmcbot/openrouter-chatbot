@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 
+const STRIPE_DASHBOARD_BASE_URL = process.env.NEXT_PUBLIC_STRIPE_DASHBOARD_MODE === "test"
+  ? "https://dashboard.stripe.com/test"
+  : "https://dashboard.stripe.com";
+
 type Item = {
   id: string;
   stripe_invoice_id: string | null;
@@ -123,7 +127,7 @@ export default function BillingHistory() {
                     {it.stripe_invoice_id ? (
                       <a
                         className="text-emerald-700 dark:text-emerald-400 hover:underline"
-                        href={`https://dashboard.stripe.com${process.env.NODE_ENV !== "production" ? "/test" : ""}/invoices/${it.stripe_invoice_id}`}
+                        href={`${STRIPE_DASHBOARD_BASE_URL}/invoices/${it.stripe_invoice_id}`}
                         target="_blank"
                         rel="noreferrer noopener"
                       >

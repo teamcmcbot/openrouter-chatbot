@@ -55,7 +55,14 @@ async function handler(req: NextRequest, auth: AuthContext) {
 
     // Ensure Stripe customer exists for this user
     const supabase = await createClient();
-    const userId = auth.user!.id;
+    const user = auth.user;
+
+    if (!user) {
+      logger.error('stripe.start_flow.missing_user', new Error('Auth context missing user'), { requestId, route });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userId = user.id;
     const { data: profile, error: profileErr } = await supabase
       .from('profiles')
       .select('id, email, stripe_customer_id')
@@ -83,6 +90,11 @@ async function handler(req: NextRequest, auth: AuthContext) {
       }
     }
 
+    if (!customerId) {
+      logger.error('stripe.start_flow.missing_customer', new Error('Stripe customer ID missing'), { requestId, route, ctx: { profileId: profile.id } });
+      return NextResponse.json({ error: 'Stripe customer missing' }, { status: 500 });
+    }
+
     // Lookup the most recent subscription for this user
     const { data: sub } = await supabase
       .from('subscriptions')
@@ -92,7 +104,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
       .limit(1)
       .maybeSingle();
 
-    const hasExisting = !!(sub?.stripe_subscription_id && sub.status && sub.status !== 'canceled');
+    const hasExisting = Boolean(sub?.stripe_subscription_id && sub.status && sub.status !== 'canceled');
 
     if (!hasExisting) {
       // New subscription → Stripe Checkout
@@ -109,7 +121,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
       });
       const session = await stripe.checkout.sessions.create({
         mode: 'subscription',
-        customer: customerId!,
+        customer: customerId,
         success_url: `${appUrl}${returnPathSuccess}`,
         cancel_url: `${appUrl}${returnPathCancel}`,
         line_items: [{ price: priceId, quantity: 1 }],
@@ -123,14 +135,20 @@ async function handler(req: NextRequest, auth: AuthContext) {
     }
 
     // Existing subscription → Prefer Billing Portal confirm flow (preselect price) using subscription item id
+    const activeSubscriptionId = sub?.stripe_subscription_id;
+    if (!activeSubscriptionId) {
+      logger.error('stripe.start_flow.missing_subscription_id', new Error('Active subscription id missing'), { requestId, route, ctx: { userId } });
+      return NextResponse.json({ error: 'Subscription not found' }, { status: 500 });
+    }
+
     const basePortalParams = {
-      customer: customerId!,
+      customer: customerId,
       return_url: targetReturnUrl,
     } as const;
 
     try {
-    // Retrieve subscription to get the subscription item id (confirm flow only supports single item)
-    const stripeSub: Stripe.Response<Stripe.Subscription> = await stripe.subscriptions.retrieve(sub!.stripe_subscription_id!);
+      // Retrieve subscription to get the subscription item id (confirm flow only supports single item)
+      const stripeSub: Stripe.Response<Stripe.Subscription> = await stripe.subscriptions.retrieve(activeSubscriptionId);
     const items: Stripe.SubscriptionItem[] = stripeSub.items?.data ?? [];
       if (!Array.isArray(items) || items.length !== 1) {
         throw Object.assign(new Error('unsupported_multiple_items'), { code: 'unsupported_multiple_items' });
@@ -150,7 +168,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
           },
         },
         subscription_update_confirm: {
-          subscription: sub!.stripe_subscription_id!,
+          subscription: activeSubscriptionId,
           items: [{ id: subItemId, price: priceId, quantity: 1 }],
         },
       } as const;
@@ -163,7 +181,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
           mode: 'confirm',
           apiVersion: process.env.STRIPE_API_VERSION || null,
           customerIdSuffix: idSuffix(customerId),
-          subscriptionIdSuffix: idSuffix(sub!.stripe_subscription_id!),
+          subscriptionIdSuffix: idSuffix(activeSubscriptionId),
           subscriptionItemIdSuffix: idSuffix(subItemId),
           priceId,
           returnUrl: basePortalParams.return_url,
@@ -187,7 +205,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
       });
       const minimalFlow: Stripe.BillingPortal.SessionCreateParams.FlowData = {
         type: 'subscription_update',
-        subscription_update: { subscription: sub!.stripe_subscription_id! },
+        subscription_update: { subscription: activeSubscriptionId },
       };
       try {
         logger.info('stripe.start_flow.portal.prepare', {
@@ -198,7 +216,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
             mode: 'minimal',
             apiVersion: process.env.STRIPE_API_VERSION || null,
             customerIdSuffix: idSuffix(customerId),
-            subscriptionIdSuffix: idSuffix(sub!.stripe_subscription_id!),
+            subscriptionIdSuffix: idSuffix(activeSubscriptionId),
             priceId,
             returnUrl: basePortalParams.return_url,
           },
@@ -220,7 +238,7 @@ async function handler(req: NextRequest, auth: AuthContext) {
             mode: 'plain',
             apiVersion: process.env.STRIPE_API_VERSION || null,
             customerIdSuffix: idSuffix(customerId),
-            subscriptionIdSuffix: idSuffix(sub!.stripe_subscription_id!),
+            subscriptionIdSuffix: idSuffix(activeSubscriptionId),
             priceId,
             returnUrl: basePortalParams.return_url,
           },

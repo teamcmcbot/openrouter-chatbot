@@ -25,6 +25,61 @@ function priceToTier(priceId: string | null | undefined): 'pro' | 'enterprise' |
   return null;
 }
 
+function readNumberField(obj: unknown, ...keys: string[]): number | null {
+  if (!obj || typeof obj !== 'object') {
+    return null;
+  }
+  const record = obj as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number') {
+      return value;
+    }
+  }
+  return null;
+}
+
+function readBooleanField(obj: unknown, ...keys: string[]): boolean | null {
+  if (!obj || typeof obj !== 'object') {
+    return null;
+  }
+  const record = obj as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'boolean') {
+      return value;
+    }
+  }
+  return null;
+}
+
+function readStringField(obj: unknown, ...keys: string[]): string | null {
+  if (!obj || typeof obj !== 'object') {
+    return null;
+  }
+  const record = obj as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string') {
+      return value;
+    }
+  }
+  return null;
+}
+
+function readValue<T = unknown>(obj: unknown, ...keys: string[]): T | null {
+  if (!obj || typeof obj !== 'object') {
+    return null;
+  }
+  const record = obj as Record<string, unknown>;
+  for (const key of keys) {
+    if (key in record) {
+      return record[key] as T;
+    }
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const route = '/api/stripe/webhook';
   const supabase = createServiceClient();
@@ -67,9 +122,9 @@ export async function POST(req: NextRequest) {
       await supabase.from('stripe_events').insert({ id: event.id });
     };
 
-  const ts = (secs: number | null | undefined) => (typeof secs === 'number' ? new Date(secs * 1000).toISOString() : null);
+    const ts = (secs: number | null | undefined) => (typeof secs === 'number' ? new Date(secs * 1000).toISOString() : null);
 
-  switch (event.type) {
+    switch (event.type) {
       case 'checkout.session.completed': {
         // Minimal processing; rely on subsequent subscription.* events for state sync
         const session = event.data.object as Stripe.Checkout.Session;
@@ -92,11 +147,17 @@ export async function POST(req: NextRequest) {
       case 'customer.subscription.updated':
       case 'customer.subscription.created':
       case 'customer.subscription.deleted': {
-  const sub = event.data.object as Stripe.Subscription;
-  const customerId = (typeof sub.customer === 'string') ? sub.customer : (sub.customer?.id as string);
+        const sub = event.data.object as Stripe.Subscription;
+        const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id || null;
         const subscriptionId = sub.id;
-  const priceId = sub.items?.data?.[0]?.price?.id || null;
-  const status = sub.status as 'active' | 'canceled' | 'past_due' | 'unpaid' | 'trialing';
+        const priceId = sub.items?.data?.[0]?.price?.id || null;
+        const status = sub.status as 'active' | 'canceled' | 'past_due' | 'unpaid' | 'trialing';
+
+        if (!customerId) {
+          logger.warn('stripe.webhook.subscription_missing_customer', { route, ctx: { subscriptionId } });
+          await recordEvent();
+          break;
+        }
 
         const { data: profile } = await supabase
           .from('profiles')
@@ -107,26 +168,18 @@ export async function POST(req: NextRequest) {
         if (profile?.id) {
           // Extract times, supporting both snake_case and camelCase based on SDK typing.
           // Some API versions omit top-level current_period_* and only include them on the first subscription item.
-          const item0 = (sub.items && Array.isArray(sub.items.data) && sub.items.data.length > 0)
-            ? (sub.items.data[0] as unknown as { current_period_start?: number; currentPeriodStart?: number; current_period_end?: number; currentPeriodEnd?: number })
-            : undefined;
+          const item0 = Array.isArray(sub.items?.data) && sub.items.data.length > 0 ? sub.items.data[0] : null;
 
-          const cps = (sub as unknown as { current_period_start?: number }).current_period_start
-            ?? (sub as unknown as { currentPeriodStart?: number }).currentPeriodStart
-            ?? (item0?.current_period_start ?? item0?.currentPeriodStart ?? null);
-          const cpe = (sub as unknown as { current_period_end?: number }).current_period_end
-            ?? (sub as unknown as { currentPeriodEnd?: number }).currentPeriodEnd
-            ?? (item0?.current_period_end ?? item0?.currentPeriodEnd ?? null);
-          let cape = (sub as unknown as { cancel_at_period_end?: boolean }).cancel_at_period_end
-            ?? (sub as unknown as { cancelAtPeriodEnd?: boolean }).cancelAtPeriodEnd
-            ?? false;
+          const cps = readNumberField(sub, 'current_period_start', 'currentPeriodStart')
+            ?? readNumberField(item0, 'current_period_start', 'currentPeriodStart');
+          const cpe = readNumberField(sub, 'current_period_end', 'currentPeriodEnd')
+            ?? readNumberField(item0, 'current_period_end', 'currentPeriodEnd');
+          let cape = readBooleanField(sub, 'cancel_at_period_end', 'cancelAtPeriodEnd') ?? false;
           // If Stripe has fully canceled the subscription, don't keep the flag set
           if (status === 'canceled') {
             cape = false;
           }
-          const canceledAt = (sub as unknown as { canceled_at?: number | null }).canceled_at
-            ?? (sub as unknown as { canceledAt?: number | null }).canceledAt
-            ?? null;
+          const canceledAt = readNumberField(sub, 'canceled_at', 'canceledAt');
 
           await supabase.from('subscriptions').upsert({
             user_id: profile.id,
@@ -160,18 +213,22 @@ export async function POST(req: NextRequest) {
       case 'invoice.payment_succeeded':
       case 'invoice.payment_failed': {
         const inv = event.data.object as Stripe.Invoice;
-        const customerId = (typeof inv.customer === 'string') ? inv.customer : (inv.customer?.id as string);
-        const amountCents = (inv as unknown as { amount_paid?: number; amount_due?: number }).amount_paid
-          ?? (inv as unknown as { amount_due?: number }).amount_due
-          ?? 0;
+        const customerId = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id || null;
+        const amountCents = readNumberField(inv, 'amount_paid', 'amountPaid', 'amount_due', 'amountDue') ?? 0;
         const amount = amountCents / 100;
         const currency = inv.currency || 'usd';
         const status = inv.status || null;
-        const piRaw = (inv as unknown as { payment_intent?: string | { id: string }; paymentIntent?: string | { id: string } }).payment_intent
-          ?? (inv as unknown as { paymentIntent?: string | { id: string } }).paymentIntent
-          ?? null;
-        const paymentIntent = typeof piRaw === 'string' ? piRaw : (piRaw?.id ?? null);
+        const paymentIntentRaw = readValue<string | { id?: string }>(inv, 'payment_intent', 'paymentIntent');
+        const paymentIntent = typeof paymentIntentRaw === 'string'
+          ? paymentIntentRaw
+          : readStringField(paymentIntentRaw, 'id');
         const invoiceId = inv.id;
+
+        if (!customerId) {
+          logger.warn('stripe.webhook.invoice_missing_customer', { route, ctx: { invoiceId } });
+          await recordEvent();
+          break;
+        }
 
         const { data: profile } = await supabase
           .from('profiles')

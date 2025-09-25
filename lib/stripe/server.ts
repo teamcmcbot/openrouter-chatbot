@@ -41,3 +41,38 @@ export function resetStripeClientForTests() {
     cachedStripe = null;
   }
 }
+
+type CancellationDetailsInput = {
+  comment?: string;
+  feedback?: Stripe.Subscription.CancellationDetails.Feedback;
+} | null | undefined;
+
+type SubscriptionUpdateWithCancellation = Stripe.SubscriptionUpdateParams & {
+  cancellation_details?: {
+    comment?: string;
+    feedback?: Stripe.Subscription.CancellationDetails.Feedback;
+  };
+};
+
+export function createCancelAtPeriodEndParams(details?: CancellationDetailsInput): SubscriptionUpdateWithCancellation {
+  const params: SubscriptionUpdateWithCancellation = {
+    cancel_at_period_end: true,
+  };
+
+  if (!details) {
+    return params;
+  }
+
+  const { comment, feedback } = details;
+  if (comment || feedback) {
+    params.cancellation_details = {};
+    if (comment) {
+      params.cancellation_details.comment = comment;
+    }
+    if (feedback) {
+      params.cancellation_details.feedback = feedback;
+    }
+  }
+
+  return params;
+}
