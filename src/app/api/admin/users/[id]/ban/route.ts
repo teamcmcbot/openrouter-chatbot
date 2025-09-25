@@ -10,7 +10,26 @@ import { logger } from '../../../../../../../lib/utils/logger';
 import { deriveRequestIdFromHeaders } from '../../../../../../../lib/utils/headers';
 import { deleteAuthSnapshot } from '../../../../../../../lib/utils/authSnapshot';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+let stripeClient: Stripe | null = null;
+
+function getStripeClient(requestId: string | null): Stripe | null {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+
+  if (!secretKey) {
+    const error = new Error('STRIPE_SECRET_KEY is not configured');
+    logger.error('admin.users.ban.stripe_missing_secret', error, {
+      requestId,
+      route: '/api/admin/users/[id]/ban',
+    });
+    return null;
+  }
+
+  if (!stripeClient) {
+    stripeClient = new Stripe(secretKey);
+  }
+
+  return stripeClient;
+}
 
 type BanBody = { until?: string | null; reason?: string | null };
 
@@ -65,6 +84,14 @@ async function handler(req: NextRequest, ctx: AuthContext) {
     }
 
     if (subscription?.stripe_subscription_id && subscription.status !== 'canceled') {
+      const stripe = getStripeClient(requestId);
+      if (!stripe) {
+        return NextResponse.json(
+          { success: false, error: 'Stripe not configured' },
+          { status: 500, headers: { 'x-request-id': requestId } },
+        );
+      }
+
       if (!subscription.cancel_at_period_end) {
         try {
           const cancellationParams: Stripe.SubscriptionUpdateParams = {
