@@ -40,6 +40,7 @@ Set the following variables before the first deploy. Vercel supports _Production
 | `STRIPE_PRO_PRICE_ID`, `STRIPE_ENTERPRISE_PRICE_ID`         | Server        | Create live price IDs before launch.                                            |
 | `STRIPE_API_VERSION`                                        | Server        | Keep in sync with backend expectations.                                         |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`                        | Public        | Publishable key for Checkout/Portal.                                            |
+| `NEXT_PUBLIC_STRIPE_DASHBOARD_MODE`                         | Public        | `test` for Sandbox dashboards, switch to `live` when pointing users to prod.    |
 | `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`                   | Server        | Use relative paths (`/account/subscription?success=true`).                      |
 | `OPENROUTER_BASE_URL`, `OPENROUTER_MAX_TOKENS`              | Server        | Optional overrides.                                                             |
 | `AUTH_SNAPSHOT_CACHE_TTL_SECONDS`, `MAX_MESSAGE_CHARS`      | Server        | Optional tuning knobs.                                                          |

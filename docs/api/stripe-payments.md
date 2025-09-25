@@ -77,6 +77,7 @@ Not required for MVP because the Billing Portal can perform cancellations. Keep 
 - STRIPE_WEBHOOK_SECRET
 - STRIPE_PRO_PRICE_ID
 - STRIPE_ENTERPRISE_PRICE_ID
+- NEXT_PUBLIC_STRIPE_DASHBOARD_MODE (defaults to `test`, switch to `live` when pointing users at production invoices)
 - NEXT_PUBLIC_APP_URL
 - STRIPE_SUCCESS_URL (optional override)
 - STRIPE_CANCEL_URL (optional override)

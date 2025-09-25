@@ -49,6 +49,7 @@ Store generated secrets in your team password manager and copy them into Vercel/
 | --------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------- |
 | `STRIPE_SECRET_KEY`                                 | Server-side API key.            | Use test key until production onboarding complete.                        |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`                | Client key.                     | Safe to expose—scope to Production environment.                           |
+| `NEXT_PUBLIC_STRIPE_DASHBOARD_MODE`                 | Controls Stripe dashboard URLs. | Set to `test` for Sandbox links; change to `live` once production ready.  |
 | `STRIPE_WEBHOOK_SECRET`                             | Verifies `/api/stripe/webhook`. | Created when adding webhook endpoint in Stripe dashboard.                 |
 | `STRIPE_PRO_PRICE_ID`, `STRIPE_ENTERPRISE_PRICE_ID` | Checkout price references.      | Create separate live prices even if amounts match test prices.            |
 | `STRIPE_API_VERSION`                                | Ensures stable API responses.   | Keep aligned with `/lib/stripe/client.ts` (currently `2025-06-30.basil`). |

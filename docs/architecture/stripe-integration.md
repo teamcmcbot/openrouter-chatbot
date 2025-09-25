@@ -98,6 +98,7 @@ Notes:
 ## Environment variables
 
 - Client key: `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+- Dashboard links: `NEXT_PUBLIC_STRIPE_DASHBOARD_MODE` (`test` or `live`) — controls whether client links point to Stripe's test or live dashboard.
 - Server: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - Price IDs: `STRIPE_PRO_PRICE_ID`, `STRIPE_ENTERPRISE_PRICE_ID`
 - URLs: `NEXT_PUBLIC_APP_URL`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`
@@ -107,6 +108,7 @@ Example (`.env.local`):
 
 ```bash
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+NEXT_PUBLIC_STRIPE_DASHBOARD_MODE=test
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 NEXT_PUBLIC_APP_URL=http://localhost:3000
