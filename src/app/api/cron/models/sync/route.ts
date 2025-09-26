@@ -74,6 +74,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     route: ROUTE,
     target: '/api/internal/sync-models',
     hasAuthorization: Boolean(headers['Authorization']),
+    token: token,
     authorizationLength: headers['Authorization']?.length ?? 0,
     hasSignature: Boolean(headers['X-Signature']),
     bodyLength: body.length,
