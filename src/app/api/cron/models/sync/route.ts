@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '../../../../../../lib/utils/logger';
 
 export const runtime = 'nodejs';
 
@@ -10,6 +11,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const authHeader = req.headers.get('authorization') || '';
   const cronSecret = process.env.CRON_SECRET;
   const expected = cronSecret ? `Bearer ${cronSecret}` : '';
+  logger.debug('cron.models.sync.auth_check', {
+    route: '/api/cron/models/sync',
+    headerPresent: Boolean(authHeader),
+    headerLength: authHeader.length,
+    secretPresent: Boolean(cronSecret),
+    secretLength: cronSecret?.length ?? 0,
+    headerMatchesExpected: expected ? authHeader === expected : false,
+  });
   if (!expected || authHeader !== expected) return unauthorized();
 
   const baseUrl = new URL(req.url).origin;
