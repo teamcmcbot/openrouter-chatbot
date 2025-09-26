@@ -52,7 +52,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     headerLength: authHeader.length,
   });
 
-  const baseUrl = new URL(req.url).origin;
+  //const baseUrl = new URL(req.url).origin;
+  const baseUrl = process.env.BASE_URL;
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const token = process.env.INTERNAL_SYNC_TOKEN;
