@@ -72,6 +72,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   logger.debug('cron.models.sync.forwarding', {
     route: ROUTE,
+    baseUrl: baseUrl,
     target: '/api/internal/sync-models',
     hasAuthorization: Boolean(headers['Authorization']),
     token: token,
