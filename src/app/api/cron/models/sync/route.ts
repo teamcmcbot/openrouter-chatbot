@@ -3,23 +3,54 @@ import { logger } from '../../../../../../lib/utils/logger';
 
 export const runtime = 'nodejs';
 
-function unauthorized() {
+const ROUTE = '/api/cron/models/sync';
+
+function unauthorized(reason: string, context: Record<string, unknown> = {}) {
+  logger.warn('cron.models.sync.unauthorized', {
+    route: ROUTE,
+    reason,
+    ...context,
+  });
   return new NextResponse('Unauthorized', { status: 401, headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authHeader = req.headers.get('authorization') || '';
   const cronSecret = process.env.CRON_SECRET;
-  const expected = cronSecret ? `Bearer ${cronSecret}` : '';
+  if (!cronSecret) {
+    return unauthorized('missing-cron-secret', {
+      headerPresent: Boolean(authHeader),
+      headerLength: authHeader.length,
+    });
+  }
+
+  const expected = `Bearer ${cronSecret}`;
+  const headerMatchesExpected = authHeader === expected;
+
   logger.debug('cron.models.sync.auth_check', {
-    route: '/api/cron/models/sync',
+    route: ROUTE,
     headerPresent: Boolean(authHeader),
     headerLength: authHeader.length,
-    secretPresent: Boolean(cronSecret),
-    secretLength: cronSecret?.length ?? 0,
-    headerMatchesExpected: expected ? authHeader === expected : false,
+    secretPresent: true,
+    secretLength: cronSecret.length,
+    headerMatchesExpected,
   });
-  if (!expected || authHeader !== expected) return unauthorized();
+
+  if (!authHeader) {
+    return unauthorized('missing-authorization-header');
+  }
+
+  if (!headerMatchesExpected) {
+    return unauthorized('mismatched-authorization-header', {
+      headerLength: authHeader.length,
+      secretLength: cronSecret.length,
+    });
+  }
+
+  logger.debug('cron.models.sync.authorized', {
+    route: ROUTE,
+    headerLength: authHeader.length,
+  });
 
   const baseUrl = new URL(req.url).origin;
 
