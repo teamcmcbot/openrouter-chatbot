@@ -78,6 +78,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     authorizationLength: headers['Authorization']?.length ?? 0,
     hasSignature: Boolean(headers['X-Signature']),
     bodyLength: body.length,
+    headers: headers,
   });
 
   const res = await fetch(`${baseUrl}/api/internal/sync-models`, { method: 'POST', headers, body });
