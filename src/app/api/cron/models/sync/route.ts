@@ -70,7 +70,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return new NextResponse('Server misconfigured: missing INTERNAL_SYNC_TOKEN/SECRET', { status: 500 });
   }
 
+  logger.debug('cron.models.sync.forwarding', {
+    route: ROUTE,
+    target: '/api/internal/sync-models',
+    hasAuthorization: Boolean(headers['Authorization']),
+    authorizationLength: headers['Authorization']?.length ?? 0,
+    hasSignature: Boolean(headers['X-Signature']),
+    bodyLength: body.length,
+  });
+
   const res = await fetch(`${baseUrl}/api/internal/sync-models`, { method: 'POST', headers, body });
+  logger.debug('cron.models.sync.forwarding_response', {
+    route: ROUTE,
+    target: '/api/internal/sync-models',
+    status: res.status,
+  });
   const text = await res.text();
   const out = new NextResponse(text, { status: res.status });
   out.headers.set('Cache-Control', 'no-store');
