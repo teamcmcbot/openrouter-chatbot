@@ -52,8 +52,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     headerLength: authHeader.length,
   });
 
-  //const baseUrl = new URL(req.url).origin;
   const baseUrl = process.env.BASE_URL;
+  if (!baseUrl) {
+    logger.error('cron.models.sync.misconfigured', {
+      route: ROUTE,
+      missing: 'BASE_URL',
+    });
+    return new NextResponse('Server misconfigured: missing BASE_URL', { status: 500 });
+  }
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const token = process.env.INTERNAL_SYNC_TOKEN;
@@ -73,14 +79,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   logger.debug('cron.models.sync.forwarding', {
     route: ROUTE,
-    baseUrl: baseUrl,
+    baseUrl,
     target: '/api/internal/sync-models',
     hasAuthorization: Boolean(headers['Authorization']),
-    token: token,
     authorizationLength: headers['Authorization']?.length ?? 0,
     hasSignature: Boolean(headers['X-Signature']),
     bodyLength: body.length,
-    headers: headers,
   });
 
   const res = await fetch(`${baseUrl}/api/internal/sync-models`, { method: 'POST', headers, body });

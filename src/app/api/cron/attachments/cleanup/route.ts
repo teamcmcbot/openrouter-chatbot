@@ -12,7 +12,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const expected = cronSecret ? `Bearer ${cronSecret}` : '';
   if (!expected || authHeader !== expected) return unauthorized();
 
-  const baseUrl = new URL(req.url).origin;
+  const baseUrl = process.env.BASE_URL;
+  if (!baseUrl) {
+    return new NextResponse('Server misconfigured: missing BASE_URL', { status: 500 });
+  }
 
   const hours = Number(process.env.CRON_CLEANUP_HOURS || 24);
   const limit = Number(process.env.CRON_CLEANUP_LIMIT || 500);

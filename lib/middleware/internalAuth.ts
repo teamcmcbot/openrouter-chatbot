@@ -16,14 +16,11 @@ function createWithInternalAuth<T extends NextRequest>(
   return async (req: T): Promise<NextResponse> => {
     try {
       // Read env
-      const token = (process.env as Record<string, string | undefined>)[options.tokenEnv] || '';
-      const secret = (process.env as Record<string, string | undefined>)[options.secretEnv] || '';
-      logger.debug('token: ', { tokenPresent: Boolean(token), tokenLength: token?.length ?? 0 });
-      logger.debug('secret: ', { secretPresent: Boolean(secret), secretLength: secret?.length ?? 0 });
+  const token = (process.env as Record<string, string | undefined>)[options.tokenEnv] || '';
+  const secret = (process.env as Record<string, string | undefined>)[options.secretEnv] || '';
 
       // Fast path: Bearer token
-      const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
-      logger.debug('authHeader: ', authHeader);
+  const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const provided = authHeader.slice('Bearer '.length).trim();
         if (!token) {
@@ -32,8 +29,6 @@ function createWithInternalAuth<T extends NextRequest>(
           return handler(req);
         }
       }
-
-      logger.debug('Checking HMAC path');
 
       // HMAC path: X-Signature over raw body
       const signature = req.headers.get('x-signature') || req.headers.get('X-Signature');
@@ -50,8 +45,6 @@ function createWithInternalAuth<T extends NextRequest>(
           return handler(newReq);
         }
       }
-
-      logger.debug('HMAC path did not authenticate');
 
       logger.warn('Internal auth failed', {
         hasAuthorizationHeader: Boolean(authHeader),
