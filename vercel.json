@@ -1,8 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
-    { "path": "/api/cron/attachments/retention", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/attachments/cleanup", "schedule": "30 4 * * *" },
-    { "path": "/api/cron/models/sync", "schedule": "0 * * * *" }
+    {
+      "path": "/api/cron/attachments/retention",
+      "schedule": "0 4 * * *",
+      "headers": { "Authorization": "Bearer {env:CRON_SECRET}" }
+    },
+    {
+      "path": "/api/cron/attachments/cleanup",
+      "schedule": "30 4 * * *",
+      "headers": { "Authorization": "Bearer {env:CRON_SECRET}" }
+    },
+    {
+      "path": "/api/cron/models/sync",
+      "schedule": "0 * * * *",
+      "headers": { "Authorization": "Bearer {env:CRON_SECRET}" }
+    }
   ]
 }
