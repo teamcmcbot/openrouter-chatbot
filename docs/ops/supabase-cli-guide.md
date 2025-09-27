@@ -57,8 +57,8 @@ OAuth: Configure in `supabase/config.toml`; secrets in `supabase/.env` (gitignor
 - Generate from diff:
   - Local DB → file: `supabase db diff -f supabase/migrations/<timestamp>_<name>.sql`
   - Linked remote → file: `supabase db diff --linked -f supabase/migrations/<timestamp>_<name>.sql`
-- Apply locally (non-destructive): `supabase db migrate up`
-- Apply to linked remote: `supabase db push`
+- Apply locally (non-destructive): `supabase migration up`
+- Apply to linked remote: `supabase migration deploy`
 - Reset local (destructive): `supabase db reset` (re-applies all migrations; runs `supabase/seed.sql` if present)
 
 Notes:
@@ -66,6 +66,8 @@ Notes:
 - Execution order is lexicographic by filename (use YYYYMMDDHHMMSS prefixes).
 - Use pure SQL in files (avoid psql backslash directives).
 - `database/schema/` contains snapshots for humans; not executed by CLI.
+- `supabase migration list` (or `supabase migration status`) compares local files to the currently linked remote.
+- Avoid `supabase db push` unless you explicitly intend to replace the remote schema with your local database state (it bypasses the migration history).
 
 ## Seeds & dev bootstrap
 
@@ -93,6 +95,29 @@ WHERE n.nspname = 'auth' AND t.tgname = 'on_auth_user_profile_sync';
 
 ## Common flows
 
-- Day-to-day: new/diff → edit SQL → `db migrate up` → test.
-- Promote to Dev: `link --project-ref <DEV>` → `db push` → verify.
-- Promote to Prod: `link --project-ref <PROD>` → `db push` during a release window.
+- Day-to-day: new/diff → edit SQL → `supabase migration up` → test.
+- Promote to Dev: `link --project-ref <DEV>` → `supabase migration deploy` → verify with `supabase migration list`.
+- Promote to Prod: `link --project-ref <PROD>` → `supabase migration deploy` during a release window.
+
+### Promotion flow (local → dev → prod)
+
+1. **Prepare locally**
+
+- Edit/create migration SQL in `supabase/migrations/`.
+- Run `supabase migration up` to apply the new file(s) against the local Docker database.
+- Execute automated tests or manual smoke checks as needed.
+
+2. **Deploy to shared dev**
+
+- `supabase link --project-ref <DEV_PROJECT_REF>` (switches the CLI to dev).
+- Confirm pending work with `supabase migration list`.
+- Apply the new migration on dev: `supabase db push`.
+- Verify success (`supabase migration list`, targeted SQL checks, or app smoke test).
+
+3. **Promote to production**
+
+- `supabase link --project-ref <PROD_PROJECT_REF>`.
+- Repeat the `supabase migration list` → `supabase db push` → verification steps during an approved release window.
+- Keep a rollback script or inverse migration ready if production validation fails.
+
+Tip: after finishing prod deploys, consider relinking back to dev (`supabase link --project-ref <DEV_PROJECT_REF>`) so subsequent status commands point at the shared environment by default.
