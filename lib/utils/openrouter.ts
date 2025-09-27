@@ -18,6 +18,7 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
 const OPENROUTER_API_MODEL = process.env.OPENROUTER_API_MODEL || 'deepseek/deepseek-r1-0528:free';
 const OPENROUTER_MAX_TOKENS = parseInt(process.env.OPENROUTER_MAX_TOKENS || '5000', 10);
+const DEFAULT_ROOT_PROMPT_RELATIVE_PATH = 'lib/prompts/root-system-prompt.txt';
 
 // Types local to this module to allow 'system' messages internally
 export type OpenRouterMessage = {
@@ -36,29 +37,65 @@ export type OpenRouterRequestWithSystem = {
 
 // ----- Root system prompt helpers -----
 let cachedRootPrompt: string | null = null;
-function loadRootSystemPrompt(brand: string): string {
-  if (cachedRootPrompt) return cachedRootPrompt.replace(/\{\{BRAND\}\}/g, brand);
+function applyRootPromptReplacements(prompt: string, brand: string, model?: string): string {
+  const resolvedModel = model && model.trim().length > 0 ? model : process.env.OPENROUTER_API_MODEL || 'Unknown Model';
+  return prompt
+    .replace(/\{\{BRAND\}\}/g, brand)
+    .replace(/\$\{brand\}/g, brand)
+    .replace(/\{\{MODEL\}\}/g, resolvedModel)
+    .replace(/\$\{model\}/g, resolvedModel);
+}
+
+function loadRootSystemPrompt(brand: string, model?: string): string {
+  if (cachedRootPrompt) return applyRootPromptReplacements(cachedRootPrompt, brand, model);
+
   const fileEnv = process.env.OPENROUTER_ROOT_PROMPT_FILE?.trim();
+  const candidatePaths: string[] = [];
+  let envResolvedPath: string | null = null;
+
   if (fileEnv) {
-    const abs = path.isAbsolute(fileEnv) ? fileEnv : path.join(process.cwd(), fileEnv);
-    if (fs.existsSync(abs)) {
-      try {
-        cachedRootPrompt = fs.readFileSync(abs, 'utf8');
-      } catch (e) {
-        logger.warn(`[rootPrompt] Failed to read file '${abs}', falling back to minimal prompt:`, { message: (e as Error).message });
+    envResolvedPath = path.isAbsolute(fileEnv) ? fileEnv : path.join(process.cwd(), fileEnv);
+    candidatePaths.push(envResolvedPath);
+  }
+
+  const defaultRootPromptPath = path.join(process.cwd(), DEFAULT_ROOT_PROMPT_RELATIVE_PATH);
+  if (!candidatePaths.includes(defaultRootPromptPath)) {
+    candidatePaths.push(defaultRootPromptPath);
+  }
+
+  const missingPaths: string[] = [];
+
+  for (const candidate of candidatePaths) {
+    if (!fs.existsSync(candidate)) {
+      if (envResolvedPath && candidate === envResolvedPath) {
+        logger.warn(`[rootPrompt] File '${candidate}' not found. Attempting fallback path.`);
       }
-    } else {
-      logger.warn(`[rootPrompt] File '${abs}' not found. Falling back to minimal prompt.`);
+      missingPaths.push(candidate);
+      continue;
+    }
+
+    try {
+      cachedRootPrompt = fs.readFileSync(candidate, 'utf8');
+      break;
+    } catch (e) {
+      missingPaths.push(candidate);
+      logger.warn(`[rootPrompt] Failed to read file '${candidate}', falling back to minimal prompt:`, { message: (e as Error).message });
     }
   }
+
   if (!cachedRootPrompt) {
+    if (missingPaths.length > 0) {
+      logger.warn('[rootPrompt] Unable to load root prompt from paths.', { attemptedPaths: missingPaths });
+    }
     cachedRootPrompt = 'You are an AI assistant running inside the {{BRAND}} app.';
   }
-  return cachedRootPrompt.replace(/\{\{BRAND\}\}/g, brand).replace(/\$\{brand\}/g, brand);
+
+  return applyRootPromptReplacements(cachedRootPrompt, brand, model);
 }
-function appendSystemPrompt(messages: OpenRouterMessage[], userSystemPrompt?: string): OpenRouterMessage[] {
+function appendSystemPrompt(messages: OpenRouterMessage[], userSystemPrompt?: string, model?: string): OpenRouterMessage[] {
   const brand = process.env.BRAND_NAME || 'YourBrand';
-  const rootPrompt = loadRootSystemPrompt(brand);
+  const rootPrompt = loadRootSystemPrompt(brand, model);
+  logger.debug('Using root system prompt', { promptPreview: rootPrompt.slice(0, 100) });
   const systemMessages: OpenRouterMessage[] = [{ role: 'system', content: rootPrompt }];
   if (userSystemPrompt) {
     systemMessages.push({ role: 'system', content: `USER CUSTOM PROMPT START: ${userSystemPrompt}.` });
@@ -185,7 +222,7 @@ export async function getOpenRouterCompletion(
     finalSystemPrompt = systemPrompt;
   }
 
-  const finalMessages = appendSystemPrompt(messages, finalSystemPrompt);
+  const finalMessages = appendSystemPrompt(messages, finalSystemPrompt, selectedModel);
 
   type ReasoningOption = { effort?: 'low' | 'medium' | 'high' };
   type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption; modalities?: ('text' | 'image')[] };
@@ -470,7 +507,7 @@ export async function getOpenRouterCompletionStream(
     finalSystemPrompt = systemPrompt;
   }
 
-  const finalMessages = appendSystemPrompt(messages, finalSystemPrompt);
+  const finalMessages = appendSystemPrompt(messages, finalSystemPrompt, selectedModel);
   type ReasoningOption = { effort?: 'low' | 'medium' | 'high' };
   type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption; modalities?: ('text' | 'image')[] };
   const requestBody: OpenRouterRequestWithReasoning = {
