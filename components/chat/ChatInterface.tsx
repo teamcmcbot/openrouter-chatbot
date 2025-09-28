@@ -230,6 +230,7 @@ export default function ChatInterface() {
           isOpen={true}
           onClose={() => {}} // Not used on desktop
           onNewChat={handleNewChat}
+          showMobileHint={false}
         />
       </div>
 
