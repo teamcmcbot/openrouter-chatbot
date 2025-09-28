@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import ModelCatalogTable from "../../../components/ui/ModelCatalogTable";
 import type { ModelCatalogEntry } from "../../../lib/types/modelCatalog";
 
@@ -36,7 +36,7 @@ describe("ModelCatalogTable", () => {
       name: "Pro Beta",
       description: "Pro tier model",
       contextLength: 2000,
-      pricing: { prompt: "0.002", completion: "0.004", request: "0" },
+  pricing: { prompt: "0.002", completion: "0.004", request: "0", outputImage: "0.00003" },
   modalities: { input: ["text"], output: ["text", "image"] },
   supportedParameters: ["reasoning"],
       provider: { slug: "anthropic", label: "Anthropic" },
@@ -136,5 +136,20 @@ describe("ModelCatalogTable", () => {
     expect(screen.getByText("Pro Beta")).toBeInTheDocument();
     expect(screen.getAllByText(/Section collapsed/)).toHaveLength(2);
     expect(screen.getByRole("button", { name: /Collapse/i })).toBeInTheDocument();
+  });
+
+  it("displays per-million token prices and image token pricing", () => {
+    render(<ModelCatalogTable models={models} />);
+
+    const proRow = screen.getByText("Pro Beta").closest("tr");
+    expect(proRow).not.toBeNull();
+
+    const proRowScope = within(proRow!);
+
+    expect(proRowScope.getByText("$2,000")).toBeInTheDocument();
+    expect(proRowScope.getByText("$4,000")).toBeInTheDocument();
+    expect(proRowScope.getAllByText("per 1M tokens")).toHaveLength(2);
+    expect(proRowScope.getByText("$0.03")).toBeInTheDocument();
+    expect(proRowScope.getByText("per 1K image tokens")).toBeInTheDocument();
   });
 });

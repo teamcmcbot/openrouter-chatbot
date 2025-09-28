@@ -40,11 +40,11 @@ Manual test instructions: click new landing page links for each tier, ensure dee
 
 ## Phase 4 – Documentation & Rollout
 
-- [ ] Update `/docs/feature-matrix.md` (or create new doc) to describe models catalog UX, filters, caching, and deep-link behavior.
-- [ ] Provide rollout notes (feature flag toggle, cache warm-up instructions) in `/docs/updates/` if needed.
+- [x] Update `/docs/feature-matrix.md` (or create new doc) to describe models catalog UX, filters, caching, and deep-link behavior.
+- [x] Provide rollout notes (feature flag toggle, cache warm-up instructions) in `/docs/updates/` if needed.
 - [ ] Coordinate announcement copy with marketing/landing page stakeholders (optional but recommended).
 
-Summary once complete: documentation and rollout guidance reflect the new models catalog feature.
+Summary once complete: documentation and rollout guidance reflect the new models catalog feature. Feature matrix now includes catalog capabilities, and rollout notes live in `docs/updates/models-catalog-rollout.md`.
 Manual test instructions: review updated docs for accuracy, confirm links/screenshots reference the final UI.
 
 - [ ] **User verification: Phase 4 documentation and rollout guidance approved.**

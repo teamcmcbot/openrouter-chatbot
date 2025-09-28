@@ -52,12 +52,11 @@ export default async function ModelsPage({ searchParams }: ModelsPageProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
       <div className="space-y-3 text-center">
-        <p className="text-sm font-semibold tracking-wide text-emerald-600 uppercase">Model Catalog</p>
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
-          Active models across every tier
+        <h1 className="text-3xl md:text-4xl font-bold text-emerald-600 dark:text-emerald-400">
+          Model Catalog
         </h1>
         <p className="mx-auto max-w-3xl text-base md:text-lg text-gray-600 dark:text-gray-300">
-          Explore which OpenRouter models are available on the Base, Pro, and Enterprise plans. Filter by provider, compare pricing, and decide where to upgrade.
+          Explore which OpenRouter models are available on the Free, Pro, and Enterprise plans. Filter by provider, compare pricing, and decide where to upgrade.
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Want to see how this compares to pricing?&nbsp;

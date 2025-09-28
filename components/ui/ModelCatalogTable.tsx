@@ -53,6 +53,11 @@ type FeatureFilterState = Record<FeatureFilter, boolean>;
 
 type ProviderFilterState = Record<CatalogProviderSlug, boolean>;
 
+type FormattedPrice = {
+  display: string;
+  unit: string;
+};
+
 const DEFAULT_FEATURE_FILTER_STATE: FeatureFilterState = FEATURE_FILTER_OPTIONS.reduce<FeatureFilterState>(
   (acc, option) => {
     acc[option.key] = false;
@@ -92,15 +97,77 @@ function formatNumber(num: number): string {
   return num.toLocaleString();
 }
 
-function formatPrice(price: string | null | undefined): string {
-  if (!price) return "—";
+function formatScaledPrice(value: number, scale: number): string {
+  const scaled = value * scale;
+  if (!Number.isFinite(scaled)) {
+    return value.toString();
+  }
+
+  let maximumFractionDigits: number;
+  if (scaled >= 100) {
+    maximumFractionDigits = 0;
+  } else if (scaled >= 10) {
+    maximumFractionDigits = 1;
+  } else if (scaled >= 1) {
+    maximumFractionDigits = 2;
+  } else if (scaled >= 0.1) {
+    maximumFractionDigits = 3;
+  } else {
+    maximumFractionDigits = 4;
+  }
+
+  const minimumFractionDigits = maximumFractionDigits === 0 ? 0 : maximumFractionDigits === 1 ? 1 : 2;
+
+  return scaled.toLocaleString(undefined, {
+    minimumFractionDigits,
+    maximumFractionDigits,
+  });
+}
+
+function formatTokenPrice(price: string | null | undefined): FormattedPrice {
+  if (!price) {
+    return { display: "—", unit: "per 1M tokens" };
+  }
+
   const parsed = Number(price);
-  if (Number.isNaN(parsed)) return price;
-  if (parsed === 0) return "Free";
-  if (parsed < 0.000001) return `$${(parsed * 1_000_000).toFixed(2)}/1M`;
-  if (parsed < 0.001) return `$${(parsed * 1_000).toFixed(2)}/1K`;
-  if (parsed < 1) return `$${parsed.toFixed(4)}`;
-  return `$${parsed.toFixed(2)}`;
+  if (Number.isNaN(parsed)) {
+    return { display: price, unit: "per 1M tokens" };
+  }
+
+  if (parsed === 0) {
+    return { display: "Free", unit: "per 1M tokens" };
+  }
+
+  if (parsed >= 1) {
+    return {
+      display: `$${parsed.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
+      unit: "per token",
+    };
+  }
+
+  return {
+    display: `$${formatScaledPrice(parsed, 1_000_000)}`,
+    unit: "per 1M tokens",
+  };
+}
+
+function formatImageTokenPrice(price: string | null | undefined): FormattedPrice | null {
+  if (!price) {
+    return null;
+  }
+
+  const parsed = Number(price);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return {
+    display: `$${formatScaledPrice(parsed, 1_000)}`,
+    unit: "per 1K image tokens",
+  };
 }
 
 function toNumber(price: string | null | undefined): number | null {
@@ -455,6 +522,9 @@ export default function ModelCatalogTable({
                             const isMultimodal = isModelMultimodal(model);
                             const hasImageGeneration = modelSupportsImageGeneration(model);
                             const supportsReasoning = modelSupportsReasoning(model);
+                            const promptPrice = formatTokenPrice(model.pricing.prompt);
+                            const completionPrice = formatTokenPrice(model.pricing.completion);
+                            const imageCompletionPrice = formatImageTokenPrice(model.pricing.outputImage);
                             return (
                               <tr key={model.id} className="hover:bg-gray-50/80 dark:hover:bg-gray-800/50 transition-colors">
                                 <td className="sticky left-0 z-10 bg-white dark:bg-gray-900 px-4 py-4 align-top">
@@ -499,15 +569,29 @@ export default function ModelCatalogTable({
                                 </td>
                                 <td className="px-4 py-4 text-left align-top">
                                   <div className="text-sm font-medium text-gray-900 dark:text-gray-50">
-                                    {formatPrice(model.pricing.prompt)}
+                                    {promptPrice.display}
                                   </div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400">per token</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">{promptPrice.unit}</div>
                                 </td>
                                 <td className="px-4 py-4 text-left align-top">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-gray-50">
-                                    {formatPrice(model.pricing.completion)}
+                                  <div className="flex flex-col gap-2">
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900 dark:text-gray-50">
+                                        {completionPrice.display}
+                                      </div>
+                                      <div className="text-xs text-gray-500 dark:text-gray-400">{completionPrice.unit}</div>
+                                    </div>
+                                    {imageCompletionPrice ? (
+                                      <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                        <div className="text-sm font-medium text-gray-900 dark:text-gray-50">
+                                          {imageCompletionPrice.display}
+                                        </div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                          {imageCompletionPrice.unit}
+                                        </div>
+                                      </div>
+                                    ) : null}
                                   </div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400">per token</div>
                                 </td>
                                 <td className="px-4 py-4 text-left align-top">
                                   <span className="text-sm font-medium text-gray-900 dark:text-gray-50">
