@@ -12,13 +12,8 @@ import type { ModelCatalogEntry, ModelCatalogPayload, TierGroup } from '../types
  * - Redis TTL defaults to 10 minutes but can be tuned via MODEL_CATALOG_CACHE_TTL_SECONDS.
  * - Use invalidateModelCatalogCache when a manual bust is required (e.g., after sync jobs).
  */
-const ENVIRONMENT = (process.env.MODEL_CATALOG_ENV
-  || process.env.NEXT_PUBLIC_APP_ENV
-  || process.env.VERCEL_ENV
-  || process.env.NODE_ENV
-  || 'development')
-  .toString()
-  .trim()
+const RAW_ENVIRONMENT = (process.env.NODE_ENV || 'development').toString().trim();
+const ENVIRONMENT = (RAW_ENVIRONMENT === '' ? 'development' : RAW_ENVIRONMENT)
   .toLowerCase()
   .replace(/[^a-z0-9-]/g, '-');
 
@@ -254,7 +249,14 @@ async function getRedisCache(): Promise<ModelCatalogPayload | null> {
     if (!cached) return null;
 
     if (typeof cached === 'string') {
-      return JSON.parse(cached) as ModelCatalogPayload;
+      try {
+        return JSON.parse(cached) as ModelCatalogPayload;
+      } catch (error) {
+        logger.warn('Model catalog: failed to parse Redis cache payload', {
+          err: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+      }
     }
     if (typeof cached === 'object') {
       return cached as ModelCatalogPayload;

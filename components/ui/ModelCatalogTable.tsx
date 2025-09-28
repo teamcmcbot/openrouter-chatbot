@@ -116,7 +116,14 @@ function formatScaledPrice(value: number, scale: number): string {
     maximumFractionDigits = 4;
   }
 
-  const minimumFractionDigits = maximumFractionDigits === 0 ? 0 : maximumFractionDigits === 1 ? 1 : 2;
+  let minimumFractionDigits: number;
+  if (maximumFractionDigits === 0) {
+    minimumFractionDigits = 0;
+  } else if (maximumFractionDigits === 1) {
+    minimumFractionDigits = 1;
+  } else {
+    minimumFractionDigits = 2;
+  }
 
   return scaled.toLocaleString(undefined, {
     minimumFractionDigits,
@@ -171,7 +178,7 @@ function formatImageTokenPrice(price: string | null | undefined): FormattedPrice
 }
 
 function toNumber(price: string | null | undefined): number | null {
-  if (!price && price !== "0") return null;
+  if (price == null || price === "") return null;
   const parsed = Number(price);
   return Number.isNaN(parsed) ? null : parsed;
 }
