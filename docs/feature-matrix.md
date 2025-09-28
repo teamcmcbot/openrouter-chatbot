@@ -1,7 +1,24 @@
 # OpenRouter Chatbot Feature Matrix
 
-**Last Updated**: August 23, 2025  
-**Version**: 1.0
+**Last Updated**: September 28, 2025  
+**Version**: 1.1
+
+## Models Catalog
+
+| Capability                 | Status | Notes                                                                                                                                |
+| -------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Public Catalog Page**    | ✅     | `/models` is available to all users (no auth required) with responsive layout and accessible semantics.                              |
+| **Feature Filters**        | ✅     | Toggle filters for multimodal, reasoning, image generation, free, and paid models; combinations refine the table instantly.          |
+| **Search & Deep Linking**  | ✅     | Query (`q`) updates live and deep links persist via `?q=` + `feature=` parameters; tier anchors still scroll into view when present. |
+| **Provider & Tier Badges** | ✅     | Provider taxonomy and tier badges stay visible within expandable rows for quick scanning.                                            |
+| **Caching & Freshness**    | ✅     | Server fetches rely on the Redis-backed `model-access:active` cache (5–10 min TTL) with invalidation hooks for admin updates.        |
+| **Sitemap/SEO Metadata**   | ✅     | `/models` is included in the sitemap and inherits structured metadata for improved discoverability.                                  |
+
+Key user flows:
+
+- **Discoverability** – Users can browse the catalog anonymously, filter by capabilities, and jump directly to a tier section using deep links.
+- **Comparison** – Expandable rows summarize pricing, context length, modalities, and availability per tier; feature filters highlight specialized models.
+- **Performance** – Cached payloads minimize Supabase round-trips while tests guard sorting, provider mapping, and filter parsing.
 
 ## Core Chat Features
 
