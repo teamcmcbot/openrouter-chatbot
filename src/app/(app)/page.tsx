@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TIER_FEATURES, TIER_LABELS, TIER_LIMITS, TIER_PRICING_MONTHLY } from "../../../lib/constants/tiers";
@@ -11,12 +11,17 @@ export default function HomePage() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
 
+  type PlanFeature = {
+    id: string;
+    content: ReactNode;
+  };
+
   type Plan = {
     tier: "free" | "pro" | "enterprise";
     title: string;
     price: number;
     description: string;
-    features: string[];
+    features: PlanFeature[];
     limits: {
       requestsPerHour: number;
       tokensPerRequest: number;
@@ -36,9 +41,29 @@ export default function HomePage() {
       price: TIER_PRICING_MONTHLY.free,
       description: "Everything you need to explore OpenRouter models and keep your chats in sync.",
       features: [
-        "Access base model catalog",
-        "Save and revisit every conversation",
-        "Custom system prompts on each chat",
+        {
+          id: "free-catalog",
+          content: (
+            <>
+              Access {" "}
+              <Link
+                href="/models?tier=free"
+                className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium"
+              >
+                Base model
+              </Link>{" "}
+              catalog
+            </>
+          ),
+        },
+        {
+          id: "history",
+          content: "Save and revisit every conversation",
+        },
+        {
+          id: "prompts",
+          content: "Custom system prompts on each chat",
+        },
       ],
       limits: {
         requestsPerHour: TIER_LIMITS.free.maxRequestsPerHour,
@@ -56,11 +81,28 @@ export default function HomePage() {
       price: TIER_PRICING_MONTHLY.pro,
       description: "Unlock research tools and pro-grade models for power users and small teams.",
       features: [
-        "Access Pro model catalog",
-        TIER_FEATURES.pro.webSearch ? "Web search with inline citations" : "",
-        TIER_FEATURES.pro.imageAttachments ? "Attach images on selected models" : "",
-        
-      ].filter(Boolean),
+        {
+          id: "pro-catalog",
+          content: (
+            <>
+              Access {" "}
+              <Link
+                href="/models?tier=pro"
+                className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium"
+              >
+                Pro model
+              </Link>{" "}
+              catalog
+            </>
+          ),
+        },
+        ...(TIER_FEATURES.pro.webSearch
+          ? [{ id: "pro-web", content: "Web search with inline citations" } satisfies PlanFeature]
+          : []),
+        ...(TIER_FEATURES.pro.imageAttachments
+          ? [{ id: "pro-attachments", content: "Attach images on selected models" } satisfies PlanFeature]
+          : []),
+      ],
       limits: {
         requestsPerHour: TIER_LIMITS.pro.maxRequestsPerHour,
         tokensPerRequest: TIER_LIMITS.pro.maxTokensPerRequest,
@@ -78,11 +120,28 @@ export default function HomePage() {
       price: TIER_PRICING_MONTHLY.enterprise,
       description: "Enterprise adds reasoning, image generation, and near-unlimited usage for demanding teams.",
       features: [
-        "Access Enterprise model catalog",
-        TIER_FEATURES.enterprise.reasoning ? "Reasoning mode for complex problem solving" : "",
-        TIER_FEATURES.enterprise.imageGeneration ? "Image generation on selected models" : "",
-        
-      ].filter(Boolean),
+        {
+          id: "enterprise-catalog",
+          content: (
+            <>
+              Access {" "}
+              <Link
+                href="/models?tier=enterprise"
+                className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium"
+              >
+                Enterprise model
+              </Link>{" "}
+              catalog
+            </>
+          ),
+        },
+        ...(TIER_FEATURES.enterprise.reasoning
+          ? [{ id: "enterprise-reasoning", content: "Reasoning mode for complex problem solving" } satisfies PlanFeature]
+          : []),
+        ...(TIER_FEATURES.enterprise.imageGeneration
+          ? [{ id: "enterprise-image", content: "Image generation on selected models" } satisfies PlanFeature]
+          : []),
+      ],
       limits: {
         requestsPerHour: TIER_LIMITS.enterprise.maxRequestsPerHour,
         tokensPerRequest: TIER_LIMITS.enterprise.maxTokensPerRequest,
@@ -243,9 +302,9 @@ export default function HomePage() {
                     </p>
                     <ul className="space-y-2">
                       {plan.features.map((feature) => (
-                        <li key={feature} className="flex items-start gap-3 text-sm text-slate-700 dark:text-gray-300">
+                        <li key={feature.id} className="flex items-start gap-3 text-sm text-slate-700 dark:text-gray-300">
                           <span className="mt-1 inline-flex h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-500" />
-                          <span>{feature}</span>
+                          <span className="text-slate-700 dark:text-gray-300">{feature.content}</span>
                         </li>
                       ))}
                     </ul>
