@@ -17,9 +17,10 @@ interface ChatSidebarProps {
   onClose: () => void;
   onNewChat: () => void;
   className?: string;
+  showMobileHint?: boolean;
 }
 
-export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: ChatSidebarProps) {
+export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMobileHint = true }: ChatSidebarProps) {
   // Get conversation data from store
   const {
     conversations,
@@ -71,7 +72,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
 
   // One-time discoverability hint for mobile/touch users when sidebar becomes visible
   useEffect(() => {
-    if (hasHover || !isOpen) return; // desktop or sidebar hidden
+    if (hasHover || !isOpen || !showMobileHint) return; // desktop or sidebar hidden
     try {
       const key = 'chatSidebar.longpress.hint.v1';
       if (!localStorage.getItem(key)) {
@@ -81,7 +82,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "" }: Chat
     } catch {
       // ignore storage errors
     }
-  }, [hasHover, isOpen]);
+  }, [hasHover, isOpen, showMobileHint]);
 
   // When the action sheet opens, ensure the target row is visible
   useEffect(() => {

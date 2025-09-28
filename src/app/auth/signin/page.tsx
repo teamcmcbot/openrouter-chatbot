@@ -61,6 +61,15 @@ function SignInInner() {
     }
   }, [target]);
 
+  const handleCancel = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setAutoRedirect(false);
+    router.back();
+  }, [router]);
+
   // Start/stop countdown timer
   useEffect(() => {
     // Clear any existing timer first
@@ -96,7 +105,7 @@ function SignInInner() {
   }, [seconds, autoRedirect, isAuthenticated, handleGoogle]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-[var(--mobile-content-height)] sm:min-h-[var(--desktop-content-height)] flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       <div className="w-full max-w-xl sm:max-w-2xl">
         <div className="bg-white/90 dark:bg-gray-800/80 backdrop-blur rounded-2xl shadow-md border border-gray-200/60 dark:border-gray-700 p-6 sm:p-10">
           <div className="text-center">
@@ -111,7 +120,7 @@ function SignInInner() {
                   You will be returned to <span className="font-mono text-gray-900 dark:text-gray-100">{target || "/chat"}</span> after signing in.
                 </>
               ) : (
-                <>Auto‑redirect paused. You can sign in now when you’re ready.</>
+                <>Redirect canceled. Click Cancel to return to your previous page.</>
               )}
             </p>
           </div>
@@ -121,24 +130,13 @@ function SignInInner() {
               Continue with Google
             </Button>
             <div className="text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-              {autoRedirect ? (
+              {autoRedirect && (
                 <button
                   type="button"
-                  onClick={() => setAutoRedirect(false)}
+                  onClick={handleCancel}
                   className="underline hover:text-gray-700 dark:hover:text-gray-300"
                 >
-                  Cancel auto-redirect
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSeconds(5);
-                    setAutoRedirect(true);
-                  }}
-                  className="underline hover:text-gray-700 dark:hover:text-gray-300"
-                >
-                  Restart 5s countdown
+                  Cancel &amp; Go Back
                 </button>
               )}
             </div>
