@@ -3,50 +3,37 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getModelCatalog } from "../../../lib/server/modelCatalog";
 import ModelCatalogPageClient from "../../../components/ui/ModelCatalogPageClient";
-import type { TierGroup } from "../../../lib/types/modelCatalog";
-import type { CatalogProviderSlug } from "../../../lib/constants/modelProviders";
+import {
+  parseFeatureFilters,
+  parseProviderFilters,
+  parseTier,
+} from "../../../lib/utils/modelCatalogFilters";
+
+const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
+const canonicalUrl = `${siteUrl}/models`;
+const brandName = process.env.BRAND_NAME || "OpenRouter Chatbot";
 
 export const metadata: Metadata = {
   title: "Model Catalog | OpenRouter Chatbot",
   description:
     "Browse every active model in GreenBubble by subscription tier. Compare pricing, context length, capabilities, and providers at a glance.",
+  alternates: {
+    canonical: canonicalUrl,
+  },
+  openGraph: {
+    title: "Model Catalog",
+    description:
+      "Browse every active model in GreenBubble by subscription tier. Compare pricing, context length, capabilities, and providers at a glance.",
+    url: canonicalUrl,
+    siteName: brandName,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Model Catalog",
+    description:
+      "Compare OpenRouter models across Base, Pro, and Enterprise plans with pricing, context limits, and capabilities.",
+  },
 };
-
-const validTiers: readonly TierGroup[] = ["free", "pro", "enterprise"] as const;
-
-function parseTier(value: string | string[] | undefined): TierGroup | null {
-  if (!value) return null;
-  const target = Array.isArray(value) ? value[0] : value;
-  if (validTiers.includes(target as TierGroup)) {
-    return target as TierGroup;
-  }
-  return null;
-}
-
-function parseTierFilters(value: string | string[] | undefined): TierGroup[] {
-  if (!value) return [];
-  const parts = Array.isArray(value) ? value : value.split(",");
-  return parts
-    .map((part) => part.trim())
-    .filter((part): part is TierGroup => validTiers.includes(part as TierGroup));
-}
-
-function parseProviderFilters(value: string | string[] | undefined): CatalogProviderSlug[] {
-  if (!value) return [];
-  const parts = Array.isArray(value) ? value : value.split(",");
-  const normalized = parts.map((part) => part.trim().toLowerCase()).filter(Boolean);
-  const allowed = new Set([
-    "openai",
-    "google",
-    "anthropic",
-    "xai",
-    "zai",
-    "moonshot",
-    "mistral",
-    "other",
-  ] satisfies CatalogProviderSlug[]);
-  return normalized.filter((slug): slug is CatalogProviderSlug => allowed.has(slug as CatalogProviderSlug));
-}
 
 interface ModelsPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -55,7 +42,7 @@ interface ModelsPageProps {
 export default async function ModelsPage({ searchParams }: ModelsPageProps) {
   const params = (await searchParams) ?? {};
   const highlightedTier = parseTier(params.tier);
-  const initialTierFilters = parseTierFilters(params.tiers);
+  const initialFeatureFilters = parseFeatureFilters(params.features);
   const initialProviderFilters = parseProviderFilters(params.providers);
   const initialSearch = typeof params.q === "string" ? params.q : "";
 
@@ -86,7 +73,7 @@ export default async function ModelsPage({ searchParams }: ModelsPageProps) {
           models={catalog.models}
           highlightedTier={highlightedTier}
           initialSearch={initialSearch}
-          initialTierFilters={initialTierFilters}
+          initialFeatureFilters={initialFeatureFilters}
           initialProviderFilters={initialProviderFilters}
         />
       </Suspense>

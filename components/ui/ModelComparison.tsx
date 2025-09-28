@@ -2,6 +2,7 @@
 
 import ModelCatalogTable from "./ModelCatalogTable";
 import type {
+  FeatureFilter,
   ModelCatalogEntry,
   ModelCatalogFilters,
   TierGroup,
@@ -12,7 +13,7 @@ export interface ModelComparisonProps {
   models: ModelCatalogEntry[];
   highlightedTier?: TierGroup | null;
   initialSearch?: string;
-  initialTierFilters?: TierGroup[];
+  initialFeatureFilters?: FeatureFilter[];
   initialProviderFilters?: CatalogProviderSlug[];
   onFiltersChange?: (filters: ModelCatalogFilters) => void;
 }

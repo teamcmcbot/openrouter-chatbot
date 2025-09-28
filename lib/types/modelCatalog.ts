@@ -1,6 +1,8 @@
-import type { CatalogProviderSlug } from '../constants/modelProviders';
+import type { CatalogProviderSlug } from "../constants/modelProviders";
 
 export type TierGroup = 'free' | 'pro' | 'enterprise';
+
+export type FeatureFilter = "multimodal" | "reasoning" | "image" | "free" | "paid";
 
 export interface ModelCatalogEntry {
   id: string;
@@ -48,4 +50,5 @@ export interface ModelCatalogFilters {
   search: string;
   tiers: TierGroup[];
   providers: CatalogProviderSlug[];
+  features: FeatureFilter[];
 }

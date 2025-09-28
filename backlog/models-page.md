@@ -29,9 +29,9 @@ Manual test instructions: visit `/models` in desktop/mobile widths, exercise sea
 ## Phase 3 – Integration & Quality Gates
 
 - [x] Update landing page pricing section CTA to link toward `/models?tier={tier}` and confirm analytics tracking (if any) still fires.
-- [ ] Add route to sitemap/SEO metadata and confirm for static export (OpenGraph/structured data optional brainstorming).
-- [ ] Write unit tests for sorting helper, provider classification, and filter logic; add component tests covering search + tier highlighting.
-- [ ] Document Redis caching strategy & invalidation in code comments and monitor logs for request volume (feature flag optional).
+- [x] Add route to sitemap/SEO metadata and confirm for static export (OpenGraph/structured data optional brainstorming).
+- [x] Write unit tests for sorting helper, provider classification, and filter logic; add component tests covering search + tier highlighting.
+- [x] Document Redis caching strategy & invalidation in code comments and monitor logs for request volume (feature flag optional).
 
 Summary once complete: landing page links into `/models`, automated coverage protects behavior, and metadata/logging are aligned.
 Manual test instructions: click new landing page links for each tier, ensure deep link UX, run `npm test -- models` (or matching pattern) to confirm new tests pass, inspect logs for caching hits/misses.

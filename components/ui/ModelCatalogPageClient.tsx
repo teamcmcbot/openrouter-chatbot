@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ModelCatalogTable from "./ModelCatalogTable";
 import type {
+  FeatureFilter,
   ModelCatalogEntry,
   ModelCatalogFilters,
   TierGroup,
@@ -14,7 +15,7 @@ interface ModelCatalogPageClientProps {
   models: ModelCatalogEntry[];
   highlightedTier?: TierGroup | null;
   initialSearch?: string;
-  initialTierFilters?: TierGroup[];
+  initialFeatureFilters?: FeatureFilter[];
   initialProviderFilters?: CatalogProviderSlug[];
 }
 
@@ -22,7 +23,7 @@ export default function ModelCatalogPageClient({
   models,
   highlightedTier,
   initialSearch,
-  initialTierFilters,
+  initialFeatureFilters,
   initialProviderFilters,
 }: Readonly<ModelCatalogPageClientProps>) {
   const router = useRouter();
@@ -41,16 +42,19 @@ export default function ModelCatalogPageClient({
         nextParams.delete("q");
       }
 
-      if (filters.tiers.length > 0) {
-        nextParams.set("tiers", filters.tiers.join(","));
-      } else {
-        nextParams.delete("tiers");
-      }
+      // Remove legacy tier filters from URL now that feature filters are primary
+      nextParams.delete("tiers");
 
       if (filters.providers.length > 0) {
         nextParams.set("providers", filters.providers.join(","));
       } else {
         nextParams.delete("providers");
+      }
+
+      if (filters.features.length > 0) {
+        nextParams.set("features", filters.features.join(","));
+      } else {
+        nextParams.delete("features");
       }
 
       const next = nextParams.toString();
@@ -67,7 +71,7 @@ export default function ModelCatalogPageClient({
       models={models}
       highlightedTier={highlightedTier}
       initialSearch={initialSearch}
-      initialTierFilters={initialTierFilters}
+      initialFeatureFilters={initialFeatureFilters}
       initialProviderFilters={initialProviderFilters}
       onFiltersChange={handleFiltersChange}
     />

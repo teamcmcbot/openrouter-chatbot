@@ -5,6 +5,13 @@ import type { CatalogProviderSlug } from '../constants/modelProviders';
 import { CATALOG_PROVIDER_LABELS } from '../constants/modelProviders';
 import type { ModelCatalogEntry, ModelCatalogPayload, TierGroup } from '../types/modelCatalog';
 
+/**
+ * Model catalog caching strategy:
+ * - Environment-specific Redis key (see CACHE_KEY) prevents cross-env bleed.
+ * - Short-lived in-memory cache keeps hot page reloads warm on a single instance.
+ * - Redis TTL defaults to 10 minutes but can be tuned via MODEL_CATALOG_CACHE_TTL_SECONDS.
+ * - Use invalidateModelCatalogCache when a manual bust is required (e.g., after sync jobs).
+ */
 const ENVIRONMENT = (process.env.MODEL_CATALOG_ENV
   || process.env.NEXT_PUBLIC_APP_ENV
   || process.env.VERCEL_ENV
@@ -86,7 +93,7 @@ function parseStringArray(value: unknown): string[] {
   return [];
 }
 
-function detectProvider(modelId: string): CatalogProviderSlug {
+export function detectProvider(modelId: string): CatalogProviderSlug {
   const baseId = modelId.split(':')[0]?.toLowerCase() ?? '';
   const providerSegment = baseId.split('/')[0] ?? '';
   const normalized = providerSegment.replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -129,7 +136,7 @@ function formatPricing(row: ModelAccessRow) {
   };
 }
 
-function sortCatalogEntries(models: ModelCatalogEntry[]): ModelCatalogEntry[] {
+export function sortCatalogEntries(models: ModelCatalogEntry[]): ModelCatalogEntry[] {
   return [...models].sort((a, b) => {
     const groupOrder = { free: 0, pro: 1, enterprise: 2 } as const;
     const groupDelta = groupOrder[a.tierGroup] - groupOrder[b.tierGroup];

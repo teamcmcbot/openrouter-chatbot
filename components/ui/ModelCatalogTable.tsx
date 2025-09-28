@@ -12,6 +12,7 @@ import {
   type CatalogProviderSlug,
 } from "../../lib/constants/modelProviders";
 import type {
+  FeatureFilter,
   ModelCatalogEntry,
   ModelCatalogFilters,
   TierGroup,
@@ -31,24 +32,34 @@ const tierDescriptions: Record<TierGroup, string> = {
   enterprise: "Exclusive enterprise access",
 };
 
+const FEATURE_FILTER_OPTIONS: ReadonlyArray<{ key: FeatureFilter; label: string }> = [
+  { key: "multimodal", label: "Multi-modal" },
+  { key: "reasoning", label: "Reasoning" },
+  { key: "image", label: "Image generation" },
+  { key: "free", label: "Free" },
+  { key: "paid", label: "Paid" },
+];
+
 interface ModelCatalogTableProps {
   models: ModelCatalogEntry[];
   highlightedTier?: TierGroup | null;
   initialSearch?: string;
-  initialTierFilters?: TierGroup[];
+  initialFeatureFilters?: FeatureFilter[];
   initialProviderFilters?: CatalogProviderSlug[];
   onFiltersChange?: (filters: ModelCatalogFilters) => void;
 }
 
-type TierFilterState = Record<TierGroup, boolean>;
+type FeatureFilterState = Record<FeatureFilter, boolean>;
 
 type ProviderFilterState = Record<CatalogProviderSlug, boolean>;
 
-const DEFAULT_TIER_FILTERS: TierFilterState = {
-  free: false,
-  pro: false,
-  enterprise: false,
-};
+const DEFAULT_FEATURE_FILTER_STATE: FeatureFilterState = FEATURE_FILTER_OPTIONS.reduce<FeatureFilterState>(
+  (acc, option) => {
+    acc[option.key] = false;
+    return acc;
+  },
+  {} as FeatureFilterState
+);
 
 const DEFAULT_EXPANDED_SECTIONS: Record<TierGroup, boolean> = {
   free: true,
@@ -63,12 +74,12 @@ function createSingleExpandedState(target: TierGroup): Record<TierGroup, boolean
   }, {} as Record<TierGroup, boolean>);
 }
 
-function toTierArray(state: TierFilterState): TierGroup[] {
-  return tierOrder.filter((tier) => state[tier]);
-}
-
 function toProviderArray(state: ProviderFilterState): CatalogProviderSlug[] {
   return CATALOG_PROVIDER_DISPLAY_ORDER.filter((slug) => state[slug]);
+}
+
+function toFeatureArray(state: FeatureFilterState): FeatureFilter[] {
+  return FEATURE_FILTER_OPTIONS.filter(({ key }) => state[key]).map(({ key }) => key);
 }
 
 function formatNumber(num: number): string {
@@ -92,21 +103,67 @@ function formatPrice(price: string | null | undefined): string {
   return `$${parsed.toFixed(2)}`;
 }
 
+function toNumber(price: string | null | undefined): number | null {
+  if (!price && price !== "0") return null;
+  const parsed = Number(price);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function isModelFree(model: ModelCatalogEntry): boolean {
+  const prompt = toNumber(model.pricing.prompt);
+  const completion = toNumber(model.pricing.completion);
+  if (prompt === null && completion === null) return false;
+  return (prompt ?? 0) === 0 && (completion ?? 0) === 0;
+}
+
+function isModelPaid(model: ModelCatalogEntry): boolean {
+  const prompt = toNumber(model.pricing.prompt);
+  const completion = toNumber(model.pricing.completion);
+  if (prompt === null && completion === null) return false;
+  return (prompt ?? 0) > 0 || (completion ?? 0) > 0;
+}
+
+function isModelMultimodal(model: ModelCatalogEntry): boolean {
+  const modalities = new Set([...(model.modalities?.input ?? []), ...(model.modalities?.output ?? [])]);
+  return modalities.size > 1;
+}
+
+function modelSupportsReasoning(model: ModelCatalogEntry): boolean {
+  return model.supportedParameters?.some((param) => param.toLowerCase() === "reasoning") ?? false;
+}
+
+function modelSupportsImageGeneration(model: ModelCatalogEntry): boolean {
+  return model.modalities?.output?.some((modality) => modality.toLowerCase() === "image") ?? false;
+}
+
+const featurePredicates: Record<FeatureFilter, (model: ModelCatalogEntry) => boolean> = {
+  multimodal: isModelMultimodal,
+  reasoning: modelSupportsReasoning,
+  image: modelSupportsImageGeneration,
+  free: isModelFree,
+  paid: isModelPaid,
+};
+
 export default function ModelCatalogTable({
   models,
   highlightedTier = null,
   initialSearch = "",
-  initialTierFilters,
+  initialFeatureFilters,
   initialProviderFilters,
   onFiltersChange,
 }: Readonly<ModelCatalogTableProps>) {
   const [search, setSearch] = useState(initialSearch);
-  const [tierState, setTierState] = useState<TierFilterState>(() => {
-    if (!initialTierFilters || initialTierFilters.length === 0) return { ...DEFAULT_TIER_FILTERS };
-    return tierOrder.reduce<TierFilterState>((acc, tier) => {
-      acc[tier] = initialTierFilters.includes(tier);
-      return acc;
-    }, { ...DEFAULT_TIER_FILTERS });
+  const [featureState, setFeatureState] = useState<FeatureFilterState>(() => {
+    const defaults = { ...DEFAULT_FEATURE_FILTER_STATE };
+    if (!initialFeatureFilters || initialFeatureFilters.length === 0) {
+      return defaults;
+    }
+    for (const feature of initialFeatureFilters) {
+      if (feature in defaults) {
+        defaults[feature] = true;
+      }
+    }
+    return defaults;
   });
 
   const [providerState, setProviderState] = useState<ProviderFilterState>(() => {
@@ -136,8 +193,8 @@ export default function ModelCatalogTable({
   const [activeHighlight, setActiveHighlight] = useState<TierGroup | null>(null);
   const lastHighlightedTier = useRef<TierGroup | null>(highlightedTier ?? null);
 
-  const handleTierToggle = useCallback((tier: TierGroup) => {
-    setTierState((prev) => ({ ...prev, [tier]: !prev[tier] }));
+  const handleFeatureToggle = useCallback((feature: FeatureFilter) => {
+    setFeatureState((prev) => ({ ...prev, [feature]: !prev[feature] }));
   }, []);
 
   const handleProviderToggle = useCallback((provider: CatalogProviderSlug) => {
@@ -151,11 +208,12 @@ export default function ModelCatalogTable({
   useEffect(() => {
     const filters: ModelCatalogFilters = {
       search: debouncedSearch.trim(),
-      tiers: toTierArray(tierState),
+      tiers: [],
       providers: toProviderArray(providerState),
+      features: toFeatureArray(featureState),
     };
     onFiltersChange?.(filters);
-  }, [debouncedSearch, providerState, tierState, onFiltersChange]);
+  }, [debouncedSearch, featureState, providerState, onFiltersChange]);
 
   useEffect(() => {
     if (highlightedTier === lastHighlightedTier.current) {
@@ -185,16 +243,16 @@ export default function ModelCatalogTable({
     return undefined;
   }, [highlightedTier]);
 
-  const tierFilters = toTierArray(tierState);
   const providerFilters = toProviderArray(providerState);
+  const featureFilters = toFeatureArray(featureState);
 
   const filteredModels = useMemo(() => {
     const searchTerm = debouncedSearch.trim().toLowerCase();
 
     return models.filter((model) => {
-      if (tierFilters.length > 0) {
-        const matchesTier = tierFilters.some((tier) => model.tiers[tier]);
-        if (!matchesTier) return false;
+      if (featureFilters.length > 0) {
+        const matchesFeatures = featureFilters.every((feature) => featurePredicates[feature](model));
+        if (!matchesFeatures) return false;
       }
 
       if (providerFilters.length > 0 && !providerFilters.includes(model.provider.slug)) {
@@ -216,7 +274,7 @@ export default function ModelCatalogTable({
 
       return true;
     });
-  }, [debouncedSearch, models, providerFilters, tierFilters]);
+  }, [debouncedSearch, featureFilters, models, providerFilters]);
 
   const groupedModels = useMemo(() => {
     return tierOrder.reduce<Record<TierGroup, ModelCatalogEntry[]>>((acc, tier) => {
@@ -276,21 +334,22 @@ export default function ModelCatalogTable({
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap gap-2">
-              {tierOrder.map((tier) => {
-                const isActive = tierState[tier];
+              {FEATURE_FILTER_OPTIONS.map(({ key, label }) => {
+                const isActive = featureState[key];
                 return (
                   <button
-                    key={tier}
+                    key={key}
                     type="button"
-                    onClick={() => handleTierToggle(tier)}
+                    onClick={() => handleFeatureToggle(key)}
                     className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition-all ${
                       isActive
                         ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-400/70 dark:bg-emerald-500/10 dark:text-emerald-300"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                     }`}
+                    aria-pressed={isActive}
                   >
                     <span className="h-2 w-2 rounded-full bg-current" />
-                    {tierLabels[tier]}
+                    {label}
                   </button>
                 );
               })}
@@ -323,7 +382,7 @@ export default function ModelCatalogTable({
         {noResults ? (
           <div className="p-12 text-center text-gray-500 dark:text-gray-400">
             <p className="text-lg font-medium">No models match your filters</p>
-            <p className="mt-2 text-sm">Adjust your tier, provider, or search criteria to see more models.</p>
+            <p className="mt-2 text-sm">Adjust your feature, provider, or search criteria to see more models.</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-800">
@@ -391,13 +450,11 @@ export default function ModelCatalogTable({
                             const isProTier = model.tiers.pro;
                             const isEnterpriseTier = model.tiers.enterprise;
                             const badgeClasses = "inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide";
-                            const promptPrice = Number(model.pricing.prompt ?? 0);
-                            const completionPrice = Number(model.pricing.completion ?? 0);
-                            const isFreePricing = !Number.isNaN(promptPrice) && !Number.isNaN(completionPrice) && promptPrice === 0 && completionPrice === 0;
-                            const isPaidPricing = !isFreePricing && ([promptPrice, completionPrice].some((price) => !Number.isNaN(price) && price > 0));
-                            const isMultimodal = model.modalities.input.length > 1;
-                            const hasImageGeneration = model.modalities.output.some((modality) => modality.toLowerCase() === "image");
-                            const supportsReasoning = model.supportedParameters.some((param) => param === "reasoning");
+                            const isFreePricing = isModelFree(model);
+                            const isPaidPricing = isModelPaid(model);
+                            const isMultimodal = isModelMultimodal(model);
+                            const hasImageGeneration = modelSupportsImageGeneration(model);
+                            const supportsReasoning = modelSupportsReasoning(model);
                             return (
                               <tr key={model.id} className="hover:bg-gray-50/80 dark:hover:bg-gray-800/50 transition-colors">
                                 <td className="sticky left-0 z-10 bg-white dark:bg-gray-900 px-4 py-4 align-top">
