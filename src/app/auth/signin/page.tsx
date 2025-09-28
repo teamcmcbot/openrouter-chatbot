@@ -120,7 +120,7 @@ function SignInInner() {
                   You will be returned to <span className="font-mono text-gray-900 dark:text-gray-100">{target || "/chat"}</span> after signing in.
                 </>
               ) : (
-                <>Redirect canceled. Returning to your previous page…</>
+                <>Redirect canceled. Click Cancel to return to your previous page.</>
               )}
             </p>
           </div>
@@ -136,7 +136,7 @@ function SignInInner() {
                   onClick={handleCancel}
                   className="underline hover:text-gray-700 dark:hover:text-gray-300"
                 >
-                  Cancel
+                  Cancel &amp; Go Back
                 </button>
               )}
             </div>
