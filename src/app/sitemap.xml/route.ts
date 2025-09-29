@@ -19,13 +19,11 @@ const routes = [
 ];
 
 const buildXml = () => {
-  const lastmod = new Date().toISOString().split("T")[0];
   const urls = routes
     .map(({ path, changefreq, priority }) => {
       return [
         "  <url>",
         `    <loc>${baseUrl}${path}</loc>`,
-        `    <lastmod>${lastmod}</lastmod>`,
         `    <changefreq>${changefreq}</changefreq>`,
         `    <priority>${priority}</priority>`,
         "  </url>",

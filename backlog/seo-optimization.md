@@ -2,10 +2,10 @@
 
 ## Phase 1 – Baseline & Tooling
 
-- [ ] Audit existing landing page and models directory content, headings, and metadata; capture current titles, descriptions, and canonical URLs.
-- [ ] Instrument Lighthouse CI (local run acceptable) and document baseline Core Web Vitals for desktop and mobile.
-- [ ] Set up Google Search Console property and submit the current sitemap (or note absence) for future tracking.
-- [ ] Outline initial keyword targets for landing page and models directory based on product positioning (no analytics yet).
+- [x] Audit existing landing page and models directory content, headings, and metadata; capture current titles, descriptions, and canonical URLs.
+- [x] Instrument Lighthouse CI (local run acceptable) and document baseline Core Web Vitals for desktop and mobile.
+- [x] Set up Google Search Console property and submit the current sitemap (or note absence) for future tracking.
+- [x] Outline initial keyword targets for landing page and models directory based on product positioning (no analytics yet).
 
 **Summary**
 
@@ -18,7 +18,7 @@
 2. Ensure Lighthouse results are reproducible via documented command or saved report.
 3. Confirm Search Console access is functioning and sitemap submission status is recorded.
 
-- [ ] **User Verification:** Confirm baseline artifacts, Lighthouse instructions, and Search Console status are complete and accessible.
+- [x] **User Verification:** Confirm baseline artifacts, Lighthouse instructions, and Search Console status are complete and accessible.
 
 ## Phase 2 – Landing Page Enhancements
 

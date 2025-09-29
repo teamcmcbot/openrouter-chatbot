@@ -23,38 +23,39 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: process.env.BRAND_NAME || "OpenRouter Chatbot",
-  description: "A modern chatbot powered by OpenRouter's AI models",
-  manifest: '/manifest.json',
+  title: process.env.BRAND_NAME || "GreenBubble",
+  description:
+    "GreenBubble is a secure chat workspace powered by OpenRouter models, designed for multi-model collaboration.",
+  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
       { url: '/favicon-16x16.svg', sizes: '16x16', type: 'image/svg+xml' },
       { url: '/favicon-32x32.svg', sizes: '32x32', type: 'image/svg+xml' },
     ],
-    shortcut: '/favicon.svg',
+  shortcut: "/favicon.svg",
     apple: [
-      { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
+  { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
     ],
     other: [
       {
-        rel: 'android-chrome-192x192',
-        url: '/android-chrome-192x192.svg',
+  rel: "android-chrome-192x192",
+  url: "/android-chrome-192x192.svg",
       },
       {
-        rel: 'android-chrome-512x512',
-        url: '/android-chrome-512x512.svg',
+  rel: "android-chrome-512x512",
+  url: "/android-chrome-512x512.svg",
       },
     ],
   },
 };
 
 export const viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: 'cover', // Important for devices with notches/dynamic islands
+  viewportFit: "cover", // Important for devices with notches/dynamic islands
 };
 
 export default function RootLayout({
@@ -111,7 +112,7 @@ export default function RootLayout({
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
                   <div className="text-center text-sm text-slate-600 dark:text-gray-400">
                     <p>
-                      &copy; 2025 {process.env.BRAND_NAME || "OpenRouter Chatbot"}. Powered by OpenRouter AI.
+                      &copy; 2025 {process.env.BRAND_NAME || "GreenBubble"}. Powered by OpenRouter AI.
                     </p>
                   </div>
                 </div>
