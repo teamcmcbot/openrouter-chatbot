@@ -37,6 +37,14 @@
 
 - Filters and formats `models` for display, returning the selected ID via `onModelSelect`.
 
+## Refresh lifecycle
+
+- Consumers typically source `models` and `selectedModel` from `useModelSelection()`, which proxies the shared `useModelStore` state. The dropdown itself never issues network requests.
+- On first hydration the store restores cached data from `localStorage`. If the cache is missing or older than the 24-hour TTL defined in `CACHE_CONFIG.MODEL_TTL_HOURS`, `fetchModels()` calls `/api/models` and the dropdown re-renders with the fresh list.
+- When cached data ages past 80 % of its TTL, the store schedules a background `refreshModels()` run. That refresh happens off the main render path and updates the dropdown as soon as new data arrives.
+- Coming back online after an offline period triggers an additional freshness check; if the cache is stale, the store refetches within a second so the dropdown reflects newly available models.
+- Optional polling via `startBackgroundRefresh()` (disabled by default) repeats `refreshModels()` every hour (`CACHE_CONFIG.BACKGROUND_REFRESH_INTERVAL`). Any of these store updates flow straight into the dropdown props.
+
 ## Usage Locations
 
 - `components/chat/ChatInterface.tsx`

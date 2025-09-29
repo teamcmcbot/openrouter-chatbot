@@ -9,7 +9,7 @@ import {
   parseTier,
 } from "../../../lib/utils/modelCatalogFilters";
 
-const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
+const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 const canonicalUrl = `${siteUrl}/models`;
 const brandName = process.env.BRAND_NAME || "OpenRouter Chatbot";
 
