@@ -66,7 +66,7 @@ export function validateEnvVars() {
     'OPENROUTER_MODELS_API_URL', // OpenRouter models API endpoint
   'OPENROUTER_USER_TRACKING', // Enable/disable sending user id to OpenRouter
     'MODELS_CACHE_TTL_MINUTES', // Cache TTL in minutes
-    'NEXT_PUBLIC_SITE_URL', // Site URL for OpenRouter API headers
+  'NEXT_PUBLIC_APP_URL', // Canonical public site URL (used for redirects, sitemap, headers)
     'MODELS_BACKGROUND_REFRESH_INTERVAL', // Background refresh interval
     'MODELS_CACHE_MAX_SIZE', // Maximum number of models to cache
   ];

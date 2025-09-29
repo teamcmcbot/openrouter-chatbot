@@ -515,7 +515,7 @@ MODELS_CACHE_TTL_MINUTES=30
 # Note: Enhanced models API flag removed; endpoint is enhanced-only by default
 
 # Site URL for OpenRouter API headers (required for API access)
-NEXT_PUBLIC_SITE_URL=https://your-domain.com
+NEXT_PUBLIC_APP_URL=https://your-domain.com
 
 # Model data refresh interval in minutes (optional, defaults to 60)
 MODELS_BACKGROUND_REFRESH_INTERVAL=60
