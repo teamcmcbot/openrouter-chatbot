@@ -26,7 +26,15 @@ Record your verification method and date in the table below.
 
 1. Inside GSC, open the property → **Sitemaps**.
 2. Enter the sitemap path: `/sitemap.xml`.
-3. Confirm successful fetch (status should be **Success**). If it fails, note the reason.
+3. Confirm successful fetch (status should be **Success**). The sitemap is now served via `app/sitemap.xml/route.ts`, which returns a static XML document with an explicit prolog and `application/xml; charset=utf-8` headers.
+4. If it fails, note the reason.
+
+### Troubleshooting: "Couldn't fetch" on first submission
+
+- Newly verified URL-prefix properties sometimes cache a failed fetch (e.g., Google hits the sitemap before the deployment is live).
+- Verify the file locally with `curl -I https://<host>/sitemap.xml` to confirm a `200` response and `content-type: application/xml`.
+- In GSC, open the sitemap entry → **See details** → **Fetch sitemap** (or **Resubmit**) using the full URL `https://<host>/sitemap.xml`.
+- Optionally run **URL Inspection** → **Test live URL** on the sitemap to force a fresh crawl. The status typically flips to Success after the retry.
 
 | Submission Date | Status | Discovered URLs | Notes |
 | --------------- | ------ | --------------- | ----- |
