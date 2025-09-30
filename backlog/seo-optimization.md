@@ -50,7 +50,7 @@
 
 - [x] Introduce per-model metadata (title, description, canonical) driven by model attributes; ensure clean fallback for missing data.
 - [x] Implement `FAQPage` or `ItemList` structured data to describe model listings and key differentiators.
-- [ ] Create contextual filters or comparison tables with crawlable HTML text (avoid client-only rendering) to highlight search-friendly terms.
+- [x] Create contextual filters or comparison tables with crawlable HTML text (avoid client-only rendering) to highlight search-friendly terms.
 - [ ] Ensure pagination or load-more patterns expose crawlable URLs (e.g., query params or static paths) and update sitemap accordingly.
 
 **Summary**

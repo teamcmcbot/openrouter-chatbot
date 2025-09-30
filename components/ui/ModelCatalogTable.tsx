@@ -280,6 +280,35 @@ export default function ModelCatalogTable({
     setExpandedSections((prev) => ({ ...prev, [tier]: !prev[tier] }));
   }, []);
 
+  // Sync state when URL params change (e.g., from Popular Filters navigation)
+  useEffect(() => {
+    // Update feature state from new props
+    const newFeatureState = { ...DEFAULT_FEATURE_FILTER_STATE };
+    if (initialFeatureFilters && initialFeatureFilters.length > 0) {
+      for (const feature of initialFeatureFilters) {
+        if (feature in newFeatureState) {
+          newFeatureState[feature] = true;
+        }
+      }
+    }
+    setFeatureState(newFeatureState);
+
+    // Update provider state from new props
+    const newProviderState = CATALOG_PROVIDER_DISPLAY_ORDER.reduce<ProviderFilterState>((acc, slug) => {
+      acc[slug] = false;
+      return acc;
+    }, {} as ProviderFilterState);
+    if (initialProviderFilters && initialProviderFilters.length > 0) {
+      for (const slug of initialProviderFilters) {
+        newProviderState[slug] = true;
+      }
+    }
+    setProviderState(newProviderState);
+
+    // Update search from new props
+    setSearch(initialSearch);
+  }, [initialFeatureFilters, initialProviderFilters, initialSearch]);
+
   useEffect(() => {
     const filters: ModelCatalogFilters = {
       search: debouncedSearch.trim(),
@@ -288,7 +317,8 @@ export default function ModelCatalogTable({
       features: toFeatureArray(featureState),
     };
     onFiltersChange?.(filters);
-  }, [debouncedSearch, featureState, providerState, onFiltersChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, featureState, providerState]);
 
   useEffect(() => {
     if (highlightedTier === lastHighlightedTier.current) {

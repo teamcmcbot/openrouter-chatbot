@@ -323,3 +323,60 @@ export async function getModelById(modelId: string): Promise<ModelCatalogEntry |
   const model = catalog.models.find((m) => m.id === modelId);
   return model ?? null;
 }
+
+/**
+ * Count models matching specific filter criteria from a given catalog.
+ * Used for generating "Popular Filters" links with accurate counts.
+ * This version accepts a catalog to avoid redundant cache lookups.
+ */
+export function countModelsInCatalog(
+  catalog: ModelCatalogPayload,
+  featureFilter?: 'free' | 'paid' | 'multimodal' | 'reasoning' | 'image',
+  providerFilter?: CatalogProviderSlug
+): number {
+  return catalog.models.filter((model) => {
+    // Provider filter
+    if (providerFilter && model.provider.slug !== providerFilter) {
+      return false;
+    }
+
+    // Feature filters
+    if (featureFilter === 'free') {
+      const isFree = (Number(model.pricing.prompt) || 0) === 0 && (Number(model.pricing.completion) || 0) === 0;
+      return isFree;
+    }
+    
+    if (featureFilter === 'paid') {
+      const isPaid = (Number(model.pricing.prompt) || 0) > 0 || (Number(model.pricing.completion) || 0) > 0;
+      return isPaid;
+    }
+    
+    if (featureFilter === 'multimodal') {
+      const modalities = new Set([...(model.modalities?.input ?? []), ...(model.modalities?.output ?? [])]);
+      return modalities.size > 1;
+    }
+    
+    if (featureFilter === 'reasoning') {
+      return model.supportedParameters?.some((param) => param.toLowerCase() === 'reasoning') ?? false;
+    }
+    
+    if (featureFilter === 'image') {
+      return model.modalities?.output?.some((modality) => modality.toLowerCase() === 'image') ?? false;
+    }
+
+    return true;
+  }).length;
+}
+
+/**
+ * Count models matching specific filter criteria.
+ * Used for generating "Popular Filters" links with accurate counts.
+ * @deprecated Use countModelsInCatalog() with an existing catalog to avoid redundant cache lookups.
+ */
+export async function countModelsByFilter(
+  featureFilter?: 'free' | 'paid' | 'multimodal' | 'reasoning' | 'image',
+  providerFilter?: CatalogProviderSlug
+): Promise<number> {
+  const catalog = await getModelCatalog();
+  return countModelsInCatalog(catalog, featureFilter, providerFilter);
+}
