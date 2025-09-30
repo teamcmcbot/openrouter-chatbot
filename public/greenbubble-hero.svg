@@ -1,0 +1,44 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img"
+    aria-label="GreenBubble hero illustration">
+    <defs>
+        <linearGradient id="bubbleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#34d399" />
+            <stop offset="100%" stop-color="#10b981" />
+        </linearGradient>
+        <linearGradient id="screenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#ecfdf5" />
+            <stop offset="100%" stop-color="#d1fae5" />
+        </linearGradient>
+    </defs>
+    <g transform="translate(256 256) scale(1.1) translate(-256 -256)">
+        <rect x="120" y="110" width="272" height="208" rx="32" fill="url(#screenGradient)"
+            stroke="#10b981" stroke-width="8" />
+        <rect x="148" y="138" width="216" height="120" rx="20" fill="#ffffff" opacity="0.85" />
+        <path d="M188 164h88" stroke="#10b981" stroke-width="12" stroke-linecap="round" />
+        <path d="M188 204h140" stroke="#0ea5e9" stroke-width="10" stroke-linecap="round"
+            opacity="0.8" />
+        <path d="M188 240h108" stroke="#10b981" stroke-width="10" stroke-linecap="round"
+            opacity="0.8" />
+        <rect x="188" y="278" width="56" height="20" rx="10" fill="#10b981" opacity="0.6" />
+        <rect x="252" y="278" width="32" height="20" rx="10" fill="#0ea5e9" opacity="0.6" />
+        <rect x="296" y="278" width="32" height="20" rx="10" fill="#f97316" opacity="0.6" />
+
+        <path d="M128 352a32 32 0 0 1 32-32h192a32 32 0 0 1 32 32v16H128v-16z" fill="#0f172a"
+            opacity="0.12" />
+        <rect x="144" y="368" width="224" height="24" rx="12" fill="#0f172a" opacity="0.15" />
+
+        <path
+            d="M360 316c48 0 84 36 84 80 0 14-4 28-12 40L452 468h-60c-48 0-84-36-84-80s36-72 84-72z"
+            fill="url(#bubbleGradient)" />
+        <circle cx="384" cy="364" r="12" fill="#ffffff" opacity="0.9" />
+        <circle cx="420" cy="380" r="10" fill="#f97316" opacity="0.7" />
+        <circle cx="396" cy="400" r="8" fill="#0ea5e9" opacity="0.8" />
+
+        <path
+            d="M164 328c-48 0-84 36-84 80 0 14 4 28 12 40l-20 32h60c48 0 84-36 84-80s-36-72-84-72z"
+            fill="#0ea5e9" opacity="0.65" />
+        <circle cx="140" cy="368" r="10" fill="#ffffff" opacity="0.85" />
+        <circle cx="172" cy="392" r="9" fill="#10b981" opacity="0.75" />
+        <circle cx="204" cy="372" r="7" fill="#f97316" opacity="0.7" />
+    </g>
+</svg>

@@ -26,7 +26,7 @@ Record your verification method and date in the table below.
 
 1. Inside GSC, open the property → **Sitemaps**.
 2. Enter the sitemap path: `/sitemap.xml`.
-3. Confirm successful fetch (status should be **Success**). The sitemap is now served via `app/sitemap.xml/route.ts`, which returns a static XML document with an explicit prolog and `application/xml; charset=utf-8` headers.
+3. Confirm successful fetch (status should be **Success**). The sitemap is now served via `app/sitemap.xml/route.ts`, which returns a static XML document with an explicit prolog, `application/xml; charset=utf-8` headers, and omits `<lastmod>` because we can't currently automate accurate timestamps.
 4. If it fails, note the reason.
 
 ### Troubleshooting: "Couldn't fetch" on first submission
