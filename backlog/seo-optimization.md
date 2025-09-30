@@ -51,40 +51,75 @@
 - [x] Introduce per-model metadata (title, description, canonical) driven by model attributes; ensure clean fallback for missing data.
 - [x] Implement `FAQPage` or `ItemList` structured data to describe model listings and key differentiators.
 - [x] Create contextual filters or comparison tables with crawlable HTML text (avoid client-only rendering) to highlight search-friendly terms.
-- [ ] Ensure pagination or load-more patterns expose crawlable URLs (e.g., query params or static paths) and update sitemap accordingly.
+- [x] Ensure pagination or load-more patterns expose crawlable URLs (e.g., query params or static paths) and update sitemap accordingly.
 
 **Summary**
 
 - Elevates the models directory to rank for long-tail model queries and improves discoverability of individual model pages.
 - Guarantees search engines can crawl all listings with meaningful metadata.
 
+**Implementation Notes**
+
+- No traditional pagination needed - models page shows all results with collapsable sections (already SEO-friendly)
+- Implemented dynamic sitemap generation with 60 total URLs: 3 static routes + 48 model detail pages + 9 popular filter combinations
+- Added smart canonical URL logic: popular single filters keep their URLs, complex filters canonicalize to base `/models`
+- Proper URL encoding for model IDs with slashes (e.g., `anthropic%2Fclaude-sonnet-4.5`)
+- XML validation confirmed - ampersands properly escaped in sitemap
+- See detailed implementation notes in `/docs/seo/crawlable-urls-sitemap-implementation.md`
+
 **User Test Steps**
 
 1. Inspect generated metadata for multiple models via View Source to confirm SSR output.
 2. Validate structured data using Google Rich Results Test against staging URLs.
 3. Traverse pagination/filter URLs to ensure they respond with 200 status and proper canonical tags.
+4. **NEW:** Visit `/sitemap.xml` and verify all 60 URLs are present (3 static + 48 models + 9 filters).
+5. **NEW:** Check canonical tags on filtered views: single filters should keep their URL, complex filters should point to `/models`.
+6. **NEW:** Verify model detail pages with slashes in URL load correctly (e.g., `/models/google%2Fgemini-2.5-flash-lite`).
 
-- [ ] **User Verification:** Confirm models directory renders crawlable metadata, structured data validates, and navigation remains SEO-friendly.
+- [ ] **User Verification:** Confirm models directory renders crawlable metadata, structured data validates, navigation remains SEO-friendly, and sitemap includes all models and popular filters with proper canonical URLs.
 
 ## Phase 4 – Technical Hygiene & Monitoring
 
-- [ ] Generate and automate `sitemap.xml` updates for landing page, models directory pages, and key docs.
-- [ ] Update or create `robots.txt` to allow priority routes while blocking admin/private paths.
-- [ ] Add automated Lighthouse CI (or equivalent) to the pipeline with budget thresholds for LCP/CLS interaction delays.
-- [ ] Schedule quarterly SEO review rituals capturing Search Console insights and backlog grooming.
+- [x] Generate and automate `sitemap.xml` updates for landing page, models directory pages, and key docs.
+- [x] Update or create `robots.txt` to allow priority routes while blocking admin/private paths.
+- [x] Add automated Lighthouse CI (or equivalent) to the pipeline with budget thresholds for LCP/CLS interaction delays.
+- [x] Schedule quarterly SEO review rituals capturing Search Console insights and backlog grooming.
 
 **Summary**
 
 - Locks in technical scaffolding to keep the site crawlable and performance-sensitive long term.
 - Creates repeatable monitoring to catch regressions before launch.
 
+**Implementation Notes**
+
+- Dynamic `robots.txt` created at `/src/app/robots.txt/route.ts`:
+  - Blocks: `/admin/*`, `/api/admin/*`, `/api/internal/*`, `/api/cron/*`
+  - Allows: `/models`, `/chat`, `/`, all public routes
+  - References sitemap at `${baseUrl}/sitemap.xml`
+- Lighthouse CI configured with `.lighthouserc.json`:
+  - Tests 3 URLs (/, /models, /chat) with 3 runs each
+  - Performance budgets: LCP < 2000ms, CLS < 0.1, TBT < 300ms
+  - Score assertions: Performance ≥85%, Accessibility ≥85%, SEO ≥90%
+- GitHub Actions workflow at `.github/workflows/lighthouse.yml`:
+  - Runs on PRs and pushes to main branch
+  - Builds Next.js app, starts server, runs Lighthouse CI
+  - Posts results as PR comments with scores
+  - Uploads reports as artifacts (30-day retention)
+- Quarterly review schedule documented in `/docs/seo/quarterly-review-schedule.md`:
+  - Monthly: Performance monitoring, quick wins
+  - Quarterly: Search Console deep dive, content audit, technical SEO
+  - Annual: Comprehensive strategy review
+  - Includes templates, automation tracking, escalation paths
+
 **User Test Steps**
 
-1. Verify the sitemap includes landing, models, and docs URLs and is reachable at `/sitemap.xml`.
-2. Confirm `robots.txt` is accessible and rules match intended visibility.
-3. Trigger the automated Lighthouse workflow to ensure it runs and reports scores.
+1. Visit `/robots.txt` in browser to confirm it loads and includes sitemap reference.
+2. Review `.lighthouserc.json` config to verify budgets match requirements.
+3. Check `.github/workflows/lighthouse.yml` syntax is valid (GitHub Actions).
+4. Confirm Lighthouse workflow triggers on PR/push (test by creating a PR or wait for next push).
+5. Review quarterly schedule at `/docs/seo/quarterly-review-schedule.md` for completeness.
 
-- [ ] **User Verification:** Confirm sitemap/robots updates deploy correctly and monitoring automation reports as expected.
+- [ ] **User Verification:** Confirm robots.txt is accessible, Lighthouse config is correct, GitHub Actions workflow is valid, and quarterly review schedule is comprehensive.
 
 ## Final Tasks
 

@@ -81,7 +81,26 @@ export async function generateMetadata({ searchParams }: ModelsPageProps): Promi
   }
 
   const { title, description } = generateFilterMetadata(features, providers, searchQuery, filteredCount);
-  const canonicalUrl = `${siteUrl}/models`;
+  
+  // Smart canonical URL logic for SEO
+  // Popular single-filter combinations get their own canonical URL
+  // Complex filters canonicalize to base /models to avoid duplicate content
+  let canonicalUrl = `${siteUrl}/models`;
+  
+  const isPopularFilter = 
+    (features.length === 1 && providers.length === 0 && !searchQuery) || // Single feature filter
+    (features.length === 0 && providers.length === 1 && !searchQuery) || // Single provider filter
+    (features.length === 1 && features.includes('free') && providers.length === 1 && providers.includes('google') && !searchQuery); // Specific combo
+  
+  if (isPopularFilter) {
+    const queryParams = new URLSearchParams();
+    if (features.length > 0) queryParams.set('features', features.join(','));
+    if (providers.length > 0) queryParams.set('providers', providers.join(','));
+    const queryString = queryParams.toString();
+    if (queryString) {
+      canonicalUrl = `${siteUrl}/models?${queryString}`;
+    }
+  }
 
   return {
     title,
