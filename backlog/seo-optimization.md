@@ -22,10 +22,10 @@
 
 ## Phase 2 – Landing Page Enhancements
 
-- [ ] Implement descriptive `<title>`, meta description, Open Graph, and Twitter card metadata via Next.js `metadata` API for the landing page route.
-- [ ] Add structured data (`Organization` + `Product`) using JSON-LD, capturing key attributes like name, description, and primary features.
-- [ ] Improve on-page copy with targeted headings, FAQ section, and internal links to docs and models directory, respecting brand voice.
-- [ ] Optimize hero media and critical images with Next.js Image component, descriptive alt text, and responsive sizing to reduce LCP.
+- [x] Implement descriptive `<title>`, meta description, Open Graph, and Twitter card metadata via Next.js `metadata` API for the landing page route.
+- [x] Add structured data (`Organization` + `Product`) using JSON-LD, capturing key attributes like name, description, and primary features.
+- [x] Improve on-page copy with targeted headings, FAQ section, and internal links to docs and models directory, respecting brand voice.
+- [x] Optimize hero media and critical images with Next.js Image component, descriptive alt text, and responsive sizing to reduce LCP.
 
 **Summary**
 
