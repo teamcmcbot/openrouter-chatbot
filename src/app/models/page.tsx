@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { getModelCatalog, countModelsInCatalog } from "../../../lib/server/modelCatalog";
+import { getModelCatalog } from "../../../lib/server/modelCatalog";
 import ModelCatalogPageClient from "../../../components/ui/ModelCatalogPageClient";
 import {
   parseFeatureFilters,
@@ -16,6 +16,12 @@ import {
 } from "../../../lib/utils/structuredData/modelCatalog";
 import { generateFilterMetadata } from "../../../lib/utils/seo/filterMetadata";
 import type { ModelCatalogEntry } from "../../../lib/types/modelCatalog";
+import {
+  buildClientCatalog,
+  countClientModels,
+  matchesFeatureFilter,
+} from "../../../lib/utils/modelCatalogClient";
+import type { ModelCatalogClientEntry } from "../../../lib/types/modelCatalog";
 import FilterSummary from "../../../components/ui/FilterSummary";
 import PopularFilters from "../../../components/ui/PopularFilters";
 
@@ -26,6 +32,31 @@ interface ModelsPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
+function countFilteredClientModels(
+  models: ModelCatalogClientEntry[],
+  features: ReturnType<typeof parseFeatureFilters>,
+  providers: ReturnType<typeof parseProviderFilters>,
+  searchQuery: string
+): number {
+  const searchTerm = searchQuery.trim().toLowerCase();
+  return models.filter((model) => {
+    if (features.length > 0) {
+      const matchesAll = features.every((feature) => matchesFeatureFilter(model, feature));
+      if (!matchesAll) return false;
+    }
+
+    if (providers.length > 0 && !providers.includes(model.provider.slug)) {
+      return false;
+    }
+
+    if (searchTerm && !model.searchIndex.includes(searchTerm)) {
+      return false;
+    }
+
+    return true;
+  }).length;
+}
+
 export async function generateMetadata({ searchParams }: ModelsPageProps): Promise<Metadata> {
   const params = (await searchParams) ?? {};
   const features = parseFeatureFilters(params.features);
@@ -34,51 +65,8 @@ export async function generateMetadata({ searchParams }: ModelsPageProps): Promi
 
   // Get model catalog to calculate filtered count for metadata
   const catalog = await getModelCatalog();
-  let filteredCount = catalog.models.length;
-
-  // Apply filters to get accurate count
-  if (features.length > 0 || providers.length > 0 || searchQuery.trim()) {
-    const searchTerm = searchQuery.trim().toLowerCase();
-    filteredCount = catalog.models.filter((model) => {
-      // Feature filters
-      if (features.includes('free')) {
-        const isFree = (Number(model.pricing.prompt) || 0) === 0 && (Number(model.pricing.completion) || 0) === 0;
-        if (!isFree) return false;
-      }
-      if (features.includes('paid')) {
-        const isPaid = (Number(model.pricing.prompt) || 0) > 0 || (Number(model.pricing.completion) || 0) > 0;
-        if (!isPaid) return false;
-      }
-      if (features.includes('multimodal')) {
-        const modalities = new Set([...(model.modalities?.input ?? []), ...(model.modalities?.output ?? [])]);
-        if (modalities.size <= 1) return false;
-      }
-      if (features.includes('reasoning')) {
-        const hasReasoning = model.supportedParameters?.some((param) => param.toLowerCase() === 'reasoning');
-        if (!hasReasoning) return false;
-      }
-      if (features.includes('image')) {
-        const hasImage = model.modalities?.output?.some((modality) => modality.toLowerCase() === 'image');
-        if (!hasImage) return false;
-      }
-
-      // Provider filters
-      if (providers.length > 0 && !providers.includes(model.provider.slug)) {
-        return false;
-      }
-
-      // Search filter
-      if (searchTerm) {
-        const haystack = [model.name, model.id, model.description, model.provider.label]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        if (!haystack.includes(searchTerm)) return false;
-      }
-
-      return true;
-    }).length;
-  }
+  const clientModels = buildClientCatalog(catalog.models);
+  const filteredCount = countFilteredClientModels(clientModels, features, providers, searchQuery);
 
   const { title, description } = generateFilterMetadata(features, providers, searchQuery, filteredCount);
   
@@ -103,9 +91,9 @@ export async function generateMetadata({ searchParams }: ModelsPageProps): Promi
   }
 
   return {
-    title,
-    description,
-    alternates: {
+  title,
+  description,
+  alternates: {
       canonical: canonicalUrl,
     },
     openGraph: {
@@ -181,107 +169,70 @@ export default async function ModelsPage({ searchParams }: ModelsPageProps) {
   const initialSearch = typeof params.q === "string" ? params.q : "";
 
   const catalog = await getModelCatalog();
+  const clientModels = buildClientCatalog(catalog.models);
   const updatedAt = catalog.updatedAt ? new Date(catalog.updatedAt) : null;
 
-  // Calculate filtered model count for FilterSummary
-  let filteredCount = catalog.models.length;
-  if (initialFeatureFilters.length > 0 || initialProviderFilters.length > 0 || initialSearch.trim()) {
-    const searchTerm = initialSearch.trim().toLowerCase();
-    filteredCount = catalog.models.filter((model) => {
-      // Feature filters
-      if (initialFeatureFilters.includes('free')) {
-        const isFree = (Number(model.pricing.prompt) || 0) === 0 && (Number(model.pricing.completion) || 0) === 0;
-        if (!isFree) return false;
-      }
-      if (initialFeatureFilters.includes('paid')) {
-        const isPaid = (Number(model.pricing.prompt) || 0) > 0 || (Number(model.pricing.completion) || 0) > 0;
-        if (!isPaid) return false;
-      }
-      if (initialFeatureFilters.includes('multimodal')) {
-        const modalities = new Set([...(model.modalities?.input ?? []), ...(model.modalities?.output ?? [])]);
-        if (modalities.size <= 1) return false;
-      }
-      if (initialFeatureFilters.includes('reasoning')) {
-        const hasReasoning = model.supportedParameters?.some((param) => param.toLowerCase() === 'reasoning');
-        if (!hasReasoning) return false;
-      }
-      if (initialFeatureFilters.includes('image')) {
-        const hasImage = model.modalities?.output?.some((modality) => modality.toLowerCase() === 'image');
-        if (!hasImage) return false;
-      }
-
-      // Provider filters
-      if (initialProviderFilters.length > 0 && !initialProviderFilters.includes(model.provider.slug)) {
-        return false;
-      }
-
-      // Search filter
-      if (searchTerm) {
-        const haystack = [model.name, model.id, model.description, model.provider.label]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        if (!haystack.includes(searchTerm)) return false;
-      }
-
-      return true;
-    }).length;
-  }
+  const filteredCount = countFilteredClientModels(
+    clientModels,
+    initialFeatureFilters,
+    initialProviderFilters,
+    initialSearch
+  );
 
   // Generate popular filter links with counts
   const popularLinks = [
     {
       label: "Free Models",
       href: "/models?features=free",
-      count: countModelsInCatalog(catalog, 'free'),
+  count: countClientModels(clientModels, 'free'),
       description: "AI models with zero cost. Perfect for testing and light usage.",
     },
     {
       label: "Multimodal Models",
       href: "/models?features=multimodal",
-      count: countModelsInCatalog(catalog, 'multimodal'),
+  count: countClientModels(clientModels, 'multimodal'),
       description: "Models supporting image input, image generation, and audio processing.",
     },
     {
       label: "Reasoning Models",
       href: "/models?features=reasoning",
-      count: countModelsInCatalog(catalog, 'reasoning'),
+  count: countClientModels(clientModels, 'reasoning'),
       description: "Advanced AI models with structured reasoning capabilities.",
     },
     {
       label: "Image Generation",
       href: "/models?features=image",
-      count: countModelsInCatalog(catalog, 'image'),
+  count: countClientModels(clientModels, 'image'),
       description: "AI models capable of generating images from text prompts.",
     },
     {
       label: "OpenAI Models",
       href: "/models?providers=openai",
-      count: countModelsInCatalog(catalog, undefined, 'openai'),
+  count: countClientModels(clientModels, undefined, 'openai'),
       description: "All OpenAI models including GPT-4, GPT-4 Turbo, and GPT-3.5.",
     },
     {
       label: "Google Models",
       href: "/models?providers=google",
-      count: countModelsInCatalog(catalog, undefined, 'google'),
+  count: countClientModels(clientModels, undefined, 'google'),
       description: "Gemini and other Google AI models with multimodal capabilities.",
     },
     {
       label: "Anthropic Models",
       href: "/models?providers=anthropic",
-      count: countModelsInCatalog(catalog, undefined, 'anthropic'),
+  count: countClientModels(clientModels, undefined, 'anthropic'),
       description: "Claude models from Anthropic with extended context windows.",
     },
     {
       label: "Free Google Models",
       href: "/models?features=free&providers=google",
-      count: countModelsInCatalog(catalog, 'free', 'google'),
+  count: countClientModels(clientModels, 'free', 'google'),
       description: "Free-tier Google AI models including Gemini Flash.",
     },
     {
       label: "Paid Premium Models",
       href: "/models?features=paid",
-      count: countModelsInCatalog(catalog, 'paid'),
+  count: countClientModels(clientModels, 'paid'),
       description: "Premium AI models with competitive pricing and advanced capabilities.",
     },
   ];
@@ -314,7 +265,7 @@ export default async function ModelsPage({ searchParams }: ModelsPageProps) {
 
         <Suspense fallback={<div className="h-48 rounded-xl border border-gray-200 dark:border-gray-800 animate-pulse" />}>
           <ModelCatalogPageClient
-            models={catalog.models}
+            models={clientModels}
             highlightedTier={highlightedTier}
             initialSearch={initialSearch}
             initialFeatureFilters={initialFeatureFilters}

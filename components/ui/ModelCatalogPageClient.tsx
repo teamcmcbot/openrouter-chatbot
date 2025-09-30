@@ -5,14 +5,14 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ModelCatalogTable from "./ModelCatalogTable";
 import type {
   FeatureFilter,
-  ModelCatalogEntry,
+  ModelCatalogClientEntry,
   ModelCatalogFilters,
   TierGroup,
 } from "../../lib/types/modelCatalog";
 import type { CatalogProviderSlug } from "../../lib/constants/modelProviders";
 
 interface ModelCatalogPageClientProps {
-  models: ModelCatalogEntry[];
+  models: ModelCatalogClientEntry[];
   highlightedTier?: TierGroup | null;
   initialSearch?: string;
   initialFeatureFilters?: FeatureFilter[];

@@ -46,6 +46,48 @@ export interface ModelCatalogPayload {
   models: ModelCatalogEntry[];
 }
 
+export interface ModelCatalogClientEntry {
+  id: string;
+  name: string;
+  description: string;
+  provider: {
+    slug: CatalogProviderSlug;
+    label: string;
+  };
+  tierGroup: TierGroup;
+  tiers: {
+    free: boolean;
+    pro: boolean;
+    enterprise: boolean;
+  };
+  contextTokens: number;
+  contextDisplay: string;
+  pricing: {
+    promptDisplay: string;
+    promptUnit: string;
+    completionDisplay: string;
+    completionUnit: string;
+    imageDisplay: string | null;
+    imageUnit: string | null;
+  };
+  flags: {
+    isFree: boolean;
+    isPaid: boolean;
+    multimodal: boolean;
+    reasoning: boolean;
+    image: boolean;
+  };
+  modalities: string[];
+  modalitiesExtra: number;
+  searchIndex: string;
+  updatedAt: string | null;
+}
+
+export interface ModelCatalogClientPayload {
+  updatedAt: string;
+  models: ModelCatalogClientEntry[];
+}
+
 export interface ModelCatalogFilters {
   search: string;
   tiers: TierGroup[];
