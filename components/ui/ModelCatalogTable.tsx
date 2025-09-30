@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { MagnifyingGlassIcon, FunnelIcon } from "@heroicons/react/24/outline";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { useDebounce } from "../../hooks/useDebounce";
@@ -536,7 +537,12 @@ export default function ModelCatalogTable({
                               <tr key={model.id} className="hover:bg-gray-50/80 dark:hover:bg-gray-800/50 transition-colors">
                                 <td className="sticky left-0 z-10 bg-white dark:bg-gray-900 px-4 py-4 align-top">
                                   <div className="flex flex-col gap-1 max-w-sm">
-                                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-50">{model.name}</div>
+                                    <Link 
+                                      href={`/models/${encodeURIComponent(model.id)}`}
+                                      className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 hover:underline"
+                                    >
+                                      {model.name}
+                                    </Link>
                                     <code className="text-xs text-gray-500 dark:text-gray-400 truncate">{model.id}</code>
                                     <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">{model.description}</p>
                                     <div className="flex gap-1 mt-1">

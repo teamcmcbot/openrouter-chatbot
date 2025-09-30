@@ -313,3 +313,13 @@ export async function getModelCatalog(): Promise<ModelCatalogPayload> {
   logger.info('Model catalog: loaded fresh data', { models: models.length });
   return payload;
 }
+
+/**
+ * Fetch a single model by its ID from the catalog.
+ * Returns null if the model is not found.
+ */
+export async function getModelById(modelId: string): Promise<ModelCatalogEntry | null> {
+  const catalog = await getModelCatalog();
+  const model = catalog.models.find((m) => m.id === modelId);
+  return model ?? null;
+}

@@ -12,6 +12,12 @@
 - Establishes measurement and governance foundations before shipping changes.
 - Produces baseline metrics and keyword briefs the team can compare against later.
 
+**Baseline Lighthouse Findings**
+
+- **Desktop (Chrome 140, simulated desktop)** — Performance 91, Accessibility 88, Best Practices 100, SEO 90. Core vitals: FCP 0.2 s, LCP 0.9 s, TBT 240 ms, CLS 0, INP 3.3 s.
+- **Mobile (Chrome 140, simulated mobile)** — Performance 72, Accessibility 88, Best Practices 100, SEO 90. Core vitals: FCP 0.9 s, LCP 2.4 s, TBT 1.5 s, CLS 0, INP 18.8 s.
+- **Top follow-ups** — Reduce main-thread work/unused JavaScript to cut TBT/TTI (especially mobile), fix color contrast & heading order & accessible-name gaps, and replace the missing meta description plus restrictive viewport settings flagged by SEO audits.
+
 **User Test Steps**
 
 1. Review the collected audits and confirm all baseline artifacts are stored in the repo (e.g., `/docs/seo/`).
@@ -42,8 +48,8 @@
 
 ## Phase 3 – Models Directory Optimization
 
-- [ ] Introduce per-model metadata (title, description, canonical) driven by model attributes; ensure clean fallback for missing data.
-- [ ] Implement `FAQPage` or `ItemList` structured data to describe model listings and key differentiators.
+- [x] Introduce per-model metadata (title, description, canonical) driven by model attributes; ensure clean fallback for missing data.
+- [x] Implement `FAQPage` or `ItemList` structured data to describe model listings and key differentiators.
 - [ ] Create contextual filters or comparison tables with crawlable HTML text (avoid client-only rendering) to highlight search-friendly terms.
 - [ ] Ensure pagination or load-more patterns expose crawlable URLs (e.g., query params or static paths) and update sitemap accordingly.
 
