@@ -116,8 +116,11 @@ function formatPricing(row: ModelAccessRow) {
   return {
     prompt: row.prompt_price ?? '0',
     completion: row.completion_price ?? '0',
-    request: '0', // Not fetched in catalog query (optimization)
-    image: null, // Not fetched in catalog query (optimization)
+    // Performance optimization: request_price and image_price omitted from catalog query
+    // These fields are only fetched in getModelById() for individual model detail pages
+    // This reduces database load and speeds up catalog page rendering
+    request: '0', // Not fetched in catalog query
+    image: null, // Not fetched in catalog query
     outputImage: row.output_image_price,
     webSearch: null, // Not fetched in catalog query (optimization)
     internalReasoning: null, // Not fetched in catalog query (optimization)

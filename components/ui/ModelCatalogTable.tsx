@@ -479,7 +479,7 @@ export default function ModelCatalogTable({
         }
       }
     }
-  setFeatureState((prev) => (areFeatureStatesEqual(prev, newFeatureState) ? prev : newFeatureState));
+    setFeatureState((prev) => (areFeatureStatesEqual(prev, newFeatureState) ? prev : newFeatureState));
 
     // Update provider state from new props
     const newProviderState = CATALOG_PROVIDER_DISPLAY_ORDER.reduce<ProviderFilterState>((acc, slug) => {
@@ -491,7 +491,7 @@ export default function ModelCatalogTable({
         newProviderState[slug] = true;
       }
     }
-  setProviderState((prev) => (areProviderStatesEqual(prev, newProviderState) ? prev : newProviderState));
+    setProviderState((prev) => (areProviderStatesEqual(prev, newProviderState) ? prev : newProviderState));
 
     // Update search from new props
     setSearch(initialSearch);

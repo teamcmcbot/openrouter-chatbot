@@ -40,7 +40,7 @@ beforeAll(() => {
   }
 
   (globalThis as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
-    ResizeObserverMock as unknown as typeof ResizeObserver;
+    ResizeObserverMock as typeof ResizeObserver;
 });
 
 describe("ModelCatalogTable", () => {
