@@ -13,6 +13,7 @@ import {
   OpenRouterContentBlock,
 } from '../types/openrouter';
 import { AuthContext } from '../types/auth';
+import { getPersonalityPrompt, isValidPersonalityPreset } from '../constants/personalityPresets';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
@@ -92,14 +93,37 @@ function loadRootSystemPrompt(brand: string, model?: string): string {
 
   return applyRootPromptReplacements(cachedRootPrompt, brand, model);
 }
-function appendSystemPrompt(messages: OpenRouterMessage[], userSystemPrompt?: string, model?: string): OpenRouterMessage[] {
+function appendSystemPrompt(
+  messages: OpenRouterMessage[], 
+  userSystemPrompt?: string, 
+  userPersonalityPresetKey?: string | null,
+  model?: string
+): OpenRouterMessage[] {
   const brand = process.env.BRAND_NAME || 'YourBrand';
   const rootPrompt = loadRootSystemPrompt(brand, model);
   logger.debug('Using root system prompt', { promptPreview: rootPrompt.slice(0, 100) });
+  
+  // Layered approach: root → personality → custom
   const systemMessages: OpenRouterMessage[] = [{ role: 'system', content: rootPrompt }];
-  if (userSystemPrompt) {
-    systemMessages.push({ role: 'system', content: `USER CUSTOM PROMPT START: ${userSystemPrompt}.` });
+  
+  // Map personality preset KEY to full system prompt TEXT
+  if (userPersonalityPresetKey && isValidPersonalityPreset(userPersonalityPresetKey)) {
+    const personalityText = getPersonalityPrompt(userPersonalityPresetKey);
+    if (personalityText) {
+      systemMessages.push({ role: 'system', content: personalityText });
+      logger.debug('Applied personality preset', { 
+        presetKey: userPersonalityPresetKey,
+        textLength: personalityText.length 
+      });
+    }
+  } else if (userPersonalityPresetKey) {
+    logger.warn('Invalid personality preset key', { key: userPersonalityPresetKey });
   }
+  
+  if (userSystemPrompt) {
+    systemMessages.push({ role: 'system', content: `USER CUSTOM PROMPT: ${userSystemPrompt}` });
+  }
+  
   return [...systemMessages, ...messages.filter((m) => m.role !== 'system')];
 }
 
@@ -214,15 +238,17 @@ export async function getOpenRouterCompletion(
   // Resolve temperature/system prompt from authContext
   let finalTemperature = 0.7;
   let finalSystemPrompt: string | undefined = undefined;
+  let finalPersonalityPreset: string | null | undefined = undefined;
   if (authContext?.profile) {
     finalTemperature = typeof authContext.profile.temperature === 'number' ? authContext.profile.temperature : (typeof temperature === 'number' ? temperature : finalTemperature);
     finalSystemPrompt = authContext.profile.system_prompt || systemPrompt;
+    finalPersonalityPreset = authContext.profile.personality_preset || null;
   } else {
     finalTemperature = typeof temperature === 'number' ? temperature : finalTemperature;
     finalSystemPrompt = systemPrompt;
   }
 
-  const finalMessages = appendSystemPrompt(messages, finalSystemPrompt, selectedModel);
+  const finalMessages = appendSystemPrompt(messages, finalSystemPrompt, finalPersonalityPreset, selectedModel);
 
   type ReasoningOption = { effort?: 'low' | 'medium' | 'high' };
   type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption; modalities?: ('text' | 'image')[] };
@@ -499,15 +525,17 @@ export async function getOpenRouterCompletionStream(
 
   let finalTemperature = 0.7;
   let finalSystemPrompt: string | undefined = undefined;
+  let finalPersonalityPreset: string | null | undefined = undefined;
   if (authContext?.profile) {
     finalTemperature = typeof authContext.profile.temperature === 'number' ? authContext.profile.temperature : (typeof temperature === 'number' ? temperature : finalTemperature);
     finalSystemPrompt = authContext.profile.system_prompt || systemPrompt;
+    finalPersonalityPreset = authContext.profile.personality_preset || null;
   } else {
     finalTemperature = typeof temperature === 'number' ? temperature : finalTemperature;
     finalSystemPrompt = systemPrompt;
   }
 
-  const finalMessages = appendSystemPrompt(messages, finalSystemPrompt, selectedModel);
+  const finalMessages = appendSystemPrompt(messages, finalSystemPrompt, finalPersonalityPreset, selectedModel);
   type ReasoningOption = { effort?: 'low' | 'medium' | 'high' };
   type OpenRouterRequestWithReasoning = OpenRouterRequestWithSystem & { reasoning?: ReasoningOption; modalities?: ('text' | 'image')[] };
   const requestBody: OpenRouterRequestWithReasoning = {

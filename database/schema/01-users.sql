@@ -22,6 +22,7 @@ CREATE TABLE public.profiles (
     default_model VARCHAR(100), -- Made nullable, no default
     temperature DECIMAL(3,2) DEFAULT 0.7 CHECK (temperature >= 0.0 AND temperature <= 2.0),
     system_prompt TEXT DEFAULT 'You are a helpful AI assistant.',
+    personality_preset TEXT, -- AI personality preset (prepended to system_prompt)
 
     -- User tier and credits
     subscription_tier VARCHAR(20) DEFAULT 'free' CHECK (subscription_tier IN ('free', 'pro', 'enterprise')),
@@ -76,6 +77,13 @@ ALTER TABLE public.profiles
 ALTER TABLE public.profiles
     ADD CONSTRAINT chk_banned_until_after_banned_at
     CHECK (banned_until IS NULL OR banned_at IS NULL OR banned_until > banned_at);
+
+-- Column documentation
+COMMENT ON COLUMN public.profiles.personality_preset IS 
+  'AI personality preset text. When set, this is prepended to system_prompt in chat completions. Can be combined with system_prompt for layered customization.';
+
+COMMENT ON COLUMN public.profiles.system_prompt IS 
+  'Custom system prompt (user instructions). Combined with personality_preset if both are set. Default: "You are a helpful AI assistant."';
 
 -- User activity log for audit trail
 CREATE TABLE public.user_activity_log (
@@ -141,6 +149,7 @@ CREATE INDEX idx_profiles_email ON public.profiles(email);
 CREATE INDEX idx_profiles_last_active ON public.profiles(last_active);
 CREATE INDEX idx_profiles_subscription_tier ON public.profiles(subscription_tier);
 CREATE INDEX idx_profiles_account_type_admin ON public.profiles(account_type) WHERE account_type = 'admin';
+CREATE INDEX idx_profiles_personality_preset ON public.profiles(personality_preset) WHERE personality_preset IS NOT NULL;
 -- Ban-related indexes
 CREATE INDEX idx_profiles_is_banned_true ON public.profiles(is_banned) WHERE is_banned = true;
 CREATE INDEX idx_profiles_banned_until ON public.profiles(banned_until) WHERE banned_until IS NOT NULL;
@@ -679,7 +688,7 @@ BEGIN
     -- Get main profile data
     SELECT
     id, email, full_name, avatar_url,
-    default_model, temperature, system_prompt,
+    default_model, temperature, system_prompt, personality_preset,
     subscription_tier, account_type, credits,
     is_banned, banned_at, banned_until, ban_reason, violation_strikes,
     ui_preferences, session_preferences,
@@ -774,7 +783,8 @@ BEGIN
             'model', jsonb_build_object(
                 'default_model', profile_data.default_model,
                 'temperature', profile_data.temperature,
-                'system_prompt', profile_data.system_prompt
+                'system_prompt', profile_data.system_prompt,
+                'personality_preset', profile_data.personality_preset
             ),
             'ui', profile_data.ui_preferences,
             'session', profile_data.session_preferences

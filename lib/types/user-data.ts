@@ -88,6 +88,8 @@ export interface UserPreferences {
     temperature: number;
     /** System prompt for model behavior */
     system_prompt: string;
+    /** Personality preset for AI responses */
+    personality_preset?: string;
   };
 }
 

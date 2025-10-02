@@ -3,6 +3,8 @@
  * Shared validation logic for both client and server-side validation
  */
 
+import { getPersonalityPresetKeys, isValidPersonalityPreset } from '../../constants/personalityPresets';
+
 export const SYSTEM_PROMPT_LIMITS = {
   MAX_LENGTH: 2000,              // Updated from 4000 for better UX
   MIN_LENGTH: 1,                 // After trim
@@ -126,4 +128,33 @@ export function sanitizeForDisplay(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;');
+}
+
+/**
+ * Validates personality preset key (not freeform text)
+ * @param presetKey - The personality preset key to validate (e.g., 'helpful', 'professional')
+ * @returns ValidationResult with isValid flag and optional error message
+ */
+export function validatePersonalityPreset(presetKey: string | null | undefined): ValidationResult {
+  // Null/undefined is allowed (user can clear preset)
+  if (presetKey === null || presetKey === undefined || presetKey.trim() === '') {
+    return {
+      isValid: true,
+      trimmedValue: undefined
+    };
+  }
+  
+  // Validate it's a known preset key using the source of truth
+  if (!isValidPersonalityPreset(presetKey)) {
+    const validKeys = getPersonalityPresetKeys();
+    return {
+      isValid: false,
+      error: `Invalid personality preset: "${presetKey}". Must be one of: ${validKeys.join(', ')}`
+    };
+  }
+  
+  return {
+    isValid: true,
+    trimmedValue: presetKey
+  };
 }
