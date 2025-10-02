@@ -8,35 +8,103 @@ import {
   parseProviderFilters,
   parseTier,
 } from "../../../lib/utils/modelCatalogFilters";
+import {
+  DEFAULT_MODEL_CATALOG_FAQ,
+  type FAQItem,
+} from "../../../lib/utils/structuredData/modelCatalog";
+import { generateFilterMetadata } from "../../../lib/utils/seo/filterMetadata";
+import PopularFilters from "../../../components/ui/PopularFilters";
 
 const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
-const canonicalUrl = `${siteUrl}/models`;
 const brandName = process.env.BRAND_NAME || "OpenRouter Chatbot";
-
-export const metadata: Metadata = {
-  title: "Model Catalog | OpenRouter Chatbot",
-  description:
-    "Browse every active model in GreenBubble by subscription tier. Compare pricing, context length, capabilities, and providers at a glance.",
-  alternates: {
-    canonical: canonicalUrl,
-  },
-  openGraph: {
-    title: "Model Catalog",
-    description:
-      "Browse every active model in GreenBubble by subscription tier. Compare pricing, context length, capabilities, and providers at a glance.",
-    url: canonicalUrl,
-    siteName: brandName,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Model Catalog",
-    description:
-      "Compare OpenRouter models across Base, Pro, and Enterprise plans with pricing, context limits, and capabilities.",
-  },
-};
 
 interface ModelsPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export async function generateMetadata({ searchParams }: ModelsPageProps): Promise<Metadata> {
+  const params = (await searchParams) ?? {};
+  const features = parseFeatureFilters(params.features);
+  const providers = parseProviderFilters(params.providers);
+  const searchQuery = typeof params.q === "string" ? params.q : "";
+
+  // PHASE 2.6: Use total count for metadata since filtering is client-side
+  const catalog = await getModelCatalog();
+  const totalCount = catalog.models.length;
+
+  const { title, description } = generateFilterMetadata(features, providers, searchQuery, totalCount);
+  
+  // Smart canonical URL logic for SEO
+  // Popular single-filter combinations get their own canonical URL
+  // Complex filters canonicalize to base /models to avoid duplicate content
+  let canonicalUrl = `${siteUrl}/models`;
+  
+  const isPopularFilter = 
+    (features.length === 1 && providers.length === 0 && !searchQuery) || // Single feature filter
+    (features.length === 0 && providers.length === 1 && !searchQuery) || // Single provider filter
+    (features.length === 1 && features.includes('free') && providers.length === 1 && providers.includes('google') && !searchQuery); // Specific combo
+  
+  if (isPopularFilter) {
+    const queryParams = new URLSearchParams();
+    if (features.length > 0) queryParams.set('features', features.join(','));
+    if (providers.length > 0) queryParams.set('providers', providers.join(','));
+    const queryString = queryParams.toString();
+    if (queryString) {
+      canonicalUrl = `${siteUrl}/models?${queryString}`;
+    }
+  }
+
+  return {
+  title,
+  description,
+  alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      siteName: brandName,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+  };
+}
+
+function FAQSection({ items }: { items: FAQItem[] }) {
+  return (
+    <section className="mt-16 max-w-4xl mx-auto">
+      <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-50 mb-6 text-center">
+        Frequently Asked Questions
+      </h2>
+      <div className="space-y-4">
+        {items.map((faq, index) => (
+          <details
+            key={index}
+            className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
+          >
+            <summary className="font-semibold text-base text-gray-900 dark:text-gray-50 cursor-pointer list-none flex items-center justify-between">
+              <span>{faq.question}</span>
+              <svg
+                className="w-5 h-5 text-gray-500 transition-transform group-open:rotate-180"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <p className="mt-4 text-gray-600 dark:text-gray-300 leading-relaxed">
+              {faq.answer}
+            </p>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 export default async function ModelsPage({ searchParams }: ModelsPageProps) {
@@ -46,42 +114,124 @@ export default async function ModelsPage({ searchParams }: ModelsPageProps) {
   const initialProviderFilters = parseProviderFilters(params.providers);
   const initialSearch = typeof params.q === "string" ? params.q : "";
 
+  // PHASE 2.6: Ultra-minimal SSR - only metadata for filter links
+  // - NO models data in HTML at all (not even top 30)
+  // - Client: Fetch full catalog via API and compute filtered counts dynamically
   const catalog = await getModelCatalog();
   const updatedAt = catalog.updatedAt ? new Date(catalog.updatedAt) : null;
 
+  // PHASE 2: Use pre-computed counts from cache
+  const { popularFilterCounts } = catalog;
+  const popularLinks = [
+    {
+      label: "Free Models",
+      href: "/models?features=free",
+      count: popularFilterCounts.free,
+      description: "AI models with zero cost. Perfect for testing and light usage.",
+    },
+    {
+      label: "Multimodal Models",
+      href: "/models?features=multimodal",
+      count: popularFilterCounts.multimodal,
+      description: "Models supporting image input, image generation, and audio processing.",
+    },
+    {
+      label: "Reasoning Models",
+      href: "/models?features=reasoning",
+      count: popularFilterCounts.reasoning,
+      description: "Advanced AI models with structured reasoning capabilities.",
+    },
+    {
+      label: "Image Generation",
+      href: "/models?features=image",
+      count: popularFilterCounts.image,
+      description: "AI models capable of generating images from text prompts.",
+    },
+    {
+      label: "OpenAI Models",
+      href: "/models?providers=openai",
+      count: popularFilterCounts.openai,
+      description: "All OpenAI models including GPT-4, GPT-4 Turbo, and GPT-3.5.",
+    },
+    {
+      label: "Google Models",
+      href: "/models?providers=google",
+      count: popularFilterCounts.google,
+      description: "Gemini and other Google AI models with multimodal capabilities.",
+    },
+    {
+      label: "Anthropic Models",
+      href: "/models?providers=anthropic",
+      count: popularFilterCounts.anthropic,
+      description: "Claude models from Anthropic with extended context windows.",
+    },
+    {
+      label: "Free Google Models",
+      href: "/models?features=free&providers=google",
+      count: popularFilterCounts.freeGoogle,
+      description: "Free-tier Google AI models including Gemini Flash.",
+    },
+    {
+      label: "Paid Premium Models",
+      href: "/models?features=paid",
+      count: popularFilterCounts.paid,
+      description: "Premium AI models with competitive pricing and advanced capabilities.",
+    },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
-      <div className="space-y-3 text-center">
-        <h1 className="text-3xl md:text-4xl font-bold text-emerald-600 dark:text-emerald-400">
-          Model Catalog
-        </h1>
-        <p className="mx-auto max-w-3xl text-base md:text-lg text-gray-600 dark:text-gray-300">
-          Explore which OpenRouter models are available on the Free, Pro, and Enterprise plans. Filter by provider, compare pricing, and decide where to upgrade.
-        </p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Want to see how this compares to pricing?&nbsp;
-          <Link href="/#pricing" className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium">
-            Jump to plans
-          </Link>
-          .
-        </p>
+    <>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
+        <div className="space-y-3 text-center">
+          <h1 className="text-3xl md:text-4xl font-bold text-emerald-600 dark:text-emerald-400">
+            Model Catalog
+          </h1>
+          <p className="mx-auto max-w-3xl text-base md:text-lg text-gray-600 dark:text-gray-300">
+            Explore which OpenRouter models are available on the Free, Pro, and Enterprise plans. Filter by provider, compare pricing, and decide where to upgrade.
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Want to see how this compares to pricing?&nbsp;
+            <Link href="/#pricing" className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium">
+              Jump to plans
+            </Link>
+            .
+          </p>
+        </div>
+
+        {/* FilterSummary moved inside ModelCatalogPageClient for dynamic count updates */}
+
+        <Suspense fallback={
+          <div className="space-y-6">
+            {/* FilterSummary skeleton */}
+            <div className="h-12 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 animate-pulse" />
+            {/* Table skeleton with minimum height to prevent layout shift */}
+            <div className="min-h-[600px] rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 animate-pulse" />
+          </div>
+        }>
+          <ModelCatalogPageClient
+            highlightedTier={highlightedTier}
+            initialSearch={initialSearch}
+            initialFeatureFilters={initialFeatureFilters}
+            initialProviderFilters={initialProviderFilters}
+          />
+        </Suspense>
+
+        {updatedAt && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+            Last synced {updatedAt.toLocaleString()}
+          </p>
+        )}
       </div>
 
-      <Suspense fallback={<div className="h-48 rounded-xl border border-gray-200 dark:border-gray-800 animate-pulse" />}>
-        <ModelCatalogPageClient
-          models={catalog.models}
-          highlightedTier={highlightedTier}
-          initialSearch={initialSearch}
-          initialFeatureFilters={initialFeatureFilters}
-          initialProviderFilters={initialProviderFilters}
-        />
-      </Suspense>
+      {/* FAQ and Popular Filters sections moved outside main container to prevent layout shift */}
+      {/* These render immediately and stay in place while catalog loads above */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-10">
+        <FAQSection items={DEFAULT_MODEL_CATALOG_FAQ} />
+        <PopularFilters links={popularLinks} />
+      </div>
 
-      {updatedAt && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-          Last synced {updatedAt.toLocaleString()}
-        </p>
-      )}
-    </div>
+      {/* StructuredDataScripts removed - was causing 100+ KB HTML payload */}
+      {/* SEO structured data can be added back later if needed, but Lighthouse prioritizes speed */}
+    </>
   );
 }
