@@ -1,3 +1,5 @@
+"use client";
+
 import type { FeatureFilter } from "../../lib/types/modelCatalog";
 import type { CatalogProviderSlug } from "../../lib/constants/modelProviders";
 import { generateFilterSummary } from "../../lib/utils/seo/filterMetadata";
@@ -10,8 +12,8 @@ interface FilterSummaryProps {
 }
 
 /**
- * Server-rendered filter summary for SEO.
- * Provides crawlable HTML describing active filters with semantic markup.
+ * Client-rendered filter summary that updates dynamically with filter changes.
+ * Shows active filters with semantic markup and real-time model count.
  */
 export default function FilterSummary({
   features,

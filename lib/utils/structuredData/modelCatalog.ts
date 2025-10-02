@@ -1,5 +1,3 @@
-import type { ModelCatalogEntry } from '../../types/modelCatalog';
-
 interface ItemListSchema {
   '@context': string;
   '@type': string;
@@ -44,9 +42,10 @@ export interface FAQItem {
 /**
  * Generate ItemList structured data for the model catalog.
  * Limits to top 30 models for performance.
+ * Works with both ModelCatalogEntry and ModelCatalogClientEntry since they share common fields.
  */
 export function generateModelCatalogItemList(
-  models: ModelCatalogEntry[],
+  models: Array<{ id: string; name: string; description: string; provider: { label: string } }>,
   siteUrl: string
 ): ItemListSchema {
   // Limit to top 30 models to keep JSON-LD size manageable

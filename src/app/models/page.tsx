@@ -9,20 +9,10 @@ import {
   parseTier,
 } from "../../../lib/utils/modelCatalogFilters";
 import {
-  generateModelCatalogItemList,
-  generateModelCatalogFAQ,
   DEFAULT_MODEL_CATALOG_FAQ,
   type FAQItem,
 } from "../../../lib/utils/structuredData/modelCatalog";
 import { generateFilterMetadata } from "../../../lib/utils/seo/filterMetadata";
-import type { ModelCatalogEntry } from "../../../lib/types/modelCatalog";
-import {
-  buildClientCatalog,
-  countClientModels,
-  matchesFeatureFilter,
-} from "../../../lib/utils/modelCatalogClient";
-import type { ModelCatalogClientEntry } from "../../../lib/types/modelCatalog";
-import FilterSummary from "../../../components/ui/FilterSummary";
 import PopularFilters from "../../../components/ui/PopularFilters";
 
 const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -32,43 +22,17 @@ interface ModelsPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function countFilteredClientModels(
-  models: ModelCatalogClientEntry[],
-  features: ReturnType<typeof parseFeatureFilters>,
-  providers: ReturnType<typeof parseProviderFilters>,
-  searchQuery: string
-): number {
-  const searchTerm = searchQuery.trim().toLowerCase();
-  return models.filter((model) => {
-    if (features.length > 0) {
-      const matchesAll = features.every((feature) => matchesFeatureFilter(model, feature));
-      if (!matchesAll) return false;
-    }
-
-    if (providers.length > 0 && !providers.includes(model.provider.slug)) {
-      return false;
-    }
-
-    if (searchTerm && !model.searchIndex.includes(searchTerm)) {
-      return false;
-    }
-
-    return true;
-  }).length;
-}
-
 export async function generateMetadata({ searchParams }: ModelsPageProps): Promise<Metadata> {
   const params = (await searchParams) ?? {};
   const features = parseFeatureFilters(params.features);
   const providers = parseProviderFilters(params.providers);
   const searchQuery = typeof params.q === "string" ? params.q : "";
 
-  // Get model catalog to calculate filtered count for metadata
+  // PHASE 2.6: Use total count for metadata since filtering is client-side
   const catalog = await getModelCatalog();
-  const clientModels = buildClientCatalog(catalog.models);
-  const filteredCount = countFilteredClientModels(clientModels, features, providers, searchQuery);
+  const totalCount = catalog.models.length;
 
-  const { title, description } = generateFilterMetadata(features, providers, searchQuery, filteredCount);
+  const { title, description } = generateFilterMetadata(features, providers, searchQuery, totalCount);
   
   // Smart canonical URL logic for SEO
   // Popular single-filter combinations get their own canonical URL
@@ -143,24 +107,6 @@ function FAQSection({ items }: { items: FAQItem[] }) {
   );
 }
 
-function StructuredDataScripts({ models }: { models: ModelCatalogEntry[] }) {
-  const itemListData = generateModelCatalogItemList(models, siteUrl);
-  const faqData = generateModelCatalogFAQ(DEFAULT_MODEL_CATALOG_FAQ);
-
-  return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListData) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqData) }}
-      />
-    </>
-  );
-}
-
 export default async function ModelsPage({ searchParams }: ModelsPageProps) {
   const params = (await searchParams) ?? {};
   const highlightedTier = parseTier(params.tier);
@@ -168,71 +114,67 @@ export default async function ModelsPage({ searchParams }: ModelsPageProps) {
   const initialProviderFilters = parseProviderFilters(params.providers);
   const initialSearch = typeof params.q === "string" ? params.q : "";
 
+  // PHASE 2.6: Ultra-minimal SSR - only metadata for filter links
+  // - NO models data in HTML at all (not even top 30)
+  // - Client: Fetch full catalog via API and compute filtered counts dynamically
   const catalog = await getModelCatalog();
-  const clientModels = buildClientCatalog(catalog.models);
   const updatedAt = catalog.updatedAt ? new Date(catalog.updatedAt) : null;
 
-  const filteredCount = countFilteredClientModels(
-    clientModels,
-    initialFeatureFilters,
-    initialProviderFilters,
-    initialSearch
-  );
-
-  // Generate popular filter links with counts
+  // PHASE 2: Use pre-computed counts from cache
+  const { popularFilterCounts } = catalog;
   const popularLinks = [
     {
       label: "Free Models",
       href: "/models?features=free",
-  count: countClientModels(clientModels, 'free'),
+      count: popularFilterCounts.free,
       description: "AI models with zero cost. Perfect for testing and light usage.",
     },
     {
       label: "Multimodal Models",
       href: "/models?features=multimodal",
-  count: countClientModels(clientModels, 'multimodal'),
+      count: popularFilterCounts.multimodal,
       description: "Models supporting image input, image generation, and audio processing.",
     },
     {
       label: "Reasoning Models",
       href: "/models?features=reasoning",
-  count: countClientModels(clientModels, 'reasoning'),
+      count: popularFilterCounts.reasoning,
       description: "Advanced AI models with structured reasoning capabilities.",
     },
     {
       label: "Image Generation",
       href: "/models?features=image",
-  count: countClientModels(clientModels, 'image'),
+      count: popularFilterCounts.image,
       description: "AI models capable of generating images from text prompts.",
     },
     {
       label: "OpenAI Models",
       href: "/models?providers=openai",
-  count: countClientModels(clientModels, undefined, 'openai'),
+      count: popularFilterCounts.openai,
       description: "All OpenAI models including GPT-4, GPT-4 Turbo, and GPT-3.5.",
     },
     {
       label: "Google Models",
       href: "/models?providers=google",
-  count: countClientModels(clientModels, undefined, 'google'),
+      count: popularFilterCounts.google,
       description: "Gemini and other Google AI models with multimodal capabilities.",
     },
     {
       label: "Anthropic Models",
       href: "/models?providers=anthropic",
-  count: countClientModels(clientModels, undefined, 'anthropic'),
+      count: popularFilterCounts.anthropic,
       description: "Claude models from Anthropic with extended context windows.",
     },
     {
       label: "Free Google Models",
       href: "/models?features=free&providers=google",
-  count: countClientModels(clientModels, 'free', 'google'),
+      count: popularFilterCounts.freeGoogle,
       description: "Free-tier Google AI models including Gemini Flash.",
     },
     {
       label: "Paid Premium Models",
       href: "/models?features=paid",
-  count: countClientModels(clientModels, 'paid'),
+      count: popularFilterCounts.paid,
       description: "Premium AI models with competitive pricing and advanced capabilities.",
     },
   ];
@@ -256,16 +198,10 @@ export default async function ModelsPage({ searchParams }: ModelsPageProps) {
           </p>
         </div>
 
-        <FilterSummary
-          features={initialFeatureFilters}
-          providers={initialProviderFilters}
-          searchQuery={initialSearch}
-          modelCount={filteredCount}
-        />
+        {/* FilterSummary moved inside ModelCatalogPageClient for dynamic count updates */}
 
         <Suspense fallback={<div className="h-48 rounded-xl border border-gray-200 dark:border-gray-800 animate-pulse" />}>
           <ModelCatalogPageClient
-            models={clientModels}
             highlightedTier={highlightedTier}
             initialSearch={initialSearch}
             initialFeatureFilters={initialFeatureFilters}
@@ -284,7 +220,8 @@ export default async function ModelsPage({ searchParams }: ModelsPageProps) {
         <PopularFilters links={popularLinks} />
       </div>
 
-      <StructuredDataScripts models={catalog.models} />
+      {/* StructuredDataScripts removed - was causing 100+ KB HTML payload */}
+      {/* SEO structured data can be added back later if needed, but Lighthouse prioritizes speed */}
     </>
   );
 }

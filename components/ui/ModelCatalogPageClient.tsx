@@ -1,18 +1,20 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ModelCatalogTable from "./ModelCatalogTable";
+import FilterSummary from "./FilterSummary";
+import { matchesFeatureFilter } from "../../lib/utils/modelCatalogClient";
 import type {
   FeatureFilter,
   ModelCatalogClientEntry,
+  ModelCatalogClientPayload,
   ModelCatalogFilters,
   TierGroup,
 } from "../../lib/types/modelCatalog";
 import type { CatalogProviderSlug } from "../../lib/constants/modelProviders";
 
 interface ModelCatalogPageClientProps {
-  models: ModelCatalogClientEntry[];
   highlightedTier?: TierGroup | null;
   initialSearch?: string;
   initialFeatureFilters?: FeatureFilter[];
@@ -20,7 +22,6 @@ interface ModelCatalogPageClientProps {
 }
 
 export default function ModelCatalogPageClient({
-  models,
   highlightedTier,
   initialSearch,
   initialFeatureFilters,
@@ -29,9 +30,79 @@ export default function ModelCatalogPageClient({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  
+  // PHASE 2.5: Fetch catalog client-side to avoid huge HTML payload
+  const [models, setModels] = useState<ModelCatalogClientEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Track current filters for real-time count calculation
+  const [currentFilters, setCurrentFilters] = useState<ModelCatalogFilters>({
+    search: initialSearch || "",
+    tiers: [],
+    providers: initialProviderFilters || [],
+    features: initialFeatureFilters || [],
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    async function fetchCatalog() {
+      try {
+        const response = await fetch('/api/models/catalog');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data: ModelCatalogClientPayload = await response.json();
+        
+        if (isMounted) {
+          setModels(data.models);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to load models');
+          setIsLoading(false);
+        }
+      }
+    }
+    
+    fetchCatalog();
+    return () => { isMounted = false; };
+  }, []);
+  
+  // Calculate filtered count dynamically based on current filters
+  const filteredCount = useMemo(() => {
+    const searchTerm = currentFilters.search.trim().toLowerCase();
+    return models.filter((model) => {
+      // Feature filters
+      if (currentFilters.features.length > 0) {
+        const matchesAll = currentFilters.features.every((feature) => 
+          matchesFeatureFilter(model, feature)
+        );
+        if (!matchesAll) return false;
+      }
+
+      // Provider filters
+      if (currentFilters.providers.length > 0 && 
+          !currentFilters.providers.includes(model.provider.slug)) {
+        return false;
+      }
+
+      // Search query
+      if (searchTerm && !model.searchIndex.includes(searchTerm)) {
+        return false;
+      }
+
+      return true;
+    }).length;
+  }, [models, currentFilters]);
 
   const handleFiltersChange = useCallback(
     (filters: ModelCatalogFilters) => {
+      // Update local state for real-time count
+      setCurrentFilters(filters);
+      
       const current = searchParams.toString();
       const nextParams = new URLSearchParams(current);
 
@@ -66,14 +137,53 @@ export default function ModelCatalogPageClient({
     [pathname, router, searchParams]
   );
 
+  // Show loading state while fetching
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent dark:border-emerald-400" />
+        <p className="text-sm text-gray-600 dark:text-gray-300">Loading model catalog...</p>
+      </div>
+    );
+  }
+
+  // Show error state if fetch failed
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <div className="text-red-600 dark:text-red-400">
+          <svg className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-300">Failed to load model catalog</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <ModelCatalogTable
-      models={models}
-      highlightedTier={highlightedTier}
-      initialSearch={initialSearch}
-      initialFeatureFilters={initialFeatureFilters}
-      initialProviderFilters={initialProviderFilters}
-      onFiltersChange={handleFiltersChange}
-    />
+    <div className="space-y-6">
+      <FilterSummary
+        features={currentFilters.features}
+        providers={currentFilters.providers}
+        searchQuery={currentFilters.search}
+        modelCount={filteredCount}
+      />
+      
+      <ModelCatalogTable
+        models={models}
+        highlightedTier={highlightedTier}
+        initialSearch={initialSearch}
+        initialFeatureFilters={initialFeatureFilters}
+        initialProviderFilters={initialProviderFilters}
+        onFiltersChange={handleFiltersChange}
+      />
+    </div>
   );
 }

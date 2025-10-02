@@ -84,8 +84,19 @@ export interface ModelCatalogClientEntry {
 }
 
 export interface ModelCatalogClientPayload {
-  updatedAt: string;
+  updatedAt: string | null;
   models: ModelCatalogClientEntry[];
+  popularFilterCounts: {
+    free: number;
+    multimodal: number;
+    reasoning: number;
+    image: number;
+    openai: number;
+    google: number;
+    anthropic: number;
+    freeGoogle: number;
+    paid: number;
+  };
 }
 
 export interface ModelCatalogFilters {
