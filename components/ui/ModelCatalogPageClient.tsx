@@ -1,9 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import ModelCatalogTable from "./ModelCatalogTable";
 import FilterSummary from "./FilterSummary";
+
+// Lazy load the heavy table component to reduce initial JavaScript execution
+// This defers ~50KB of code until after initial paint, improving TBT
+const ModelCatalogTable = dynamic(() => import("./ModelCatalogTable"), {
+  loading: () => (
+    <div className="min-h-[600px] flex items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent dark:border-emerald-400" />
+    </div>
+  ),
+  ssr: false, // Table is client-only, no need for SSR
+});
+
 import { matchesFeatureFilter } from "../../lib/utils/modelCatalogClient";
 import type {
   FeatureFilter,
@@ -138,9 +150,10 @@ export default function ModelCatalogPageClient({
   );
 
   // Show loading state while fetching
+  // Use min-h-[600px] to prevent layout shift when content loads
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+      <div className="flex flex-col items-center justify-center min-h-[600px] space-y-4">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent dark:border-emerald-400" />
         <p className="text-sm text-gray-600 dark:text-gray-300">Loading model catalog...</p>
       </div>
@@ -148,9 +161,10 @@ export default function ModelCatalogPageClient({
   }
 
   // Show error state if fetch failed
+  // Use min-h-[600px] to prevent layout shift
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+      <div className="flex flex-col items-center justify-center min-h-[600px] space-y-4">
         <div className="text-red-600 dark:text-red-400">
           <svg className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

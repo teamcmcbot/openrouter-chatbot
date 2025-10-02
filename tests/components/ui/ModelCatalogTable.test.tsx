@@ -8,6 +8,9 @@ jest.mock("../../../hooks/useDebounce", () => ({
 }));
 
 beforeAll(() => {
+  // Note: Both mobile cards and desktop table render in tests
+  // We'll query within the table container to avoid selecting mobile elements
+
   Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
     value: jest.fn(),
     writable: true,
@@ -111,7 +114,9 @@ describe("ModelCatalogTable", () => {
       expect(onFiltersChange).toHaveBeenLastCalledWith(
         expect.objectContaining({ search: "Pro", tiers: [], providers: [], features: [] })
       );
-      expect(screen.getByText("Pro Beta")).toBeInTheDocument();
+      // Query within the table container to avoid selecting mobile cards
+      const tableContainer = screen.getByRole('table').closest('div');
+      expect(within(tableContainer!).getByText("Pro Beta")).toBeInTheDocument();
     });
 
     expect(screen.queryByText("Alpha Free")).not.toBeInTheDocument();
@@ -148,7 +153,9 @@ describe("ModelCatalogTable", () => {
           search: "",
         })
       );
-      expect(screen.getByText("Pro Beta")).toBeInTheDocument();
+      // Query within table to avoid mobile cards
+      const tableContainer = screen.getByRole('table').closest('div');
+      expect(within(tableContainer!).getByText("Pro Beta")).toBeInTheDocument();
       expect(screen.queryByText("Enterprise Gamma")).not.toBeInTheDocument();
     });
   });
@@ -161,8 +168,12 @@ describe("ModelCatalogTable", () => {
       />
     );
 
-    expect(screen.getAllByRole("table")).toHaveLength(1);
-    expect(screen.getByText("Pro Beta")).toBeInTheDocument();
+    // Both mobile and desktop render, query the table specifically
+    const tables = screen.getAllByRole("table");
+    expect(tables.length).toBeGreaterThanOrEqual(1);
+    
+    const tableContainer = tables[0].closest('div');
+    expect(within(tableContainer!).getByText("Pro Beta")).toBeInTheDocument();
     expect(screen.getAllByText(/Section collapsed/)).toHaveLength(2);
     expect(screen.getByRole("button", { name: /Collapse/i })).toBeInTheDocument();
   });
@@ -170,7 +181,14 @@ describe("ModelCatalogTable", () => {
   it("displays per-million token prices and image token pricing", () => {
     render(<ModelCatalogTable models={models} />);
 
-    const proRow = screen.getByText("Pro Beta").closest("tr");
+    // There are multiple tables (one per tier), query within the pro tier table
+    const tables = screen.getAllByRole('table');
+    const proTableContainer = tables.find(table => 
+      within(table).queryByText("Pro Beta") !== null
+    );
+    expect(proTableContainer).toBeDefined();
+    
+    const proRow = within(proTableContainer!).getByText("Pro Beta").closest("tr");
     expect(proRow).not.toBeNull();
 
     const proRowScope = within(proRow!);

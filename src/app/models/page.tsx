@@ -200,7 +200,14 @@ export default async function ModelsPage({ searchParams }: ModelsPageProps) {
 
         {/* FilterSummary moved inside ModelCatalogPageClient for dynamic count updates */}
 
-        <Suspense fallback={<div className="h-48 rounded-xl border border-gray-200 dark:border-gray-800 animate-pulse" />}>
+        <Suspense fallback={
+          <div className="space-y-6">
+            {/* FilterSummary skeleton */}
+            <div className="h-12 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 animate-pulse" />
+            {/* Table skeleton with minimum height to prevent layout shift */}
+            <div className="min-h-[600px] rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 animate-pulse" />
+          </div>
+        }>
           <ModelCatalogPageClient
             highlightedTier={highlightedTier}
             initialSearch={initialSearch}
@@ -214,9 +221,12 @@ export default async function ModelsPage({ searchParams }: ModelsPageProps) {
             Last synced {updatedAt.toLocaleString()}
           </p>
         )}
+      </div>
 
+      {/* FAQ and Popular Filters sections moved outside main container to prevent layout shift */}
+      {/* These render immediately and stay in place while catalog loads above */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-10">
         <FAQSection items={DEFAULT_MODEL_CATALOG_FAQ} />
-
         <PopularFilters links={popularLinks} />
       </div>
 

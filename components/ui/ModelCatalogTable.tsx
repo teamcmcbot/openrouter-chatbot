@@ -8,6 +8,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "../../hooks/useDebounce";
 import TierBadge from "./TierBadge";
 import Button from "./Button";
+import ModelCard from "./ModelCard";
 import {
   CATALOG_PROVIDER_DISPLAY_ORDER,
   CATALOG_PROVIDER_LABELS,
@@ -312,57 +313,90 @@ function TierSection({
       </div>
 
       {isExpanded ? (
-        <div
-          id={`catalog-section-${tier}`}
-          ref={containerRef}
-          className="overflow-x-auto"
-          style={isVirtualized ? { maxHeight: containerHeight, overflowY: "auto" } : undefined}
-        >
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-            <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              <tr>
-                <th className="sticky left-0 z-10 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-left">Model</th>
-                <th className="px-4 py-3 text-left">Context</th>
-                <th className="px-4 py-3 text-left">Input Price</th>
-                <th className="px-4 py-3 text-left">Output Price</th>
-                <th className="px-4 py-3 text-left">Provider</th>
-                <th className="px-4 py-3 text-left">Modalities</th>
-                <th className="px-4 py-3 text-left">Access</th>
-              </tr>
-            </thead>
-            <tbody
-              className={`bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800 text-sm ${
-                isVirtualized ? "relative" : ""
-              }`}
-            >
-              {isVirtualized ? (
-                <>
-                  <tr style={{ height: rowVirtualizer.getTotalSize() }}>
-                    <td colSpan={7} />
-                  </tr>
-                  {virtualItems.map((virtualRow) => {
-                    const model = models[virtualRow.index];
-                    return (
-                      <ModelRow
-                        key={model.id}
-                        model={model}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          transform: `translateY(${virtualRow.start}px)`,
-                          width: "100%",
-                        }}
-                        measureElement={rowVirtualizer.measureElement}
-                      />
-                    );
-                  })}
-                </>
-              ) : (
-                models.map((model) => <ModelRow key={model.id} model={model} />)
-              )}
-            </tbody>
-          </table>
+        <div id={`catalog-section-${tier}`} ref={containerRef}>
+          {/* Mobile card layout - hidden on desktop/tablet with CSS */}
+          <div
+            className="block md:hidden space-y-4"
+            style={isVirtualized ? { maxHeight: containerHeight, overflowY: "auto" } : undefined}
+          >
+            {isVirtualized ? (
+              <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}>
+                {virtualItems.map((virtualRow) => {
+                  const model = models[virtualRow.index];
+                  return (
+                    <div
+                      key={model.id}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        transform: `translateY(${virtualRow.start}px)`,
+                        width: "100%",
+                      }}
+                      ref={rowVirtualizer.measureElement}
+                      data-index={virtualRow.index}
+                    >
+                      <ModelCard model={model} />
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              models.map((model) => <ModelCard key={model.id} model={model} />)
+            )}
+          </div>
+
+          {/* Desktop/tablet table layout - hidden on mobile with CSS */}
+          <div
+            className="hidden md:block overflow-x-auto"
+            style={isVirtualized ? { maxHeight: containerHeight, overflowY: "auto" } : undefined}
+          >
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+              <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <tr>
+                  <th className="sticky left-0 z-10 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-left">Model</th>
+                  <th className="px-4 py-3 text-left">Context</th>
+                  <th className="px-4 py-3 text-left">Input Price</th>
+                  <th className="px-4 py-3 text-left">Output Price</th>
+                  <th className="px-4 py-3 text-left">Provider</th>
+                  <th className="px-4 py-3 text-left">Modalities</th>
+                  <th className="px-4 py-3 text-left">Access</th>
+                </tr>
+              </thead>
+              <tbody
+                className={`bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800 text-sm ${
+                  isVirtualized ? "relative" : ""
+                }`}
+              >
+                {isVirtualized ? (
+                  <>
+                    <tr style={{ height: rowVirtualizer.getTotalSize() }}>
+                      <td colSpan={7} />
+                    </tr>
+                    {virtualItems.map((virtualRow) => {
+                      const model = models[virtualRow.index];
+                      return (
+                        <ModelRow
+                          key={model.id}
+                          model={model}
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            transform: `translateY(${virtualRow.start}px)`,
+                            width: "100%",
+                          }}
+                          measureElement={rowVirtualizer.measureElement}
+                        />
+                      );
+                    })}
+                  </>
+                ) : (
+                  models.map((model) => <ModelRow key={model.id} model={model} />)
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="py-4 text-sm italic text-gray-500 dark:text-gray-400">
