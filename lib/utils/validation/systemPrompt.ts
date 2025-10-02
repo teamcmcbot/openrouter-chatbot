@@ -3,6 +3,8 @@
  * Shared validation logic for both client and server-side validation
  */
 
+import { getPersonalityPresetKeys, isValidPersonalityPreset } from '../../constants/personalityPresets';
+
 export const SYSTEM_PROMPT_LIMITS = {
   MAX_LENGTH: 2000,              // Updated from 4000 for better UX
   MIN_LENGTH: 1,                 // After trim
@@ -142,11 +144,9 @@ export function validatePersonalityPreset(presetKey: string | null | undefined):
     };
   }
   
-  // Valid preset keys
-  const validKeys = ['helpful', 'professional', 'creative', 'concise', 'empathetic', 'technical', 'socratic', 'witty'];
-  
-  // Validate it's a known preset key
-  if (!validKeys.includes(presetKey)) {
+  // Validate it's a known preset key using the source of truth
+  if (!isValidPersonalityPreset(presetKey)) {
+    const validKeys = getPersonalityPresetKeys();
     return {
       isValid: false,
       error: `Invalid personality preset: "${presetKey}". Must be one of: ${validKeys.join(', ')}`

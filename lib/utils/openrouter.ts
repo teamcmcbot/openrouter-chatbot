@@ -13,7 +13,7 @@ import {
   OpenRouterContentBlock,
 } from '../types/openrouter';
 import { AuthContext } from '../types/auth';
-import { getPersonalityPrompt, type PersonalityPresetKey } from '../constants/personalityPresets';
+import { getPersonalityPrompt, isValidPersonalityPreset } from '../constants/personalityPresets';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
@@ -107,17 +107,17 @@ function appendSystemPrompt(
   const systemMessages: OpenRouterMessage[] = [{ role: 'system', content: rootPrompt }];
   
   // Map personality preset KEY to full system prompt TEXT
-  if (userPersonalityPresetKey) {
-    const personalityText = getPersonalityPrompt(userPersonalityPresetKey as PersonalityPresetKey);
+  if (userPersonalityPresetKey && isValidPersonalityPreset(userPersonalityPresetKey)) {
+    const personalityText = getPersonalityPrompt(userPersonalityPresetKey);
     if (personalityText) {
       systemMessages.push({ role: 'system', content: personalityText });
       logger.debug('Applied personality preset', { 
         presetKey: userPersonalityPresetKey,
         textLength: personalityText.length 
       });
-    } else {
-      logger.warn('Invalid personality preset key', { key: userPersonalityPresetKey });
     }
+  } else if (userPersonalityPresetKey) {
+    logger.warn('Invalid personality preset key', { key: userPersonalityPresetKey });
   }
   
   if (userSystemPrompt) {

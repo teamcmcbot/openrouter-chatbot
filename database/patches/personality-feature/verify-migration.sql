@@ -62,10 +62,11 @@ FROM public.profiles;
 BEGIN;
 
 -- Create test profile (or update existing)
+-- Note: personality_preset should be a preset KEY (e.g., 'professional'), not freeform text
 INSERT INTO public.profiles (id, personality_preset, system_prompt, created_at, updated_at)
 VALUES (
   gen_random_uuid(),
-  'Be professional and concise in all responses.',
+  'professional',
   'You are a helpful AI assistant.',
   NOW(),
   NOW()
