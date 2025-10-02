@@ -15,6 +15,7 @@ A modern, full-stack AI chat application providing secure, scalable, and feature
 
 - **Streaming Chat**: Real-time response rendering with ~90% faster perceived response time
 - **Multiple AI Models**: Support for 12+ models (Anthropic Claude, OpenAI GPT-4, Google Gemini, etc.)
+- **AI Personality Presets**: 8 curated personality styles to customize AI behavior (helpful, professional, creative, witty, and more)
 - **Multimodal Support**: Image attachments and analysis with vision-capable models
 - **Web Search Integration**: Real-time web search with citations (Pro+ feature)
 - **AI Reasoning**: Transparent AI thinking process display (Enterprise feature)
@@ -429,6 +430,7 @@ This project is open source and available under the [MIT License](LICENSE).
 - **File Upload Support**: Image attachments with vision model integration
 - **Export Conversations**: Full chat history export capabilities
 - **Custom System Prompts**: User-configurable AI behavior
+- **Personality Presets**: 8 curated AI personality styles (helpful, professional, creative, witty, and more)
 - **Usage Analytics**: Comprehensive cost tracking and reporting
 - **Admin Dashboard**: Enterprise management and monitoring tools
 
@@ -453,6 +455,7 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ### Feature Documentation
 
+- **Personality Presets**: `docs/features/personality-presets.md` - AI personality customization guide
 - **Subscription Tiers**: `docs/subscription-tier-access.md`
 - **Feature Matrix**: `docs/feature-matrix.md`
 - **Streaming Chat**: `docs/streaming-implementation-summary.md`

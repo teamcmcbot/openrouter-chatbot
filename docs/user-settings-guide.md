@@ -71,12 +71,18 @@ Customize your experience with these preference categories:
   - Choose "None" to let the system select the best available model for each conversation
   - If your current default model becomes unavailable, it will be marked with "(Not available)"
 - **Temperature**: Controls randomness in AI responses (0.0 = focused, 2.0 = creative)
+- **AI Personality Preset**: Choose from 8 curated personality styles (NEW!)
+  - Select how the AI communicates and behaves
+  - Options: Helpful & Friendly, Professional, Creative, Concise, Empathetic, Technical, Socratic, Witty
+  - Or choose "-- No Preset --" to rely solely on custom instructions
+  - See [Personality Presets Guide](/docs/features/personality-presets.md) for detailed descriptions
 - **System Prompt**: Default instructions given to the AI model
   - Inline editor appears under Temperature when you click "Edit"
   - 2000-character limit with real-time counter and word count
   - Visual indicators: ✓ valid, ⚠️ 90% capacity, 🚫 at max length
   - Inline validation messages and accessible aria attributes
   - Save is disabled when invalid or empty; input is trimmed before save
+  - **Works together with Personality Preset**: Both are combined for layered customization
 
 ##### System Prompt Preview
 

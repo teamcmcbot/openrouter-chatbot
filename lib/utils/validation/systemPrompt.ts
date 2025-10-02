@@ -127,3 +127,34 @@ export function sanitizeForDisplay(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;');
 }
+
+/**
+ * Validates personality preset key (not freeform text)
+ * @param presetKey - The personality preset key to validate (e.g., 'helpful', 'professional')
+ * @returns ValidationResult with isValid flag and optional error message
+ */
+export function validatePersonalityPreset(presetKey: string | null | undefined): ValidationResult {
+  // Null/undefined is allowed (user can clear preset)
+  if (presetKey === null || presetKey === undefined || presetKey.trim() === '') {
+    return {
+      isValid: true,
+      trimmedValue: undefined
+    };
+  }
+  
+  // Valid preset keys
+  const validKeys = ['helpful', 'professional', 'creative', 'concise', 'empathetic', 'technical', 'socratic', 'witty'];
+  
+  // Validate it's a known preset key
+  if (!validKeys.includes(presetKey)) {
+    return {
+      isValid: false,
+      error: `Invalid personality preset: "${presetKey}". Must be one of: ${validKeys.join(', ')}`
+    };
+  }
+  
+  return {
+    isValid: true,
+    trimmedValue: presetKey
+  };
+}

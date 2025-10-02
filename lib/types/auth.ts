@@ -13,6 +13,7 @@ export interface UserProfile {
   default_model: string;
   temperature: number;
   system_prompt: string;
+  personality_preset: string | null; // Preset key: 'helpful', 'professional', etc.
   subscription_tier: "free" | "pro" | "enterprise";
   account_type?: "user" | "admin"; // Admin role independent of subscription tier
   // Ban-related fields (Phase 1)

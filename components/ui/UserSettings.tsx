@@ -10,6 +10,7 @@ import Button from "./Button";
 import { useAuth } from "../../stores/useAuthStore";
 import { useUserData } from "../../hooks/useUserData";
 import { validateSystemPrompt, truncateAtWordBoundary, SYSTEM_PROMPT_LIMITS } from "../../lib/utils/validation/systemPrompt";
+import { getAllPersonalityPresets } from "../../lib/constants/personalityPresets";
 import toast from 'react-hot-toast';
 import { useTheme } from "../../stores/useUIStore";
 
@@ -38,6 +39,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
     theme: '',
     defaultModel: '' as string | null, // Allow null for "None" selection
     temperature: 0.7,
+    personalityPreset: null as string | null, // Personality preset key
     systemPrompt: '', // Add system prompt to edited state
   });
   const [isRefreshAnimating, setIsRefreshAnimating] = useState(false);
@@ -68,6 +70,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         theme: normalizeTheme(userData.preferences.ui.theme || "dark"),
         defaultModel: userData.preferences.model.default_model || null,
         temperature: userData.preferences.model.temperature || 0.7,
+        personalityPreset: userData.preferences.model.personality_preset || null,
         systemPrompt: userData.preferences.model.system_prompt || "You are a helpful AI assistant.",
       };
       
@@ -194,6 +197,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
     theme: normalizeTheme(userData?.preferences.ui.theme || "dark"),
     defaultModel: userData?.preferences.model.default_model || null, // Allow null instead of hardcoded fallback
     temperature: userData?.preferences.model.temperature || 0.7,
+    personalityPreset: userData?.preferences.model.personality_preset || null,
     systemPrompt: userData?.preferences.model.system_prompt || "You are a helpful AI assistant.",
   };
 
@@ -294,6 +298,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         theme: preferences.theme,
         defaultModel: preferences.defaultModel,
         temperature: preferences.temperature,
+        personalityPreset: preferences.personalityPreset,
         systemPrompt: preferences.systemPrompt,
       });
       setTheme(lastKnownTheme);
@@ -305,6 +310,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
         theme: preferences.theme,
         defaultModel: preferences.defaultModel,
         temperature: preferences.temperature,
+        personalityPreset: preferences.personalityPreset,
         systemPrompt: preferences.systemPrompt,
       });
       setLastKnownGoodSystemPrompt(preferences.systemPrompt);
@@ -343,6 +349,7 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
           model: {
             default_model: editedPreferences.defaultModel,
             temperature: editedPreferences.temperature,
+            personality_preset: editedPreferences.personalityPreset || undefined,
             system_prompt: validation.trimmedValue, // Use validated and trimmed value
           }
         });
@@ -531,6 +538,35 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                   </select>
                 </div>
 
+                {/* Personality Preset Dropdown */}
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-gray-400">AI Personality Preset</label>
+                  <select
+                    value={editedPreferences.personalityPreset || ''}
+                    onChange={(e) => setEditedPreferences(prev => ({
+                      ...prev,
+                      personalityPreset: e.target.value === '' ? null : e.target.value,
+                    }))}
+                    className="w-full p-2.5 rounded-lg border border-slate-300/70 dark:border-gray-600/60 bg-white dark:bg-gray-900/50 text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  >
+                    <option value="">-- No Preset --</option>
+                    {getAllPersonalityPresets().map(preset => (
+                      <option key={preset.key} value={preset.key}>
+                        {preset.icon} {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                  {editedPreferences.personalityPreset && (() => {
+                    const selectedPreset = getAllPersonalityPresets().find(p => p.key === editedPreferences.personalityPreset);
+                    return selectedPreset ? (
+                      <p className="text-xs text-slate-600 dark:text-gray-400 mt-1">{selectedPreset.description}</p>
+                    ) : null;
+                  })()}
+                  <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
+                    Choose a curated personality style. This will be combined with your system prompt below.
+                  </p>
+                </div>
+
                 {/* Temperature Slider */}
                 <div>
                   <label className="flex items-center justify-between text-sm font-medium mb-1 text-slate-600 dark:text-gray-400">
@@ -689,6 +725,22 @@ export default function UserSettings({ isOpen, onClose }: Readonly<UserSettingsP
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
                   <div className="sm:col-span-3 text-slate-600 dark:text-gray-400 mb-1 sm:mb-0">Theme</div>
                   <div className="sm:col-span-9 font-medium text-slate-900 dark:text-gray-100 capitalize">{preferences.theme}</div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">
+                  <div className="sm:col-span-3 text-slate-600 dark:text-gray-400 mb-1 sm:mb-0">Personality Preset</div>
+                  <div className="sm:col-span-9 font-medium text-slate-900 dark:text-gray-100">
+                    {preferences.personalityPreset ? (() => {
+                      const preset = getAllPersonalityPresets().find(p => p.key === preferences.personalityPreset);
+                      return preset ? (
+                        <span>{preset.icon} {preset.label}</span>
+                      ) : (
+                        <span className="text-amber-600 dark:text-amber-400">{preferences.personalityPreset} (Unknown)</span>
+                      );
+                    })() : (
+                      <span className="text-slate-700 dark:text-gray-300">None</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 items-start text-sm">

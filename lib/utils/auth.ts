@@ -204,6 +204,7 @@ async function createDefaultUserProfile(userId: string): Promise<UserProfile | n
       default_model: 'deepseek/deepseek-r1-0528:free',
       temperature: 0.7,
       system_prompt: 'You are a helpful AI assistant.',
+      personality_preset: null, // User can select a preset later
       subscription_tier: 'free',
       credits: 0,
     };

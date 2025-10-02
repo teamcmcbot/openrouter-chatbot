@@ -11,7 +11,7 @@ import { withProtectedAuth, withAuth } from '../../../../../lib/middleware/auth'
 import { withTieredRateLimit } from '../../../../../lib/middleware/redisRateLimitMiddleware';
 import { AuthContext } from '../../../../../lib/types/auth';
 import { logger } from '../../../../../lib/utils/logger';
-import { validateSystemPrompt } from '../../../../../lib/utils/validation/systemPrompt';
+import { validateSystemPrompt, validatePersonalityPreset } from '../../../../../lib/utils/validation/systemPrompt';
 import { deriveRequestIdFromHeaders } from '../../../../../lib/utils/headers';
 
 /**
@@ -82,7 +82,8 @@ async function getUserDataHandler(request: NextRequest, authContext: AuthContext
         model: {
           default_model: profileData.preferences?.model?.default_model || '',
           temperature: profileData.preferences?.model?.temperature || 0.7,
-          system_prompt: profileData.preferences?.model?.system_prompt || 'You are a helpful assistant'
+          system_prompt: profileData.preferences?.model?.system_prompt || 'You are a helpful assistant',
+          personality_preset: profileData.preferences?.model?.personality_preset || null
         }
       },
       availableModels: profileData.available_models || [],
@@ -182,6 +183,34 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
       }
     }
 
+    // Validate personality_preset if provided with same security validation
+    if (preferencesUpdate.model?.personality_preset !== undefined) {
+      const personalityPreset = preferencesUpdate.model.personality_preset;
+      
+      // Only validate if it's a string (allow null to skip validation)
+      if (personalityPreset !== null && typeof personalityPreset === 'string') {
+        const validation = validatePersonalityPreset(personalityPreset);
+        
+        if (!validation.isValid) {
+          return NextResponse.json(
+            { 
+              error: 'Validation failed', 
+              message: validation.error || 'Personality preset validation failed'
+            },
+            { status: 400, headers: { 'x-request-id': requestId } }
+          );
+        }
+        
+        // Use the trimmed value for storage
+        preferencesUpdate.model.personality_preset = validation.trimmedValue;
+      } else if (personalityPreset !== null) {
+        return NextResponse.json(
+          { error: 'Invalid request', message: 'Personality preset must be a string or null' },
+          { status: 400, headers: { 'x-request-id': requestId } }
+        );
+      }
+    }
+
     // Build update object for profiles table
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString()
@@ -206,6 +235,9 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
     }
     if (preferencesUpdate.model?.system_prompt !== undefined) {
       updateData.system_prompt = preferencesUpdate.model.system_prompt;
+    }
+    if (preferencesUpdate.model?.personality_preset !== undefined) {
+      updateData.personality_preset = preferencesUpdate.model.personality_preset;
     }
 
     // Update the user's profile
@@ -269,7 +301,8 @@ async function putUserDataHandler(request: NextRequest, authContext: AuthContext
         model: {
           default_model: updatedProfileData.preferences?.model?.default_model || '',
           temperature: updatedProfileData.preferences?.model?.temperature || 0.7,
-          system_prompt: updatedProfileData.preferences?.model?.system_prompt || 'You are a helpful assistant'
+          system_prompt: updatedProfileData.preferences?.model?.system_prompt || 'You are a helpful assistant',
+          personality_preset: updatedProfileData.preferences?.model?.personality_preset || null
         }
       },
       availableModels: updatedProfileData.available_models || [],
