@@ -19,13 +19,15 @@ The message input textarea now displays context-aware placeholder text based on 
 - **Image generation models:** `"Describe your image..."`
 
 This applies to any model where `output_modalities` includes `'image'`, including:
+
 - Pure image generation models (e.g., DALL-E 3)
 - Multimodal models with image output (e.g., Gemini 2.5 Flash Image)
 
 **Implementation:**
+
 ```typescript
-placeholder={isBanned 
-  ? "You can't send messages while banned" 
+placeholder={isBanned
+  ? "You can't send messages while banned"
   : (modelSupportsImageOutput ? "Describe your image..." : "Type your message...")
 }
 ```
@@ -41,12 +43,14 @@ When a user switches from a non-image-generation model to an image-generation mo
 **Example:** `"DALL-E 3 can generate images"`
 
 **Behavior:**
+
 - ✅ Shows when switching FROM text-only TO image-generation model
 - ❌ Does NOT show when switching between two image-generation models
 - ❌ Does NOT show on initial page load (only on user action)
 - Uses unique toast ID to prevent duplicates: `'image-gen-model-selected'`
 
 **Implementation Details:**
+
 ```typescript
 // Track previous model's image generation capability
 const prevModelSupportsImageOutputRef = useRef<boolean>(false);
@@ -55,7 +59,7 @@ const prevModelSupportsImageOutputRef = useRef<boolean>(false);
 if (modelSupportsImageOutput && !prevSupportsImageOutput) {
   const modelName = getModelDisplayName(selectedModelData, selectedModel);
   toast.success(`${modelName} can generate images`, {
-    id: 'image-gen-model-selected',
+    id: "image-gen-model-selected",
   });
 }
 ```
@@ -63,6 +67,7 @@ if (modelSupportsImageOutput && !prevSupportsImageOutput) {
 ### 3. Detection Logic
 
 **Image Generation Capability Detection:**
+
 ```typescript
 const modelSupportsImageOutput = (() => {
   if (!selectedModel) return false;
@@ -70,7 +75,7 @@ const modelSupportsImageOutput = (() => {
     ? (availableModels as ModelInfo[]).find((m) => m.id === selectedModel)
     : undefined;
   const mods = info?.output_modalities as string[] | undefined;
-  return Array.isArray(mods) ? mods.includes('image') : false;
+  return Array.isArray(mods) ? mods.includes("image") : false;
 })();
 ```
 
@@ -81,6 +86,7 @@ This checks if the model's `output_modalities` array includes `'image'`.
 ### Test Files Created/Updated
 
 1. **`tests/components/MessageInput.test.tsx`** (Updated)
+
    - Added proper mocking for stores and hooks
    - Tests continue to pass with dynamic placeholder
 
@@ -94,6 +100,7 @@ This checks if the model's `output_modalities` array includes `'image'`.
 ### Test Results
 
 All tests passing:
+
 ```
 ✓ MessageInput - Image Generation Model (5 tests)
 ✓ MessageInput (3 tests)
@@ -140,6 +147,7 @@ All tests passing:
 ## Related Features
 
 This enhancement complements existing features:
+
 - **Image Output Toggle:** Enterprise users can enable/disable image generation
 - **Model Badges:** UI shows "IMAGE GENERATION" badge in model catalog
 - **Image Output Detection:** Backend validates model capabilities

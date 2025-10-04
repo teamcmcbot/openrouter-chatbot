@@ -3,6 +3,7 @@
 import { useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
+import ImageGenerationStarters from "./ImageGenerationStarters";
 import { 
   useChatStore, 
   useModelSelection, 
@@ -68,6 +69,19 @@ export default function ChatInterface() {
   const [modelDropdownPreset, setModelDropdownPreset] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning' | undefined>(undefined);
   // NEW: Track reasoning enablement state for conditional display
   const [lastReasoningEnabled, setLastReasoningEnabled] = useState<boolean>(false);
+
+  // Check if the selected model supports image output
+  const modelSupportsImageOutput = (() => {
+    if (!selectedModel) return false;
+    const info = Array.isArray(availableModels)
+      ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
+      : undefined;
+    const mods = info?.output_modalities as string[] | undefined;
+    return Array.isArray(mods) ? mods.includes('image') : false;
+  })();
+
+  // Show ImageGenerationStarters when model supports image output and there are no messages
+  const showImageGenerationStarters = modelSupportsImageOutput && messages.length === 0;
 
   // Ephemeral per-conversation banner (session-only)
   const { conversationErrorBanners, currentConversationId, clearConversationErrorBanner, closeErrorBannerAndDisableRetry } = useChatStore();
@@ -325,20 +339,40 @@ export default function ChatInterface() {
 
         {/* Messages Container */}
   <div className="flex-1 min-h-0">
-          <MessageList 
-            messages={messages} 
-            isLoading={isLoading}
-            onModelClick={handleModelClickFromMessage}
-            hoveredGenerationId={hoveredGenerationId}
-            scrollToCompletionId={scrollToCompletionId}
-            onPromptSelect={handlePromptSelect}
-            isStreaming={isStreaming}
-            streamingContent={streamingContent}
-            streamingReasoning={streamingReasoning}
-            streamingReasoningDetails={streamingReasoningDetails}
-            streamingAnnotations={streamingAnnotations}
-            reasoningEnabled={lastReasoningEnabled}
-          />
+          {/* Image Generation Starters - Show when model supports image output and no messages */}
+          {showImageGenerationStarters ? (
+            <div className="flex flex-col items-center justify-center h-full px-4 sm:px-6">
+              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <p className="text-lg mb-2">Create an image</p>
+              <p className="text-sm text-center max-w-md mb-6">
+                Describe the image you want to generate.
+              </p>
+              <ImageGenerationStarters
+                onSelectPrompt={(promptText) => {
+                  setSelectedPrompt(promptText);
+                }}
+              />
+            </div>
+          ) : (
+            <MessageList 
+              messages={messages} 
+              isLoading={isLoading}
+              onModelClick={handleModelClickFromMessage}
+              hoveredGenerationId={hoveredGenerationId}
+              scrollToCompletionId={scrollToCompletionId}
+              onPromptSelect={handlePromptSelect}
+              isStreaming={isStreaming}
+              streamingContent={streamingContent}
+              streamingReasoning={streamingReasoning}
+              streamingReasoningDetails={streamingReasoningDetails}
+              streamingAnnotations={streamingAnnotations}
+              reasoningEnabled={lastReasoningEnabled}
+            />
+          )}
         </div>
 
     {/* Error Display (per-conversation) */}
