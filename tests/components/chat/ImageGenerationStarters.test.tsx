@@ -36,14 +36,14 @@ describe('ImageGenerationStarters', () => {
   it('switches categories when category button is clicked', () => {
     render(<ImageGenerationStarters onSelectPrompt={mockOnSelectPrompt} />);
     
-    // Click on second category (Digital Art)
-    const digitalArtButton = screen.getByRole('button', { name: 'Select Digital Art category' });
-    fireEvent.click(digitalArtButton);
+    // Click on second category (Digital)
+    const digitalButton = screen.getByRole('button', { name: 'Select Digital category' });
+    fireEvent.click(digitalButton);
     
-    // Check that Digital Art prompts are displayed
-    const digitalArtCategory = IMAGE_GENERATION_CATEGORIES.find(cat => cat.name === 'Digital Art');
-    if (digitalArtCategory) {
-      digitalArtCategory.prompts.forEach(prompt => {
+    // Check that Digital prompts are displayed
+    const digitalCategory = IMAGE_GENERATION_CATEGORIES.find(cat => cat.name === 'Digital');
+    if (digitalCategory) {
+      digitalCategory.prompts.forEach(prompt => {
         expect(screen.getByText(prompt.buttonText)).toBeInTheDocument();
       });
     }
@@ -95,12 +95,12 @@ describe('ImageGenerationStarters', () => {
     );
     expect(promptButtons).toHaveLength(firstCategory.prompts.length);
     
-    // Switch to third category (Photo Real)
-    const photoRealButton = screen.getByRole('button', { name: 'Select Photo Real category' });
-    fireEvent.click(photoRealButton);
+    // Switch to third category (Realistic)
+    const realisticButton = screen.getByRole('button', { name: 'Select Realistic category' });
+    fireEvent.click(realisticButton);
     
     // Check updated prompt count
-    const thirdCategory = IMAGE_GENERATION_CATEGORIES[2]; // Photo Real
+    const thirdCategory = IMAGE_GENERATION_CATEGORIES[2]; // Realistic
     promptButtons = screen.getAllByRole('button').filter(button => 
       button.getAttribute('aria-label')?.includes('Use prompt:')
     );
