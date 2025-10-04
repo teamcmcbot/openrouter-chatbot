@@ -26,7 +26,7 @@ export interface CategoryData {
 export const IMAGE_GENERATION_CATEGORIES: CategoryData[] = [
   {
     id: 'classic-art',
-    name: 'Classic Art',
+    name: 'Classic',
     color: 'purple',
     prompts: [
       {
@@ -49,7 +49,7 @@ export const IMAGE_GENERATION_CATEGORIES: CategoryData[] = [
   },
   {
     id: 'digital-art',
-    name: 'Digital Art',
+    name: 'Digital',
     color: 'blue',
     prompts: [
       {
@@ -72,7 +72,7 @@ export const IMAGE_GENERATION_CATEGORIES: CategoryData[] = [
   },
   {
     id: 'photo-real',
-    name: 'Photo Real',
+    name: 'Realistic',
     color: 'green',
     prompts: [
       {

@@ -128,23 +128,28 @@ function appendSystemPrompt(
 }
 
 // ----- Retry configs and utilities -----
+// Common retry timing constants shared across all configurations
+const RETRY_BASE_DELAY = 1000;
+const RETRY_MAX_DELAY = 10000;
+const RETRY_JITTER_FACTOR = 0.1;
+
 const MODELS_API_RETRY_CONFIG = { 
   maxRetries: parseInt(process.env.MODELS_API_MAX_RETRIES || '3', 10), 
-  baseDelay: 1000, 
-  maxDelay: 10000, 
-  jitterFactor: 0.1 
+  baseDelay: RETRY_BASE_DELAY, 
+  maxDelay: RETRY_MAX_DELAY, 
+  jitterFactor: RETRY_JITTER_FACTOR 
 } as const;
 const COMPLETION_RETRY_CONFIG = { 
   maxRetries: parseInt(process.env.COMPLETION_MAX_RETRIES || '1', 10), 
-  baseDelay: 1000, 
-  maxDelay: 10000, 
-  jitterFactor: 0.1 
+  baseDelay: RETRY_BASE_DELAY, 
+  maxDelay: RETRY_MAX_DELAY, 
+  jitterFactor: RETRY_JITTER_FACTOR 
 } as const;
 const IMAGE_COMPLETION_RETRY_CONFIG = { 
   maxRetries: parseInt(process.env.IMAGE_COMPLETION_MAX_RETRIES || '0', 10), 
-  baseDelay: 1000, 
-  maxDelay: 10000, 
-  jitterFactor: 0.1 
+  baseDelay: RETRY_BASE_DELAY, 
+  maxDelay: RETRY_MAX_DELAY, 
+  jitterFactor: RETRY_JITTER_FACTOR 
 } as const;
 
 function withJitter(base: number) {
@@ -221,11 +226,19 @@ async function logOpenRouterHttpError(
 }
 
 // ----- Helpers -----
+// Type for checking image generation responses
+// OpenRouter image models may return images array in the message
+interface MessageWithImages {
+  images?: unknown[];
+}
+
 function isNoContentGenerated(response: OpenRouterResponse): boolean {
   const content = response.choices?.[0]?.message?.content;
   // For image generation models, check if images array exists and has content
-  const message = response.choices?.[0]?.message as { images?: unknown[] } | undefined;
-  const hasImages = Array.isArray(message?.images) && message.images.length > 0;
+  // Using type assertion here as the OpenRouterResponse type doesn't include images,
+  // but image generation models do return this property
+  const message = response.choices?.[0]?.message as (typeof response.choices[0]['message'] & MessageWithImages) | undefined;
+  const hasImages = message?.images && Array.isArray(message.images) && message.images.length > 0;
   
   // Content is considered generated if either:
   // 1. Text content exists and is non-empty

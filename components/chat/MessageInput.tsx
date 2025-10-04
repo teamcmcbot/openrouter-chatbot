@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type React from "react";
 import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon, PlayIcon, InformationCircleIcon, PhotoIcon } from "@heroicons/react/24/outline";
 import Tooltip from "../ui/Tooltip";
@@ -189,12 +189,16 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
       : false;
   })();
 
-  const modelSupportsImageOutput = (() => {
-    if (!selectedModel) return false;
-    const info = Array.isArray(availableModels)
+  // Look up the currently selected model info (memoized to avoid unnecessary re-computations)
+  const selectedModelData = useMemo(() => {
+    if (!selectedModel) return undefined;
+    return Array.isArray(availableModels)
       ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
       : undefined;
-    const mods = info?.output_modalities as string[] | undefined;
+  }, [selectedModel, availableModels]);
+
+  const modelSupportsImageOutput = (() => {
+    const mods = selectedModelData?.output_modalities as string[] | undefined;
     return Array.isArray(mods) ? mods.includes('image') : false;
   })();
 
@@ -377,10 +381,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
       
       // Show toast notification when switching TO an image generation model
       if (modelSupportsImageOutput && !prevSupportsImageOutput) {
-        const selectedModelData = Array.isArray(availableModels) && availableModels.length > 0 
-          ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
-          : null;
-        const modelName = getModelDisplayName(selectedModelData ?? undefined, selectedModel ?? undefined);
+        const modelName = getModelDisplayName(selectedModelData, selectedModel ?? undefined);
         toast.success(`${modelName} can generate images`, {
           id: 'image-gen-model-selected',
         });
@@ -389,7 +390,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
     
     prevSelectedModelRef.current = selectedModel || null;
     prevModelSupportsImageOutputRef.current = modelSupportsImageOutput;
-  }, [selectedModel, isEnterprise, modelSupportsImageOutput, availableModels]);
+  }, [selectedModel, isEnterprise, modelSupportsImageOutput, selectedModelData]);
 
   const handlePickFiles = () => {
     // Disabled via prop: do nothing
