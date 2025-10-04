@@ -57,6 +57,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
   const hideCountTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const gatingRef = useRef<HTMLDivElement | null>(null);
+  const prevModelSupportsImageOutputRef = useRef<boolean>(false);
   const streamingModalRef = useRef<HTMLDivElement | null>(null);
   const searchModalRef = useRef<HTMLDivElement | null>(null);
   const reasoningModalRef = useRef<HTMLDivElement | null>(null);
@@ -364,6 +365,8 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
   // Reset toggles on model change; auto-enable image output when supported and allowed
   useEffect(() => {
     const prev = prevSelectedModelRef.current;
+    const prevSupportsImageOutput = prevModelSupportsImageOutputRef.current;
+    
     // Only reset when there was a previous selection and it actually changed
     if (prev !== null && selectedModel && selectedModel !== prev) {
       setWebSearchOn(false);
@@ -371,9 +374,22 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
       // Auto-enable Generate Image only if the newly selected model supports image output
       // and the user is Enterprise (feature-gated).
       setImageOutputOn(isEnterprise && modelSupportsImageOutput);
+      
+      // Show toast notification when switching TO an image generation model
+      if (modelSupportsImageOutput && !prevSupportsImageOutput) {
+        const selectedModelData = Array.isArray(availableModels) && availableModels.length > 0 
+          ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
+          : null;
+        const modelName = getModelDisplayName(selectedModelData ?? undefined, selectedModel ?? undefined);
+        toast.success(`${modelName} can generate images`, {
+          id: 'image-gen-model-selected',
+        });
+      }
     }
+    
     prevSelectedModelRef.current = selectedModel || null;
-  }, [selectedModel, isEnterprise, modelSupportsImageOutput]);
+    prevModelSupportsImageOutputRef.current = modelSupportsImageOutput;
+  }, [selectedModel, isEnterprise, modelSupportsImageOutput, availableModels]);
 
   const handlePickFiles = () => {
     // Disabled via prop: do nothing
@@ -632,7 +648,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
             onPaste={handlePaste}
             onCompositionStart={() => (composingRef.current = true)}
             onCompositionEnd={() => (composingRef.current = false)}
-            placeholder={isBanned ? "You can't send messages while banned" : "Type your message..."}
+            placeholder={isBanned ? "You can't send messages while banned" : (modelSupportsImageOutput ? "Describe your image..." : "Type your message...")}
             disabled={disabled}
             className="w-full px-3 py-2 bg-transparent border-0 outline-none resize-none focus:ring-0 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 disabled:cursor-not-allowed"
             rows={1}
