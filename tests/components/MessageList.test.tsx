@@ -156,11 +156,21 @@ describe("MessageList with Markdown Support", () => {
     expect(loadingDots).toHaveLength(3);
   });
 
-  it("shows empty state when no messages and not loading", () => {
+  it("renders empty container when no messages and not loading", () => {
+    // Note: Empty state UI (prompt helper) is now handled by ChatInterface, not MessageList
+    // MessageList only renders the scrollable container
     render(<MessageList messages={[]} isLoading={false} />);
 
-    expect(screen.getByText("Start a conversation")).toBeInTheDocument();
-    expect(screen.getByText("Type a message to chat with the AI.")).toBeInTheDocument();
+    // Should render the messages container
+    expect(screen.getByTestId("messages-container")).toBeInTheDocument();
+    
+    // Should not render empty state UI (that's now in ChatInterface)
+    expect(screen.queryByText("Start a conversation")).not.toBeInTheDocument();
+    expect(screen.queryByText("Type a message to chat with the AI.")).not.toBeInTheDocument();
+    
+    // Container should have the scrollable class
+    const messagesContainer = screen.getByTestId("messages-container");
+    expect(messagesContainer).toHaveClass("h-full", "overflow-y-auto");
   });
 
   it("renders timestamp and metadata correctly", () => {

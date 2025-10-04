@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type React from "react";
 import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon, PlayIcon, InformationCircleIcon, PhotoIcon } from "@heroicons/react/24/outline";
 import Tooltip from "../ui/Tooltip";
@@ -57,6 +57,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
   const hideCountTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const gatingRef = useRef<HTMLDivElement | null>(null);
+  const prevModelSupportsImageOutputRef = useRef<boolean>(false);
   const streamingModalRef = useRef<HTMLDivElement | null>(null);
   const searchModalRef = useRef<HTMLDivElement | null>(null);
   const reasoningModalRef = useRef<HTMLDivElement | null>(null);
@@ -188,12 +189,16 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
       : false;
   })();
 
-  const modelSupportsImageOutput = (() => {
-    if (!selectedModel) return false;
-    const info = Array.isArray(availableModels)
+  // Look up the currently selected model info (memoized to avoid unnecessary re-computations)
+  const selectedModelData = useMemo(() => {
+    if (!selectedModel) return undefined;
+    return Array.isArray(availableModels)
       ? (availableModels as ModelInfo[]).find((m) => m && typeof m === 'object' && 'id' in m && m.id === selectedModel)
       : undefined;
-    const mods = info?.output_modalities as string[] | undefined;
+  }, [selectedModel, availableModels]);
+
+  const modelSupportsImageOutput = (() => {
+    const mods = selectedModelData?.output_modalities as string[] | undefined;
     return Array.isArray(mods) ? mods.includes('image') : false;
   })();
 
@@ -364,6 +369,8 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
   // Reset toggles on model change; auto-enable image output when supported and allowed
   useEffect(() => {
     const prev = prevSelectedModelRef.current;
+    const prevSupportsImageOutput = prevModelSupportsImageOutputRef.current;
+    
     // Only reset when there was a previous selection and it actually changed
     if (prev !== null && selectedModel && selectedModel !== prev) {
       setWebSearchOn(false);
@@ -371,9 +378,19 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
       // Auto-enable Generate Image only if the newly selected model supports image output
       // and the user is Enterprise (feature-gated).
       setImageOutputOn(isEnterprise && modelSupportsImageOutput);
+      
+      // Show toast notification when switching TO an image generation model
+      if (modelSupportsImageOutput && !prevSupportsImageOutput) {
+        const modelName = getModelDisplayName(selectedModelData, selectedModel ?? undefined);
+        toast.success(`${modelName} can generate images`, {
+          id: 'image-gen-model-selected',
+        });
+      }
     }
+    
     prevSelectedModelRef.current = selectedModel || null;
-  }, [selectedModel, isEnterprise, modelSupportsImageOutput]);
+    prevModelSupportsImageOutputRef.current = modelSupportsImageOutput;
+  }, [selectedModel, isEnterprise, modelSupportsImageOutput, selectedModelData]);
 
   const handlePickFiles = () => {
     // Disabled via prop: do nothing
@@ -632,7 +649,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
             onPaste={handlePaste}
             onCompositionStart={() => (composingRef.current = true)}
             onCompositionEnd={() => (composingRef.current = false)}
-            placeholder={isBanned ? "You can't send messages while banned" : "Type your message..."}
+            placeholder={isBanned ? "You can't send messages while banned" : (modelSupportsImageOutput ? "Describe your image..." : "Type your message...")}
             disabled={disabled}
             className="w-full px-3 py-2 bg-transparent border-0 outline-none resize-none focus:ring-0 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 disabled:cursor-not-allowed"
             rows={1}

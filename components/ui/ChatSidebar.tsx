@@ -109,9 +109,10 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
     if (editTitle.trim()) {
       try {
         await updateConversationTitle(id, editTitle.trim());
+        toast.success('Conversation title updated.');
       } catch (error) {
   logger.warn('ui.sidebar.updateTitle.failed', { id, err: (error as Error)?.message });
-        // Could show a toast notification here
+        toast.error('Failed to update conversation title.');
       }
     }
     setEditingId(null);

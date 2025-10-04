@@ -18,7 +18,6 @@ import {
   CustomLink, 
   CustomPreBlock 
 } from "./markdown/MarkdownComponents";
-import PromptTabs from "./PromptTabs";
 import { fetchSignedUrl } from "../../lib/utils/signedUrlCache";
 import { sanitizeAttachmentName, fallbackImageLabel } from "../../lib/utils/sanitizeAttachmentName";
 import InlineAttachment from "./InlineAttachment";
@@ -50,7 +49,6 @@ interface MessageListProps {
   onModelClick?: (modelId: string, tab?: 'overview' | 'pricing' | 'capabilities', generationId?: string) => void;
   hoveredGenerationId?: string;
   scrollToCompletionId?: string; // Add scroll trigger prop
-  onPromptSelect?: (prompt: string) => void;
   // Streaming support
   isStreaming?: boolean;
   streamingContent?: string;
@@ -68,8 +66,7 @@ export default function MessageList({
   isLoading, 
   onModelClick, 
   hoveredGenerationId, 
-  scrollToCompletionId, 
-  onPromptSelect,
+  scrollToCompletionId,
   // Streaming props
   isStreaming = false,
   streamingContent = '',
@@ -215,21 +212,7 @@ export default function MessageList({
   className="h-full overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 scroll-smooth"
     >
       <div className="space-y-4">
-        {messages.length === 0 && !isLoading && (
-          <div className="flex flex-col items-center justify-center h-full">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-            </div>
-            <p className="text-lg mb-2">Start a conversation</p>
-            <p className="text-sm text-center max-w-md mb-6">
-              Type a message to chat with the AI.
-            </p>
-            <PromptTabs onPromptSelect={onPromptSelect || (() => {})} />
-          </div>
-        )}
-
+        {/* Empty state now handled in ChatInterface.tsx */}
         {messages.map((message) => (
           <div
             key={message.id}
