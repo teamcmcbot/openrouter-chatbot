@@ -12,6 +12,18 @@
 - Search result entries fall back to a generic globe icon instead of the brand artwork, reducing brand recognition in search listings.
 
 ## Proposed Fix
-- Generate a raster favicon (ICO or PNG) and place it in `public/favicon.ico` (and optionally supply PNG sizes).
-- Reference the raster icon in the Next.js metadata so crawlers that ignore SVG favicons can pick it up.
+- Generate a raster favicon (ICO or PNG) and place it in `public/favicon.ico`. Optionally, supply PNG sizes (16x16, 32x32, 48x48) in the `public/` directory.
+- Reference the raster icons in the Next.js metadata so crawlers that ignore SVG favicons can pick them up. For example, in `src/app/layout.tsx`:
 
+  ```ts
+  export const metadata = {
+    icons: {
+      icon: [
+        { url: '/favicon.ico', sizes: 'any', type: 'image/x-icon' },
+        { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+        { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+        { url: '/favicon-48x48.png', sizes: '48x48', type: 'image/png' }
+      ],
+      apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }]
+    }
+  };
