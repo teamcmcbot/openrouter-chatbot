@@ -48,7 +48,6 @@ export const metadata: Metadata = {
     "OpenRouter chatbot",
     "ChatGPT alternative",
     "multi-model AI chat",
-    "persistent chat history",
   ],
   alternates: {
     canonical: canonicalUrl,
