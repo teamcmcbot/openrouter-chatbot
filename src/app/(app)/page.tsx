@@ -14,7 +14,7 @@ const organizationStructuredData = {
   "@type": "Organization",
   name: brandName,
   url: canonicalUrl,
-  logo: `${siteUrl}/android-chrome-512x512.svg`,
+  logo: `${siteUrl}/web-app-manifest-512x512.png`,
   description: metaDescription,
 };
 
@@ -48,7 +48,6 @@ export const metadata: Metadata = {
     "OpenRouter chatbot",
     "ChatGPT alternative",
     "multi-model AI chat",
-    "Supabase chat history",
   ],
   alternates: {
     canonical: canonicalUrl,
@@ -61,7 +60,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: `${siteUrl}/android-chrome-512x512.svg`,
+        url: `${siteUrl}/web-app-manifest-512x512.png`,
         width: 512,
         height: 512,
         alt: "GreenBubble logo",
@@ -72,7 +71,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: metaTitle,
     description: metaDescription,
-    images: [`${siteUrl}/android-chrome-512x512.svg`],
+    images: [`${siteUrl}/web-app-manifest-512x512.png`],
   },
 };
 
