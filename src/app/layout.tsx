@@ -22,7 +22,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+const siteUrl = (`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}`).replace(/\/$/, "");
 const brandName = process.env.BRAND_NAME || "GreenBubble";
 const defaultTitle = `${brandName} | Secure OpenRouter-Powered AI Chat`;
 const defaultDescription = 
