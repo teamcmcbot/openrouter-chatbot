@@ -75,11 +75,12 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.ico', sizes: 'any' },
-      { url: '/icon1.png', sizes: '96x96', type: 'image/png' },
+      // SVG first - modern browsers prefer this (scalable, sharp at any size)
       { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon-16x16.svg', sizes: '16x16', type: 'image/svg+xml' },
-      { url: '/favicon-32x32.svg', sizes: '32x32', type: 'image/svg+xml' },
+      // PNG fallback for browsers that don't support SVG icons
+      { url: '/icon1.png', sizes: '96x96', type: 'image/png' },
+      // ICO fallback for legacy browsers
+      { url: '/favicon.ico', sizes: '32x32' },
     ],
     shortcut: "/favicon.ico",
     apple: [
