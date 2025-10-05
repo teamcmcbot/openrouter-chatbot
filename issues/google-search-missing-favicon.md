@@ -2,7 +2,7 @@
 
 ## Summary
 - The brand favicon does not appear beside search results for the site.
-- Google Search looks for a raster `/favicon.ico` (or another supported raster icon) at the site root, but the app only publishes SVG favicon variants.
+- Google Search and most crawlers require a raster favicon (ICO or PNG) and ignore SVG; ensure a 48×48+ PNG and/or `/favicon.ico` is available at the root or linked via `rel="icon"`.
 
 ## Evidence
 - `src/app/layout.tsx` registers only SVG favicon assets (`/favicon.svg`, `/favicon-16x16.svg`, `/favicon-32x32.svg`).
