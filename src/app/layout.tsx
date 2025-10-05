@@ -22,29 +22,77 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+const brandName = process.env.BRAND_NAME || "GreenBubble";
+const defaultTitle = `${brandName} | Secure OpenRouter-Powered AI Chat`;
+const defaultDescription = 
+  "Secure chat workspace powered by OpenRouter. Access multiple AI models, manage team conversations, and keep your chat history safe with Supabase.";
+
 export const metadata: Metadata = {
-  title: process.env.BRAND_NAME || "GreenBubble",
-  description:
-    "GreenBubble is a secure chat workspace powered by OpenRouter models, designed for multi-model collaboration.",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: defaultTitle,
+    template: `%s | ${brandName}`,
+  },
+  description: defaultDescription,
+  keywords: [
+    "GreenBubble",
+    "OpenRouter",
+    "AI chat",
+    "ChatGPT alternative",
+    "multi-model AI",
+    "secure chat workspace",
+    "team collaboration",
+    "persistent chat history",
+  ],
   manifest: "/manifest.json",
+  applicationName: brandName,
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: brandName,
+  },
+  openGraph: {
+    type: "website",
+    siteName: brandName,
+    title: defaultTitle,
+    description: defaultDescription,
+    url: siteUrl,
+    images: [
+      {
+        url: `${siteUrl}/web-app-manifest-512x512.png`,
+        width: 512,
+        height: 512,
+        alt: `${brandName} logo`,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: defaultTitle,
+    description: defaultDescription,
+    images: [`${siteUrl}/web-app-manifest-512x512.png`],
+  },
   icons: {
     icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon1.png', sizes: '96x96', type: 'image/png' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
       { url: '/favicon-16x16.svg', sizes: '16x16', type: 'image/svg+xml' },
       { url: '/favicon-32x32.svg', sizes: '32x32', type: 'image/svg+xml' },
     ],
-  shortcut: "/favicon.svg",
+    shortcut: "/favicon.ico",
     apple: [
-  { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
     ],
     other: [
       {
-  rel: "android-chrome-192x192",
-  url: "/android-chrome-192x192.svg",
+        rel: "android-chrome-192x192",
+        url: "/web-app-manifest-192x192.png",
       },
       {
-  rel: "android-chrome-512x512",
-  url: "/android-chrome-512x512.svg",
+        rel: "android-chrome-512x512",
+        url: "/web-app-manifest-512x512.png",
       },
     ],
   },
