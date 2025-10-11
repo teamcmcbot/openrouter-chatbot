@@ -274,11 +274,11 @@ export default function LandingPageClient() {
     <div className="h-full overflow-y-auto">
       <div className="flex flex-col items-center min-h-full">
         <section className="w-full">
-          <div className="relative isolate px-4 py-2 w-full bg-white dark:bg-transparent bg-gradient-to-b from-emerald-50/40 via-white to-white dark:from-transparent dark:via-transparent dark:to-transparent">
+          <div className="relative isolate px-4 py-2 w-full">
             <div className="max-w-7xl mx-auto">
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center">
+              <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-8 sm:gap-12 lg:gap-16 xl:gap-12 items-center">
                 {/* Left column: Text content */}
-                <div className="text-center xl:text-left">
+                <div className="text-center xl:text-left xl:px-8">
                   <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs sm:text-sm font-medium text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300">
                     <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
                     Powered by OpenRouter
@@ -337,7 +337,7 @@ export default function LandingPageClient() {
 
                 {/* Right column: Hero carousel - hidden on mobile/tablet, shows on xl devices */}
                 <div className="hidden xl:flex xl:justify-center xl:items-start">
-                  <div className="w-full max-w-sm">
+                  <div className="w-full max-w-sm max-h-[80vh]">
                     <HeroCarousel
                       images={[
                         {
@@ -346,8 +346,12 @@ export default function LandingPageClient() {
                         },
                         {
                           src: "/hero-mobile-portrait-2.png",
-                          alt: "GreenBubble desktop chat interface",
+                          alt: "GreenBubble mobile chat interface",
                         },
+                        {
+                          src: "/hero-mobile-portrait-3.png",
+                          alt: "GreenBubble mobile chat interface",
+                        }
                       ]}
                       interval={5000}
                     />
