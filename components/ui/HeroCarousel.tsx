@@ -33,7 +33,7 @@ export default function HeroCarousel({ images, interval = 4000 }: HeroCarouselPr
 
   return (
     <div
-      className="relative w-full aspect-square"
+      className="relative w-full aspect-[9/19]"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
@@ -52,8 +52,8 @@ export default function HeroCarousel({ images, interval = 4000 }: HeroCarouselPr
               fill
               className="object-contain"
               priority={index === 0}
-              quality={90}
-              sizes="(max-width: 1024px) 0px, (max-width: 1280px) 40vw, 35vw"
+              quality={95}
+              sizes="(max-width: 640px) 200px, (max-width: 768px) 320px, (max-width: 1024px) 384px, 384px"
             />
           </div>
         ))}

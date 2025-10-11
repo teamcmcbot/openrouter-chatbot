@@ -274,7 +274,7 @@ export default function LandingPageClient() {
     <div className="h-full overflow-y-auto">
       <div className="flex flex-col items-center min-h-full">
         <section className="w-full">
-          <div className="relative isolate px-4 py-12 sm:py-16 w-full bg-white dark:bg-transparent bg-gradient-to-b from-emerald-50/40 via-white to-white dark:from-transparent dark:via-transparent dark:to-transparent">
+          <div className="relative isolate px-4 py-2 w-full bg-white dark:bg-transparent bg-gradient-to-b from-emerald-50/40 via-white to-white dark:from-transparent dark:via-transparent dark:to-transparent">
             <div className="max-w-7xl mx-auto">
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center">
                 {/* Left column: Text content */}
@@ -285,9 +285,29 @@ export default function LandingPageClient() {
                   </span>
                   <h1 className="mt-3 text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-extrabold text-slate-900 dark:text-white leading-tight">
                     Multi-model AI chat
-                    <span className="text-emerald-700 dark:text-emerald-400 block">No lock-in. More choices.</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 block">No lock-in. Just more choices.</span>
                   </h1>
-                  <p className="mt-4 sm:mt-6 text-lg sm:text-xl lg:text-xl xl:text-2xl text-slate-600 dark:text-gray-300">
+
+                  {/* Mobile/Tablet carousel - visible below xl, positioned between h1 and paragraph */}
+                  <div className="xl:hidden mt-4 sm:mt-6 flex justify-center">
+                    <div className="w-full max-w-[200px] sm:max-w-xs lg:max-w-sm">
+                      <HeroCarousel
+                        images={[
+                          {
+                            src: "/hero-mobile-portrait-1.png",
+                            alt: "GreenBubble mobile chat interface",
+                          },
+                          {
+                            src: "/hero-mobile-portrait-2.png",
+                            alt: "GreenBubble desktop chat interface",
+                          },
+                        ]}
+                        interval={5000}
+                      />
+                    </div>
+                  </div>
+
+                  <p className="mt-4 sm:mt-6 xl:mt-4 xl:sm:mt-6 text-lg sm:text-xl lg:text-xl xl:text-2xl text-slate-600 dark:text-gray-300">
                     GreenBubble lets you jump between Anthropic, OpenAI, Google, Mistral, and dozens of other OpenRouter models
                     without swapping apps. Pick what works, compare outputs, and keep chatting.
                   </p>
@@ -316,16 +336,16 @@ export default function LandingPageClient() {
                 </div>
 
                 {/* Right column: Hero carousel - hidden on mobile/tablet, shows on xl devices */}
-                <div className="hidden xl:flex xl:justify-center xl:items-start xl:pt-4">
-                  <div className="w-full max-w-lg">
+                <div className="hidden xl:flex xl:justify-center xl:items-start">
+                  <div className="w-full max-w-sm">
                     <HeroCarousel
                       images={[
                         {
-                          src: "/hero-mobile.png",
+                          src: "/hero-mobile-portrait-1.png",
                           alt: "GreenBubble mobile chat interface",
                         },
                         {
-                          src: "/hero-desktop.png",
+                          src: "/hero-mobile-portrait-2.png",
                           alt: "GreenBubble desktop chat interface",
                         },
                       ]}

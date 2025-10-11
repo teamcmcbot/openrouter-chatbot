@@ -1352,7 +1352,7 @@
                     "height": 120
                   },
                   "snippet": "<span class=\"text-emerald-700 dark:text-emerald-400 block\">",
-                  "nodeLabel": "No lock-in. More choices."
+                  "nodeLabel": "No lock-in. Just more choices."
                 }
               }
             ]
@@ -4652,7 +4652,7 @@
               "height": 120
             },
             "snippet": "<span class=\"text-emerald-700 dark:text-emerald-400 block\">",
-            "nodeLabel": "No lock-in. More choices."
+            "nodeLabel": "No lock-in. Just more choices."
           }
         ]
       },
