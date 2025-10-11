@@ -271,34 +271,34 @@ export default function LandingPageClient() {
     };
 
   return (
-    <div className="h-full overflow-y-auto px-4">
+    <div className="h-full overflow-y-auto">
       <div className="flex flex-col items-center min-h-full">
-        <section className="w-full min-h-[calc(100vh-4rem)]">
-          <div className="relative isolate -mx-4 px-4 pb-8 pt-8 sm:pt-12 md:pt-16 bg-white dark:bg-transparent bg-gradient-to-b from-emerald-50/40 via-white to-white dark:from-transparent dark:via-transparent dark:to-transparent">
-            <div className="max-w-7xl mx-auto h-full">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-start min-h-[calc(100vh-8rem)]">
+        <section className="w-full">
+          <div className="relative isolate px-4 py-12 sm:py-16 w-full bg-white dark:bg-transparent bg-gradient-to-b from-emerald-50/40 via-white to-white dark:from-transparent dark:via-transparent dark:to-transparent">
+            <div className="max-w-7xl mx-auto">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center">
                 {/* Left column: Text content */}
-                <div className="text-center sm:text-left">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1 text-sm font-medium text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300">
+                <div className="text-center xl:text-left">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs sm:text-sm font-medium text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300">
                     <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
                     Powered by OpenRouter
                   </span>
-                  <h1 className="mt-4 text-4xl md:text-6xl font-extrabold text-slate-900 dark:text-white">
+                  <h1 className="mt-3 text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-extrabold text-slate-900 dark:text-white leading-tight">
                     Multi-model AI chat
                     <span className="text-emerald-700 dark:text-emerald-400 block">No lock-in. More choices.</span>
                   </h1>
-                  <p className="mt-6 text-xl md:text-2xl text-slate-600 dark:text-gray-300">
+                  <p className="mt-4 sm:mt-6 text-lg sm:text-xl lg:text-xl xl:text-2xl text-slate-600 dark:text-gray-300">
                     GreenBubble lets you jump between Anthropic, OpenAI, Google, Mistral, and dozens of other OpenRouter models
                     without swapping apps. Pick what works, compare outputs, and keep chatting.
                   </p>
-                  <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center sm:justify-start items-center">
+                  <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center xl:justify-start items-center">
                     <Link
                       href="/chat"
                       onClick={() => trackCtaClick({ page: "landing", cta_id: "start_chat", location: "hero" })}
-                      className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-white bg-emerald-700 hover:bg-emerald-600 border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200 shadow-sm hover:shadow-md"
+                      className="inline-flex items-center justify-center px-5 sm:px-6 lg:px-8 py-3 sm:py-3.5 lg:py-4 text-base sm:text-lg font-medium text-white bg-emerald-700 hover:bg-emerald-600 border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"
                     >
                       Start chatting for free
-                      <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="ml-2 w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                       </svg>
                     </Link>
@@ -308,15 +308,15 @@ export default function LandingPageClient() {
                         trackCtaClick({ page: "landing", cta_id: "learn_more", location: "hero" });
                         document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
                       }}
-                      className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-slate-700 bg-white ring-1 ring-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-700"
+                      className="inline-flex items-center justify-center px-5 sm:px-6 lg:px-8 py-3 sm:py-3.5 lg:py-4 text-base sm:text-lg font-medium text-slate-700 bg-white ring-1 ring-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-700 whitespace-nowrap"
                     >
                       See what&apos;s inside
                     </button>
                   </div>
                 </div>
 
-                {/* Right column: Hero carousel - hidden on mobile, shows on tablet+ */}
-                <div className="hidden sm:flex sm:justify-center sm:items-start sm:pt-4">
+                {/* Right column: Hero carousel - hidden on mobile/tablet, shows on xl devices */}
+                <div className="hidden xl:flex xl:justify-center xl:items-start xl:pt-4">
                   <div className="w-full max-w-lg">
                     <HeroCarousel
                       images={[
@@ -338,7 +338,7 @@ export default function LandingPageClient() {
           </div>
         </section>
 
-        <section id="features" className="mt-16 w-full">
+        <section id="features" className="mt-16 w-full px-4">
           <div className="max-w-5xl mx-auto grid md:grid-cols-3 gap-8">
             {featureHighlights.map((feature) => (
               <div
@@ -359,7 +359,7 @@ export default function LandingPageClient() {
           </div>
         </section>
 
-        <section id="pricing" className="mt-20 mb-12 w-full">
+        <section id="pricing" className="mt-20 mb-12 w-full px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4 text-center">
             Pick a plan that fits your usage
           </h2>
@@ -462,7 +462,7 @@ export default function LandingPageClient() {
           </div>
         </section>
 
-        <section className="mt-20 w-full">
+        <section className="mt-20 w-full px-4">
           <div className="max-w-6xl mx-auto rounded-2xl border border-emerald-100 bg-white p-8 shadow-sm dark:border-emerald-500/20 dark:bg-gray-800 lg:p-10">
             <h3 className="text-2xl font-semibold text-slate-900 dark:text-white">Why people choose GreenBubble</h3>
             <p className="mt-4 text-base text-slate-500 dark:text-gray-400 md:text-lg">
@@ -497,7 +497,7 @@ export default function LandingPageClient() {
           </div>
         </section>
 
-        <section id="faq" className="mt-20 w-full">
+        <section id="faq" className="mt-20 w-full px-4">
           <div className="max-w-4xl mx-auto text-center">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white">
               Frequently asked questions
@@ -523,7 +523,7 @@ export default function LandingPageClient() {
           </div>
         </section>
 
-        <section className="mt-16 mb-10 w-full">
+        <section className="mt-16 mb-10 w-full px-4">
           <div className="rounded-2xl bg-gradient-to-r from-emerald-50 via-emerald-50/70 to-teal-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-700 ring-1 ring-emerald-100 dark:ring-gray-700 shadow-sm">
             <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
               <div className="flex flex-col md:flex-row items-center md:items-center justify-between gap-6">
