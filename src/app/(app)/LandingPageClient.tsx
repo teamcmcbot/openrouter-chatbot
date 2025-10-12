@@ -11,6 +11,7 @@ import {
   TIER_PRICING_MONTHLY,
 } from "../../../lib/constants/tiers";
 import { useAuth } from "../../../stores/useAuthStore";
+import HeroCarousel from "../../../components/ui/HeroCarousel";
 
 type PlanTier = "free" | "pro" | "enterprise";
 
@@ -66,7 +67,7 @@ const plans: Plan[] = [
       },
       {
         id: "prompts",
-        content: "Custom system prompts on each chat",
+        content: "AI personality presets and custom system prompts",
       },
     ],
     limits: {
@@ -100,10 +101,6 @@ const plans: Plan[] = [
           </>
         ),
       },
-      {
-        id: "history",
-        content: "Unlimited saved chats with quick export",
-      },
       ...(TIER_FEATURES.pro.webSearch
         ? [
             {
@@ -136,7 +133,7 @@ const plans: Plan[] = [
     tier: "enterprise",
     title: TIER_LABELS.enterprise,
     price: TIER_PRICING_MONTHLY.enterprise,
-    description: "Reasoning, image generation, and dedicated support for heavy usage.",
+    description: "Reasoning, image generation, and dedicated support for heavy usage with near unlimited limits.",
     features: [
       {
         id: "catalog",
@@ -153,10 +150,7 @@ const plans: Plan[] = [
           </>
         ),
       },
-      {
-        id: "support",
-        content: "Priority support with a dedicated contact",
-      },
+      
       ...(TIER_FEATURES.enterprise.reasoning
         ? [
             {
@@ -169,10 +163,14 @@ const plans: Plan[] = [
         ? [
             {
               id: "image-generation",
-              content: "Image generation on selected models",
+              content: "Access to image generation models",
             } satisfies PlanFeature,
           ]
         : []),
+        {
+        id: "support",
+        content: "Priority support with a dedicated contact",
+      },
     ],
     limits: {
       requestsPerHour: TIER_LIMITS.enterprise.maxRequestsPerHour,
@@ -191,7 +189,7 @@ const faqItems = [
     id: "no-coding",
     question: "Do I need to code to use GreenBubble?",
     answer:
-      "Nope. Just sign in, pick a model, and start chatting. You can still bring your own prompts if you want more control.",
+      "Not at all. Just sign in, choose a model, and start chatting like you would with any messaging app. You can customize the AI's personality in settings if you want, but there's zero coding required.",
   },
   {
     id: "switching",
@@ -203,7 +201,7 @@ const faqItems = [
     id: "history",
     question: "What happens to my chat history?",
     answer:
-      "Your conversations stay available inside GreenBubble so you can pick up where you left off, bookmark answers, or export what matters.",
+      "Your conversations are saved automatically and stay available in GreenBubble. You can return to any chat anytime to continue the conversation or review past responses.",
   },
   {
     id: "billing",
@@ -217,8 +215,18 @@ const featureHighlights = [
   {
     id: "models",
     title: "Choose your model",
-    description:
-      "Decide which AI (or personality) you want for each chat with just a couple of clicks.",
+    description: (
+      <>
+        No need to download separate apps for ChatGPT, Claude, or Gemini. Access{" "}
+        <Link
+          href="/models"
+          className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium"
+        >
+          100+ models
+        </Link>{" "}
+        from different providers right here.
+      </>
+    ),
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -244,7 +252,7 @@ const featureHighlights = [
     id: "tone",
     title: "Set the vibe",
     description:
-      "Tell GreenBubble how to respond—formal, playful, or expert—and it keeps that tone for the session.",
+      "Want formal responses? Playful banter? Choose from 8 personalities or craft your own instructions.",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
@@ -255,7 +263,7 @@ const featureHighlights = [
   },
 ];
 
-const formatPrice = (value: number) => (value === 0 ? "Free" : `$${value.toLocaleString()}`);
+const formatPrice = (value: number) => `$${value.toLocaleString()}`;
 
 export default function LandingPageClient() {
   const router = useRouter();
@@ -270,50 +278,102 @@ export default function LandingPageClient() {
     };
 
   return (
-    <div className="h-full overflow-y-auto px-4">
+    <div className="h-full overflow-y-auto">
       <div className="flex flex-col items-center min-h-full">
         <section className="w-full">
-          <div className="relative isolate -mx-4 px-4 pb-2 pt-4 sm:pt-6 md:pt-8 bg-white dark:bg-transparent bg-gradient-to-b from-emerald-50/40 via-white to-white dark:from-transparent dark:via-transparent dark:to-transparent">
-            <div className="max-w-4xl mx-auto text-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1 text-sm font-medium text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
-                Powered by OpenRouter
-              </span>
-              <h1 className="mt-4 text-4xl md:text-6xl font-extrabold text-slate-900 dark:text-white">
-                Multi-model AI chat
-                <span className="text-emerald-700 dark:text-emerald-400 block">No lock-in. Just better answers.</span>
-              </h1>
-              <p className="mt-6 text-xl md:text-2xl text-slate-600 dark:text-gray-300 max-w-2xl mx-auto">
-                GreenBubble lets you jump between Anthropic, OpenAI, Google, Mistral, and dozens of other OpenRouter models
-                without swapping apps. Pick what works, compare outputs, and keep chatting.
-              </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <Link
-                  href="/chat"
-                  onClick={() => trackCtaClick({ page: "landing", cta_id: "start_chat", location: "hero" })}
-                  className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-white bg-emerald-700 hover:bg-emerald-600 border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200 shadow-sm hover:shadow-md"
-                >
-                  Start chatting for free
-                  <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => {
-                    trackCtaClick({ page: "landing", cta_id: "learn_more", location: "hero" });
-                    document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                  className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-slate-700 bg-white ring-1 ring-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-700"
-                >
-                  See what&apos;s inside
-                </button>
+          <div className="relative isolate px-4 py-2 w-full">
+            <div className="max-w-7xl mx-auto">
+              <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-8 sm:gap-12 lg:gap-16 xl:gap-12 items-center">
+                {/* Left column: Text content */}
+                <div className="text-center xl:text-left xl:px-8">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs sm:text-sm font-medium text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+                    Powered by OpenRouter
+                  </span>
+                  <h1 className="mt-3 text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-extrabold text-slate-900 dark:text-white leading-tight">
+                    Multi-model AI chat
+                    <span className="text-emerald-700 dark:text-emerald-400 block">No lock-in. Just more choices.</span>
+                  </h1>
+
+                  {/* Mobile/Tablet carousel - visible below xl, positioned between h1 and paragraph */}
+                  <div className="xl:hidden mt-4 sm:mt-6 flex justify-center">
+                    <div className="w-full max-w-[200px] sm:max-w-xs lg:max-w-sm">
+                      <HeroCarousel
+                        images={[
+                          {
+                            src: "/hero-mobile-portrait-1.png",
+                            alt: "GreenBubble mobile chat, Gemini 2.5 Pro model",
+                          },
+                          {
+                            src: "/hero-mobile-portrait-2.png",
+                            alt: "GreenBubble mobile chat, Claude Sonnet 4.5 model",
+                          },
+                          {
+                            src: "/hero-mobile-portrait-3.png",
+                            alt: "GreenBubble mobile chat, GLM 4.5 Air model",
+                          },
+                        ]}
+                        interval={7000}
+                      />
+                    </div>
+                  </div>
+
+                  <p className="mt-4 sm:mt-6 xl:mt-4 xl:sm:mt-6 text-lg sm:text-xl lg:text-xl xl:text-2xl text-slate-600 dark:text-gray-300">
+                    GreenBubble lets you jump between Anthropic, OpenAI, Google, Mistral, and dozens of other OpenRouter models
+                    without swapping apps. Pick what works, compare outputs, and keep chatting.
+                  </p>
+                  <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center xl:justify-start items-center">
+                    <Link
+                      href="/chat"
+                      onClick={() => trackCtaClick({ page: "landing", cta_id: "start_chat", location: "hero" })}
+                      className="inline-flex items-center justify-center px-5 sm:px-6 lg:px-8 py-3 sm:py-3.5 lg:py-4 text-base sm:text-lg font-medium text-white bg-emerald-700 hover:bg-emerald-600 border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"
+                    >
+                      Start chatting for free
+                      <svg className="ml-2 w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        trackCtaClick({ page: "landing", cta_id: "learn_more", location: "hero" });
+                        document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="inline-flex items-center justify-center px-5 sm:px-6 lg:px-8 py-3 sm:py-3.5 lg:py-4 text-base sm:text-lg font-medium text-slate-700 bg-white ring-1 ring-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-700 whitespace-nowrap"
+                    >
+                      See what&apos;s inside
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right column: Hero carousel - hidden on mobile/tablet, shows on xl devices */}
+                <div className="hidden xl:flex xl:justify-center xl:items-start">
+                  <div className="w-full max-w-sm max-h-[80vh]">
+                    <HeroCarousel
+                      images={[
+                        {
+                          src: "/hero-mobile-portrait-1.png",
+                          alt: "GreenBubble mobile chat, Gemini 2.5 Pro model",
+                        },
+                        {
+                          src: "/hero-mobile-portrait-2.png",
+                          alt: "GreenBubble mobile chat, Claude Sonnet 4.5 model",
+                        },
+                        {
+                          src: "/hero-mobile-portrait-3.png",
+                          alt: "GreenBubble mobile chat, GLM 4.5 Air model",
+                        }
+                      ]}
+                      interval={7000}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        <section id="features" className="mt-16 w-full">
+        <section id="features" className="mt-16 w-full px-4">
           <div className="max-w-5xl mx-auto grid md:grid-cols-3 gap-8">
             {featureHighlights.map((feature) => (
               <div
@@ -334,7 +394,7 @@ export default function LandingPageClient() {
           </div>
         </section>
 
-        <section id="pricing" className="mt-20 mb-12 w-full">
+        <section id="pricing" className="mt-20 mb-12 w-full px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4 text-center">
             Pick a plan that fits your usage
           </h2>
@@ -343,7 +403,7 @@ export default function LandingPageClient() {
             when you need more requests or premium providers.
           </p>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto md:auto-rows-fr">
             {plans.map((plan) => {
               const { requestsPerHour, tokensPerRequest } = plan.limits;
               const priceLabel = formatPrice(plan.price);
@@ -351,7 +411,7 @@ export default function LandingPageClient() {
               return (
                 <div
                   key={plan.tier}
-                  className={`relative bg-white dark:bg-gray-800 p-6 rounded-xl border shadow-sm transition-shadow hover:shadow-md ${
+                  className={`relative bg-white dark:bg-gray-800 p-6 rounded-xl border shadow-sm transition-shadow hover:shadow-md flex flex-col ${
                     plan.recommended
                       ? "border-emerald-300 dark:border-emerald-500 ring-1 ring-emerald-200/70"
                       : "border-slate-200 dark:border-gray-700"
@@ -362,22 +422,25 @@ export default function LandingPageClient() {
                       Most popular
                     </span>
                   ) : null}
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div>
-                      <h3 className="text-2xl font-semibold text-slate-900 dark:text-white">{plan.title}</h3>
-                      <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">{plan.description}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-bold text-slate-900 dark:text-white">
-                        {priceLabel}
-                        {plan.price > 0 ? (
+                  
+                  {/* Section 1: Plan header */}
+                  <div className="flex-shrink-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-2xl font-semibold text-slate-900 dark:text-white">{plan.title}</h3>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">{plan.description}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <div className="text-3xl font-bold text-slate-900 dark:text-white">
+                          {priceLabel}
                           <span className="text-sm font-medium text-slate-500 dark:text-gray-400">/mo</span>
-                        ) : null}
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-6 border-t border-slate-200 dark:border-gray-700 pt-5">
+                  {/* Section 2: Features - grows to fill available space */}
+                  <div className="mt-6 border-t border-slate-200 dark:border-gray-700 pt-5 flex-grow flex-shrink-0">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400 mb-3">
                       What&apos;s included
                     </p>
@@ -394,7 +457,8 @@ export default function LandingPageClient() {
                     </ul>
                   </div>
 
-                  <div className="mt-6 border-t border-slate-200 dark:border-gray-700 pt-5">
+                  {/* Section 3: Usage limits */}
+                  <div className="mt-6 border-t border-slate-200 dark:border-gray-700 pt-5 flex-shrink-0">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400 mb-3">
                       Usage limits
                     </p>
@@ -410,7 +474,8 @@ export default function LandingPageClient() {
                     </div>
                   </div>
 
-                  <div className="mt-6">
+                  {/* Section 4: CTA button */}
+                  <div className="mt-6 flex-shrink-0">
                     <Link
                       href={plan.cta.href}
                       onClick={(event) => {
@@ -420,7 +485,7 @@ export default function LandingPageClient() {
                         }
                       }}
                       className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                        plan.recommended
+                        plan.tier === "pro" || plan.tier === "enterprise"
                           ? "bg-emerald-600 text-white hover:bg-emerald-500 focus:ring-emerald-400"
                           : "bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-400 dark:bg-gray-700 dark:hover:bg-gray-600"
                       } focus:outline-none focus:ring-2 focus:ring-offset-2`}
@@ -437,7 +502,7 @@ export default function LandingPageClient() {
           </div>
         </section>
 
-        <section className="mt-20 w-full">
+        <section className="mt-20 w-full px-4">
           <div className="max-w-6xl mx-auto rounded-2xl border border-emerald-100 bg-white p-8 shadow-sm dark:border-emerald-500/20 dark:bg-gray-800 lg:p-10">
             <h3 className="text-2xl font-semibold text-slate-900 dark:text-white">Why people choose GreenBubble</h3>
             <p className="mt-4 text-base text-slate-500 dark:text-gray-400 md:text-lg">
@@ -465,14 +530,14 @@ export default function LandingPageClient() {
                 <p className="mt-2 leading-relaxed">Jump between Anthropic, OpenAI, Google, and more in the same conversation without losing context.</p>
               </div>
               <div className="text-sm text-slate-600 dark:text-gray-300">
-                <p className="text-lg font-semibold text-slate-900 dark:text-white">Set the vibe</p>
-                <p className="mt-2 leading-relaxed">Tell GreenBubble how to respond—formal, playful, or expert—and it keeps that tone for the session.</p>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">Preset personalities for every need</p>
+                <p className="mt-2 leading-relaxed">From Technical Expert to Creative Collaborator, Empathetic Listener to Concise Advisor. Pick from 8 styles or create your own.</p>
               </div>
             </div>
           </div>
         </section>
 
-        <section id="faq" className="mt-20 w-full">
+        <section id="faq" className="mt-20 w-full px-4">
           <div className="max-w-4xl mx-auto text-center">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white">
               Frequently asked questions
@@ -498,7 +563,7 @@ export default function LandingPageClient() {
           </div>
         </section>
 
-        <section className="mt-16 mb-10 w-full">
+        <section className="mt-16 mb-4 w-full px-4">
           <div className="rounded-2xl bg-gradient-to-r from-emerald-50 via-emerald-50/70 to-teal-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-700 ring-1 ring-emerald-100 dark:ring-gray-700 shadow-sm">
             <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
               <div className="flex flex-col md:flex-row items-center md:items-center justify-between gap-6">
@@ -507,7 +572,7 @@ export default function LandingPageClient() {
                     Ready to get started?
                   </h2>
                   <p className="mt-2 text-slate-600 dark:text-gray-300">
-                    Join teams who are already shipping faster with a secure, OpenRouter-powered chat workspace.
+                    Start chatting with multiple AI models in one place. No subscriptions, no app switching.
                   </p>
                 </div>
                 <Link
