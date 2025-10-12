@@ -67,7 +67,7 @@ const plans: Plan[] = [
       },
       {
         id: "prompts",
-        content: "Custom system prompts on each chat",
+        content: "AI personality presets and custom system prompts",
       },
     ],
     limits: {
@@ -101,10 +101,6 @@ const plans: Plan[] = [
           </>
         ),
       },
-      {
-        id: "history",
-        content: "Unlimited saved chats with quick export",
-      },
       ...(TIER_FEATURES.pro.webSearch
         ? [
             {
@@ -137,7 +133,7 @@ const plans: Plan[] = [
     tier: "enterprise",
     title: TIER_LABELS.enterprise,
     price: TIER_PRICING_MONTHLY.enterprise,
-    description: "Reasoning, image generation, and dedicated support for heavy usage.",
+    description: "Reasoning, image generation, and dedicated support for heavy usage with near unlimited limits.",
     features: [
       {
         id: "catalog",
@@ -154,10 +150,7 @@ const plans: Plan[] = [
           </>
         ),
       },
-      {
-        id: "support",
-        content: "Priority support with a dedicated contact",
-      },
+      
       ...(TIER_FEATURES.enterprise.reasoning
         ? [
             {
@@ -170,10 +163,14 @@ const plans: Plan[] = [
         ? [
             {
               id: "image-generation",
-              content: "Image generation on selected models",
+              content: "Access to image generation models",
             } satisfies PlanFeature,
           ]
         : []),
+        {
+        id: "support",
+        content: "Priority support with a dedicated contact",
+      },
     ],
     limits: {
       requestsPerHour: TIER_LIMITS.enterprise.maxRequestsPerHour,
@@ -402,7 +399,7 @@ export default function LandingPageClient() {
             when you need more requests or premium providers.
           </p>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto md:auto-rows-fr">
             {plans.map((plan) => {
               const { requestsPerHour, tokensPerRequest } = plan.limits;
               const priceLabel = formatPrice(plan.price);
@@ -410,7 +407,7 @@ export default function LandingPageClient() {
               return (
                 <div
                   key={plan.tier}
-                  className={`relative bg-white dark:bg-gray-800 p-6 rounded-xl border shadow-sm transition-shadow hover:shadow-md ${
+                  className={`relative bg-white dark:bg-gray-800 p-6 rounded-xl border shadow-sm transition-shadow hover:shadow-md flex flex-col ${
                     plan.recommended
                       ? "border-emerald-300 dark:border-emerald-500 ring-1 ring-emerald-200/70"
                       : "border-slate-200 dark:border-gray-700"
@@ -421,20 +418,25 @@ export default function LandingPageClient() {
                       Most popular
                     </span>
                   ) : null}
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div>
-                      <h3 className="text-2xl font-semibold text-slate-900 dark:text-white">{plan.title}</h3>
-                      <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">{plan.description}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-bold text-slate-900 dark:text-white">
-                        {priceLabel}
-                        <span className="text-sm font-medium text-slate-500 dark:text-gray-400">/mo</span>
+                  
+                  {/* Section 1: Plan header */}
+                  <div className="flex-shrink-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-2xl font-semibold text-slate-900 dark:text-white">{plan.title}</h3>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">{plan.description}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <div className="text-3xl font-bold text-slate-900 dark:text-white">
+                          {priceLabel}
+                          <span className="text-sm font-medium text-slate-500 dark:text-gray-400">/mo</span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-6 border-t border-slate-200 dark:border-gray-700 pt-5">
+                  {/* Section 2: Features - grows to fill available space */}
+                  <div className="mt-6 border-t border-slate-200 dark:border-gray-700 pt-5 flex-grow flex-shrink-0">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400 mb-3">
                       What&apos;s included
                     </p>
@@ -451,7 +453,8 @@ export default function LandingPageClient() {
                     </ul>
                   </div>
 
-                  <div className="mt-6 border-t border-slate-200 dark:border-gray-700 pt-5">
+                  {/* Section 3: Usage limits */}
+                  <div className="mt-6 border-t border-slate-200 dark:border-gray-700 pt-5 flex-shrink-0">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400 mb-3">
                       Usage limits
                     </p>
@@ -467,7 +470,8 @@ export default function LandingPageClient() {
                     </div>
                   </div>
 
-                  <div className="mt-6">
+                  {/* Section 4: CTA button */}
+                  <div className="mt-6 flex-shrink-0">
                     <Link
                       href={plan.cta.href}
                       onClick={(event) => {
@@ -523,7 +527,7 @@ export default function LandingPageClient() {
               </div>
               <div className="text-sm text-slate-600 dark:text-gray-300">
                 <p className="text-lg font-semibold text-slate-900 dark:text-white">Preset personalities for every need</p>
-                <p className="mt-2 leading-relaxed">From Technical Expert to Creative Collaborator, Empathetic Listener to Concise Advisor—pick from 8 styles or create your own.</p>
+                <p className="mt-2 leading-relaxed">From Technical Expert to Creative Collaborator, Empathetic Listener to Concise Advisor. Pick from 8 styles or create your own.</p>
               </div>
             </div>
           </div>
@@ -555,7 +559,7 @@ export default function LandingPageClient() {
           </div>
         </section>
 
-        <section className="mt-16 mb-10 w-full px-4">
+        <section className="mt-16 mb-4 w-full px-4">
           <div className="rounded-2xl bg-gradient-to-r from-emerald-50 via-emerald-50/70 to-teal-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-700 ring-1 ring-emerald-100 dark:ring-gray-700 shadow-sm">
             <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
               <div className="flex flex-col md:flex-row items-center md:items-center justify-between gap-6">
