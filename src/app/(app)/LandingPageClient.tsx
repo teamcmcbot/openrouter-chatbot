@@ -192,7 +192,7 @@ const faqItems = [
     id: "no-coding",
     question: "Do I need to code to use GreenBubble?",
     answer:
-      "Nope. Just sign in, pick a model, and start chatting. You can still bring your own prompts if you want more control.",
+      "Not at all. Just sign in, choose a model, and start chatting like you would with any messaging app. You can customize the AI's personality in settings if you want, but there's zero coding required.",
   },
   {
     id: "switching",
@@ -204,7 +204,7 @@ const faqItems = [
     id: "history",
     question: "What happens to my chat history?",
     answer:
-      "Your conversations stay available inside GreenBubble so you can pick up where you left off, bookmark answers, or export what matters.",
+      "Your conversations are saved automatically and stay available in GreenBubble. You can return to any chat anytime to continue the conversation or review past responses.",
   },
   {
     id: "billing",
@@ -218,8 +218,18 @@ const featureHighlights = [
   {
     id: "models",
     title: "Choose your model",
-    description:
-      "Decide which AI (or personality) you want for each chat with just a couple of clicks.",
+    description: (
+      <>
+        No need to download separate apps for ChatGPT, Claude, or Gemini. Access{" "}
+        <Link
+          href="/models"
+          className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium"
+        >
+          100+ models
+        </Link>{" "}
+        from different providers right here.
+      </>
+    ),
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -245,7 +255,7 @@ const featureHighlights = [
     id: "tone",
     title: "Set the vibe",
     description:
-      "Tell GreenBubble how to respond—formal, playful, or expert—and it keeps that tone for the session.",
+      "Want formal responses? Playful banter? Choose from 8 personalities or craft your own instructions.",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
@@ -256,7 +266,7 @@ const featureHighlights = [
   },
 ];
 
-const formatPrice = (value: number) => (value === 0 ? "Free" : `$${value.toLocaleString()}`);
+const formatPrice = (value: number) => `$${value.toLocaleString()}`;
 
 export default function LandingPageClient() {
   const router = useRouter();
@@ -419,9 +429,7 @@ export default function LandingPageClient() {
                     <div className="text-right">
                       <div className="text-3xl font-bold text-slate-900 dark:text-white">
                         {priceLabel}
-                        {plan.price > 0 ? (
-                          <span className="text-sm font-medium text-slate-500 dark:text-gray-400">/mo</span>
-                        ) : null}
+                        <span className="text-sm font-medium text-slate-500 dark:text-gray-400">/mo</span>
                       </div>
                     </div>
                   </div>
@@ -469,7 +477,7 @@ export default function LandingPageClient() {
                         }
                       }}
                       className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                        plan.recommended
+                        plan.tier === "pro" || plan.tier === "enterprise"
                           ? "bg-emerald-600 text-white hover:bg-emerald-500 focus:ring-emerald-400"
                           : "bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-400 dark:bg-gray-700 dark:hover:bg-gray-600"
                       } focus:outline-none focus:ring-2 focus:ring-offset-2`}
@@ -514,8 +522,8 @@ export default function LandingPageClient() {
                 <p className="mt-2 leading-relaxed">Jump between Anthropic, OpenAI, Google, and more in the same conversation without losing context.</p>
               </div>
               <div className="text-sm text-slate-600 dark:text-gray-300">
-                <p className="text-lg font-semibold text-slate-900 dark:text-white">Set the vibe</p>
-                <p className="mt-2 leading-relaxed">Tell GreenBubble how to respond—formal, playful, or expert—and it keeps that tone for the session.</p>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">Preset personalities for every need</p>
+                <p className="mt-2 leading-relaxed">From Technical Expert to Creative Collaborator, Empathetic Listener to Concise Advisor—pick from 8 styles or create your own.</p>
               </div>
             </div>
           </div>
