@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
 
 const siteUrl = (`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}`).replace(/\/$/, "");
 const brandName = process.env.BRAND_NAME || "GreenBubble";
-const defaultTitle = `${brandName} | Secure OpenRouter-Powered AI Chat`;
+const defaultTitle = `${brandName} | OpenRouter-Powered ChatGPT Alternative`;
 const defaultDescription = `Secure chat workspace powered by OpenRouter. Access multiple AI models, manage team conversations, and keep your chat history safe with Supabase.`;
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

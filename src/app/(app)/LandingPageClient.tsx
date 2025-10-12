@@ -302,14 +302,18 @@ export default function LandingPageClient() {
                         images={[
                           {
                             src: "/hero-mobile-portrait-1.png",
-                            alt: "GreenBubble mobile chat interface",
+                            alt: "GreenBubble mobile chat, Gemini 2.5 Pro model",
                           },
                           {
                             src: "/hero-mobile-portrait-2.png",
-                            alt: "GreenBubble desktop chat interface",
+                            alt: "GreenBubble mobile chat, Claude Sonnet 4.5 model",
+                          },
+                          {
+                            src: "/hero-mobile-portrait-3.png",
+                            alt: "GreenBubble mobile chat, GLM 4.5 Air model",
                           },
                         ]}
-                        interval={5000}
+                        interval={7000}
                       />
                     </div>
                   </div>
@@ -349,18 +353,18 @@ export default function LandingPageClient() {
                       images={[
                         {
                           src: "/hero-mobile-portrait-1.png",
-                          alt: "GreenBubble mobile chat interface",
+                          alt: "GreenBubble mobile chat, Gemini 2.5 Pro model",
                         },
                         {
                           src: "/hero-mobile-portrait-2.png",
-                          alt: "GreenBubble mobile chat interface",
+                          alt: "GreenBubble mobile chat, Claude Sonnet 4.5 model",
                         },
                         {
                           src: "/hero-mobile-portrait-3.png",
-                          alt: "GreenBubble mobile chat interface",
+                          alt: "GreenBubble mobile chat, GLM 4.5 Air model",
                         }
                       ]}
-                      interval={5000}
+                      interval={7000}
                     />
                   </div>
                 </div>
@@ -568,7 +572,7 @@ export default function LandingPageClient() {
                     Ready to get started?
                   </h2>
                   <p className="mt-2 text-slate-600 dark:text-gray-300">
-                    Join teams who are already shipping faster with a secure, OpenRouter-powered chat workspace.
+                    Start chatting with multiple AI models in one place. No subscriptions, no app switching.
                   </p>
                 </div>
                 <Link
