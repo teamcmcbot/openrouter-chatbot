@@ -5,7 +5,7 @@ const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").rep
 const canonicalUrl = siteUrl;
 const brandName = process.env.BRAND_NAME || "GreenBubble";
 
-const metaTitle = "GreenBubble Chat | Secure OpenRouter-Powered ChatGPT Alternative";
+const metaTitle = "GreenBubble Chat | OpenRouter-Powered ChatGPT Alternative";
 const metaDescription =
   "GreenBubble is your secure chat workspace powered by OpenRouter. Swap between ChatGPT alternatives, invite your team, and keep conversations logged in Supabase.";
 
@@ -60,10 +60,10 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: `${siteUrl}/web-app-manifest-512x512.png`,
-        width: 512,
-        height: 512,
-        alt: "GreenBubble logo",
+        url: `${siteUrl}/og-image.png`,
+        width: 1536,
+        height: 804,
+        alt: "GreenBubble - Multi-model AI chat with no lock-in. ChatGPT alternative powered by OpenRouter.",
       },
     ],
   },
@@ -71,7 +71,12 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: metaTitle,
     description: metaDescription,
-    images: [`${siteUrl}/web-app-manifest-512x512.png`],
+    images: [
+      {
+        url: `${siteUrl}/twitter-card.png`,
+        alt: "GreenBubble - Multi-model AI chat with no lock-in. ChatGPT alternative powered by OpenRouter.",
+      },
+    ],
   },
 };
 
