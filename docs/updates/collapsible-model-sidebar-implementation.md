@@ -55,7 +55,7 @@ Successfully implemented a collapsible ModelDetailsSidebar feature for the deskt
 - **File:** `/components/chat/ChatInterface.tsx`
 - **Changes:**
   - Desktop sidebar container uses dynamic width:
-    - OPEN: `w-[15%] min-w-[240px]`
+    - OPEN: `w-[17.5%] min-w-[240px]`
     - COLLAPSED: `w-10`
   - Fast 200ms transition: `duration-200 ease-in-out`
   - Conditional rendering:
@@ -95,7 +95,7 @@ When OPEN:
 ┌─────────┬──────────────────────┬─────────┐
 │ Chat    │  Main Chat Area      │ Model   │
 │ Sidebar │  (flex-1)            │ Details │
-│ 15%     │  ~70%                │ 15%     │
+│ 15%     │  ~67.5%              │ 17.5%   │
 └─────────┴──────────────────────┴─────────┘
 
 When COLLAPSED:

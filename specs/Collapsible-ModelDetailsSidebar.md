@@ -47,7 +47,7 @@
 
 ## Overview
 
-This specification outlines the implementation of a collapsible ModelDetailsSidebar feature for the desktop chat interface. Currently, the ModelDetailsSidebar occupies 15% of the screen width on desktop and cannot be dismissed, even when empty or when the user doesn't need model information. This feature will give users control over their layout, allowing them to collapse the sidebar to gain more screen space for the chat interface.
+This specification outlines the implementation of a collapsible ModelDetailsSidebar feature for the desktop chat interface. Currently, the ModelDetailsSidebar occupies 17.5% of the screen width on desktop and cannot be dismissed, even when empty or when the user doesn't need model information. This feature will give users control over their layout, allowing them to collapse the sidebar to gain more screen space for the chat interface.
 
 ---
 
@@ -59,10 +59,10 @@ On desktop (≥1024px viewport):
 
 - The chat interface uses a fixed 3-column layout:
   - **Left:** ChatSidebar (15%, min-width: 200px)
-  - **Middle:** ChatInterface (flex-1, ~70%)
-  - **Right:** ModelDetailsSidebar (15%, min-width: 240px)
+  - **Middle:** ChatInterface (flex-1, ~67.5%)
+  - **Right:** ModelDetailsSidebar (17.5%, min-width: 240px)
 - The ModelDetailsSidebar is **always visible** (`isOpen={true}` hardcoded)
-- When empty, it shows a placeholder message but still occupies 15% of screen width
+- When empty, it shows a placeholder message but still occupies 17.5% of screen width
 - Users cannot dismiss or hide the sidebar, even for extended chat sessions where model details aren't needed
 
 ### User Pain Points
@@ -222,13 +222,13 @@ useEffect(() => {
     <ChatSidebar isOpen={true} onClose={() => {}} onNewChat={handleNewChat} />
   </div>
 
-  {/* Main Chat Area (70%) */}
-  <div className="flex flex-col flex-1 lg:w-[70%] min-w-0 bg-slate-50 dark:bg-gray-800">
+  {/* Main Chat Area (67.5%) */}
+  <div className="flex flex-col flex-1 lg:w-[67.5%] min-w-0 bg-slate-50 dark:bg-gray-800">
     {/* Chat interface content */}
   </div>
 
-  {/* Right Sidebar - Model Details (15%) */}
-  <div className="hidden lg:block w-[15%] min-w-[240px]">
+  {/* Right Sidebar - Model Details (17.5%) */}
+  <div className="hidden lg:block w-[17.5%] min-w-[240px]">
     <ModelDetailsSidebar
       model={selectedDetailModel}
       isOpen={true} // ⚠️ HARDCODED - Always visible on desktop
@@ -395,13 +395,13 @@ const handleModelClickFromMessage = (
 ### Flow 4: User Collapses Sidebar (Manual Dismiss) 🆕 NEW
 
 ```
-User clicks [X] close button in ModelDetailsSidebar header
+User clicks [→] close button in ModelDetailsSidebar header
 ├─ onClick handler calls toggleDetailsSidebar() or closeDetailsSidebar()
-├─ Sidebar smoothly collapses (300ms transition)
-│   ├─ Width animates: w-[15%] (min-w-[240px]) → w-10 or w-0
+├─ Sidebar smoothly collapses (200ms transition)
+│   ├─ Width animates: w-[17.5%] (min-w-[240px]) → w-10
 │   └─ Content fades out during transition
 ├─ Main chat area expands to fill space (flex-1 handles this automatically)
-├─ Collapsed state shows thin vertical bar OR floating button
+├─ Collapsed state shows thin vertical bar (CollapsedSidebarTrigger)
 └─ Preference saved to localStorage: 'detailsSidebar.collapsed' = true
 ```
 
@@ -413,8 +413,8 @@ User clicks [X] close button in ModelDetailsSidebar header
 ┌────────────────────────────────────────────────────┐
 │  Chat    │      Main Chat          │   Model       │
 │  List    │      Interface          │   Details     │
-│  15%     │      flex-1             │   15%         │
-│          │                         │   [X] Close   │
+│  15%     │      flex-1             │   17.5%       │
+│          │                         │   [→] Close   │
 │          │                         │   ┌─────────┐ │
 │          │                         │   │ Info    │ │
 └────────────────────────────────────────────────────┘
@@ -441,8 +441,8 @@ User clicks [X] close button in ModelDetailsSidebar header
 ```
 User clicks re-open trigger (vertical bar or floating button)
 ├─ onClick handler calls openDetailsSidebar() or toggleDetailsSidebar()
-├─ Sidebar smoothly expands (300ms transition)
-│   ├─ Width animates: w-10 or w-0 → w-[15%] (min-w-[240px])
+├─ Sidebar smoothly expands (200ms transition)
+│   ├─ Width animates: w-10 → w-[17.5%] (min-w-[240px])
 │   └─ Content fades in during transition
 ├─ Shows last viewed model details (state preserved in store)
 ├─ If generationId was set, generation data restored from cache (instant)
@@ -713,9 +713,9 @@ const {
 
 ```typescript
 {
-  /* Right Sidebar - Model Details (15%) */
+  /* Right Sidebar - Model Details (17.5%) */
 }
-<div className="hidden lg:block w-[15%] min-w-[240px]">
+<div className="hidden lg:block w-[17.5%] min-w-[240px]">
   <ModelDetailsSidebar
     model={selectedDetailModel}
     isOpen={true} // ⚠️ HARDCODED - Always visible on desktop
@@ -737,7 +737,7 @@ const {
 }
 <div
   className={`hidden lg:block transition-all duration-200 ease-in-out ${
-    isDetailsSidebarOpenDesktop ? "w-[15%] min-w-[240px]" : "w-10"
+    isDetailsSidebarOpenDesktop ? "w-[17.5%] min-w-[240px]" : "w-10"
   }`}
 >
   {isDetailsSidebarOpenDesktop ? (
@@ -762,7 +762,7 @@ const {
 1. **Fast Animation**: `duration-200` (200ms) instead of 300ms for imperceptible text reflow
 2. **Smooth Easing**: `ease-in-out` provides natural acceleration/deceleration
 3. **Layout Resize**: ChatInterface (flex-1) automatically expands when sidebar collapses
-4. **Parent Control**: Container width transitions between `w-[15%]` (open) and `w-10` (collapsed)
+4. **Parent Control**: Container width transitions between `w-[17.5%]` (open) and `w-10` (collapsed)
 5. **`isOpen` Unchanged**: Always `true` when desktop sidebar is visible - preserves mobile logic
 
 **Why This Approach:**
@@ -1258,7 +1258,7 @@ className = "transition-all duration-300 ease-in-out";
 
 ```typescript
 // Expanded
-className = "w-[15%] min-w-[240px]";
+className = "w-[17.5%] min-w-[240px]";
 
 // Collapsed
 className = "w-10";
@@ -1891,7 +1891,7 @@ describe("ChatInterface - Core ModelDetailsSidebar Functionality", () => {
 │  ─────────────────              │  ───────────────────         │
 │                                 │                               │
 │  <div className="lg:hidden">   │  <div className="hidden      │
-│    <ModelDetailsSidebar        │        lg:block w-[15%]">    │
+│    <ModelDetailsSidebar        │        lg:block w-[17.5%]">  │
 │      isOpen={                  │    {isDetailsSidebar         │
 │        isDetailsSidebar        │      OpenDesktop ? (         │
 │        OpenMobile              │      <ModelDetailsSidebar    │
