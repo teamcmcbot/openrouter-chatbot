@@ -1,28 +1,47 @@
 # Collapsible ModelDetailsSidebar Implementation Plan
 
-**Status:** Planning  
+**Status:** In Progress  
 **Priority:** Medium  
 **Estimated Effort:** 1-2 days  
 **Target Completion:** TBD
 
 ---
 
-## ⚠️ Critical Design Principle: Mobile Behavior Preservation
+## ⚠️ Critical Design Principles
+
+### 1. Mobile Behavior Preservation
 
 **This feature MUST NOT affect mobile behavior in any way.**
 
+### 2. Layout Strategy: Resize (Not Overlay)
+
+**Rationale:** After evaluating both approaches:
+
+- **Overlay Approach**: Sidebar floats over chat content
+  - ❌ Hides messages during sidebar usage
+  - ❌ Requires manual close to continue chatting
+  - ❌ Interrupts user workflow
+- **Layout Resize Approach**: Sidebar resizes within layout (SELECTED)
+  - ✅ All content remains accessible
+  - ✅ No workflow interruption
+  - ✅ Matches professional tools (VS Code, IDEs)
+  - ✅ Animation smoothness solvable with fast transitions (200ms)
+
+**Implementation:** Parent container uses dynamic width with smooth 200ms cubic-bezier animation.
+
 ### Implementation Strategy Summary:
 
-| Aspect           | Mobile (< 1024px)                             | Desktop (≥ 1024px)                     |
-| ---------------- | --------------------------------------------- | -------------------------------------- |
-| **State**        | `isDetailsSidebarOpenMobile`                  | `isDetailsSidebarOpenDesktop`          |
-| **Control**      | `isOpen` prop (overlay visibility)            | Parent container conditional rendering |
-| **Behavior**     | Overlay slide in/out                          | Collapse to thin trigger bar           |
-| **Close Button** | `X` icon (closes overlay)                     | `→` icon (collapses sidebar)           |
-| **Prop Value**   | Dynamic `isOpen={isDetailsSidebarOpenMobile}` | Fixed `isOpen={true}`                  |
-| **Changes**      | NONE - Keep 100% unchanged                    | New collapse logic in ChatInterface    |
+| Aspect           | Mobile (< 1024px)                             | Desktop (≥ 1024px)                  |
+| ---------------- | --------------------------------------------- | ----------------------------------- |
+| **State**        | `isDetailsSidebarOpenMobile`                  | `isDetailsSidebarOpenDesktop`       |
+| **Control**      | `isOpen` prop (overlay visibility)            | Parent container width transition   |
+| **Behavior**     | Overlay slide in/out                          | Collapse to thin trigger bar (10px) |
+| **Animation**    | Standard slide (300ms)                        | Fast resize (200ms cubic-bezier)    |
+| **Close Button** | `X` icon (closes overlay)                     | `→` icon (collapses sidebar)        |
+| **Prop Value**   | Dynamic `isOpen={isDetailsSidebarOpenMobile}` | Fixed `isOpen={true}`               |
+| **Changes**      | NONE - Keep 100% unchanged                    | New collapse logic in ChatInterface |
 
-**Key Insight:** The `isOpen` prop is for mobile overlay positioning. Desktop collapse is handled by **parent container** logic, not by the sidebar component's `isOpen` prop.
+**Key Insight:** The `isOpen` prop is for mobile overlay positioning. Desktop collapse is handled by **parent container width transition**, not by the sidebar component's `isOpen` prop.
 
 ---
 
@@ -527,6 +546,9 @@ interface DetailsSidebarState {
   selectedGenerationId: string | undefined;
   hoveredGenerationId: string | undefined;
 
+  // NEW: Smart expansion tracking
+  lastCollapseTime: number | null;        // Timestamp when user manually collapsed
+
   // Existing actions
   showModelDetails: (model: ModelInfo, tab?: ..., generationId?: string) => void;
   closeDetailsSidebar: () => void;  // Will handle both mobile and desktop
@@ -534,7 +556,7 @@ interface DetailsSidebarState {
 
   // NEW actions
   openDetailsSidebar: () => void;         // Explicitly open sidebar
-  toggleDetailsSidebar: () => void;       // Toggle open/closed state
+  toggleDetailsSidebar: () => void;       // Toggle open/closed state (tracks collapse time)
   setDesktopSidebarOpen: (isOpen: boolean) => void;  // Direct setter
 }
 ```
@@ -554,6 +576,7 @@ export const useDetailsSidebar = create(
       selectedTab: "overview",
       selectedGenerationId: undefined,
       hoveredGenerationId: undefined,
+      lastCollapseTime: null, // No recent collapse
 
       showModelDetails: (model, tab = "overview", generationId) => {
         set({
@@ -601,8 +624,11 @@ export const useDetailsSidebar = create(
             isDetailsSidebarOpenMobile: !state.isDetailsSidebarOpenMobile,
           });
         } else {
+          // Track collapse time for smart expansion
+          const isCollapsing = state.isDetailsSidebarOpenDesktop;
           set({
             isDetailsSidebarOpenDesktop: !state.isDetailsSidebarOpenDesktop,
+            lastCollapseTime: isCollapsing ? Date.now() : null,
           });
         }
       },
@@ -618,7 +644,7 @@ export const useDetailsSidebar = create(
     {
       name: "details-sidebar-storage",
       partialize: (state) => ({
-        // Only persist desktop collapse state
+        // Only persist desktop collapse state, not collapse time
         isDetailsSidebarOpenDesktop: state.isDetailsSidebarOpenDesktop,
       }),
     }
@@ -703,14 +729,14 @@ const {
 </div>;
 ````
 
-**Proposed (RECOMMENDED - Preserves Mobile Behavior):**
+**Proposed (FINAL APPROACH - Layout Resize with Fast Animation):**
 
 ```typescript
 {
   /* Right Sidebar - Model Details (Collapsible) */
 }
 <div
-  className={`hidden lg:block transition-all duration-300 ease-in-out ${
+  className={`hidden lg:block transition-all duration-200 ease-in-out ${
     isDetailsSidebarOpenDesktop ? "w-[15%] min-w-[240px]" : "w-10"
   }`}
 >
@@ -731,68 +757,25 @@ const {
 </div>;
 ```
 
-**Why this approach?**
+**Key Changes:**
 
-1. **Parent container controls visibility** - When `isDetailsSidebarOpenDesktop` is false, we show CollapsedSidebarTrigger instead
-2. **`isOpen` prop remains true** - Doesn't interfere with ModelDetailsSidebar's internal mobile logic
-3. **Conditional rendering** - Completely unmount sidebar when collapsed (better performance)
-4. **Mobile unaffected** - Mobile code path never uses `isDetailsSidebarOpenDesktop`
+1. **Fast Animation**: `duration-200` (200ms) instead of 300ms for imperceptible text reflow
+2. **Smooth Easing**: `ease-in-out` provides natural acceleration/deceleration
+3. **Layout Resize**: ChatInterface (flex-1) automatically expands when sidebar collapses
+4. **Parent Control**: Container width transitions between `w-[15%]` (open) and `w-10` (collapsed)
+5. **`isOpen` Unchanged**: Always `true` when desktop sidebar is visible - preserves mobile logic
 
-````
+**Why This Approach:**
 
-**Proposed:**
-
-```typescript
-{
-  /* Right Sidebar - Model Details (Collapsible) */
-}
-<div
-  className={`hidden lg:block transition-all duration-300 ease-in-out ${
-    isDetailsSidebarOpenDesktop ? "w-[15%] min-w-[240px]" : "w-10"
-  }`}
->
-  {isDetailsSidebarOpenDesktop ? (
-    <ModelDetailsSidebar
-      model={selectedDetailModel}
-      isOpen={true} // Always "open" when visible (for internal state)
-      onClose={toggleDetailsSidebar} // Wire up toggle handler
-      initialTab={selectedTab}
-      generationId={selectedGenerationId}
-      onGenerationHover={handleGenerationHover}
-      onGenerationClick={handleGenerationClick}
-      variant="desktop"
-    />
-  ) : (
-    <CollapsedSidebarTrigger onExpand={toggleDetailsSidebar} />
-  )}
-</div>;
-````
-
-**Alternative (Simpler):** Keep sidebar always mounted, use CSS to hide:
-
-```typescript
-<div
-  className={`hidden lg:flex transition-all duration-300 ease-in-out ${
-    isDetailsSidebarOpenDesktop ? "w-[15%] min-w-[240px]" : "w-10"
-  }`}
->
-  <ModelDetailsSidebar
-    model={selectedDetailModel}
-    isOpen={isDetailsSidebarOpenDesktop} // Use state instead of hardcoded
-    onClose={toggleDetailsSidebar}
-    initialTab={selectedTab}
-    generationId={selectedGenerationId}
-    onGenerationHover={handleGenerationHover}
-    onGenerationClick={handleGenerationClick}
-    variant="desktop"
-    showCollapsedTrigger={!isDetailsSidebarOpenDesktop} // NEW prop
-  />
-</div>
-```
+- ✅ Content never hidden - all messages remain accessible
+- ✅ No workflow interruption - user can continue chatting
+- ✅ Fast animation (200ms) prevents jarring text reflow
+- ✅ Matches professional tool patterns (VS Code, Chrome DevTools)
+- ✅ Mobile behavior 100% preserved
 
 ---
 
-#### 2.3 Update Model Selection Handler
+#### 2.3 Update Model Selection Handler (with Smart Expansion)
 
 **Current (lines ~157-180):**
 
@@ -817,7 +800,7 @@ const handleModelSelect = (modelId: string) => {
 };
 ```
 
-**Proposed:**
+**Proposed (with Smart Expansion Logic):**
 
 ```typescript
 const handleModelSelect = (modelId: string) => {
@@ -829,13 +812,33 @@ const handleModelSelect = (modelId: string) => {
     );
 
     if (selectedModelInfo && typeof selectedModelInfo === "object") {
-      // showModelDetails already opens sidebar on both mobile and desktop
-      showModelDetails(selectedModelInfo, "overview", undefined);
-      // No need for manual open/close - handled in showModelDetails action
+      // Smart expansion: respect user intent if they just collapsed sidebar
+      const store = useDetailsSidebar.getState();
+      const timeSinceCollapse = Date.now() - (store.lastCollapseTime || 0);
+      const shouldRespectCollapse = timeSinceCollapse < 30000; // 30 seconds
+
+      if (shouldRespectCollapse && !store.isDetailsSidebarOpenDesktop) {
+        // User recently collapsed - don't auto-expand, just update data
+        set({
+          selectedDetailModel: selectedModelInfo,
+          selectedTab: "overview",
+          selectedGenerationId: undefined,
+        });
+      } else {
+        // Normal flow: auto-expand sidebar with model details
+        showModelDetails(selectedModelInfo, "overview", undefined);
+      }
     }
   }
 };
 ```
+
+**Smart Expansion Rationale:**
+
+- If user manually collapsed sidebar < 30s ago, respect their intent
+- Don't immediately re-expand on next model selection
+- After 30s cooldown, resume normal auto-expand behavior
+- Prevents annoying "whack-a-mole" experience
 
 ---
 

@@ -15,6 +15,7 @@ import ErrorDisplay from "../ui/ErrorDisplay";
 import ModelDropdown from "../ui/ModelDropdown";
 import { ModelDetailsSidebar } from "../ui/ModelDetailsSidebar";
 import { ChatSidebar } from "../ui/ChatSidebar";
+import CollapsedSidebarTrigger from "../ui/CollapsedSidebarTrigger";
 import { ModelInfo } from "../../lib/types/openrouter";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 import { useAuth } from "../../stores/useAuthStore";
@@ -47,12 +48,15 @@ export default function ChatInterface() {
   // UI state from Zustand store
   const {
     selectedDetailModel,
-    isDetailsSidebarOpen,
+    isDetailsSidebarOpenMobile,
+    isDetailsSidebarOpenDesktop,
     selectedTab,
     selectedGenerationId,
     hoveredGenerationId,
+    lastCollapseTime,
     showModelDetails,
     closeDetailsSidebar,
+    toggleDetailsSidebar,
     setHoveredGenerationId,
   } = useDetailsSidebar();
 
@@ -116,12 +120,23 @@ export default function ChatInterface() {
       );
       
       if (selectedModelInfo && typeof selectedModelInfo === 'object') {
-        // Clear generation ID when switching models and show details
-        showModelDetails(selectedModelInfo, 'overview', undefined);
+        // Smart expansion: respect user intent if they recently collapsed sidebar
+        const timeSinceCollapse = Date.now() - (lastCollapseTime || 0);
+        const shouldRespectCollapse = lastCollapseTime !== null && timeSinceCollapse < 30000; // 30 seconds
         
-  // Only auto-open sidebar on desktop/tablet (lg breakpoint and above)
+        if (shouldRespectCollapse && !isDetailsSidebarOpenDesktop) {
+          // User recently collapsed - update model but don't auto-expand
+          // This prevents annoying "whack-a-mole" behavior
+          // (Model will still be selected, sidebar just stays collapsed)
+          showModelDetails(selectedModelInfo, 'overview', undefined);
+        } else {
+          // Normal flow: auto-expand sidebar with model details
+          showModelDetails(selectedModelInfo, 'overview', undefined);
+        }
+        
+        // Only auto-open sidebar on desktop/tablet (lg breakpoint and above)
         // On mobile, let users manually open it via the info icon
-  const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+        const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
         if (!isDesktop) {
           closeDetailsSidebar(); // Don't auto-open on mobile
         }
@@ -429,18 +444,26 @@ export default function ChatInterface() {
         </div>
       </div>
 
-  {/* Right Sidebar - Model Details (15%) */}
-  <div className="hidden lg:block w-[15%] min-w-[240px]">
-        <ModelDetailsSidebar
-          model={selectedDetailModel}
-          isOpen={true} // Always open on desktop
-          onClose={handleCloseDetailsSidebar}
-          initialTab={selectedTab}
-          generationId={selectedGenerationId}
-          onGenerationHover={handleGenerationHover}
-          onGenerationClick={handleGenerationClick}
-          variant="desktop"
-        />
+      {/* Right Sidebar - Model Details (Collapsible on Desktop) */}
+      <div 
+        className={`hidden lg:block transition-all duration-200 ease-in-out ${
+          isDetailsSidebarOpenDesktop ? 'w-[15%] min-w-[240px]' : 'w-10'
+        }`}
+      >
+        {isDetailsSidebarOpenDesktop ? (
+          <ModelDetailsSidebar
+            model={selectedDetailModel}
+            isOpen={true} // Always true when visible (for internal mobile logic)
+            onClose={toggleDetailsSidebar}
+            initialTab={selectedTab}
+            generationId={selectedGenerationId}
+            onGenerationHover={handleGenerationHover}
+            onGenerationClick={handleGenerationClick}
+            variant="desktop"
+          />
+        ) : (
+          <CollapsedSidebarTrigger onExpand={toggleDetailsSidebar} />
+        )}
       </div>
 
       {/* Mobile Chat Sidebar */}
@@ -452,10 +475,10 @@ export default function ChatInterface() {
       />
 
       {/* Mobile Model Details Sidebar */}
-  <div className="lg:hidden">
+      <div className="lg:hidden">
         <ModelDetailsSidebar
           model={selectedDetailModel}
-          isOpen={isDetailsSidebarOpen}
+          isOpen={isDetailsSidebarOpenMobile}
           onClose={handleCloseDetailsSidebar}
           initialTab={selectedTab}
           generationId={selectedGenerationId}

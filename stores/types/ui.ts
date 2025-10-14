@@ -3,7 +3,8 @@ import { ModelInfo } from '../../lib/types/openrouter';
 export interface UIState {
   // Sidebar states
   selectedDetailModel: ModelInfo | null;
-  isDetailsSidebarOpen: boolean;
+  isDetailsSidebarOpenMobile: boolean;   // Mobile overlay state
+  isDetailsSidebarOpenDesktop: boolean;  // Desktop collapse state
   isChatSidebarOpen: boolean;
   
   // Model details sidebar state
@@ -12,15 +13,20 @@ export interface UIState {
   hoveredGenerationId: string | undefined;
   scrollToCompletionId: string | undefined;
   
+  // Smart expansion tracking
+  lastCollapseTime: number | null;
+  
   // Theme and layout preferences
   theme: 'light' | 'dark';
   isMobile: boolean;
   
   // Actions
   setSelectedDetailModel: (model: ModelInfo | null) => void;
-  setIsDetailsSidebarOpen: (open: boolean) => void;
+  setIsDetailsSidebarOpen: (open: boolean) => void;  // Backward compatible
   setIsChatSidebarOpen: (open: boolean) => void;
   toggleChatSidebar: () => void;
+  toggleDetailsSidebar: () => void;  // NEW: Toggle desktop/mobile sidebar
+  openDetailsSidebar: () => void;    // NEW: Explicitly open sidebar
   
   setSelectedTab: (tab: 'overview' | 'pricing' | 'capabilities') => void;
   setSelectedGenerationId: (id: string | undefined) => void;
