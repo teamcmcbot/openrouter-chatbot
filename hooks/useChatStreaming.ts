@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChatMessage } from '../lib/types/chat';
-import { useChatStore } from '../stores/useChatStore';
+import { useChatStore, updateConversationFromMessages } from '../stores/useChatStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useAuth, useAuthStore } from '../stores/useAuthStore';
 import { emitAnonymousError, emitAnonymousUsage } from '../lib/analytics/anonymous';
@@ -155,11 +155,10 @@ export function useChatStreaming(): UseChatStreamingReturn {
       useChatStore.setState((state) => ({
         conversations: state.conversations.map((conv) =>
           conv.id === conversationId
-            ? {
+            ? updateConversationFromMessages({
                 ...conv,
                 messages: [...conv.messages, userMessage],
-                updatedAt: new Date().toISOString(),
-              }
+              })
             : conv
         ),
       }));
@@ -644,15 +643,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
         useChatStore.setState((state) => ({
           conversations: state.conversations.map((conv) =>
             conv.id === conversationId
-              ? {
+              ? updateConversationFromMessages({
                   ...conv,
                   messages: [
                     ...conv.messages.slice(0, -1), // Remove the temporary user message
                     updatedUserMessage, // Add updated user message with tokens
                     assistantMessage // Add assistant message
                   ],
-                  updatedAt: new Date().toISOString(),
-                }
+                })
               : conv
           ),
         }));
@@ -1326,13 +1324,12 @@ export function useChatStreaming(): UseChatStreamingReturn {
         useChatStore.setState((state) => ({
           conversations: state.conversations.map((conv) =>
             conv.id === conversationId
-              ? {
+              ? updateConversationFromMessages({
                   ...conv,
                   messages: conv.messages.map(msg =>
                     msg.id === messageId ? { ...updatedUserMessage, retry_available: undefined } : msg
                   ).concat(assistantMessage), // Update existing user message and add assistant
-                  updatedAt: new Date().toISOString(),
-                }
+                })
               : conv
           ),
         }));

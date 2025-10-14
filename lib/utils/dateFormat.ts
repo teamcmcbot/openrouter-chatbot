@@ -33,9 +33,21 @@ export function formatMessageTime(date: Date | string): string {
 /**
  * Formats a timestamp for conversation list display (relative time)
  * - Shows "Today", "Yesterday", "X days ago", or full date
+ * - Returns "-" for missing or invalid timestamps
  */
 export function formatConversationTimestamp(timestamp: string): string {
+  // Handle missing or invalid timestamps
+  if (!timestamp || timestamp.trim() === "") {
+    return "-";
+  }
+  
   const date = new Date(timestamp);
+  
+  // Check if date is invalid
+  if (isNaN(date.getTime())) {
+    return "-";
+  }
+  
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
