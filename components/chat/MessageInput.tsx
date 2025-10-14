@@ -90,11 +90,22 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
   useEffect(() => {
     if (initialMessage) {
       setMessage(initialMessage);
-      // Focus and select the textarea
+      // Expand the input to show feature buttons
+      setIsExpanded(true);
+      // Focus the textarea and set cursor at the end, then adjust height for multi-line content
       const textarea = document.getElementById('message-input') as HTMLTextAreaElement;
       if (textarea) {
-        textarea.focus();
-        textarea.select();
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          textarea.focus();
+          // Set cursor at the end instead of selecting all text
+          const length = initialMessage.length;
+          textarea.setSelectionRange(length, length);
+          // Auto-expand textarea height for multi-line prompts
+          textarea.style.height = "40px";
+          const maxHeight = 80; // Match expanded state max height
+          textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + "px";
+        }, 50);
       }
     }
   }, [initialMessage]);
@@ -991,14 +1002,14 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
           </div>
         )}
 
-        {/* Floating character counter centered in pill (no layout shift) */}
+        {/* Floating character counter centered in pill, aligned with feature buttons bottom (no layout shift) */}
         <div
             aria-live="polite"
-            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-0 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border shadow-md backdrop-blur-sm shadow-black/10 dark:shadow-black/30
+            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-2 sm:bottom-3 z-30 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border shadow-md backdrop-blur-sm shadow-black/10 dark:shadow-black/30
               ${showCount ? 'opacity-100' : 'opacity-0'} 
               ${message.length > MAX_MESSAGE_CHARS
                 ? 'bg-red-700 text-white border-red-600 dark:bg-red-700 dark:text-white dark:border-red-600 sm:bg-red-100/90 sm:text-red-700 sm:border-red-300 sm:dark:bg-red-900/50 sm:dark:text-red-200 sm:dark:border-red-700'
-                : 'bg-gray-900/80 text-white border-gray-800 dark:bg-gray-900/80 dark:text-white dark:border-gray-700 sm:bg-gray-100/80 sm:text-gray-700 sm:border-gray-300 sm:dark:bg-gray-800/70 sm:dark:text-gray-200 sm:dark:border-gray-600'}`}
+                : 'bg-gray-900/95 text-white border-gray-800 dark:bg-gray-900/95 dark:text-white dark:border-gray-700 sm:bg-gray-100/80 sm:text-gray-700 sm:border-gray-300 sm:dark:bg-gray-800/70 sm:dark:text-gray-200 sm:dark:border-gray-600'}`}
             data-testid="char-counter"
           >
             {`${message.length} characters`}

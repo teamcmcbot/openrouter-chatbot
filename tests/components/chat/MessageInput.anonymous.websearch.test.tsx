@@ -24,6 +24,9 @@ describe('MessageInput - anonymous web search', () => {
   test('clicking web search opens upgrade modal', async () => {
     const MessageInput = await setup()
     render(<MessageInput onSendMessage={jest.fn()} />)
+    // Expand MessageInput to show feature buttons
+    const textarea = screen.getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     const webBtn = screen.getByRole('button', { name: /web search/i })
     fireEvent.click(webBtn)
     // Upgrade modal should appear

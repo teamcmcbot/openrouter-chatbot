@@ -1,7 +1,40 @@
 # Collapsible MessageInput Layout Fixes
 
 **Date:** October 14, 2025  
-**Status:** ✅ Complete  
+**Status:** Complete
+
+---
+
+### Phase 10: Character Counter Opacity Enhancement ✅ COMPLETE
+
+**User Report:** Character counter difficult to read on mobile with icons showing through
+
+**Issue:**
+
+- Mobile counter had `bg-gray-900/80` (80% opacity)
+- Feature button icons visible through counter background
+- Poor contrast and readability, especially with multiple icons underneath
+
+**Fix Applied:**
+
+1. ✅ **Increased mobile opacity** (Line 996-1000):
+   - Changed from `bg-gray-900/80` to `bg-gray-900/95` (95% opacity)
+   - Applied to both light and dark mode mobile variants
+   - Desktop remains at 80% opacity (less icon overlap on larger screens)
+
+**Results:**
+
+- ✅ Significantly improved text readability on mobile
+- ✅ Icons no longer show through counter background
+- ✅ Better contrast for "X characters" text
+- ✅ Desktop opacity unchanged (appropriate for larger screens)
+- ✅ Build passing
+- ✅ Tests passing (3/3)
+
+**Status:** Complete
+
+---
+
 **Build:** Passing  
 **Tests:** All passing (3/3)
 
@@ -312,3 +345,49 @@ All tests passing after fixes:
 **Build:** ✅ Passing  
 **Tests:** ✅ 3/3 passing  
 **Ready for:** User testing
+
+---
+
+## Additional Fixes (October 14, 2025 - Phase 3)
+
+### Phase 10: Character Counter Z-Index Fix ✅ COMPLETE
+
+**User Report:** Character counter still difficult to read on mobile with icons showing through (after Phase 9)
+
+**Root Cause Identified:**
+
+- Character counter had `z-10`
+- Feature buttons row has `z-20` (set in Phase 9)
+- **Counter was rendering BEHIND the buttons**, not in front!
+- Icons showing through because counter layer was below button layer in z-index stacking
+
+**Fixes Applied:**
+
+1. ✅ **Increased z-index** (Line 996):
+
+   - Changed from `z-10` to `z-30`
+   - Now renders ABOVE feature buttons (`z-20`)
+   - Counter properly overlays buttons instead of being behind them
+
+2. ✅ **Increased opacity** (combined fix):
+   - Changed `bg-gray-900/80` to `bg-gray-900/95` for extra contrast
+   - Ensures solid background even when above buttons
+
+**Results:**
+
+- ✅ Character counter now renders on top of feature buttons
+- ✅ Icons no longer visible through counter
+- ✅ Significantly improved text readability on mobile
+- ✅ Proper z-index stacking hierarchy established
+- ✅ Build passing
+- ✅ Tests passing (3/3)
+
+**Z-Index Hierarchy:**
+
+```
+z-30: Character counter (top layer - always readable)
+z-20: Feature buttons (middle layer - interactive)
+z-0:  Textarea and other base elements (bottom layer)
+```
+
+**Status:** Complete

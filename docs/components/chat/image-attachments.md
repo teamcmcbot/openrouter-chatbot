@@ -5,6 +5,7 @@ Developer guide for the chat UI image-attachment experience: attach, preview, se
 ## Overview
 
 - Attach Image button in the composer, gated by auth and selected model modality (requires `image`).
+- **Collapsible UI:** Button visible only when MessageInput is in expanded state; attaching an image auto-expands the input.
 - Pre-upload images to Supabase Storage via `POST /api/uploads/images` (multipart), grouped by a `draftId`.
 - Local thumbnail previews via Object URLs with remove ("×") prior to send.
 - Send includes `attachmentIds[]` and `draftId`; server revalidates and links on sync.
@@ -35,8 +36,11 @@ Developer guide for the chat UI image-attachment experience: attach, preview, se
 ## Previews and removal
 
 - After a successful upload, the UI creates an Object URL for instant preview.
+- **Auto-expansion:** Attaching images automatically expands the MessageInput to show attachment tiles.
+- **Visibility:** Attachment tiles visible only when MessageInput is in expanded state.
 - Remove calls `DELETE /api/attachments/:id` to soft-delete the DB row and storage object, then revokes the Object URL.
 - Draft state resets and a new `draftId` is generated on successful send.
+- **Collapse behavior:** MessageInput collapses only if empty (no message text AND no attachments).
 
 ### Mobile vs desktop affordance
 

@@ -25,18 +25,29 @@ beforeAll(() => {
 // Mock useAuth as authenticated
 jest.mock('../../../stores/useAuthStore', () => ({ useAuth: () => ({ isAuthenticated: true, user: { id: 'u1' } }) }))
 
-// Mutable model capability and tier for scenarios
-let mockTier: 'free'|'pro'|'enterprise' = 'free'
-let mockSupportsReasoning = false
+// Mutable model capability and tier for scenarios  
+const mockState = {
+  tier: 'free' as 'free'|'pro'|'enterprise',
+  supportsReasoning: false
+}
+
+const mockUseModelSelection = jest.fn(() => ({ 
+  availableModels: [{ 
+    id: 'm1', 
+    supported_parameters: mockState.supportsReasoning ? ['reasoning'] : [] 
+  }], 
+  selectedModel: 'm1', 
+  isEnhanced: true 
+}))
 
 jest.mock('../../../stores', () => ({
-  useModelSelection: () => ({ availableModels: [{ id: 'm1', supported_parameters: mockSupportsReasoning ? ['reasoning'] : [] }], selectedModel: 'm1', isEnhanced: true }),
+  useModelSelection: () => mockUseModelSelection(),
   isEnhancedModels: (arr: unknown) => Array.isArray(arr),
 }))
 
 jest.mock('../../../hooks/useUserData', () => ({
   useUserData: () => ({
-    data: { profile: { subscription_tier: mockTier } },
+    data: { profile: { subscription_tier: mockState.tier } },
     loading: false,
     refreshing: false,
     error: null,
@@ -52,33 +63,53 @@ const setup = async () => {
 }
 
 describe('MessageInput - Reasoning gating', () => {
-  beforeEach(() => { mockTier = 'free'; mockSupportsReasoning = true })
+  beforeEach(() => { 
+    mockState.tier = 'free'
+    mockState.supportsReasoning = true
+  })
 
   test('Free tier: clicking Reasoning shows upgrade popover', async () => {
     const MessageInput = await setup()
     render(<MessageInput onSendMessage={jest.fn()} />)
+    // Expand MessageInput to show feature buttons
+    const textarea = screen.getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     const btn = screen.getByRole('button', { name: /reasoning/i })
     fireEvent.click(btn)
     expect(await screen.findByText(/Upgrade to enable Reasoning/i)).toBeInTheDocument()
     expect(btn).toHaveAttribute('aria-label', 'Reasoning')
   })
+})
+
+describe('MessageInput - Reasoning unsupported model', () => {
+  beforeEach(() => {
+    mockState.tier = 'free'
+    mockState.supportsReasoning = false
+  })
 
   test('Unsupported model: shows unsupported notice', async () => {
-    mockSupportsReasoning = false
     const MessageInput = await setup()
     render(<MessageInput onSendMessage={jest.fn()} />)
+    // Expand MessageInput to show feature buttons
+    const textarea = screen.getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     const btn = screen.getByRole('button', { name: /reasoning/i })
     fireEvent.click(btn)
-    expect(await screen.findByText(/Selected model doesn’t support reasoning/i)).toBeInTheDocument()
+    // Look for the popover with the unsupported text (using curly apostrophe)
+    expect(await screen.findByTestId('gating-popover')).toBeInTheDocument()
+    expect(screen.getByText(/support reasoning/i)).toBeInTheDocument()
   })
 })
 
 describe('MessageInput - Reasoning enterprise modal', () => {
-  beforeEach(() => { mockTier = 'enterprise'; mockSupportsReasoning = true })
+  beforeEach(() => { mockState.tier = 'enterprise'; mockState.supportsReasoning = true })
 
   test('Opens settings modal and toggles ON', async () => {
     const MessageInput = await setup()
     render(<MessageInput onSendMessage={jest.fn()} />)
+    // Expand MessageInput to show feature buttons
+    const textarea = screen.getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     const btn = screen.getByRole('button', { name: /reasoning/i })
     fireEvent.click(btn)
     expect(await screen.findByText(/Enable reasoning/i)).toBeInTheDocument()
@@ -91,6 +122,9 @@ describe('MessageInput - Reasoning enterprise modal', () => {
   test('Escape closes modal', async () => {
     const MessageInput = await setup()
     render(<MessageInput onSendMessage={jest.fn()} />)
+    // Expand MessageInput to show feature buttons
+    const textarea = screen.getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     fireEvent.click(screen.getByRole('button', { name: /reasoning/i }))
     expect(await screen.findByText(/Enable reasoning/i)).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'Escape' })
