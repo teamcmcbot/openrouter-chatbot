@@ -267,8 +267,8 @@ export default function ChatInterface() {
         />
       </div>
 
-      {/* Main Chat Area (70%) */}
-  <div className="flex flex-col flex-1 lg:w-[70%] min-w-0 bg-slate-50 dark:bg-gray-800">
+      {/* Main Chat Area (67.5%) */}
+  <div className="flex flex-col flex-1 lg:w-[67.5%] min-w-0 bg-slate-50 dark:bg-gray-800">
         {/* Header */}
   <div id="chat-header" className="relative z-30 px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
           {/* Mobile layout (< lg): two-cluster row; right cluster can wrap Enhanced to next line */}
@@ -444,10 +444,10 @@ export default function ChatInterface() {
         </div>
       </div>
 
-      {/* Right Sidebar - Model Details (Collapsible on Desktop) */}
+      {/* Right Sidebar - Model Details (Collapsible on Desktop, 17.5%) */}
       <div 
         className={`hidden lg:block transition-all duration-200 ease-in-out ${
-          isDetailsSidebarOpenDesktop ? 'w-[15%] min-w-[240px]' : 'w-10'
+          isDetailsSidebarOpenDesktop ? 'w-[17.5%] min-w-[240px]' : 'w-10'
         }`}
       >
         {isDetailsSidebarOpenDesktop ? (

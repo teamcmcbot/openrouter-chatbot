@@ -30,6 +30,7 @@ export default function CollapsedSidebarTrigger({
                  border-l border-gray-200 dark:border-gray-700 
                  flex flex-col items-center justify-center gap-2 
                  transition-all duration-200 ease-in-out
+                 cursor-pointer
                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
       aria-label="Show model details"
       aria-expanded="false"
