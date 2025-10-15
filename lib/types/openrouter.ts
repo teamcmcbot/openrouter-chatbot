@@ -110,6 +110,7 @@ export interface ModelInfo {
     completion: string;
     request?: string;
     image?: string;
+    output_image?: string;
     web_search?: string;
     internal_reasoning?: string;
     input_cache_read?: string;

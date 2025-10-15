@@ -174,7 +174,7 @@ export default function Toaster() {
         // Do NOT apply transforms here; react-hot-toast manages horizontal centering
       }}
       toastOptions={{
-        duration: 5000,
+        duration: 3000,
         style: {
           background: isDarkMode ? '#111827' : '#f9fafb', // dark:bg-gray-900 / bg-gray-50
           color: isDarkMode ? '#f3f4f6' : '#111827', // dark:text-gray-300 / text-gray-900

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import ImageGenerationStarters from "./ImageGenerationStarters";
@@ -73,6 +73,28 @@ export default function ChatInterface() {
   const [modelDropdownPreset, setModelDropdownPreset] = useState<'all' | 'free' | 'paid' | 'multimodal' | 'reasoning' | undefined>(undefined);
   // NEW: Track reasoning enablement state for conditional display
   const [lastReasoningEnabled, setLastReasoningEnabled] = useState<boolean>(false);
+  // Track if we're on mobile to conditionally render the mobile sidebar
+  const [isMobileScreen, setIsMobileScreen] = useState(false);
+
+  // Detect screen size changes to prevent mobile sidebar from rendering on desktop
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobileScreen(window.matchMedia('(max-width: 1023px)').matches);
+    };
+    
+    // Initial check
+    checkScreenSize();
+    
+    // Listen for resize events
+    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobileScreen(e.matches);
+    
+    // Modern browsers
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handler);
+      return () => mediaQuery.removeEventListener('change', handler);
+    }
+  }, []);
 
   // Check if the selected model supports image output
   const modelSupportsImageOutput = (() => {
@@ -463,8 +485,8 @@ export default function ChatInterface() {
         className="lg:hidden"
       />
 
-      {/* Mobile Model Details Sidebar */}
-      <div className="lg:hidden">
+      {/* Mobile Model Details Sidebar - only render on mobile screens */}
+      {isMobileScreen && (
         <ModelDetailsSidebar
           model={selectedDetailModel}
           isOpen={isDetailsSidebarOpenMobile}
@@ -475,7 +497,7 @@ export default function ChatInterface() {
           onGenerationClick={handleGenerationClick}
           variant="mobile"
         />
-      </div>
+      )}
     </div>
   );
 }

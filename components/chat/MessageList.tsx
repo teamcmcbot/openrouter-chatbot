@@ -5,6 +5,7 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import toast from "react-hot-toast";
 import { ChatMessage } from "../../lib/types/chat";
 import { formatMessageTime } from "../../lib/utils/dateFormat";
 import { detectMarkdownContent } from "../../lib/utils/markdown";
@@ -92,6 +93,7 @@ export default function MessageList({
     try {
       await navigator.clipboard.writeText(content);
       setCopiedMessageId(messageId);
+      toast.success("Message copied!");
       setTimeout(() => setCopiedMessageId(null), 2000);
     } catch (error) {
   logger.warn('message.copy.failed', { err: (error as Error)?.message, messageId });

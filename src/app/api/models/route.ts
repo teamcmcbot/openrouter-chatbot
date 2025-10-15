@@ -53,6 +53,7 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
         completion_price,
         request_price,
         image_price,
+        output_image_price,
         web_search_price,
         internal_reasoning_price,
         input_cache_read_price,
@@ -112,6 +113,7 @@ async function modelsHandler(request: NextRequest, authContext: AuthContext) {
       completion_price?: string;
       request_price?: string;
       image_price?: string;
+      output_image_price?: string;
       web_search_price?: string;
       internal_reasoning_price?: string;
       input_cache_read_price?: string;

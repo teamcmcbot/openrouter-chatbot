@@ -86,6 +86,17 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const ATTACHMENT_CAP = 3;
 
+  // Calculate textarea height based on desired max rows
+  // Using rem units to respect user's browser font size settings
+  // leading-6 = 1.5rem line-height, py-2 = 0.5rem (top) + 0.5rem (bottom) = 1rem padding
+  const MAX_ROWS_EXPANDED = 10;
+  const LINE_HEIGHT_REM = 1.5; // Tailwind leading-6
+  const PADDING_Y_REM = 1.0; // Tailwind py-2 (0.5rem top + 0.5rem bottom)
+  
+  // Calculate in rem units (will scale with user's font size)
+  const MIN_HEIGHT_REM = LINE_HEIGHT_REM + PADDING_Y_REM; // 2.5rem (1 row + padding)
+  const MAX_HEIGHT_REM = (MAX_ROWS_EXPANDED * LINE_HEIGHT_REM) + PADDING_Y_REM; // 16rem (10 rows + padding)
+
   // Update message when initialMessage prop changes
   useEffect(() => {
     if (initialMessage) {
@@ -102,13 +113,20 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
           const length = initialMessage.length;
           textarea.setSelectionRange(length, length);
           // Auto-expand textarea height for multi-line prompts
-          textarea.style.height = "40px";
-          const maxHeight = 80; // Match expanded state max height
-          textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + "px";
+          textarea.style.height = `${MIN_HEIGHT_REM}rem`;
+          const maxHeightPx = textarea.scrollHeight;
+          const maxHeightRemPx = parseFloat(getComputedStyle(document.documentElement).fontSize) * MAX_HEIGHT_REM;
+          textarea.style.height = Math.min(maxHeightPx, maxHeightRemPx) + "px";
+          // Auto-scroll to bottom if content exceeds maxHeight (with small delay for smooth scroll)
+          setTimeout(() => {
+            if (textarea.scrollHeight > maxHeightRemPx) {
+              textarea.scrollTop = textarea.scrollHeight;
+            }
+          }, 10);
         }, 50);
       }
     }
-  }, [initialMessage]);
+  }, [initialMessage, MIN_HEIGHT_REM, MAX_HEIGHT_REM]);
 
   // Detect mobile/touch devices to adjust Enter behavior
   useEffect(() => {
@@ -706,18 +724,28 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
             onCompositionEnd={() => (composingRef.current = false)}
             placeholder={isBanned ? "You can't send messages while banned" : (modelSupportsImageOutput ? "Describe your image..." : "Type your message...")}
             disabled={disabled}
-            className="flex-1 px-3 py-2 bg-transparent border-0 outline-none resize-none focus:ring-0 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 disabled:cursor-not-allowed"
+            className="flex-1 px-3 py-2 bg-transparent border-0 outline-none resize-none focus:ring-0 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 disabled:cursor-not-allowed leading-6"
             rows={1}
             style={{
-              minHeight: "40px",
-              maxHeight: isExpanded ? "80px" : "40px",
+              minHeight: `${MIN_HEIGHT_REM}rem`,
+              maxHeight: isExpanded ? `${MAX_HEIGHT_REM}rem` : `${MIN_HEIGHT_REM}rem`,
             }}
             enterKeyHint="send"
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
-              target.style.height = "40px";
-              const maxHeight = isExpanded ? 80 : 40;
-              target.style.height = Math.min(target.scrollHeight, maxHeight) + "px";
+              // Reset to min height, then expand based on content
+              target.style.height = `${MIN_HEIGHT_REM}rem`;
+              // Get max height in pixels (rem * root font size)
+              const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
+              const maxHeightPx = isExpanded ? (MAX_HEIGHT_REM * rootFontSize) : (MIN_HEIGHT_REM * rootFontSize);
+              target.style.height = Math.min(target.scrollHeight, maxHeightPx) + "px";
+              // Auto-scroll to bottom to keep cursor visible when content exceeds maxHeight
+              // Use setTimeout to ensure scroll happens after height adjustment
+              setTimeout(() => {
+                if (target.scrollHeight > maxHeightPx) {
+                  target.scrollTop = target.scrollHeight;
+                }
+              }, 0);
             }}
           />
 
