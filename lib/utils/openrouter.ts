@@ -495,6 +495,7 @@ export function transformDatabaseModel(row: {
   completion_price?: string;
   request_price?: string;
   image_price?: string;
+  output_image_price?: string;
   web_search_price?: string;
   internal_reasoning_price?: string;
   input_cache_read_price?: string;
@@ -523,6 +524,7 @@ export function transformDatabaseModel(row: {
       completion: row.completion_price || '0',
       request: row.request_price || '0',
       image: row.image_price || '0',
+      output_image: row.output_image_price || '0',
       web_search: row.web_search_price || '0',
       internal_reasoning: row.internal_reasoning_price || '0',
       input_cache_read: row.input_cache_read_price,

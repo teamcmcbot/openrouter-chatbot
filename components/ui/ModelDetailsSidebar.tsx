@@ -31,7 +31,7 @@ const formatNumber = (num: number): string => {
 };
 
 // Format pricing for display based on pricing type
-const formatPrice = (price: string, type: 'prompt' | 'completion' | 'image' | 'request' | 'web_search' | 'internal_reasoning' | 'input_cache_read' | 'input_cache_write'): string => {
+const formatPrice = (price: string, type: 'prompt' | 'completion' | 'image' | 'output_image' | 'request' | 'web_search' | 'internal_reasoning' | 'input_cache_read' | 'input_cache_write'): string => {
   const num = parseFloat(price);
   if (num === 0) return "Free";
   
@@ -46,6 +46,7 @@ const formatPrice = (price: string, type: 'prompt' | 'completion' | 'image' | 'r
       return `$${(num * 1000000).toFixed(2)}/M tokens`;
     
     case 'image':
+    case 'output_image':
       // Image-based pricing - display per 1K images
       return `$${(num * 1000).toFixed(2)}/K images`;
     
@@ -322,7 +323,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                           
                           return (
                             <>
-                              <p>{displayText}</p>
+                              <p className="break-words [overflow-wrap:anywhere]">{displayText}</p>
                               {shouldTruncate && (
                                 <button
                                   onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
@@ -339,77 +340,93 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                     
                     <div>
                       <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Basic Information</h3>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Model ID:</span>
-                          <span className="font-mono text-sm text-gray-900 dark:text-white">{model.id}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Input:</span>
-                          <span className="font-mono text-sm text-gray-900 dark:text-white">
-                            {(() => {
-                              const modalities = model.input_modalities || [];
-                              const allowedModalities = modalities.filter((m: string) => 
-                                m.toLowerCase() === 'text' || m.toLowerCase() === 'image'
-                              );
-                              
-                              if (allowedModalities.length === 0) return 'Text';
-                              
-                              // Capitalize and sort with Text first
-                              const capitalizedModalities = allowedModalities.map(m => 
-                                m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()
-                              );
-                              
-                              // Ensure Text appears first if present
-                              const sortedModalities = capitalizedModalities.sort((a, b) => {
-                                if (a === 'Text') return -1;
-                                if (b === 'Text') return 1;
-                                return 0;
-                              });
-                              
-                              return sortedModalities.join(', ');
-                            })()}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Output:</span>
-                          <span className="font-mono text-sm text-gray-900 dark:text-white">
-                            {(() => {
-                              const modalities = model.output_modalities || [];
-                              const allowedModalities = modalities.filter((m: string) => 
-                                m.toLowerCase() === 'text' || m.toLowerCase() === 'image'
-                              );
-                              
-                              if (allowedModalities.length === 0) return 'Text';
-                              
-                              // Capitalize and sort with Text first
-                              const capitalizedModalities = allowedModalities.map(m => 
-                                m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()
-                              );
-                              
-                              // Ensure Text appears first if present
-                              const sortedModalities = capitalizedModalities.sort((a, b) => {
-                                if (a === 'Text') return -1;
-                                if (b === 'Text') return 1;
-                                return 0;
-                              });
-                              
-                              return sortedModalities.join(', ');
-                            })()}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Context Length:</span>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {formatNumber(model.context_length)} tokens
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Created:</span>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {model.created ? formatDate(model.created) : 'N/A'}
-                          </span>
-                        </div>
+                      <div className="bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                            <tr>
+                              <td className="py-2 px-3 text-gray-600 dark:text-gray-400 font-medium w-[35%] align-top">
+                                Model ID:
+                              </td>
+                              <td className="py-2 px-3 text-gray-900 dark:text-white font-mono text-xs break-all align-top">
+                                {model.id}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 text-gray-600 dark:text-gray-400 font-medium w-[35%] align-top">
+                                Input:
+                              </td>
+                              <td className="py-2 px-3 text-gray-900 dark:text-white font-mono text-xs break-words align-top">
+                                {(() => {
+                                  const modalities = model.input_modalities || [];
+                                  const allowedModalities = modalities.filter((m: string) => 
+                                    m.toLowerCase() === 'text' || m.toLowerCase() === 'image'
+                                  );
+                                  
+                                  if (allowedModalities.length === 0) return 'Text';
+                                  
+                                  // Capitalize and sort with Text first
+                                  const capitalizedModalities = allowedModalities.map(m => 
+                                    m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()
+                                  );
+                                  
+                                  // Ensure Text appears first if present
+                                  const sortedModalities = capitalizedModalities.sort((a, b) => {
+                                    if (a === 'Text') return -1;
+                                    if (b === 'Text') return 1;
+                                    return 0;
+                                  });
+                                  
+                                  return sortedModalities.join(', ');
+                                })()}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 text-gray-600 dark:text-gray-400 font-medium w-[35%] align-top">
+                                Output:
+                              </td>
+                              <td className="py-2 px-3 text-gray-900 dark:text-white font-mono text-xs break-words align-top">
+                                {(() => {
+                                  const modalities = model.output_modalities || [];
+                                  const allowedModalities = modalities.filter((m: string) => 
+                                    m.toLowerCase() === 'text' || m.toLowerCase() === 'image'
+                                  );
+                                  
+                                  if (allowedModalities.length === 0) return 'Text';
+                                  
+                                  // Capitalize and sort with Text first
+                                  const capitalizedModalities = allowedModalities.map(m => 
+                                    m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()
+                                  );
+                                  
+                                  // Ensure Text appears first if present
+                                  const sortedModalities = capitalizedModalities.sort((a, b) => {
+                                    if (a === 'Text') return -1;
+                                    if (b === 'Text') return 1;
+                                    return 0;
+                                  });
+                                  
+                                  return sortedModalities.join(', ');
+                                })()}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 text-gray-600 dark:text-gray-400 font-medium w-[35%] align-top">
+                                Context Length:
+                              </td>
+                              <td className="py-2 px-3 text-gray-900 dark:text-white font-medium break-words align-top">
+                                {formatNumber(model.context_length)} tokens
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 text-gray-600 dark:text-gray-400 font-medium w-[35%] align-top">
+                                Created:
+                              </td>
+                              <td className="py-2 px-3 text-gray-900 dark:text-white font-medium break-words align-top">
+                                {model.created ? formatDate(model.created) : 'N/A'}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </div>
@@ -433,11 +450,23 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                             {formatPrice(model.pricing.completion, 'completion')}
                           </span>
                         </div>
+                        {/* Show image input pricing if available */}
                         {model.pricing.image && parseFloat(model.pricing.image) > 0 && (
                           <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Image:</span>
+                            <span className="text-gray-600 dark:text-gray-400">Img Input:</span>
                             <span className="font-medium text-gray-900 dark:text-white">
                               {formatPrice(model.pricing.image, 'image')}
+                            </span>
+                          </div>
+                        )}
+                        {/* Show image output pricing if model supports image generation and has non-zero price */}
+                        {model.output_modalities?.includes('image') && 
+                         model.pricing.output_image && 
+                         parseFloat(model.pricing.output_image) > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600 dark:text-gray-400">Img Output:</span>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {formatPrice(model.pricing.output_image, 'output_image')}
                             </span>
                           </div>
                         )}
