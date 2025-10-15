@@ -323,7 +323,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                           
                           return (
                             <>
-                              <p className="break-words overflow-wrap-anywhere">{displayText}</p>
+                              <p className="break-words [overflow-wrap:anywhere]">{displayText}</p>
                               {shouldTruncate && (
                                 <button
                                   onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
@@ -460,7 +460,7 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                           </div>
                         )}
                         {/* Show image output pricing if model supports image generation and has non-zero price */}
-                        {model.output_modalities.includes('image') && 
+                        {model.output_modalities?.includes('image') && 
                          model.pricing.output_image && 
                          parseFloat(model.pricing.output_image) > 0 && (
                           <div className="flex justify-between">

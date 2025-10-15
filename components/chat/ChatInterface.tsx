@@ -93,6 +93,10 @@ export default function ChatInterface() {
     if (mediaQuery.addEventListener) {
       mediaQuery.addEventListener('change', handler);
       return () => mediaQuery.removeEventListener('change', handler);
+    } else if (mediaQuery.addListener) {
+      // Fallback for older browsers (Safari < 14, etc.)
+      mediaQuery.addListener(handler);
+      return () => mediaQuery.removeListener(handler);
     }
   }, []);
 
