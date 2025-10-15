@@ -53,7 +53,6 @@ export default function ChatInterface() {
     selectedTab,
     selectedGenerationId,
     hoveredGenerationId,
-    lastCollapseTime,
     showModelDetails,
     closeDetailsSidebar,
     toggleDetailsSidebar,
@@ -120,19 +119,9 @@ export default function ChatInterface() {
       );
       
       if (selectedModelInfo && typeof selectedModelInfo === 'object') {
-        // Smart expansion: respect user intent if they recently collapsed sidebar
-        const timeSinceCollapse = Date.now() - (lastCollapseTime || 0);
-        const shouldRespectCollapse = lastCollapseTime !== null && timeSinceCollapse < 30000; // 30 seconds
-        
-        if (shouldRespectCollapse && !isDetailsSidebarOpenDesktop) {
-          // User recently collapsed - update model but don't auto-expand
-          // This prevents annoying "whack-a-mole" behavior
-          // (Model will still be selected, sidebar just stays collapsed)
-          showModelDetails(selectedModelInfo, 'overview', undefined);
-        } else {
-          // Normal flow: auto-expand sidebar with model details
-          showModelDetails(selectedModelInfo, 'overview', undefined);
-        }
+        // Update model details (sidebar expansion is handled by smart logic in store)
+        // Smart expansion respects if user recently collapsed (within 30s) to prevent "whack-a-mole"
+        showModelDetails(selectedModelInfo, 'overview', undefined);
         
         // Only auto-open sidebar on desktop/tablet (lg breakpoint and above)
         // On mobile, let users manually open it via the info icon

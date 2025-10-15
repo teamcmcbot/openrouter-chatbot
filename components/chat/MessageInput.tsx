@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type React from "react";
 import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon, PlayIcon, InformationCircleIcon, PhotoIcon } from "@heroicons/react/24/outline";
 import Tooltip from "../ui/Tooltip";
@@ -223,6 +223,33 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
     const shouldExpand = hasContent || hasAttachments || hasBanner;
     setIsExpanded(shouldExpand);
   }, [message.length, attachments.length, modelSupportsImages]);
+
+  // Extract onBlur handler for better readability and testability
+  const handleInputBlur = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
+    // Keep expanded if there's text
+    if (message.length > 0 || attachments.length > 0) {
+      return;
+    }
+    
+    // Don't collapse if clicking on feature buttons or other interactive elements
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (relatedTarget && relatedTarget.closest('[data-keep-expanded]')) {
+      return;
+    }
+    
+    // Collapse empty input
+    if (isMobile) {
+      // Mobile: delay to prevent premature collapse during keyboard transitions
+      setTimeout(() => {
+        if (message.length === 0 && attachments.length === 0) {
+          setIsExpanded(false);
+        }
+      }, 100);
+    } else {
+      // Desktop: immediate collapse
+      setIsExpanded(false);
+    }
+  }, [message.length, attachments.length, isMobile]);
 
   // Resolve a human-friendly model display name
   const getModelDisplayName = (info: Partial<ModelInfo> | null | undefined, fallbackId?: string) => {
@@ -674,31 +701,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             onFocus={() => setIsExpanded(true)}
-            onBlur={(e) => {
-              // Keep expanded if there's text
-              if (message.length > 0 || attachments.length > 0) {
-                return;
-              }
-              
-              // Don't collapse if clicking on feature buttons or other interactive elements
-              const relatedTarget = e.relatedTarget as HTMLElement;
-              if (relatedTarget && relatedTarget.closest('[data-keep-expanded]')) {
-                return;
-              }
-              
-              // Collapse empty input
-              if (isMobile) {
-                // Mobile: delay to prevent premature collapse during keyboard transitions
-                setTimeout(() => {
-                  if (message.length === 0 && attachments.length === 0) {
-                    setIsExpanded(false);
-                  }
-                }, 100);
-              } else {
-                // Desktop: immediate collapse
-                setIsExpanded(false);
-              }
-            }}
+            onBlur={handleInputBlur}
             onCompositionStart={() => (composingRef.current = true)}
             onCompositionEnd={() => (composingRef.current = false)}
             placeholder={isBanned ? "You can't send messages while banned" : (modelSupportsImageOutput ? "Describe your image..." : "Type your message...")}
