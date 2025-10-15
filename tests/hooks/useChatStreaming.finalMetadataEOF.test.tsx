@@ -58,7 +58,10 @@ jest.mock('../../stores/useChatStore', () => {
     retryMessage: jest.fn(),
     setState: (updater: (s: ChatStateMock) => Partial<ChatStateMock>) => { const partial = updater(state); state = { ...state, ...partial }; },
   };
-  return { useChatStore: Object.assign(() => state, { getState: () => state, setState: (fn: (s: ChatStateMock) => Partial<ChatStateMock>) => { const next = fn(state); state = { ...state, ...next }; } }) };
+  return { 
+    useChatStore: Object.assign(() => state, { getState: () => state, setState: (fn: (s: ChatStateMock) => Partial<ChatStateMock>) => { const next = fn(state); state = { ...state, ...next }; } }),
+    updateConversationFromMessages: (conv: Conversation) => ({ ...conv, updatedAt: new Date().toISOString() })
+  };
 });
 
 jest.mock('../../lib/utils/tokens', () => ({

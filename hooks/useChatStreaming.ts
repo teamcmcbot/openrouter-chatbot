@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChatMessage } from '../lib/types/chat';
-import { useChatStore } from '../stores/useChatStore';
+import { useChatStore, updateConversationFromMessages } from '../stores/useChatStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useAuth, useAuthStore } from '../stores/useAuthStore';
 import { emitAnonymousError, emitAnonymousUsage } from '../lib/analytics/anonymous';
@@ -155,11 +155,10 @@ export function useChatStreaming(): UseChatStreamingReturn {
       useChatStore.setState((state) => ({
         conversations: state.conversations.map((conv) =>
           conv.id === conversationId
-            ? {
+            ? updateConversationFromMessages({
                 ...conv,
                 messages: [...conv.messages, userMessage],
-                updatedAt: new Date().toISOString(),
-              }
+              })
             : conv
         ),
       }));
@@ -582,6 +581,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
           }
         }
 
+        // IMPORTANT: Clear streaming state BEFORE adding final message to prevent double-render
+        setIsStreaming(false);
+        setStreamingContent('');
+        setStreamingReasoning('');
+        setStreamingReasoningDetails([]);
+        setStreamingAnnotations([]);
+        annotationsMapRef.current.clear();
+
         // Create assistant message with metadata
   const assistantMessage: ChatMessage = {
           id: `msg_${Date.now() + 1}`,
@@ -644,15 +651,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
         useChatStore.setState((state) => ({
           conversations: state.conversations.map((conv) =>
             conv.id === conversationId
-              ? {
+              ? updateConversationFromMessages({
                   ...conv,
                   messages: [
                     ...conv.messages.slice(0, -1), // Remove the temporary user message
                     updatedUserMessage, // Add updated user message with tokens
                     assistantMessage // Add assistant message
                   ],
-                  updatedAt: new Date().toISOString(),
-                }
+                })
               : conv
           ),
         }));
@@ -864,12 +870,16 @@ export function useChatStreaming(): UseChatStreamingReturn {
           logger.warn('Failed to persist failed streaming user message', persistErr);
         }
       } finally {
-        setIsStreaming(false);
-        setStreamingContent('');
-        setStreamingReasoning(''); // NEW: Reset reasoning state  
-        setStreamingReasoningDetails([]); // NEW: Reset reasoning details state
-        setStreamingAnnotations([]); // NEW: Reset annotations state
-  annotationsMapRef.current.clear();
+        // Cleanup is now handled before adding final message (to prevent double-render)
+        // Only reset streaming state here for error cases
+        if (abortControllerRef.current) {
+          setIsStreaming(false);
+          setStreamingContent('');
+          setStreamingReasoning('');
+          setStreamingReasoningDetails([]);
+          setStreamingAnnotations([]);
+          annotationsMapRef.current.clear();
+        }
         abortControllerRef.current = null;
       }
     } else {
@@ -1274,6 +1284,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
         }
   const mergedAnnotations = Array.from(retryAnnotationsMap.values());
 
+        // IMPORTANT: Clear streaming state BEFORE adding final message to prevent double-render
+        setIsStreaming(false);
+        setStreamingContent('');
+        setStreamingReasoning('');
+        setStreamingReasoningDetails([]);
+        setStreamingAnnotations([]);
+        setStreamError(null);
+
   // Create assistant message with metadata
   const assistantMessage: ChatMessage = {
           id: `msg_${Date.now() + 1}`,
@@ -1326,13 +1344,12 @@ export function useChatStreaming(): UseChatStreamingReturn {
         useChatStore.setState((state) => ({
           conversations: state.conversations.map((conv) =>
             conv.id === conversationId
-              ? {
+              ? updateConversationFromMessages({
                   ...conv,
                   messages: conv.messages.map(msg =>
                     msg.id === messageId ? { ...updatedUserMessage, retry_available: undefined } : msg
                   ).concat(assistantMessage), // Update existing user message and add assistant
-                  updatedAt: new Date().toISOString(),
-                }
+                })
               : conv
           ),
         }));
@@ -1469,12 +1486,16 @@ export function useChatStreaming(): UseChatStreamingReturn {
           logger.warn('Failed to persist failed streaming retry user message', persistErr);
         }
       } finally {
-        setIsStreaming(false);
-        setStreamingContent('');
-        setStreamingReasoning('');
-        setStreamingReasoningDetails([]);
-        setStreamingAnnotations([]);
-        setStreamError(null);
+        // Cleanup is now handled before adding final message (to prevent double-render)
+        // Only reset streaming state here for error cases
+        if (abortControllerRef.current) {
+          setIsStreaming(false);
+          setStreamingContent('');
+          setStreamingReasoning('');
+          setStreamingReasoningDetails([]);
+          setStreamingAnnotations([]);
+          setStreamError(null);
+        }
         abortControllerRef.current = null;
       }
   } 

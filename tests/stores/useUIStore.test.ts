@@ -2,6 +2,21 @@ import { renderHook, act } from '@testing-library/react';
 import { useUIStore, useDetailsSidebar, useChatSidebarState, useTheme } from '../../stores/useUIStore';
 import { ModelInfo } from '../../lib/types/openrouter';
 
+// Mock window.matchMedia for device detection
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: jest.fn().mockImplementation((query: string) => ({
+    matches: false, // Default to desktop (not mobile)
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  })),
+});
+
 // Mock model data for testing
 const mockModel: ModelInfo = {
   id: 'gpt-4',
@@ -23,13 +38,15 @@ describe('useUIStore', () => {
     // Reset store state before each test
     useUIStore.setState({
       selectedDetailModel: null,
-      isDetailsSidebarOpen: false,
+      isDetailsSidebarOpenMobile: false,
+      isDetailsSidebarOpenDesktop: true,
       isChatSidebarOpen: false,
       selectedTab: 'overview',
       selectedGenerationId: undefined,
       hoveredGenerationId: undefined,
       scrollToCompletionId: undefined,
-  theme: 'dark',
+      lastCollapseTime: null,
+      theme: 'dark',
       isMobile: false,
     });
   });
@@ -39,10 +56,11 @@ describe('useUIStore', () => {
       const { result } = renderHook(() => useUIStore());
 
       expect(result.current.selectedDetailModel).toBeNull();
-      expect(result.current.isDetailsSidebarOpen).toBe(false);
+      expect(result.current.isDetailsSidebarOpenMobile).toBe(false);
+      expect(result.current.isDetailsSidebarOpenDesktop).toBe(true);
       expect(result.current.isChatSidebarOpen).toBe(false);
       expect(result.current.selectedTab).toBe('overview');
-  expect(result.current.theme).toBe('dark');
+      expect(result.current.theme).toBe('dark');
     });
 
     it('should toggle chat sidebar', () => {
@@ -81,7 +99,9 @@ describe('useUIStore', () => {
       });
 
       expect(result.current.selectedDetailModel).toEqual(mockModel);
-      expect(result.current.isDetailsSidebarOpen).toBe(true);
+      // Both mobile and desktop sidebars should be open after showModelDetails
+      expect(result.current.isDetailsSidebarOpenMobile).toBe(true);
+      expect(result.current.isDetailsSidebarOpenDesktop).toBe(true);
       expect(result.current.selectedTab).toBe('pricing');
       expect(result.current.selectedGenerationId).toBe('gen-123');
     });
@@ -94,16 +114,22 @@ describe('useUIStore', () => {
         result.current.showModelDetails(mockModel, 'overview', 'gen-123');
       });
 
-      expect(result.current.isDetailsSidebarOpen).toBe(true);
+      // Both should be open after showing model details
+      expect(result.current.isDetailsSidebarOpenMobile).toBe(true);
+      expect(result.current.isDetailsSidebarOpenDesktop).toBe(true);
 
       // Then close it
       act(() => {
         result.current.closeDetailsSidebar();
       });
 
-      expect(result.current.isDetailsSidebarOpen).toBe(false);
-      expect(result.current.selectedDetailModel).toBeNull();
-      expect(result.current.selectedGenerationId).toBeUndefined();
+      // On desktop (matchMedia returns false), only desktop sidebar closes
+      // Mobile sidebar stays true but that's expected behavior
+      expect(result.current.isDetailsSidebarOpenDesktop).toBe(false);
+      // Desktop close doesn't clear model data (for quick re-open)
+      expect(result.current.selectedDetailModel).toEqual(mockModel);
+      // Generation ID is preserved on desktop close
+      expect(result.current.selectedGenerationId).toBe('gen-123');
     });
 
     it('should handle generation hover', () => {
@@ -145,10 +171,12 @@ describe('useDetailsSidebar', () => {
   beforeEach(() => {
     useUIStore.setState({
       selectedDetailModel: null,
-      isDetailsSidebarOpen: false,
+      isDetailsSidebarOpenMobile: false,
+      isDetailsSidebarOpenDesktop: true,
       selectedTab: 'overview',
       selectedGenerationId: undefined,
       hoveredGenerationId: undefined,
+      lastCollapseTime: null,
     });
   });
 
@@ -156,7 +184,8 @@ describe('useDetailsSidebar', () => {
     const { result } = renderHook(() => useDetailsSidebar());
 
     expect(result.current.selectedDetailModel).toBeNull();
-    expect(result.current.isDetailsSidebarOpen).toBe(false);
+    expect(result.current.isDetailsSidebarOpenMobile).toBe(false);
+    expect(result.current.isDetailsSidebarOpenDesktop).toBe(true);
     expect(result.current.selectedTab).toBe('overview');
 
     act(() => {
@@ -164,7 +193,9 @@ describe('useDetailsSidebar', () => {
     });
 
     expect(result.current.selectedDetailModel).toEqual(mockModel);
-    expect(result.current.isDetailsSidebarOpen).toBe(true);
+    // showModelDetails sets both mobile and desktop to true
+    expect(result.current.isDetailsSidebarOpenMobile).toBe(true);
+    expect(result.current.isDetailsSidebarOpenDesktop).toBe(true);
   });
 });
 

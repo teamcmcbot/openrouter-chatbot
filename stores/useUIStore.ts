@@ -18,13 +18,16 @@ export const useUIStore = create<UIState>()(
         (set, get) => ({
           // Initial state
           selectedDetailModel: null,
-          isDetailsSidebarOpen: false,
+          isDetailsSidebarOpenMobile: false,
+          isDetailsSidebarOpenDesktop: true,  // Default: visible on desktop
           isChatSidebarOpen: false,
           
           selectedTab: 'overview',
           selectedGenerationId: undefined,
           hoveredGenerationId: undefined,
           scrollToCompletionId: undefined,
+          
+          lastCollapseTime: null,  // Smart expansion tracking
           
           theme: 'dark',
           isMobile: false,
@@ -35,7 +38,15 @@ export const useUIStore = create<UIState>()(
           },
           
           setIsDetailsSidebarOpen: (open) => {
-            set({ isDetailsSidebarOpen: open });
+            // Backward compatible: sets based on device type
+            const isMobile = typeof window !== 'undefined' && 
+              window.matchMedia('(max-width: 1023px)').matches;
+            
+            if (isMobile) {
+              set({ isDetailsSidebarOpenMobile: open });
+            } else {
+              set({ isDetailsSidebarOpenDesktop: open });
+            }
           },
           
           setIsChatSidebarOpen: (open) => {
@@ -46,6 +57,39 @@ export const useUIStore = create<UIState>()(
             set((state) => ({ 
               isChatSidebarOpen: !state.isChatSidebarOpen 
             }));
+          },
+          
+          toggleDetailsSidebar: () => {
+            const state = get();
+            const isMobile = typeof window !== 'undefined' && 
+              window.matchMedia('(max-width: 1023px)').matches;
+            
+            if (isMobile) {
+              set({ 
+                isDetailsSidebarOpenMobile: !state.isDetailsSidebarOpenMobile 
+              });
+            } else {
+              // Track collapse time for smart expansion
+              const isCollapsing = state.isDetailsSidebarOpenDesktop;
+              set({ 
+                isDetailsSidebarOpenDesktop: !state.isDetailsSidebarOpenDesktop,
+                lastCollapseTime: isCollapsing ? Date.now() : null,
+              });
+            }
+          },
+          
+          openDetailsSidebar: () => {
+            const isMobile = typeof window !== 'undefined' && 
+              window.matchMedia('(max-width: 1023px)').matches;
+            
+            if (isMobile) {
+              set({ isDetailsSidebarOpenMobile: true });
+            } else {
+              set({ 
+                isDetailsSidebarOpenDesktop: true,
+                lastCollapseTime: null,  // Clear collapse time when opening
+              });
+            }
           },
           
           setSelectedTab: (tab) => {
@@ -90,18 +134,31 @@ export const useUIStore = create<UIState>()(
               selectedDetailModel: model,
               selectedTab: tab,
               selectedGenerationId: generationId,
-              isDetailsSidebarOpen: true,
+              isDetailsSidebarOpenMobile: true,   // Open on mobile
+              isDetailsSidebarOpenDesktop: true,  // Open on desktop
+              lastCollapseTime: null,  // Clear collapse time when explicitly showing
             });
           },
           
           closeDetailsSidebar: () => {
             logger.info('Closing details sidebar');
             
-            set({
-              isDetailsSidebarOpen: false,
-              selectedDetailModel: null,
-              selectedGenerationId: undefined,
-            });
+            const isMobile = typeof window !== 'undefined' && 
+              window.matchMedia('(max-width: 1023px)').matches;
+            
+            if (isMobile) {
+              set({
+                isDetailsSidebarOpenMobile: false,
+                selectedDetailModel: null,
+                selectedGenerationId: undefined,
+              });
+            } else {
+              // On desktop, just collapse (keep model data for quick re-open)
+              set({
+                isDetailsSidebarOpenDesktop: false,
+                lastCollapseTime: Date.now(),
+              });
+            }
           },
           
           handleModelClickFromMessage: (modelId, tab = 'overview', generationId) => {
@@ -119,10 +176,11 @@ export const useUIStore = create<UIState>()(
         {
           name: STORAGE_KEYS.UI_PREFERENCES,
           storage: createJSONStorage(() => localStorage),
-          // Only persist theme and layout preferences, not transient UI state
+          // Persist theme, layout preferences, and desktop sidebar collapse state
           partialize: (state) => ({
             theme: state.theme,
             isChatSidebarOpen: state.isChatSidebarOpen,
+            isDetailsSidebarOpenDesktop: state.isDetailsSidebarOpenDesktop,
           }),
           migrate: (persistedState: unknown) => {
             try {
@@ -147,23 +205,31 @@ export const useUIStore = create<UIState>()(
 // Convenience hooks for common UI patterns
 export const useDetailsSidebar = () => {
   const selectedDetailModel = useUIStore((state) => state.selectedDetailModel);
-  const isDetailsSidebarOpen = useUIStore((state) => state.isDetailsSidebarOpen);
+  const isDetailsSidebarOpenMobile = useUIStore((state) => state.isDetailsSidebarOpenMobile);
+  const isDetailsSidebarOpenDesktop = useUIStore((state) => state.isDetailsSidebarOpenDesktop);
   const selectedTab = useUIStore((state) => state.selectedTab);
   const selectedGenerationId = useUIStore((state) => state.selectedGenerationId);
   const hoveredGenerationId = useUIStore((state) => state.hoveredGenerationId);
+  const lastCollapseTime = useUIStore((state) => state.lastCollapseTime);
   const showModelDetails = useUIStore((state) => state.showModelDetails);
   const closeDetailsSidebar = useUIStore((state) => state.closeDetailsSidebar);
+  const openDetailsSidebar = useUIStore((state) => state.openDetailsSidebar);
+  const toggleDetailsSidebar = useUIStore((state) => state.toggleDetailsSidebar);
   const setSelectedTab = useUIStore((state) => state.setSelectedTab);
   const setHoveredGenerationId = useUIStore((state) => state.setHoveredGenerationId);
 
   return {
     selectedDetailModel,
-    isDetailsSidebarOpen,
+    isDetailsSidebarOpenMobile,
+    isDetailsSidebarOpenDesktop,
     selectedTab,
     selectedGenerationId,
     hoveredGenerationId,
+    lastCollapseTime,
     showModelDetails,
     closeDetailsSidebar,
+    openDetailsSidebar,
+    toggleDetailsSidebar,
     setSelectedTab,
     setHoveredGenerationId,
   };

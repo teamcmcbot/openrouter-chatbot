@@ -116,7 +116,8 @@ const createNewConversation = (title = "New Chat", userId?: string): Conversatio
   lastMessageTimestamp: undefined,
 });
 
-const updateConversationFromMessages = (conversation: Conversation): Conversation => {
+// Export helper function for use in streaming hook
+export const updateConversationFromMessages = (conversation: Conversation): Conversation => {
   const messages = conversation.messages;
   const messageCount = messages.length;
   const totalTokens = messages.reduce((sum, msg) => sum + (msg.total_tokens || 0), 0);

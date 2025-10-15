@@ -195,17 +195,36 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
         <div className="h-full flex flex-col">
           {!model ? (
             // Placeholder when no model is selected
-            <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                <InformationCircleIcon className="w-8 h-8 text-gray-400" aria-hidden="true" />
+            <>
+              {/* Header for desktop with collapse button */}
+              {variant === 'desktop' && (
+                <div className="flex items-center justify-end p-5 border-b border-gray-200 dark:border-gray-700 h-16">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onClose}
+                    className="flex-shrink-0"
+                    aria-label="Collapse sidebar"
+                    title="Collapse sidebar"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Button>
+                </div>
+              )}
+              <div className="flex flex-col items-center justify-center flex-1 p-6 text-center">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+                  <InformationCircleIcon className="w-8 h-8 text-gray-400" aria-hidden="true" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  Model Details
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs">
+                  Click the info icon next to any model in the dropdown to view detailed information here.
+                </p>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                Model Details
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs">
-                Click the info icon next to any model in the dropdown to view detailed information here.
-              </p>
-            </div>
+            </>
           ) : (
             <>
               {/* Header */}
@@ -224,9 +243,18 @@ export function ModelDetailsSidebar({ model, isOpen, onClose, initialTab = 'over
                   size="sm"
                   onClick={onClose}
                   className="flex-shrink-0"
-                  aria-label="Close model details"
+                  aria-label={variant === 'desktop' ? 'Collapse sidebar' : 'Close model details'}
+                  title={variant === 'desktop' ? 'Collapse sidebar' : 'Close'}
                 >
-                  ✕
+                  {variant === 'desktop' ? (
+                    // Desktop: Right arrow icon for collapse
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  ) : (
+                    // Mobile: X icon for close
+                    '✕'
+                  )}
                 </Button>
               </div>
 

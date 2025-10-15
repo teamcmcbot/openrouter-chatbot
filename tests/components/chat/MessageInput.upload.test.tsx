@@ -56,10 +56,14 @@ describe('MessageInput upload toasts', () => {
   beforeEach(() => { jest.resetAllMocks(); toastSpies.error?.mockReset?.(); toastSpies.success?.mockReset?.(); toastSpies.loading?.mockReset?.(); toastSpies.dismiss?.mockReset?.(); })
 
   test('client validation toast for bad type', async () => {
-  const { container } = await setup()
+  const { container, getByPlaceholderText } = await setup()
+    // Expand MessageInput to show feature buttons
+    const textarea = getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    expect(input).toBeTruthy() // Ensure input exists
     const file = new File([new Uint8Array([1,2,3])], 'note.txt', { type: 'text/plain' })
-    Object.defineProperty(input, 'files', { value: [file] })
+    Object.defineProperty(input, 'files', { value: [file], configurable: true })
     fireEvent.change(input)
   await waitFor(() => expect(toastSpies.error).toHaveBeenCalled())
   })
@@ -68,10 +72,14 @@ describe('MessageInput upload toasts', () => {
     // Mock fetch to return 429 once
     const originalFetch = global.fetch
     ;(global as unknown as { fetch: unknown }).fetch = (async () => ({ ok: false, status: 429, headers: new Map([['Retry-After','10']]), json: async () => ({ error: 'Rate limited' }), text: async () => 'Rate limited' })) as unknown as typeof global.fetch
-  const { container, findAllByText } = await setup()
+  const { container, findAllByText, getByPlaceholderText } = await setup()
+    // Expand MessageInput to show feature buttons
+    const textarea = getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    expect(input).toBeTruthy() // Ensure input exists
     const file = new File([new Uint8Array([1,2,3])], 'pic.jpg', { type: 'image/jpeg' })
-    Object.defineProperty(input, 'files', { value: [file] })
+    Object.defineProperty(input, 'files', { value: [file], configurable: true })
     fireEvent.change(input)
   await waitFor(() => expect(toastSpies.error).toHaveBeenCalled())
     // UI shows "Upload failed" badge

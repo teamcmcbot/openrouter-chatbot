@@ -79,4 +79,10 @@ Create a table comparing the features of Python, Java, and JavaScript.
 
 5. A serene image of an elderly couple walking hand-in-hand through a park during autumn. The photograph showcases the vibrant fall colors of the leaves, with the couple's expressions reflecting contentment and companionship. The soft lighting and natural setting create a peaceful and heartwarming atmosphere.
 
+# Sketch prompts
 
+1. Create a photo-style line drawing / ink sketch of the faces identical to the uploaded reference image — keep every facial feature, proportion, and expression exactly the same. Use blue and white ink tones with intricate, fine line detailing, drawn on a notebook-page style background.
+
+2. Illustrate a bustling city street scene in a sketch style, capturing the energy and movement of pedestrians, cyclists, and vehicles. Use dynamic lines and varying shades of gray to convey depth and perspective, with a focus on the interplay of light and shadow.
+
+3. Draw a serene landscape featuring a calm lake surrounded by mountains and trees, using soft pencil strokes and shading techniques to create a tranquil atmosphere. Emphasize the reflections in the water and the texture of the foliage.

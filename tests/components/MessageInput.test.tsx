@@ -60,9 +60,11 @@ describe('MessageInput', () => {
     render(<MessageInput onSendMessage={mockSendMessage} />);
     
     const textarea = screen.getByPlaceholderText(/type your message/i);
-    const sendButton = screen.getByRole('button', { name: /send message/i });
     
     fireEvent.change(textarea, { target: { value: 'Hello, world!' } });
+    
+    // Get button after typing (component expands on change)
+    const sendButton = screen.getByRole('button', { name: /send message/i });
     fireEvent.click(sendButton);
     
     // Allow additional evolving option keys (reasoning, imageOutput, etc.)

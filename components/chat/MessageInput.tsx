@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type React from "react";
 import { PaperAirplaneIcon, ArrowPathIcon, PaperClipIcon, GlobeAltIcon, XMarkIcon, LightBulbIcon, PlayIcon, InformationCircleIcon, PhotoIcon } from "@heroicons/react/24/outline";
 import Tooltip from "../ui/Tooltip";
@@ -32,6 +32,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
   const [liveMsg, setLiveMsg] = useState<string>(""); // for aria-live threshold announcements
   const wasOverRef = useRef<boolean>(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false); // Collapsible input state
   const [streamingOn, setStreamingOn] = useState(false); // UI-only toggle for streaming
   const [webSearchOn, setWebSearchOn] = useState(false); // UI-only toggle
   const [webMaxResults, setWebMaxResults] = useState<number>(3); // UI setting for web search results (1-5)
@@ -89,11 +90,22 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
   useEffect(() => {
     if (initialMessage) {
       setMessage(initialMessage);
-      // Focus and select the textarea
+      // Expand the input to show feature buttons
+      setIsExpanded(true);
+      // Focus the textarea and set cursor at the end, then adjust height for multi-line content
       const textarea = document.getElementById('message-input') as HTMLTextAreaElement;
       if (textarea) {
-        textarea.focus();
-        textarea.select();
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          textarea.focus();
+          // Set cursor at the end instead of selecting all text
+          const length = initialMessage.length;
+          textarea.setSelectionRange(length, length);
+          // Auto-expand textarea height for multi-line prompts
+          textarea.style.height = "40px";
+          const maxHeight = 80; // Match expanded state max height
+          textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + "px";
+        }, 50);
       }
     }
   }, [initialMessage]);
@@ -201,6 +213,43 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
     const mods = selectedModelData?.output_modalities as string[] | undefined;
     return Array.isArray(mods) ? mods.includes('image') : false;
   })();
+
+  // Auto-expand when has content, attachments, or banner is showing
+  useEffect(() => {
+    const hasContent = message.length > 0;
+    const hasAttachments = attachments.length > 0;
+    const hasBanner = attachments.length > 0 && !modelSupportsImages;
+    
+    const shouldExpand = hasContent || hasAttachments || hasBanner;
+    setIsExpanded(shouldExpand);
+  }, [message.length, attachments.length, modelSupportsImages]);
+
+  // Extract onBlur handler for better readability and testability
+  const handleInputBlur = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
+    // Keep expanded if there's text
+    if (message.length > 0 || attachments.length > 0) {
+      return;
+    }
+    
+    // Don't collapse if clicking on feature buttons or other interactive elements
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (relatedTarget && relatedTarget.closest('[data-keep-expanded]')) {
+      return;
+    }
+    
+    // Collapse empty input
+    if (isMobile) {
+      // Mobile: delay to prevent premature collapse during keyboard transitions
+      setTimeout(() => {
+        if (message.length === 0 && attachments.length === 0) {
+          setIsExpanded(false);
+        }
+      }, 100);
+    } else {
+      // Desktop: immediate collapse
+      setIsExpanded(false);
+    }
+  }, [message.length, attachments.length, isMobile]);
 
   // Resolve a human-friendly model display name
   const getModelDisplayName = (info: Partial<ModelInfo> | null | undefined, fallbackId?: string) => {
@@ -627,13 +676,17 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
   };
 
   return (
-    <div className="px-4 sm:px-6 py-4">
+    <div className={`px-4 sm:px-6 transition-all duration-200 ${
+      isExpanded ? 'py-4' : 'py-2'
+    }`}>
       {/* Composer Dock (pill) */}
-      <div className="rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-2 sm:px-3 sm:py-3 flex flex-col gap-2 
+      <div className={`relative rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 sm:px-3 flex flex-col transition-all duration-200 ${
+        isExpanded ? 'py-2 sm:py-3 gap-2' : 'py-2 gap-0'
+      } 
         transition-colors duration-150 
-        focus-within:border-transparent focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-inset">
-        {/* Row 1: Textarea */}
-        <div className="relative flex-1 min-w-0">
+        focus-within:border-transparent focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-inset`}>
+        {/* Row 1: Textarea (+ Send button when collapsed) */}
+        <div className="relative flex items-center gap-2">
           <textarea
             id="message-input"
             name="message"
@@ -647,23 +700,43 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
+            onFocus={() => setIsExpanded(true)}
+            onBlur={handleInputBlur}
             onCompositionStart={() => (composingRef.current = true)}
             onCompositionEnd={() => (composingRef.current = false)}
             placeholder={isBanned ? "You can't send messages while banned" : (modelSupportsImageOutput ? "Describe your image..." : "Type your message...")}
             disabled={disabled}
-            className="w-full px-3 py-2 bg-transparent border-0 outline-none resize-none focus:ring-0 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 disabled:cursor-not-allowed"
+            className="flex-1 px-3 py-2 bg-transparent border-0 outline-none resize-none focus:ring-0 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 disabled:cursor-not-allowed"
             rows={1}
             style={{
-              minHeight: "48px",
-              maxHeight: "120px",
+              minHeight: "40px",
+              maxHeight: isExpanded ? "80px" : "40px",
             }}
             enterKeyHint="send"
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
-              target.style.height = "48px";
-              target.style.height = Math.min(target.scrollHeight, 120) + "px";
+              target.style.height = "40px";
+              const maxHeight = isExpanded ? 80 : 40;
+              target.style.height = Math.min(target.scrollHeight, maxHeight) + "px";
             }}
           />
+
+          {/* Send button - visible only when collapsed */}
+          {!isExpanded && (
+            <button
+              onClick={handleSend}
+              disabled={!message.trim() || disabled || message.length > MAX_MESSAGE_CHARS}
+              className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
+              aria-label="Send message"
+              data-testid="send-button"
+            >
+              {isSending ? (
+                <ArrowPathIcon className="w-5 h-5 animate-spin" />
+              ) : (
+                <PaperAirplaneIcon className="w-5 h-5" />
+              )}
+            </button>
+          )}
         </div>
 
         {/* Inline over-limit hint */}
@@ -677,8 +750,8 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
         )}
 
         {/* Row 2: Attachment previews (inside pill) */}
-        {attachments.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto sm:overflow-x-visible snap-x snap-mandatory -mx-1 px-1">
+        {isExpanded && attachments.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto sm:overflow-x-visible snap-x snap-mandatory -mx-1 px-1 animate-in fade-in slide-in-from-top-2 duration-200">
             {attachments.map((att, idx) => (
               <AttachmentTile
                 key={att.tempId || att.id || idx}
@@ -693,8 +766,8 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
         )}
 
         {/* Row 2.5: Inline banner if images present but selected model is text-only */}
-        {attachments.length > 0 && !modelSupportsImages && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 dark:border-emerald-700/60 dark:bg-emerald-900/40 px-3 py-2.5">
+        {isExpanded && attachments.length > 0 && !modelSupportsImages && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 dark:border-emerald-700/60 dark:bg-emerald-900/40 px-3 py-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex flex-col gap-2.5">
               <div className="text-xs text-emerald-800 dark:text-emerald-200 leading-relaxed">
                 <div className="text-emerald-900 dark:text-emerald-100">
@@ -736,14 +809,20 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
           </div>
         )}
 
-  {/* Row 3: Controls (left features, right send) */}
-  <div className="relative flex items-center justify-between">
-          <div className="flex items-center gap-1">
+        {/* Row 3: Feature buttons (only when expanded) */}
+        {isExpanded && (
+          <div 
+            className="relative flex items-center justify-between gap-2 animate-in fade-in slide-in-from-left-2 duration-200 z-20"
+            data-keep-expanded
+          >
+            {/* Left side: Feature buttons */}
+            <div className="flex items-center gap-1">
             <button
               type="button"
               aria-label={streamingOn ? 'Streaming: ON' : 'Streaming'}
               aria-pressed={streamingOn}
               title="Streaming"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 if (disabled) return;
                 // Open streaming settings modal
@@ -774,6 +853,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
               aria-label={webSearchOn ? 'Web Search: ON' : 'Web Search'}
               aria-pressed={webSearchOn}
               title="Web Search"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 if (disabled) return;
                 // Free or anonymous → upgrade modal
@@ -809,6 +889,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
               aria-label={reasoningOn ? 'Reasoning: ON' : 'Reasoning'}
               aria-pressed={reasoningOn}
               title="Reasoning"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 if (disabled) return;
                 // Unsupported model → explain
@@ -846,6 +927,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handlePickFiles}
               disabled={disabled}
               className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-600/60 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -869,6 +951,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
               aria-label={imageOutputOn ? 'Generate Image: ON' : 'Generate Image'}
               aria-pressed={imageOutputOn}
               title="Generate Image"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 if (disabled) return;
                 // Unsupported model for image output → explain
@@ -903,30 +986,33 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                 />
               )}
             </button>
+            </div>
+
+            {/* Right side: Send button (when expanded) */}
+            <button
+              onClick={handleSend}
+              disabled={!message.trim() || disabled || message.length > MAX_MESSAGE_CHARS}
+              className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
+              aria-label="Send message"
+              data-testid="send-button"
+            >
+              {isSending ? (
+                <ArrowPathIcon className="w-5 h-5 animate-spin" />
+              ) : (
+                <PaperAirplaneIcon className="w-5 h-5" />
+              )}
+            </button>
           </div>
+        )}
 
-          <button
-            onClick={handleSend}
-            disabled={!message.trim() || disabled || message.length > MAX_MESSAGE_CHARS}
-            className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
-            aria-label="Send message"
-            data-testid="send-button"
-          >
-            {isSending ? (
-              <ArrowPathIcon className="w-5 h-5 animate-spin" />
-            ) : (
-              <PaperAirplaneIcon className="w-5 h-5" />
-            )}
-          </button>
-
-          {/* Floating character counter centered in controls row (no layout shift) */}
-          <div
+        {/* Floating character counter centered in pill, aligned with feature buttons bottom (no layout shift) */}
+        <div
             aria-live="polite"
-            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-0 z-10 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border shadow-md backdrop-blur-sm shadow-black/10 dark:shadow-black/30
+            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-2 sm:bottom-3 z-30 text-[11px] rounded-md px-2 py-1 transition-opacity duration-300 select-none border shadow-md backdrop-blur-sm shadow-black/10 dark:shadow-black/30
               ${showCount ? 'opacity-100' : 'opacity-0'} 
               ${message.length > MAX_MESSAGE_CHARS
                 ? 'bg-red-700 text-white border-red-600 dark:bg-red-700 dark:text-white dark:border-red-600 sm:bg-red-100/90 sm:text-red-700 sm:border-red-300 sm:dark:bg-red-900/50 sm:dark:text-red-200 sm:dark:border-red-700'
-                : 'bg-gray-900/80 text-white border-gray-800 dark:bg-gray-900/80 dark:text-white dark:border-gray-700 sm:bg-gray-100/80 sm:text-gray-700 sm:border-gray-300 sm:dark:bg-gray-800/70 sm:dark:text-gray-200 sm:dark:border-gray-600'}`}
+                : 'bg-gray-900/95 text-white border-gray-800 dark:bg-gray-900/95 dark:text-white dark:border-gray-700 sm:bg-gray-100/80 sm:text-gray-700 sm:border-gray-300 sm:dark:bg-gray-800/70 sm:dark:text-gray-200 sm:dark:border-gray-600'}`}
             data-testid="char-counter"
           >
             {`${message.length} characters`}
@@ -944,6 +1030,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   ref={gatingRef}
                   data-testid="gating-popover"
                   className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
+                  data-keep-expanded
                 >
                   <button
                     aria-label="Close"
@@ -961,6 +1048,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   ref={gatingRef}
                   data-testid="gating-popover"
                   className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-emerald-500 bg-emerald-50 ring-1 ring-inset ring-emerald-100 dark:border-emerald-400 dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
+                  data-keep-expanded
                 >
                   <button
                     aria-label="Close"
@@ -983,6 +1071,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   ref={gatingRef}
                   data-testid="gating-popover"
                   className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-emerald-500 bg-emerald-50 ring-1 ring-inset ring-emerald-100 dark:border-emerald-400 dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
+                  data-keep-expanded
                 >
                   <button
                     aria-label="Close"
@@ -1006,6 +1095,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   ref={gatingRef}
                   data-testid="gating-popover"
                   className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-emerald-500 bg-emerald-50 ring-1 ring-inset ring-emerald-100 dark:border-emerald-400 dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
+                  data-keep-expanded
                 >
                   <button
                     aria-label="Close"
@@ -1070,6 +1160,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   ref={gatingRef}
                   data-testid="gating-popover"
                   className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
+                  data-keep-expanded
                 >
                   <button
                     aria-label="Close"
@@ -1088,6 +1179,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   ref={gatingRef}
                   data-testid="gating-popover"
                   className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
+                  data-keep-expanded
                 >
                   <button
                     aria-label="Close"
@@ -1106,6 +1198,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
                   ref={gatingRef}
                   data-testid="gating-popover"
                   className="absolute left-0 bottom-full mb-2 z-40 w-72 sm:w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-900/95 p-3 text-sm dark:shadow-2xl"
+                  data-keep-expanded
                 >
                   <button
                     aria-label="Close"
@@ -1126,6 +1219,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
             <div
               ref={streamingModalRef}
               className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
+              data-keep-expanded
             >
               <button
                 aria-label="Close"
@@ -1162,6 +1256,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
             <div
               ref={searchModalRef}
               className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
+              data-keep-expanded
             >
               <button
                 aria-label="Close"
@@ -1239,6 +1334,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
             <div
               ref={reasoningModalRef}
               className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
+              data-keep-expanded
             >
               <button
                 aria-label="Close"
@@ -1271,6 +1367,7 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
             <div
               ref={imageOutputModalRef}
               className="absolute left-0 bottom-full mb-2 z-40 w-80 rounded-lg border-2 border-slate-500 dark:border-slate-300 bg-white dark:bg-gray-800 p-4 dark:shadow-2xl"
+              data-keep-expanded
             >
               <button
                 aria-label="Close"
@@ -1301,7 +1398,6 @@ export default function MessageInput({ onSendMessage, disabled = false, isSendin
               </div>
             </div>
           )}
-        </div>
 
       </div>
     </div>

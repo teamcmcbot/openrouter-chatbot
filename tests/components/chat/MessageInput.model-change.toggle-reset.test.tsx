@@ -60,6 +60,10 @@ const loadComponent = async () => {
  * Helper: turn on both toggles via their settings popovers
  */
 async function enableBothToggles() {
+  // First, expand the MessageInput to show feature buttons
+  const textarea = screen.getByPlaceholderText(/type your message/i);
+  fireEvent.focus(textarea);
+  
   // Open Web Search settings and toggle on
   const webBtn = screen.getByRole('button', { name: /web search/i });
   fireEvent.click(webBtn);

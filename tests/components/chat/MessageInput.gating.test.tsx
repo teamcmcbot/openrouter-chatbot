@@ -61,6 +61,9 @@ describe('MessageInput gating (free tier)', () => {
   test('clicking Web Search opens gating popover and does not toggle ON', async () => {
     const MessageInput = await setupRender()
     render(<MessageInput onSendMessage={jest.fn()} />)
+    // Expand MessageInput to show feature buttons
+    const textarea = screen.getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     const webBtn = screen.getByRole('button', { name: /web search/i })
     fireEvent.click(webBtn)
     // Gating copy visible
@@ -72,6 +75,9 @@ describe('MessageInput gating (free tier)', () => {
   test('clicking Attach opens gating popover (images)', async () => {
     const MessageInput = await setupRender()
     render(<MessageInput onSendMessage={jest.fn()} />)
+    // Expand MessageInput to show feature buttons
+    const textarea = screen.getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     const attachBtn = screen.getByRole('button', { name: /attach image/i })
     fireEvent.click(attachBtn)
     // Gating popover container should exist
@@ -81,6 +87,9 @@ describe('MessageInput gating (free tier)', () => {
   test('Escape closes gating', async () => {
   const MessageInput = await setupRender()
   render(<MessageInput onSendMessage={jest.fn()} />)
+    // Expand MessageInput to show feature buttons
+    const textarea = screen.getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     fireEvent.click(screen.getByRole('button', { name: /web search/i }))
     expect(await screen.findByText(/Upgrade to use Web Search/i)).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'Escape' })
@@ -90,6 +99,9 @@ describe('MessageInput gating (free tier)', () => {
   test('Outside click closes gating', async () => {
   const MessageInput = await setupRender()
   render(<MessageInput onSendMessage={jest.fn()} />)
+  // Expand MessageInput to show feature buttons
+  const textarea = screen.getByPlaceholderText(/type your message/i)
+  fireEvent.focus(textarea)
   fireEvent.click(screen.getByRole('button', { name: /attach image/i }))
   expect(await screen.findByTestId('gating-popover')).toBeInTheDocument()
     // Click outside
@@ -124,6 +136,9 @@ describe('MessageInput (pro tier)', () => {
   test('Web Search opens settings modal and toggles ON', async () => {
     const MessageInput = await setupRender()
     render(<MessageInput onSendMessage={jest.fn()} />)
+    // Expand MessageInput to show feature buttons
+    const textarea = screen.getByPlaceholderText(/type your message/i)
+    fireEvent.focus(textarea)
     const webBtn = screen.getByRole('button', { name: /web search/i })
     fireEvent.click(webBtn)
     // Modal visible
