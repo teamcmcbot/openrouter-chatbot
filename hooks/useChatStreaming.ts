@@ -714,9 +714,25 @@ export function useChatStreaming(): UseChatStreamingReturn {
               delete assistantMessageForDB.output_images;
             }
             
-            // Calculate text-only output_tokens (total - image_tokens) for database
+            // Calculate text-only output_tokens for database (provider-aware)
+            // OpenAI: completion_tokens already text-only, don't subtract
+            // Google: completion_tokens includes images, subtract to get text-only
             if (assistantMessageForDB.output_image_tokens && assistantMessageForDB.output_tokens) {
-              assistantMessageForDB.output_tokens = assistantMessageForDB.output_tokens - assistantMessageForDB.output_image_tokens;
+              const isOpenAI = assistantMessageForDB.model?.startsWith('openai/');
+              if (!isOpenAI) {
+                // Google/other providers: subtract image tokens from completion tokens
+                assistantMessageForDB.output_tokens = assistantMessageForDB.output_tokens - assistantMessageForDB.output_image_tokens;
+              }
+              // OpenAI: keep output_tokens as-is (already text-only)
+            }
+            
+            // Recalculate total_tokens for OpenAI image models (additive, not from API)
+            // OpenAI API returns incorrect total_tokens for image generation
+            if (assistantMessageForDB.model?.startsWith('openai/') && assistantMessageForDB.output_image_tokens) {
+              assistantMessageForDB.total_tokens = 
+                (assistantMessageForDB.input_tokens || 0) + 
+                (assistantMessageForDB.output_tokens || 0) + 
+                (assistantMessageForDB.output_image_tokens || 0);
             }
             
             // Update syncPayload with cleaned message

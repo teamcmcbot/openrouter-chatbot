@@ -2,6 +2,18 @@ import { AuthContext } from "../../lib/types/auth";
 import type { User } from "@supabase/supabase-js";
 // getOpenRouterCompletion is dynamically imported per test after env vars are set
 
+// Mock server/models to avoid cookies() call
+jest.mock("../../lib/server/models", () => ({
+  getServerModelConfig: jest.fn().mockResolvedValue({
+    id: "test-model",
+    name: "Test Model",
+    pricing: { prompt: "0", completion: "0" },
+    context_length: 4096,
+    supported_parameters: {},
+  }),
+  doesModelSupportParameter: jest.fn().mockResolvedValue(true),
+}));
+
 // Mock fetch to capture request payload
 let originalFetch: typeof global.fetch;
 

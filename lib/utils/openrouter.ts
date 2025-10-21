@@ -14,6 +14,7 @@ import {
 } from '../types/openrouter';
 import { AuthContext } from '../types/auth';
 import { getPersonalityPrompt, isValidPersonalityPreset } from '../constants/personalityPresets';
+import { doesModelSupportParameter, SubscriptionTier as ServerSubscriptionTier } from '../server/models';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
@@ -292,8 +293,24 @@ export async function getOpenRouterCompletion(
     model: selectedModel,
     messages: finalMessages,
     max_tokens: dynamicMaxTokens,
-    temperature: finalTemperature,
   };
+
+  // Check if model supports temperature parameter before including it
+  const tier = (authContext?.profile?.subscription_tier || 'anonymous') as ServerSubscriptionTier;
+  const supportsTemperature = await doesModelSupportParameter({
+    modelId: selectedModel,
+    tier,
+    parameter: 'temperature',
+  });
+
+  if (supportsTemperature) {
+    requestBody.temperature = finalTemperature;
+  } else {
+    logger.info('Model does not support temperature parameter, omitting from request', {
+      model: selectedModel,
+      requestedTemperature: finalTemperature,
+    });
+  }
 
   try {
     if (isUserTrackingEnabled() && authContext?.isAuthenticated && authContext.user?.id) {
@@ -585,9 +602,25 @@ export async function getOpenRouterCompletionStream(
     model: selectedModel,
     messages: finalMessages,
     max_tokens: dynamicMaxTokens,
-    temperature: finalTemperature,
     stream: true,
   };
+
+  // Check if model supports temperature parameter before including it
+  const tier = (authContext?.profile?.subscription_tier || 'anonymous') as ServerSubscriptionTier;
+  const supportsTemperature = await doesModelSupportParameter({
+    modelId: selectedModel,
+    tier,
+    parameter: 'temperature',
+  });
+
+  if (supportsTemperature) {
+    requestBody.temperature = finalTemperature;
+  } else {
+    logger.info('Model does not support temperature parameter (streaming), omitting from request', {
+      model: selectedModel,
+      requestedTemperature: finalTemperature,
+    });
+  }
 
   try {
     if (isUserTrackingEnabled() && authContext?.isAuthenticated && authContext.user?.id) {

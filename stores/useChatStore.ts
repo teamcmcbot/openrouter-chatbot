@@ -541,18 +541,31 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 reasoning_details?: Record<string, unknown>[];
               };
               const respWithReasoning = data as ChatResponseWithReasoning;
+              
+              // Apply provider-aware token correction (OpenAI image models need recalculation)
+              const { correctTokensForProvider } = await import('../lib/utils/tokenCalculations');
+              const correctedTokens = correctTokensForProvider(
+                {
+                  prompt_tokens: data.usage?.prompt_tokens,
+                  completion_tokens: data.usage?.completion_tokens,
+                  total_tokens: data.usage?.total_tokens,
+                  completion_tokens_details: data.usage?.completion_tokens_details
+                },
+                data.model || model
+              );
+              
               const assistantMessage: ChatMessage = {
                 id: generateMessageId(),
                 content: data.response,
                 role: "assistant",
                 timestamp: new Date(),
                 elapsed_ms: data.elapsed_ms ?? 0,
-                total_tokens: data.usage?.total_tokens ?? 0,
-                input_tokens: data.usage?.prompt_tokens ?? 0,
-                output_tokens: data.usage?.completion_tokens ?? 0,
+                total_tokens: correctedTokens.total_tokens,
+                input_tokens: correctedTokens.input_tokens,
+                output_tokens: correctedTokens.output_tokens,
                 // Phase 4A: Extract image tokens from completion_tokens_details if present
-                ...(data.usage?.completion_tokens_details?.image_tokens && {
-                  output_image_tokens: data.usage.completion_tokens_details.image_tokens
+                ...(correctedTokens.output_image_tokens && {
+                  output_image_tokens: correctedTokens.output_image_tokens
                 }),
                 user_message_id: data.request_id, // Link to the user message that triggered this response
                 model: data.model || model,
@@ -678,10 +691,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         delete assistantMessageForDB.output_images;
                       }
                       
-                      // Calculate text-only output_tokens (total - image_tokens) for database
-                      if (assistantMessageForDB.output_image_tokens && assistantMessageForDB.output_tokens) {
-                        assistantMessageForDB.output_tokens = assistantMessageForDB.output_tokens - assistantMessageForDB.output_image_tokens;
-                      }
+                      // Note: output_tokens already corrected by correctTokensForProvider() - no need for additional subtraction
                       
                       // Save user and assistant messages as a pair - now with correct input_tokens and optional title
                       const payload: {
@@ -765,10 +775,7 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                         delete assistantMessageForDB.output_images;
                       }
                       
-                      // Calculate text-only output_tokens (total - image_tokens) for database
-                      if (assistantMessageForDB.output_image_tokens && assistantMessageForDB.output_tokens) {
-                        assistantMessageForDB.output_tokens = assistantMessageForDB.output_tokens - assistantMessageForDB.output_image_tokens;
-                      }
+                      // Note: output_tokens already corrected by correctTokensForProvider() - no need for additional subtraction
                       
                       const payload: {
                         messages: ChatMessage[];
@@ -1418,6 +1425,19 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 reasoning_details?: Record<string, unknown>[];
               };
               const respWithReasoning2 = data as ChatResponseWithReasoning2;
+              
+              // Apply provider-aware token correction (OpenAI image models need recalculation)
+              const { correctTokensForProvider } = await import('../lib/utils/tokenCalculations');
+              const correctedTokens = correctTokensForProvider(
+                {
+                  prompt_tokens: data.usage?.prompt_tokens,
+                  completion_tokens: data.usage?.completion_tokens,
+                  total_tokens: data.usage?.total_tokens,
+                  completion_tokens_details: data.usage?.completion_tokens_details
+                },
+                data.model || model
+              );
+              
               const assistantMessage: ChatMessage = {
                 id: generateMessageId(),
                 content: data.response,
@@ -1425,9 +1445,13 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 // Use server-provided timestamp if available for consistency
                 timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
                 elapsed_ms: data.elapsed_ms ?? 0,
-                total_tokens: data.usage?.total_tokens ?? 0,
-                input_tokens: data.usage?.prompt_tokens ?? 0,
-                output_tokens: data.usage?.completion_tokens ?? 0,
+                total_tokens: correctedTokens.total_tokens,
+                input_tokens: correctedTokens.input_tokens,
+                output_tokens: correctedTokens.output_tokens,
+                // Extract image tokens from corrected tokens
+                ...(correctedTokens.output_image_tokens && {
+                  output_image_tokens: correctedTokens.output_image_tokens
+                }),
                 user_message_id: data.request_id, // Link to the user message that triggered this response
                 model: data.model || model,
                 contentType: data.contentType || "text",
