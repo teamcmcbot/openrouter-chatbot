@@ -523,7 +523,8 @@ export default function MessageList({
                         message.input_tokens,
                         message.output_tokens,
                         message.total_tokens,
-                        message.output_image_tokens
+                        message.output_image_tokens,
+                        message.model
                       );
                       
                       return (

@@ -6,6 +6,7 @@ export type SubscriptionTier = 'anonymous' | 'free' | 'pro' | 'enterprise';
 export interface ServerModelConfig {
   context_length: number;
   description: string;
+  supported_parameters?: string[];
 }
 
 // Simple in-memory cache keyed by `${tier}` for list fetches and by `${tier}|${modelId}` for individual lookups
@@ -30,6 +31,7 @@ interface ModelAccessRow {
   model_name?: string | null;
   model_description?: string | null;
   context_length?: number | null;
+  supported_parameters?: string[] | null;
   status: 'active' | string;
   is_free: boolean;
   is_pro: boolean;
@@ -51,6 +53,7 @@ export async function getServerModelConfigsForTier(tier: SubscriptionTier): Prom
       model_name,
       model_description,
       context_length,
+      supported_parameters,
       status,
       is_free,
       is_pro,
@@ -81,9 +84,11 @@ export async function getServerModelConfigsForTier(tier: SubscriptionTier): Prom
     const name = row.model_name ?? undefined;
     const desc = row.model_description ?? undefined;
     const ctx = row.context_length ?? undefined;
+    const params = row.supported_parameters ?? undefined;
     map[id] = {
       context_length: typeof ctx === 'number' && ctx > 0 ? ctx : 8192,
       description: (name || desc || id),
+      supported_parameters: Array.isArray(params) ? params : undefined,
     };
   }
 
@@ -117,6 +122,7 @@ export async function getServerModelConfig(params: { modelId: string; tier: Subs
       model_name,
       model_description,
       context_length,
+      supported_parameters,
       status,
       is_free,
       is_pro,
@@ -142,10 +148,78 @@ export async function getServerModelConfig(params: { modelId: string; tier: Subs
     return null;
   }
   const ctx = row.context_length ?? undefined;
+  const supportedParams = row.supported_parameters ?? undefined;
   const cfg: ServerModelConfig = {
     context_length: typeof ctx === 'number' && ctx > 0 ? ctx : 8192,
     description: (row.model_name || row.model_description || row.model_id),
+    supported_parameters: Array.isArray(supportedParams) ? supportedParams : undefined,
   };
   itemCache.set(cacheKey, { ts: Date.now(), data: cfg });
   return cfg;
+}
+
+/**
+ * Hardcoded overrides for models where OpenRouter's metadata is incorrect
+ * This list takes precedence over database values when the actual API behavior
+ * differs from what the OpenRouter models endpoint reports.
+ * 
+ * Key: model_id, Value: Record<parameter, isSupported>
+ * 
+ * Note: Model IDs below (e.g., 'openai/gpt-5-image') are examples based on current
+ * naming patterns. These should be updated when actual model IDs are confirmed.
+ */
+const MODEL_PARAMETER_OVERRIDES: Record<string, Record<string, boolean>> = {
+  // OpenAI image generation models claim to support temperature in metadata,
+  // but the actual API rejects it with "Unsupported parameter" error.
+  // Update these model IDs when the actual OpenAI image models are released.
+  'openai/gpt-5-image': {
+    temperature: false,
+    top_p: false,
+  },
+  'openai/gpt-5-image-mini': {
+    temperature: false,
+    top_p: false,
+  },
+  // Add more overrides here as we discover discrepancies
+};
+
+/**
+ * Check if a model supports a specific parameter (e.g., 'temperature', 'top_p', etc.)
+ * Returns true if the parameter is supported, false otherwise
+ * Falls back to true if supported_parameters is not available (for backward compatibility)
+ * 
+ * Priority order:
+ * 1. Hardcoded overrides (for known API vs metadata discrepancies)
+ * 2. Database supported_parameters field
+ * 3. Default to true (backward compatibility)
+ */
+export async function doesModelSupportParameter(params: {
+  modelId: string;
+  tier: SubscriptionTier;
+  parameter: string;
+}): Promise<boolean> {
+  const { modelId, tier, parameter } = params;
+  
+  // Check hardcoded overrides first (highest priority)
+  const overrides = MODEL_PARAMETER_OVERRIDES[modelId];
+  if (overrides && parameter in overrides) {
+    const overrideValue = overrides[parameter];
+    logger.debug('Using hardcoded parameter override', {
+      modelId,
+      parameter,
+      supported: overrideValue,
+      reason: 'Known API vs metadata discrepancy',
+    });
+    return overrideValue;
+  }
+  
+  const modelConfig = await getServerModelConfig({ modelId, tier });
+  
+  // If model not found or no supported_parameters data, default to true for backward compatibility
+  if (!modelConfig || !modelConfig.supported_parameters) {
+    return true;
+  }
+  
+  // Check if parameter is in the supported_parameters array
+  return modelConfig.supported_parameters.includes(parameter);
 }
