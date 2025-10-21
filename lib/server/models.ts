@@ -164,10 +164,14 @@ export async function getServerModelConfig(params: { modelId: string; tier: Subs
  * differs from what the OpenRouter models endpoint reports.
  * 
  * Key: model_id, Value: Record<parameter, isSupported>
+ * 
+ * Note: Model IDs below (e.g., 'openai/gpt-5-image') are examples based on current
+ * naming patterns. These should be updated when actual model IDs are confirmed.
  */
 const MODEL_PARAMETER_OVERRIDES: Record<string, Record<string, boolean>> = {
-  // OpenAI GPT-5 Image models claim to support temperature in metadata,
-  // but the actual API rejects it with "Unsupported parameter" error
+  // OpenAI image generation models claim to support temperature in metadata,
+  // but the actual API rejects it with "Unsupported parameter" error.
+  // Update these model IDs when the actual OpenAI image models are released.
   'openai/gpt-5-image': {
     temperature: false,
     top_p: false,

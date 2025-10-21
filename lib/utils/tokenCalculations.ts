@@ -5,6 +5,27 @@
  */
 
 /**
+ * Model provider types for token calculation logic
+ */
+export type ModelProvider = 'openai' | 'google' | 'other';
+
+/**
+ * Extract provider from model ID string.
+ * This centralizes provider detection logic to avoid duplication.
+ * 
+ * @param modelId Model identifier (e.g., "openai/gpt-5-image", "google/gemini-2.0-flash-exp")
+ * @returns Provider type for token calculation rules
+ */
+export function getProviderFromModelId(modelId?: string): ModelProvider {
+  if (!modelId) return 'other';
+  
+  if (modelId.startsWith('openai/')) return 'openai';
+  if (modelId.startsWith('google/')) return 'google';
+  
+  return 'other';
+}
+
+/**
  * Calculate text output tokens with provider-aware logic.
  * 
  * Provider-specific token accounting:
@@ -39,8 +60,8 @@ export function calculateTextOutputTokens(
   
   // OpenAI image generation models: completion tokens already exclude images
   // Return as-is without subtraction to prevent negative values
-  const isOpenAI = modelId?.startsWith('openai/');
-  if (isOpenAI) {
+  const provider = getProviderFromModelId(modelId);
+  if (provider === 'openai') {
     logger.debug('calculateTextOutputTokens: OpenAI provider detected - no subtraction', { 
       outputTokens, imageTokens, modelId 
     });
@@ -105,10 +126,10 @@ export function correctTokensForProvider(
   const total_tokens_raw = usage.total_tokens || 0;
   const output_image_tokens = usage.completion_tokens_details?.image_tokens;
   
-  const isOpenAI = modelId?.startsWith('openai/');
+  const provider = getProviderFromModelId(modelId);
   const hasImageTokens = output_image_tokens && output_image_tokens > 0;
   
-  if (isOpenAI && hasImageTokens) {
+  if (provider === 'openai' && hasImageTokens) {
     // OpenAI: completion_tokens is text-only, recalculate total
     const corrected_total = input_tokens + output_tokens_raw + output_image_tokens;
     logger.debug('correctTokensForProvider: OpenAI image model correction', {
@@ -127,7 +148,7 @@ export function correctTokensForProvider(
     };
   }
   
-  if (!isOpenAI && hasImageTokens) {
+  if (provider !== 'openai' && hasImageTokens) {
     // Google/others: completion_tokens includes images, subtract for text-only
     const text_output = Math.max(0, output_tokens_raw - output_image_tokens);
     logger.debug('correctTokensForProvider: Google/other provider correction', {
@@ -184,8 +205,8 @@ export function formatTokenDisplay(
   // OpenAI: total = input + text + images (additive)
   // Others: use API's total_tokens (already correct)
   let total = totalTokens || 0;
-  const isOpenAI = modelId?.startsWith('openai/');
-  if (isOpenAI && hasImageTokens) {
+  const provider = getProviderFromModelId(modelId);
+  if (provider === 'openai' && hasImageTokens) {
     total = input + textOutput + image;
     logger.debug('formatTokenDisplay: Recalculated total for OpenAI image model', {
       modelId, input, textOutput, image, calculatedTotal: total, apiTotal: totalTokens
