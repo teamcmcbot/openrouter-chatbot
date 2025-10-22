@@ -342,7 +342,12 @@ export async function getOpenRouterCompletion(
     try {
       const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENROUTER_API_KEY}` },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+          'X-Title': process.env.BRAND_NAME || 'OpenRouter Chatbot',
+        },
         body: JSON.stringify(requestBody),
       });
       if (!response.ok) {
@@ -642,7 +647,12 @@ export async function getOpenRouterCompletionStream(
 
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENROUTER_API_KEY}` },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      'X-Title': process.env.BRAND_NAME || 'OpenRouter Chatbot',
+    },
     body: JSON.stringify(requestBody),
   });
   if (STREAM_DEBUG) {
