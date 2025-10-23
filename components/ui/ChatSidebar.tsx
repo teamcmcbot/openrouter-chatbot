@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, ArrowPathIcon, CloudIcon, ComputerDesktopIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, PencilIcon, EnvelopeIcon, ArrowPathIcon, Cog6ToothIcon, MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import Button from "./Button";
 import toast from "react-hot-toast";
 import ActionSheet from "./ActionSheet";
@@ -28,26 +28,22 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
     switchConversation,
     deleteConversation,
     updateConversationTitle,
-  loadMoreConversations,
+    loadMoreConversations,
     clearAllConversations,
     isHydrated,
+    searchQuery,
+    searchMode,
+    searchResults,
+    performLocalSearch,
+    clearSearch,
   } = useChatStore();
   
   // Get auth state
   const { isAuthenticated } = useAuthStore();
   
-  // Get sync state from chat store
-  const { isSyncing, lastSyncTime, syncError } = useChatStore();
-  
-  // Create sync status object and manual sync function for the UI
-  const syncStatus = {
-    isSyncing,
-    lastSyncTime: lastSyncTime ? new Date(lastSyncTime) : null,
-    syncError,
-    canSync: isAuthenticated
-  };
-  
-  // Manual sync has been removed. Sync Status remains and updates after message persistence.
+  // Local search input state
+  const [searchInput, setSearchInput] = useState<string>("");
+  const debouncedSearchRef = useRef<NodeJS.Timeout | null>(null);
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -59,6 +55,42 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
   const longPressTimer = useRef<number | null>(null);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const [hasHover, setHasHover] = useState(true);
+
+  // Search handlers
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    
+    // Clear existing debounce timer
+    if (debouncedSearchRef.current) {
+      clearTimeout(debouncedSearchRef.current);
+    }
+    
+    // Debounce search execution
+    debouncedSearchRef.current = setTimeout(() => {
+      if (value.trim().length > 0) {
+        performLocalSearch(value.trim());
+      } else {
+        clearSearch();
+      }
+    }, 300);
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput("");
+    clearSearch();
+    if (debouncedSearchRef.current) {
+      clearTimeout(debouncedSearchRef.current);
+    }
+  };
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debouncedSearchRef.current) {
+        clearTimeout(debouncedSearchRef.current);
+      }
+    };
+  }, []);
 
   // Detect whether the device supports hover (desktop) vs touch (mobile)
   useEffect(() => {
@@ -219,60 +251,42 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
               Recent Chats
             </h3>
 
-            {/* Sync Status */}
-          {isAuthenticated && (
-            <div className="mb-3 px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {syncStatus.isSyncing ? (
-                    <>
-                      <ArrowPathIcon className="w-4 h-4 text-blue-500 animate-spin" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Syncing...</span>
-                    </>
-                  ) : syncStatus.syncError ? (
-                    <>
-                      <ComputerDesktopIcon className="w-4 h-4 text-red-500" />
-                      <span className="text-xs text-red-600 dark:text-red-400">Sync failed</span>
-                    </>
-                  ) : syncStatus.lastSyncTime ? (
-                    <>
-                      <CloudIcon className="w-4 h-4 text-green-500" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        Synced {syncStatus.lastSyncTime.toLocaleTimeString()}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <ComputerDesktopIcon className="w-4 h-4 text-gray-400" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Local only</span>
-                    </>
-                  )}
-                </div>
-                
-                {/* Manual sync button removed */}
-              </div>
-              
-              {syncStatus.syncError && (
-                <div className="mt-1 text-xs text-red-600 dark:text-red-400">
-                  {syncStatus.syncError}
-                </div>
+            {/* Search Input */}
+            <div className="mb-3 relative">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search conversations..."
+                className="w-full pl-9 pr-9 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+              {searchInput && (
+                <button
+                  onClick={handleClearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                  aria-label="Clear search"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
               )}
             </div>
-          )}
-          
-          {/* Non-authenticated prompt */}
-          {!isAuthenticated && (
-            <div className="mt-1 mb-3 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <div className="text-xs text-blue-700 dark:text-blue-300">
-                <span className="font-medium">Sign in to sync across devices</span>
-                <br />
-                Your chats are saved locally only
+
+            {/* Search Results Banner */}
+            {searchMode === 'local' && searchQuery && (
+              <div className="mb-3 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-700">
+                <div className="text-xs text-emerald-700 dark:text-emerald-300">
+                  {searchResults.length === 0 ? (
+                    <span>No conversations found for &quot;{searchQuery}&quot;</span>
+                  ) : (
+                    <span>Found {searchResults.length} conversation{searchResults.length !== 1 ? 's' : ''} matching &quot;{searchQuery}&quot;</span>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
             
             <div className="space-y-1">
-              {conversations.map((conversation, index) => (
+              {(searchMode === 'local' && searchQuery ? searchResults : conversations).map((conversation, index) => (
                 <div
                   key={conversation.id}
                   id={`conv-row-${conversation.id}`}
@@ -440,8 +454,8 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
                 </div>
               )}
 
-              {/* Load more control */}
-              {isAuthenticated && sidebarPaging?.hasMore && (
+              {/* Load more control - hidden during search */}
+              {isAuthenticated && sidebarPaging?.hasMore && searchMode === 'inactive' && (
                 <div className="mt-3">
                   <button
                     className="w-full text-sm py-2 rounded-md border border-gray-300 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2"
@@ -466,7 +480,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
   <div className="px-4 sm:px-6 py-4 border-t border-slate-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className="text-xs text-gray-500 dark:text-gray-500">
-              {isHydrated ? `${conversations.length} total conversations` : "Loading conversations..."}
+              {!isHydrated ? "Loading conversations..." : searchMode === 'local' && searchQuery ? `${searchResults.length} of ${conversations.length} conversations` : `${conversations.length} total conversations`}
             </div>
             <div className="flex items-center gap-2">
               {isHydrated && isAuthenticated && (

@@ -170,6 +170,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           syncError: null,
           syncInProgress: false,
 
+          // Search state
+          searchQuery: '',
+          searchMode: 'inactive',
+          searchResults: [],
+
           // Actions
           createConversation: (title = "New Chat") => {
             const id = generateConversationId();
@@ -2032,6 +2037,80 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
           _hasHydrated: () => {
             set({ isHydrated: true });
+          },
+
+          // Search actions
+          performLocalSearch: (query: string) => {
+            const normalizedQuery = query.toLowerCase().trim();
+            
+            if (!normalizedQuery) {
+              get().clearSearch();
+              return;
+            }
+
+            const { conversations } = get();
+            
+            // Search through conversations
+            const results = conversations.filter((conv) => {
+              // Search in title (always available)
+              if (conv.title.toLowerCase().includes(normalizedQuery)) {
+                return true;
+              }
+
+              // Search in last message preview (always available, ~100 chars)
+              if (conv.lastMessagePreview?.toLowerCase().includes(normalizedQuery)) {
+                return true;
+              }
+
+              // Search in full message content (only if messages have been loaded)
+              if (Array.isArray(conv.messages) && conv.messages.length > 0) {
+                return conv.messages.some((msg) =>
+                  msg.content.toLowerCase().includes(normalizedQuery)
+                );
+              }
+
+              return false;
+            });
+
+            // Sort by relevance: title match > preview match > message content match
+            results.sort((a, b) => {
+              const aTitleMatch = a.title.toLowerCase().includes(normalizedQuery);
+              const bTitleMatch = b.title.toLowerCase().includes(normalizedQuery);
+              
+              if (aTitleMatch && !bTitleMatch) return -1;
+              if (!aTitleMatch && bTitleMatch) return 1;
+              
+              const aPreviewMatch = a.lastMessagePreview?.toLowerCase().includes(normalizedQuery);
+              const bPreviewMatch = b.lastMessagePreview?.toLowerCase().includes(normalizedQuery);
+              
+              if (aPreviewMatch && !bPreviewMatch) return -1;
+              if (!aPreviewMatch && bPreviewMatch) return 1;
+              
+              // If equal, maintain timestamp order
+              return tsToMillis(b.lastMessageTimestamp || b.updatedAt || b.createdAt) -
+                     tsToMillis(a.lastMessageTimestamp || a.updatedAt || a.createdAt);
+            });
+
+            set({
+              searchQuery: query,
+              searchMode: 'local',
+              searchResults: results,
+            });
+
+            logger.debug("Local search completed", { 
+              query, 
+              resultsCount: results.length,
+              totalConversations: conversations.length 
+            });
+          },
+
+          clearSearch: () => {
+            set({
+              searchQuery: '',
+              searchMode: 'inactive',
+              searchResults: [],
+            });
+            logger.debug("Search cleared");
           },
 
           // Selectors

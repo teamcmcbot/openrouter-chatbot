@@ -63,6 +63,11 @@ export interface ChatState {
   syncError: string | null;
   syncInProgress: boolean;
 
+  // Search state
+  searchQuery: string;
+  searchMode: 'inactive' | 'local' | 'server';
+  searchResults: Conversation[];
+
   // Actions
   createConversation: (title?: string) => string;
   switchConversation: (id: string) => void;
@@ -98,6 +103,10 @@ export interface ChatState {
   loadMoreConversations?: () => Promise<void>;
   // Lazy load full messages for a session when selected
   loadConversationMessages?: (id: string) => Promise<void>;
+
+  // Search actions
+  performLocalSearch: (query: string) => void;
+  clearSearch: () => void;
 
   // Internal hydration handler
   _hasHydrated: () => void;
