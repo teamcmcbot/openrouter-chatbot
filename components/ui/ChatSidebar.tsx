@@ -71,7 +71,9 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
       clearTimeout(debouncedSearchRef.current);
     }
     
-    // Debounce search execution
+    // Different debounce times: client search is faster (300ms), server search waits longer (800ms)
+    const debounceDelay = (preferredSearchMode === 'server' && isAuthenticated) ? 800 : 300;
+    
     debouncedSearchRef.current = setTimeout(() => {
       if (value.trim().length > 0) {
         // Call the appropriate search function based on preferred mode
@@ -84,7 +86,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
       } else {
         clearSearch();
       }
-    }, 300);
+    }, debounceDelay);
   };
 
   const handleClearSearch = () => {
@@ -103,6 +105,25 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
       }
     };
   }, []);
+
+  // Re-trigger search when search mode changes (if there's an active search query)
+  // Note: searchInput is NOT in dependency array to avoid triggering on every keystroke
+  useEffect(() => {
+    if (searchInput.trim().length > 0) {
+      // Clear existing debounce timer
+      if (debouncedSearchRef.current) {
+        clearTimeout(debouncedSearchRef.current);
+      }
+      
+      // Immediately trigger search with new mode
+      if (preferredSearchMode === 'server' && isAuthenticated) {
+        performServerSearch(searchInput.trim());
+      } else {
+        performLocalSearch(searchInput.trim());
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferredSearchMode, isAuthenticated]);
 
   // Detect whether the device supports hover (desktop) vs touch (mobile)
   useEffect(() => {

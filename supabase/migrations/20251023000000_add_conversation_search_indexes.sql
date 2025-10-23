@@ -16,13 +16,14 @@ COMMENT ON INDEX public.idx_chat_sessions_user_title_pattern IS
 'Optimizes ILIKE pattern matching for conversation title search by user. Used in /api/chat/search endpoint.';
 
 -- Index 2: Message content search
--- Optimizes: WHERE content ILIKE '%query%' AND role IN ('user', 'assistant')
-CREATE INDEX IF NOT EXISTS idx_chat_messages_content_pattern 
-ON public.chat_messages(content text_pattern_ops)
-WHERE role IN ('user', 'assistant');
-
-COMMENT ON INDEX public.idx_chat_messages_content_pattern IS 
-'Optimizes ILIKE pattern matching for message content search. Filtered to user and assistant messages only.';
+-- REMOVED: B-tree index on full content exceeds PostgreSQL size limits (~2700 bytes)
+-- for long assistant responses. Sequential scan is fast enough with user_id filtering.
+-- See: /database/patches/conversation-search/drop_content_index.sql
+-- 
+-- Original (REMOVED):
+-- CREATE INDEX IF NOT EXISTS idx_chat_messages_content_pattern 
+-- ON public.chat_messages(content text_pattern_ops)
+-- WHERE role IN ('user', 'assistant');
 
 -- Index 3: Conversation search context (composite)
 -- Optimizes: Retrieval of conversation metadata during search
@@ -34,14 +35,16 @@ COMMENT ON INDEX public.idx_chat_sessions_user_search IS
 'Composite index for efficient conversation retrieval with search metadata. Includes commonly needed fields for search results.';
 
 -- Index 4: Message-to-session join (search operations)
--- Optimizes: JOIN chat_messages ON session_id during search
+-- MODIFIED: Removed 'content' from INCLUDE clause due to PostgreSQL B-tree size limits
+-- B-tree INCLUDE columns are also subject to the ~2,700 byte limit per row
+-- Content is fetched via table lookup after index scan (minimal performance impact)
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session_content
 ON public.chat_messages(session_id, role)
-INCLUDE (content, message_timestamp)
+INCLUDE (message_timestamp)
 WHERE role IN ('user', 'assistant');
 
 COMMENT ON INDEX public.idx_chat_messages_session_content IS 
-'Optimizes message content retrieval during search operations. Includes content and timestamp for result display.';
+'Optimizes message content retrieval during search operations. Includes timestamp; content fetched via table lookup.';
 
 -- ============================================================================
 -- VERIFICATION QUERY (optional - uncomment to verify after migration)
