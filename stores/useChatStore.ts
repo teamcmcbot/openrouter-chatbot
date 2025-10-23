@@ -174,6 +174,8 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           searchQuery: '',
           searchMode: 'inactive',
           searchResults: [],
+          searchLoading: false,
+          searchError: null,
 
           // Actions
           createConversation: (title = "New Chat") => {
@@ -2109,8 +2111,98 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               searchQuery: '',
               searchMode: 'inactive',
               searchResults: [],
+              searchLoading: false,
+              searchError: null,
             });
             logger.debug("Search cleared");
+          },
+
+          performServerSearch: async (query: string) => {
+            const normalizedQuery = query.trim();
+            
+            if (!normalizedQuery || normalizedQuery.length < 2) {
+              get().clearSearch();
+              logger.warn("Server search requires at least 2 characters");
+              return;
+            }
+
+            set({
+              searchQuery: query,
+              searchMode: 'server',
+              searchLoading: true,
+              searchError: null,
+              searchResults: [],
+            });
+
+            try {
+              logger.debug("Starting server search", { query: normalizedQuery });
+              
+              const params = new URLSearchParams({
+                q: normalizedQuery,
+                limit: '50',
+              });
+
+              const response = await fetch(`/api/chat/search?${params.toString()}`);
+              
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+                throw new Error(errorData.error || `Server search failed: ${response.status}`);
+              }
+
+              const data = await response.json();
+              
+              // Transform API results into Conversation objects
+              // The API returns SearchResult[] with { id, title, lastMessagePreview, messageCount, lastMessageTimestamp, matchType, ... }
+              const results: Conversation[] = (data.results || []).map((result: {
+                id: string;
+                title: string;
+                lastMessagePreview?: string;
+                messageCount: number;
+                lastMessageTimestamp: string;
+                matchType: 'title' | 'preview' | 'content';
+                createdAt?: string;
+                updatedAt?: string;
+                totalTokens?: number;
+                lastModel?: string;
+                userId?: string;
+              }) => ({
+                id: result.id,
+                title: result.title,
+                messages: [], // Server search doesn't return full messages
+                userId: result.userId,
+                createdAt: result.createdAt || result.lastMessageTimestamp,
+                updatedAt: result.updatedAt || result.lastMessageTimestamp,
+                messageCount: result.messageCount,
+                totalTokens: result.totalTokens || 0,
+                lastModel: result.lastModel,
+                isActive: false,
+                lastMessagePreview: result.lastMessagePreview,
+                lastMessageTimestamp: result.lastMessageTimestamp,
+              }));
+
+              set({
+                searchResults: results,
+                searchLoading: false,
+                searchError: null,
+              });
+
+              logger.debug("Server search completed", { 
+                query: normalizedQuery, 
+                resultsCount: results.length,
+                executionTimeMs: data.executionTimeMs 
+              });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Server search failed';
+              logger.error("Server search failed", { error: errorMessage, query: normalizedQuery });
+              
+              set({
+                searchResults: [],
+                searchLoading: false,
+                searchError: errorMessage,
+              });
+
+              toast.error(`Search failed: ${errorMessage}`);
+            }
           },
 
           // Selectors

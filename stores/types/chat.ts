@@ -67,6 +67,8 @@ export interface ChatState {
   searchQuery: string;
   searchMode: 'inactive' | 'local' | 'server';
   searchResults: Conversation[];
+  searchLoading: boolean;
+  searchError: string | null;
 
   // Actions
   createConversation: (title?: string) => string;
@@ -106,6 +108,7 @@ export interface ChatState {
 
   // Search actions
   performLocalSearch: (query: string) => void;
+  performServerSearch: (query: string) => Promise<void>;
   clearSearch: () => void;
 
   // Internal hydration handler
