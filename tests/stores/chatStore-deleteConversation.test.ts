@@ -49,25 +49,33 @@ describe('Chat Store - deleteConversation Sync Functionality', () => {
 
     it('should switch to next available conversation when deleting current conversation', async () => {
       // Setup: Create multiple conversations
+      // Note: Conversations are prepended (LIFO), so array order is [conv3, conv2, conv1]
       const conv1Id = useChatStore.getState().createConversation('Chat 1');
       const conv2Id = useChatStore.getState().createConversation('Chat 2');
       const conv3Id = useChatStore.getState().createConversation('Chat 3');
       
-      // Switch to the second conversation
+      // Verify the order: [conv3, conv2, conv1]
+      const conversationsBefore = useChatStore.getState().conversations;
+      expect(conversationsBefore[0].id).toBe(conv3Id);
+      expect(conversationsBefore[1].id).toBe(conv2Id);
+      expect(conversationsBefore[2].id).toBe(conv1Id);
+      
+      // Switch to the middle conversation (conv2Id at index 1)
       useChatStore.getState().switchConversation(conv2Id);
       expect(useChatStore.getState().currentConversationId).toBe(conv2Id);
 
-      // Act: Delete the current conversation (conv2Id)
+      // Act: Delete the current conversation (conv2Id at index 1)
       await useChatStore.getState().deleteConversation(conv2Id);
 
-      // Assert: Should switch to first available conversation (which should be conv1Id)
+      // Assert: Should switch to the next conversation at the same index
+      // After deletion, array becomes [conv3, conv1], so index 1 is now conv1Id
       const state = useChatStore.getState();
       const remainingConversations = state.conversations;
       expect(remainingConversations).toHaveLength(2);
       expect(remainingConversations.find(c => c.id === conv2Id)).toBeUndefined();
       
-      // Should switch to the first remaining conversation
-      expect(state.currentConversationId).toBe(remainingConversations[0].id);
+      // Should switch to conv1Id (which moved to index 1 after conv2 was removed)
+      expect(state.currentConversationId).toBe(conv1Id);
       
       // Verify it's one of the expected remaining conversations
       expect([conv1Id, conv3Id]).toContain(state.currentConversationId);
@@ -85,6 +93,87 @@ describe('Chat Store - deleteConversation Sync Functionality', () => {
       const state = useChatStore.getState();
       expect(state.currentConversationId).toBeNull();
       expect(state.conversations).toHaveLength(0);
+    });
+  });
+
+  describe('Search mode deletion', () => {
+    it('should remove conversation from both conversations and searchResults arrays', async () => {
+      // Setup: Create conversations
+      const conv1Id = useChatStore.getState().createConversation('React Tutorial');
+      useChatStore.getState().createConversation('Vue Guide');
+      const conv3Id = useChatStore.getState().createConversation('React Hooks');
+      
+      // Manually set search state (simulating a search result)
+      useChatStore.setState({
+        searchMode: 'server',
+        searchQuery: 'react',
+        searchResults: [
+          useChatStore.getState().conversations.find(c => c.id === conv1Id)!,
+          useChatStore.getState().conversations.find(c => c.id === conv3Id)!,
+        ],
+      });
+      
+      // Switch to a search result
+      useChatStore.getState().switchConversation(conv1Id);
+      
+      // Act: Delete the conversation
+      await useChatStore.getState().deleteConversation(conv1Id);
+      
+      // Assert: Should be removed from both arrays
+      const state = useChatStore.getState();
+      expect(state.conversations.find(c => c.id === conv1Id)).toBeUndefined();
+      expect(state.searchResults.find(c => c.id === conv1Id)).toBeUndefined();
+      expect(state.searchResults).toHaveLength(1);
+      expect(state.searchResults[0].id).toBe(conv3Id);
+    });
+
+    it('should navigate to next search result when deleting in search mode', async () => {
+      // Setup: Create conversations (prepended, so order is [conv3, conv2, conv1])
+      const conv1Id = useChatStore.getState().createConversation('React Tutorial');
+      const conv2Id = useChatStore.getState().createConversation('React Hooks');
+      useChatStore.getState().createConversation('React Context');
+      
+      // Manually set search state (order: [conv3, conv2, conv1])
+      useChatStore.setState({
+        searchMode: 'server',
+        searchQuery: 'react',
+        searchResults: useChatStore.getState().conversations,
+      });
+      
+      // Switch to second search result (conv2Id at index 1)
+      useChatStore.getState().switchConversation(conv2Id);
+      
+      // Act: Delete the current conversation
+      await useChatStore.getState().deleteConversation(conv2Id);
+      
+      // Assert: Should navigate to next search result at same index
+      // After deletion: [conv3, conv1], so index 1 is conv1Id
+      const state = useChatStore.getState();
+      expect(state.currentConversationId).toBe(conv1Id);
+      expect(state.searchResults).toHaveLength(2);
+    });
+
+    it('should clear search when deleting the last search result', async () => {
+      // Setup: Create one conversation
+      const conv1Id = useChatStore.getState().createConversation('Only Match');
+      
+      // Set search state with one result
+      useChatStore.setState({
+        searchMode: 'server',
+        searchQuery: 'match',
+        searchResults: [useChatStore.getState().conversations[0]],
+      });
+      
+      useChatStore.getState().switchConversation(conv1Id);
+      
+      // Act: Delete the only search result
+      await useChatStore.getState().deleteConversation(conv1Id);
+      
+      // Assert: Search should be cleared
+      const state = useChatStore.getState();
+      expect(state.searchMode).toBe('inactive');
+      expect(state.searchQuery).toBe('');
+      expect(state.searchResults).toHaveLength(0);
     });
   });
 

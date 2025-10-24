@@ -1047,21 +1047,102 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 logger.debug("Server conversation deleted", result);
               }
 
-              // Delete from local store
+              // Delete from local store with context-aware navigation
               set((state) => {
+                // Remove from both arrays
                 const newConversations = state.conversations.filter(c => c.id !== id);
-                const newCurrentId = state.currentConversationId === id
-                  ? newConversations[0]?.id ?? null
-                  : state.currentConversationId;
-
+                const newSearchResults = state.searchResults.filter(c => c.id !== id);
+                
+                // Smart navigation based on context
+                let newCurrentId: string | null = state.currentConversationId;
+                
+                if (state.currentConversationId === id) {
+                  // Determine which list to navigate within
+                  if (state.searchMode !== 'inactive' && newSearchResults.length > 0) {
+                    // IN SEARCH MODE: Navigate to next search result
+                    const deletedIndex = state.searchResults.findIndex(c => c.id === id);
+                    
+                    logger.debug("Deleting conversation in search mode", { 
+                      deletedIndex, 
+                      totalResults: state.searchResults.length,
+                      remainingResults: newSearchResults.length 
+                    });
+                    
+                    // Priority: next result → previous result → first result
+                    if (deletedIndex !== -1) {
+                      if (deletedIndex < newSearchResults.length) {
+                        // Next result exists (array shifted after filter)
+                        newCurrentId = newSearchResults[deletedIndex]?.id ?? null;
+                        logger.debug("Navigating to next search result", { newCurrentId });
+                      } else if (deletedIndex > 0) {
+                        // Use previous result
+                        newCurrentId = newSearchResults[deletedIndex - 1]?.id ?? null;
+                        logger.debug("Navigating to previous search result", { newCurrentId });
+                      } else {
+                        // Only one result left (now at index 0)
+                        newCurrentId = newSearchResults[0]?.id ?? null;
+                        logger.debug("Navigating to first search result", { newCurrentId });
+                      }
+                    }
+                  } else {
+                    // NOT IN SEARCH MODE: Navigate within paginated conversations
+                    const deletedIndex = state.conversations.findIndex(c => c.id === id);
+                    
+                    logger.debug("Deleting conversation in normal mode", { 
+                      deletedIndex, 
+                      totalConversations: state.conversations.length,
+                      remainingConversations: newConversations.length 
+                    });
+                    
+                    if (deletedIndex !== -1 && newConversations.length > 0) {
+                      // Navigate to next conversation in list (or previous if deleting last)
+                      if (deletedIndex < newConversations.length) {
+                        newCurrentId = newConversations[deletedIndex]?.id ?? null;
+                        logger.debug("Navigating to next conversation", { newCurrentId });
+                      } else if (deletedIndex > 0) {
+                        newCurrentId = newConversations[deletedIndex - 1]?.id ?? null;
+                        logger.debug("Navigating to previous conversation", { newCurrentId });
+                      } else {
+                        newCurrentId = newConversations[0]?.id ?? null;
+                        logger.debug("Navigating to first conversation", { newCurrentId });
+                      }
+                    } else {
+                      newCurrentId = null; // No conversations left
+                      logger.debug("No conversations remaining after delete");
+                    }
+                  }
+                }
+                
                 return {
                   conversations: newConversations,
+                  searchResults: newSearchResults,
                   currentConversationId: newCurrentId,
                   error: null,
                 };
               });
 
-              logger.debug("Conversation deleted successfully", { id });
+              // Check if search results are now empty and clear search state
+              const { searchMode, searchResults } = get();
+              if (searchMode !== 'inactive' && searchResults.length === 0) {
+                logger.debug("Clearing search after deleting last search result");
+                get().clearSearch();
+              }
+
+              // Trigger message loading for the new current conversation
+              const newCurrentId = get().currentConversationId;
+              if (newCurrentId) {
+                if (user) {
+                  logger.debug("Loading messages for new current conversation", { conversationId: newCurrentId });
+                  get().loadConversationMessages?.(newCurrentId).catch((err) => {
+                    logger.warn("Failed to load messages for new conversation after delete", { 
+                      conversationId: newCurrentId, 
+                      error: err instanceof Error ? err.message : String(err)
+                    });
+                  });
+                }
+              }
+
+              logger.debug("Conversation deleted successfully", { id, newCurrentId });
             } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Failed to delete conversation';
               logger.error("Failed to delete conversation", errorMessage);
@@ -2143,24 +2224,9 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               return false;
             });
 
-            // Sort by relevance: title match > preview match > message content match
-            results.sort((a, b) => {
-              const aTitleMatch = a.title.toLowerCase().includes(normalizedQuery);
-              const bTitleMatch = b.title.toLowerCase().includes(normalizedQuery);
-              
-              if (aTitleMatch && !bTitleMatch) return -1;
-              if (!aTitleMatch && bTitleMatch) return 1;
-              
-              const aPreviewMatch = a.lastMessagePreview?.toLowerCase().includes(normalizedQuery);
-              const bPreviewMatch = b.lastMessagePreview?.toLowerCase().includes(normalizedQuery);
-              
-              if (aPreviewMatch && !bPreviewMatch) return -1;
-              if (!aPreviewMatch && bPreviewMatch) return 1;
-              
-              // If equal, maintain timestamp order
-              return tsToMillis(b.lastMessageTimestamp || b.updatedAt || b.createdAt) -
-                     tsToMillis(a.lastMessageTimestamp || a.updatedAt || a.createdAt);
-            });
+            // Sort by timestamp only (consistent with server search and normal mode)
+            // This prevents confusing UX where old conversations jump to top based on title relevance
+            results.sort(sortByLastTimestampDesc);
 
             set({
               searchQuery: query,
