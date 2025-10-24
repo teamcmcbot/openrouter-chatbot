@@ -47,6 +47,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
   // Local search input state
   const [searchInput, setSearchInput] = useState<string>("");
   const debouncedSearchRef = useRef<NodeJS.Timeout | null>(null);
+  const prevSearchModeRef = useRef<string>(searchMode);
   
   // Search mode preference (client or server)
   const [preferredSearchMode, setPreferredSearchMode] = useState<'local' | 'server'>('local');
@@ -124,6 +125,25 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preferredSearchMode, isAuthenticated]);
+
+  // Clear local search input when store clears search (e.g., when "New Chat" is clicked)
+  // Only clear if search transitioned from active to inactive (not if it was always inactive)
+  useEffect(() => {
+    const wasActive = prevSearchModeRef.current !== 'inactive';
+    const nowInactive = searchMode === 'inactive';
+    
+    if (wasActive && nowInactive && searchInput !== '') {
+      setSearchInput('');
+      // Also clear any pending debounce timer
+      if (debouncedSearchRef.current) {
+        clearTimeout(debouncedSearchRef.current);
+        debouncedSearchRef.current = null;
+      }
+    }
+    
+    // Update ref for next render
+    prevSearchModeRef.current = searchMode;
+  }, [searchMode, searchInput]);
 
   // Detect whether the device supports hover (desktop) vs touch (mobile)
   useEffect(() => {

@@ -198,10 +198,16 @@ export default function ChatInterface() {
   };
 
   const handleNewChat = () => {
-    // Create a new conversation using the store
+    // Step 1: Clear search if active (return to normal mode)
+    const { searchMode, clearSearch } = useChatStore.getState();
+    if (searchMode !== 'inactive') {
+      clearSearch();
+    }
+    
+    // Step 2: Create a new conversation using the store
     createConversation();
 
-    // On mobile, dismiss the chat sidebar and focus the input
+    // Step 3: On mobile, dismiss the chat sidebar and focus the input
   const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 1024; // matches lg breakpoint
     let delay = 0;
     if (isMobileViewport && isChatSidebarOpen) {

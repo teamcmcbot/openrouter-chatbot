@@ -31,6 +31,15 @@ jest.mock('../../components/ui/ChatSidebar', () => ({
 
 // Mock stores to avoid network calls and complex state
 jest.mock('../../stores', () => {
+  const mockState = {
+    createConversation: jest.fn(),
+    conversationErrorBanners: {},
+    currentConversationId: 'conv_test',
+    clearConversationErrorBanner: jest.fn(),
+    searchMode: 'inactive',
+    clearSearch: jest.fn(),
+  };
+  
   return {
     useChat: () => ({
       messages: [],
@@ -41,20 +50,14 @@ jest.mock('../../stores', () => {
       retryLastMessage: jest.fn(),
     }),
     // Support both selector and no-selector usage
-    useChatStore: (selector?: (s: { createConversation: () => void; conversationErrorBanners: Record<string, unknown>; currentConversationId: string | null; clearConversationErrorBanner: (id: string) => void; }) => unknown) => {
-      const state: { 
-        createConversation: () => void; 
-        conversationErrorBanners: Record<string, unknown>; 
-        currentConversationId: string | null; 
-        clearConversationErrorBanner: (id: string) => void; 
-      } = {
-        createConversation: jest.fn(),
-        conversationErrorBanners: {},
-        currentConversationId: 'conv_test',
-        clearConversationErrorBanner: jest.fn(),
-      };
-      return selector ? selector(state) : state;
-    },
+    useChatStore: Object.assign(
+      (selector?: (s: typeof mockState) => unknown) => {
+        return selector ? selector(mockState) : mockState;
+      },
+      {
+        getState: () => mockState,
+      }
+    ),
     useModelSelection: () => ({
       availableModels: [],
       selectedModel: '',
