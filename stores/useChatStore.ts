@@ -179,28 +179,146 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
           // Actions
           createConversation: (title = "New Chat") => {
-            const id = generateConversationId();
+            const state = get();
             const { user } = useAuthStore.getState();
+            
+            console.log('🔵 [createConversation] START', {
+              title,
+              currentConversationId: state.currentConversationId,
+              totalConversations: state.conversations.length,
+              conversationsList: state.conversations.map(c => ({
+                id: c.id,
+                title: c.title,
+                messages: c.messages.length,
+                isActive: c.isActive
+              }))
+            });
+            
+            // Aggressive Cleanup: Delete ALL empty "New Chat" conversations before creating new one
+            // Use messageCount (from DB) instead of messages.length (lazy-loaded) to detect truly empty conversations
+            const isOnlyConversation = state.conversations.length === 1;
+            const emptyConversations = state.conversations.filter(c => 
+              c.messageCount === 0 && c.title === "New Chat"
+            );
+            
+            console.log('🟡 [createConversation] Checking for empty conversations', {
+              totalConversations: state.conversations.length,
+              emptyCount: emptyConversations.length,
+              emptyTitles: emptyConversations.map(c => c.title),
+              emptyMessageCounts: emptyConversations.map(c => c.messageCount),
+              isOnlyConversation,
+              willDelete: !isOnlyConversation && emptyConversations.length > 0
+            });
+            
+            let conversationsToKeep = state.conversations;
+            
+            // Delete ALL empty conversations (unless it would leave us with zero conversations)
+            if (!isOnlyConversation && emptyConversations.length > 0) {
+              console.log('🔴 [createConversation] DELETING all empty conversations', {
+                count: emptyConversations.length,
+                titles: emptyConversations.map(c => c.title),
+                ids: emptyConversations.map(c => c.id)
+              });
+              
+              // Remove from local state immediately (synchronous)
+              // Keep conversations that either have messages OR have been renamed from "New Chat"
+              conversationsToKeep = state.conversations.filter(c => 
+                c.messageCount > 0 || c.title !== "New Chat"
+              );
+              
+              console.log('✅ [createConversation] Filtered conversations', {
+                before: state.conversations.length,
+                after: conversationsToKeep.length,
+                removed: emptyConversations.length
+              });
+              
+              // Also delete from server asynchronously (fire and forget)
+              if (user) {
+                emptyConversations.forEach(conv => {
+                  fetch(`/api/chat/sessions?id=${encodeURIComponent(conv.id)}`, {
+                    method: 'DELETE',
+                  }).catch((err) => {
+                    logger.warn("Failed to delete empty conversation from server", { 
+                      id: conv.id, 
+                      err: err instanceof Error ? err.message : String(err)
+                    });
+                  });
+                });
+              }
+            } else {
+              console.log('⚪ [createConversation] NOT deleting - only conversation or no empty ones found');
+            }
+            
+            // Create new conversation (existing logic)
+            const id = generateConversationId();
             const newConversation = createNewConversation(title, user?.id);
             newConversation.id = id;
             newConversation.isActive = true;
 
+            console.log('🟢 [createConversation] Creating NEW conversation', {
+              newId: id,
+              newTitle: title,
+              willKeepCount: conversationsToKeep.length,
+              finalCount: conversationsToKeep.length + 1
+            });
+
             logger.debug("Creating new conversation", { id, title, userId: user?.id });
 
-            set((state) => ({
-              conversations: [newConversation, ...state.conversations.map(c => ({ ...c, isActive: false }))],
+            set(() => ({
+              conversations: [newConversation, ...conversationsToKeep.map(c => ({ ...c, isActive: false }))],
               currentConversationId: id,
               error: null,
             }));
+
+            console.log('✅ [createConversation] COMPLETE - State updated');
 
             return id;
           },
 
           switchConversation: (id) => {
-            logger.debug("Switching conversation", { id });
+            const state = get();
+            const { user } = useAuthStore.getState();
+            logger.debug("Switching conversation", { id, fromId: state.currentConversationId });
+            
+            // Cleanup: If switching away from an empty "New Chat", delete it silently
+            const previousConv = state.conversations.find(c => c.id === state.currentConversationId);
+            const isOnlyConversation = state.conversations.length === 1;
+            
+            if (previousConv && 
+                !isOnlyConversation && 
+                previousConv.id !== id && // Don't delete if we're somehow switching to the same conversation
+                previousConv.messageCount === 0 && 
+                previousConv.title === "New Chat") {
+              
+              console.log('🔵 [switchConversation] Detected switch away from empty "New Chat"', {
+                previousId: previousConv.id,
+                previousTitle: previousConv.title,
+                previousMessageCount: previousConv.messageCount,
+                switchingTo: id
+              });
+              
+              // Remove from local state immediately (synchronous)
+              set((state) => ({
+                conversations: state.conversations.filter(c => c.id !== previousConv.id)
+              }));
+              
+              console.log('🗑️ [switchConversation] Deleted empty "New Chat" from local state');
+              
+              // Also delete from server asynchronously (fire and forget)
+              if (user) {
+                fetch(`/api/chat/sessions?id=${encodeURIComponent(previousConv.id)}`, {
+                  method: 'DELETE',
+                }).catch((err) => {
+                  logger.warn("Failed to delete empty conversation from server on switch", { 
+                    id: previousConv.id, 
+                    err: err instanceof Error ? err.message : String(err)
+                  });
+                });
+              }
+            }
             
             // Check if conversation exists in conversations array
-            const existsInConversations = get().conversations.find(c => c.id === id);
+            const existsInConversations = state.conversations.find(c => c.id === id);
             
             if (existsInConversations) {
               // Normal flow: mark as active in conversations array
@@ -214,7 +332,6 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               }));
 
               // If authenticated, trigger lazy load/revalidation of messages for this conversation
-              const { user } = useAuthStore.getState();
               if (user) {
                 const conv = get().conversations.find(c => c.id === id);
                 // Always call loader: it will either full-load or incrementally revalidate via since_ts
@@ -226,16 +343,19 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               }
             } else {
               // Check if it's in searchResults (from server search)
-              const searchResult = get().searchResults.find(c => c.id === id);
+              const searchResult = state.searchResults.find(c => c.id === id);
               
               if (searchResult) {
                 logger.debug("Switching to conversation from search results (not in paginated list)", { id });
                 
                 // Set as current without adding to conversations array (keeps pagination clean)
-                set({ currentConversationId: id, error: null });
+                set((state) => ({
+                  conversations: state.conversations,
+                  currentConversationId: id,
+                  error: null,
+                }));
                 
                 // Load messages for this conversation
-                const { user } = useAuthStore.getState();
                 if (user) {
                   get().loadConversationMessages?.(id).catch((err) => {
                     logger.warn("Failed to load conversation messages from search result", { id, err });
@@ -1026,10 +1146,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }
           },
 
-          deleteConversation: async (id) => {
+          deleteConversation: async (id: string, options?: { silent?: boolean }) => {
             const { user } = useAuthStore.getState();
+            const silent = options?.silent ?? false;
             
-            logger.debug("Deleting conversation", { id, authenticated: !!user });
+            logger.debug("Deleting conversation", { id, authenticated: !!user, silent });
             
             try {
               // If user is authenticated, delete from backend first

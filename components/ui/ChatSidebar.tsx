@@ -211,7 +211,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
 
   const handleDeleteChat = async (id: string) => {
     try {
-      await deleteConversation(id);
+      await deleteConversation(id, { silent: false });
   toast.success('Conversation deleted successfully.');
     } catch (error) {
   logger.warn('ui.sidebar.deleteConversation.failed', { id, err: (error as Error)?.message });
