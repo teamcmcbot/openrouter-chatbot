@@ -182,18 +182,6 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             const state = get();
             const { user } = useAuthStore.getState();
             
-            console.log('🔵 [createConversation] START', {
-              title,
-              currentConversationId: state.currentConversationId,
-              totalConversations: state.conversations.length,
-              conversationsList: state.conversations.map(c => ({
-                id: c.id,
-                title: c.title,
-                messages: c.messages.length,
-                isActive: c.isActive
-              }))
-            });
-            
             // Aggressive Cleanup: Delete ALL empty "New Chat" conversations before creating new one
             // Use messageCount (from DB) instead of messages.length (lazy-loaded) to detect truly empty conversations
             const isOnlyConversation = state.conversations.length === 1;
@@ -201,36 +189,15 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               c.messageCount === 0 && c.title === "New Chat"
             );
             
-            console.log('🟡 [createConversation] Checking for empty conversations', {
-              totalConversations: state.conversations.length,
-              emptyCount: emptyConversations.length,
-              emptyTitles: emptyConversations.map(c => c.title),
-              emptyMessageCounts: emptyConversations.map(c => c.messageCount),
-              isOnlyConversation,
-              willDelete: !isOnlyConversation && emptyConversations.length > 0
-            });
-            
             let conversationsToKeep = state.conversations;
             
             // Delete ALL empty conversations (unless it would leave us with zero conversations)
             if (!isOnlyConversation && emptyConversations.length > 0) {
-              console.log('🔴 [createConversation] DELETING all empty conversations', {
-                count: emptyConversations.length,
-                titles: emptyConversations.map(c => c.title),
-                ids: emptyConversations.map(c => c.id)
-              });
-              
               // Remove from local state immediately (synchronous)
               // Keep conversations that either have messages OR have been renamed from "New Chat"
               conversationsToKeep = state.conversations.filter(c => 
                 c.messageCount > 0 || c.title !== "New Chat"
               );
-              
-              console.log('✅ [createConversation] Filtered conversations', {
-                before: state.conversations.length,
-                after: conversationsToKeep.length,
-                removed: emptyConversations.length
-              });
               
               // Also delete from server asynchronously (fire and forget)
               if (user) {
@@ -245,8 +212,6 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                   });
                 });
               }
-            } else {
-              console.log('⚪ [createConversation] NOT deleting - only conversation or no empty ones found');
             }
             
             // Create new conversation (existing logic)
@@ -255,13 +220,6 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             newConversation.id = id;
             newConversation.isActive = true;
 
-            console.log('🟢 [createConversation] Creating NEW conversation', {
-              newId: id,
-              newTitle: title,
-              willKeepCount: conversationsToKeep.length,
-              finalCount: conversationsToKeep.length + 1
-            });
-
             logger.debug("Creating new conversation", { id, title, userId: user?.id });
 
             set(() => ({
@@ -269,8 +227,6 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
               currentConversationId: id,
               error: null,
             }));
-
-            console.log('✅ [createConversation] COMPLETE - State updated');
 
             return id;
           },
@@ -290,19 +246,10 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 previousConv.messageCount === 0 && 
                 previousConv.title === "New Chat") {
               
-              console.log('🔵 [switchConversation] Detected switch away from empty "New Chat"', {
-                previousId: previousConv.id,
-                previousTitle: previousConv.title,
-                previousMessageCount: previousConv.messageCount,
-                switchingTo: id
-              });
-              
               // Remove from local state immediately (synchronous)
               set((state) => ({
                 conversations: state.conversations.filter(c => c.id !== previousConv.id)
               }));
-              
-              console.log('🗑️ [switchConversation] Deleted empty "New Chat" from local state');
               
               // Also delete from server asynchronously (fire and forget)
               if (user) {
@@ -774,7 +721,23 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                           ],
                         })
                       : conv
-                  ),
+                  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+                  // Also update searchResults if current conversation is in search results (non-streaming mode)
+                  searchResults: (state.searchResults || []).map((conv) =>
+                    conv.id === state.currentConversationId
+                      ? updateConversationFromMessages({
+                          ...conv,
+                          messages: [
+                            ...conv.messages.map((msg) =>
+                              msg.id === data.request_id && msg.role === 'user'
+                                ? { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 }
+                                : msg
+                            ),
+                            assistantMessage
+                          ],
+                        })
+                      : conv
+                  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
                   isLoading: false,
                 };
               });
@@ -1754,7 +1717,37 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                           ],
                         })
                       : conv
-                  ),
+                  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+                  // Also update searchResults if current conversation is in search results (retry path)
+                  searchResults: (state.searchResults || []).map((conv) =>
+                    conv.id === state.currentConversationId
+                      ? updateConversationFromMessages({
+                          ...conv,
+                          messages: [
+                            ...conv.messages.map((msg) => {
+                              if (msg.id === messageId && msg.role === 'user') {
+                                return {
+                                  ...msg,
+                                  error: false,
+                                  error_message: undefined,
+                                  error_code: undefined,
+                                  retry_after: undefined,
+                                  input_tokens: data.usage?.prompt_tokens ?? 0,
+                                };
+                              }
+                              if (msg.id === data.request_id && msg.role === 'user') {
+                                return {
+                                  ...msg,
+                                  input_tokens: data.usage?.prompt_tokens ?? 0,
+                                };
+                              }
+                              return msg;
+                            }),
+                            assistantMessage
+                          ],
+                        })
+                      : conv
+                  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
                   isLoading: false,
                 };
               });

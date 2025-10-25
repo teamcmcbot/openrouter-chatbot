@@ -49,9 +49,6 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
   const debouncedSearchRef = useRef<NodeJS.Timeout | null>(null);
   const prevSearchModeRef = useRef<string>(searchMode);
   
-  // Search mode preference (client or server)
-  const [preferredSearchMode, setPreferredSearchMode] = useState<'local' | 'server'>('local');
-  
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -72,16 +69,17 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
       clearTimeout(debouncedSearchRef.current);
     }
     
-    // Different debounce times: client search is faster (300ms), server search waits longer (800ms)
-    const debounceDelay = (preferredSearchMode === 'server' && isAuthenticated) ? 800 : 300;
+    // Smart auto-detection: authenticated users get full message search, anonymous users get title search
+    // Server search has longer debounce (800ms) to reduce API calls
+    const debounceDelay = isAuthenticated ? 800 : 300;
     
     debouncedSearchRef.current = setTimeout(() => {
       if (value.trim().length > 0) {
-        // Call the appropriate search function based on preferred mode
-        if (preferredSearchMode === 'server' && isAuthenticated) {
+        // Authenticated users: search all messages (server search)
+        // Anonymous users: search conversation titles only (local search)
+        if (isAuthenticated) {
           performServerSearch(value.trim());
         } else {
-          // Fallback to local search if not authenticated or local mode selected
           performLocalSearch(value.trim());
         }
       } else {
@@ -107,8 +105,8 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
     };
   }, []);
 
-  // Re-trigger search when search mode changes (if there's an active search query)
-  // Note: searchInput is NOT in dependency array to avoid triggering on every keystroke
+  // Re-trigger search when authentication status changes (if there's an active search query)
+  // This ensures authenticated users get upgraded to full message search automatically
   useEffect(() => {
     if (searchInput.trim().length > 0) {
       // Clear existing debounce timer
@@ -116,15 +114,15 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
         clearTimeout(debouncedSearchRef.current);
       }
       
-      // Immediately trigger search with new mode
-      if (preferredSearchMode === 'server' && isAuthenticated) {
+      // Re-run search with appropriate mode based on auth status
+      if (isAuthenticated) {
         performServerSearch(searchInput.trim());
       } else {
         performLocalSearch(searchInput.trim());
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preferredSearchMode, isAuthenticated]);
+  }, [isAuthenticated]);
 
   // Clear local search input when store clears search (e.g., when "New Chat" is clicked)
   // Only clear if search transitioned from active to inactive (not if it was always inactive)
@@ -181,6 +179,16 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
       }
     }
   }, [sheetOpenFor]);
+
+  // Real-time timestamp updates: refresh every 60 seconds to show "just now" → "1 min ago" → "2 mins ago" etc.
+  const [, setCurrentTime] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 60000); // Update every 60 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Sidebar now relies on store-managed paginated list; initial load is orchestrated by useChatSync
   const sidebarPaging = useChatStore(s => s.sidebarPaging);
@@ -306,33 +314,6 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
 
             {/* Search Input */}
             <div className="mb-3 space-y-2">
-              {/* Search mode toggle (only for authenticated users) */}
-              {isAuthenticated && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-600 dark:text-gray-400">Search mode:</span>
-                  <button
-                    onClick={() => setPreferredSearchMode('local')}
-                    className={`px-2 py-1 rounded transition-colors ${
-                      preferredSearchMode === 'local'
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    Client
-                  </button>
-                  <button
-                    onClick={() => setPreferredSearchMode('server')}
-                    className={`px-2 py-1 rounded transition-colors ${
-                      preferredSearchMode === 'server'
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    Server
-                  </button>
-                </div>
-              )}
-              
               {/* Search input field */}
               <div className="relative">
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
@@ -340,7 +321,7 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
                   type="text"
                   value={searchInput}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  placeholder={preferredSearchMode === 'server' ? 'Search all messages...' : 'Search conversations...'}
+                  placeholder="Search conversations..."
                   className="w-full pl-9 pr-9 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   disabled={searchLoading}
                 />
@@ -373,13 +354,8 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
                       {searchResults.length === 0 ? (
                         <span>No conversations found for &quot;{searchQuery}&quot;</span>
                       ) : (
-                        <div>
-                          <div className="font-medium">
-                            Found {searchResults.length} conversation{searchResults.length !== 1 ? 's' : ''} matching &quot;{searchQuery}&quot;
-                          </div>
-                          <div className="text-emerald-600 dark:text-emerald-400 mt-1">
-                            {searchMode === 'server' ? '🔍 Searching all messages' : '📱 Client-side search'}
-                          </div>
+                        <div className="font-medium">
+                          Found {searchResults.length} conversation{searchResults.length !== 1 ? 's' : ''} matching &quot;{searchQuery}&quot;
                         </div>
                       )}
                     </div>

@@ -662,7 +662,20 @@ export function useChatStreaming(): UseChatStreamingReturn {
                   ],
                 })
               : conv
-          ),
+          ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+          // Also update searchResults if current conversation is in search results (streaming mode)
+          searchResults: (state.searchResults || []).map((conv) =>
+            conv.id === conversationId
+              ? updateConversationFromMessages({
+                  ...conv,
+                  messages: [
+                    ...conv.messages.slice(0, -1),
+                    updatedUserMessage,
+                    assistantMessage
+                  ],
+                })
+              : conv
+          ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
         }));
 
         // Auto-generate title from first user message if it's still "New Chat" (same logic as non-streaming)
@@ -1372,7 +1385,18 @@ export function useChatStreaming(): UseChatStreamingReturn {
                   ).concat(assistantMessage), // Update existing user message and add assistant
                 })
               : conv
-          ),
+          ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+          // Also update searchResults if current conversation is in search results (streaming retry)
+          searchResults: (state.searchResults || []).map((conv) =>
+            conv.id === conversationId
+              ? updateConversationFromMessages({
+                  ...conv,
+                  messages: conv.messages.map(msg =>
+                    msg.id === messageId ? { ...updatedUserMessage, retry_available: undefined } : msg
+                  ).concat(assistantMessage),
+                })
+              : conv
+          ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
         }));
 
         // Auto-generate title from first user message if it's still "New Chat"
