@@ -15,9 +15,12 @@ This patch adds database indexes to optimize server-side search for conversation
 ### Indexes Added
 
 1. **`idx_chat_sessions_user_title_pattern`** - Optimizes ILIKE pattern matching for conversation titles (user-scoped)
-2. **`idx_chat_messages_content_pattern`** - Optimizes ILIKE pattern matching for message content
-3. **`idx_chat_sessions_user_search`** - Composite index for efficient conversation retrieval with search context
-4. **`idx_chat_messages_session_content`** - Optimizes message content retrieval during search operations
+2. **`idx_chat_sessions_user_search`** - Composite index for efficient conversation retrieval with search context
+3. **`idx_chat_messages_session_content`** - Optimizes message-to-session joins during search (timestamp only)
+
+### Indexes Removed (Hotfix)
+
+- **`idx_chat_messages_content_pattern`** - REMOVED due to PostgreSQL B-tree size limits (~2,700 bytes). Long assistant responses exceeded this limit, causing INSERT failures. Sequential scan with user_id filter provides acceptable performance for realistic user message counts (<10,000 messages/user). See `drop_content_index.sql` for details.
 
 ### Performance Impact
 
@@ -46,8 +49,9 @@ LIMIT 50;
 
 ## Files
 
-- `01-add-search-indexes.sql` - Adds pattern matching indexes for ILIKE search
-- `verify-indexes.sql` - Verification script to check indexes are working
+- `01-add-search-indexes.sql` - Adds pattern matching indexes for ILIKE search (updated to reflect final state after hotfix)
+- `drop_content_index.sql` - Hotfix that removes problematic content indexes due to PostgreSQL size limits
+- `README.md` - This documentation file
 
 ## Migration Path
 
@@ -67,9 +71,10 @@ supabase db push
 
 ```sql
 DROP INDEX IF EXISTS public.idx_chat_sessions_user_title_pattern;
-DROP INDEX IF EXISTS public.idx_chat_messages_content_pattern;
 DROP INDEX IF EXISTS public.idx_chat_sessions_user_search;
 DROP INDEX IF EXISTS public.idx_chat_messages_session_content;
+
+-- Note: idx_chat_messages_content_pattern was already removed (see drop_content_index.sql)
 ```
 
 ## Testing
