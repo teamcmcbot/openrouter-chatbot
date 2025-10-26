@@ -124,6 +124,16 @@ export function ChatSidebar({ isOpen, onClose, onNewChat, className = "", showMo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
+  // Sync local search input with store's searchQuery
+  // This handles: component mount, page navigation, external store updates
+  // Ensures search input stays in sync when user navigates back to chat page
+  useEffect(() => {
+    if (searchQuery !== searchInput) {
+      setSearchInput(searchQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]); // Only depend on searchQuery to avoid infinite loop
+
   // Clear local search input when store clears search (e.g., when "New Chat" is clicked)
   // Only clear if search transitioned from active to inactive (not if it was always inactive)
   useEffect(() => {

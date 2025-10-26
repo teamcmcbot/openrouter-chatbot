@@ -319,4 +319,71 @@ describe('ChatSidebar Search', () => {
     // Footer should show filtered count
     expect(screen.getByText('1 of 3 conversations')).toBeInTheDocument();
   });
+
+  it('syncs search input from store searchQuery on mount', () => {
+    // Simulate returning to chat page with persisted search state
+    (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+      const store = {
+        ...defaultMockStore,
+        searchQuery: 'persisted search',
+        searchMode: 'local',
+        searchResults: [mockConversations[0]],
+      };
+      if (typeof selector === 'function') {
+        return selector(store);
+      }
+      return store;
+    });
+
+    render(<ChatSidebar isOpen={true} onClose={jest.fn()} onNewChat={jest.fn()} />);
+    
+    const searchInput = screen.getByPlaceholderText('Search conversations...') as HTMLInputElement;
+    
+    // Search input should be populated from store's searchQuery
+    expect(searchInput.value).toBe('persisted search');
+    
+    // Clear button should be visible
+    expect(screen.getByLabelText('Clear search')).toBeInTheDocument();
+  });
+
+  it('syncs search input when store searchQuery changes', () => {
+    let currentStore = {
+      ...defaultMockStore,
+      searchQuery: '',
+      searchMode: 'inactive' as const,
+      searchResults: [],
+    };
+
+    (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+      if (typeof selector === 'function') {
+        return selector(currentStore);
+      }
+      return currentStore;
+    });
+
+    const { rerender } = render(<ChatSidebar isOpen={true} onClose={jest.fn()} onNewChat={jest.fn()} />);
+    
+    const searchInput = screen.getByPlaceholderText('Search conversations...') as HTMLInputElement;
+    expect(searchInput.value).toBe('');
+
+    // Simulate store update (e.g., from another component or page navigation)
+    currentStore = {
+      ...currentStore,
+      searchQuery: 'updated search',
+      searchMode: 'local',
+      searchResults: [mockConversations[0]],
+    };
+
+    (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+      if (typeof selector === 'function') {
+        return selector(currentStore);
+      }
+      return currentStore;
+    });
+
+    rerender(<ChatSidebar isOpen={true} onClose={jest.fn()} onNewChat={jest.fn()} />);
+    
+    // Search input should sync with updated store value
+    expect(searchInput.value).toBe('updated search');
+  });
 });
