@@ -170,18 +170,60 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           syncError: null,
           syncInProgress: false,
 
+          // Search state
+          searchQuery: '',
+          searchMode: 'inactive',
+          searchResults: [],
+          searchLoading: false,
+          searchError: null,
+
           // Actions
           createConversation: (title = "New Chat") => {
-            const id = generateConversationId();
+            const state = get();
             const { user } = useAuthStore.getState();
+            
+            // Aggressive Cleanup: Delete ALL empty "New Chat" conversations before creating new one
+            // Use messageCount (from DB) instead of messages.length (lazy-loaded) to detect truly empty conversations
+            const isOnlyConversation = state.conversations.length === 1;
+            const emptyConversations = state.conversations.filter(c => 
+              c.messageCount === 0 && c.title === "New Chat"
+            );
+            
+            let conversationsToKeep = state.conversations;
+            
+            // Delete ALL empty conversations (unless it would leave us with zero conversations)
+            if (!isOnlyConversation && emptyConversations.length > 0) {
+              // Remove from local state immediately (synchronous)
+              // Keep conversations that either have messages OR have been renamed from "New Chat"
+              conversationsToKeep = state.conversations.filter(c => 
+                c.messageCount > 0 || c.title !== "New Chat"
+              );
+              
+              // Also delete from server asynchronously (fire and forget)
+              if (user) {
+                emptyConversations.forEach(conv => {
+                  fetch(`/api/chat/sessions?id=${encodeURIComponent(conv.id)}`, {
+                    method: 'DELETE',
+                  }).catch((err) => {
+                    logger.warn("Failed to delete empty conversation from server", { 
+                      id: conv.id, 
+                      err: err instanceof Error ? err.message : String(err)
+                    });
+                  });
+                });
+              }
+            }
+            
+            // Create new conversation (existing logic)
+            const id = generateConversationId();
             const newConversation = createNewConversation(title, user?.id);
             newConversation.id = id;
             newConversation.isActive = true;
 
             logger.debug("Creating new conversation", { id, title, userId: user?.id });
 
-            set((state) => ({
-              conversations: [newConversation, ...state.conversations.map(c => ({ ...c, isActive: false }))],
+            set(() => ({
+              conversations: [newConversation, ...conversationsToKeep.map(c => ({ ...c, isActive: false }))],
               currentConversationId: id,
               error: null,
             }));
@@ -190,26 +232,85 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           },
 
           switchConversation: (id) => {
-            logger.debug("Switching conversation", { id });
-            
-            set((state) => ({
-              conversations: state.conversations.map(conv => ({
-                ...conv,
-                isActive: conv.id === id,
-              })),
-              currentConversationId: id,
-              error: null,
-            }));
-
-            // If authenticated, trigger lazy load/revalidation of messages for this conversation
+            const state = get();
             const { user } = useAuthStore.getState();
-            if (user) {
-              const conv = get().conversations.find(c => c.id === id);
-              // Always call loader: it will either full-load or incrementally revalidate via since_ts
-              if (conv) {
-                get().loadConversationMessages?.(id).catch((err) => {
-                  logger.warn("Failed to load conversation messages", { id, err });
+            logger.debug("Switching conversation", { id, fromId: state.currentConversationId });
+            
+            // Cleanup: If switching away from an empty "New Chat", delete it silently
+            const previousConv = state.conversations.find(c => c.id === state.currentConversationId);
+            const isOnlyConversation = state.conversations.length === 1;
+            
+            if (previousConv && 
+                !isOnlyConversation && 
+                previousConv.id !== id && // Don't delete if we're somehow switching to the same conversation
+                previousConv.messageCount === 0 && 
+                previousConv.title === "New Chat") {
+              
+              // Remove from local state immediately (synchronous)
+              set((state) => ({
+                conversations: state.conversations.filter(c => c.id !== previousConv.id)
+              }));
+              
+              // Also delete from server asynchronously (fire and forget)
+              if (user) {
+                fetch(`/api/chat/sessions?id=${encodeURIComponent(previousConv.id)}`, {
+                  method: 'DELETE',
+                }).catch((err) => {
+                  logger.warn("Failed to delete empty conversation from server on switch", { 
+                    id: previousConv.id, 
+                    err: err instanceof Error ? err.message : String(err)
+                  });
                 });
+              }
+            }
+            
+            // Check if conversation exists in conversations array
+            const existsInConversations = state.conversations.find(c => c.id === id);
+            
+            if (existsInConversations) {
+              // Normal flow: mark as active in conversations array
+              set((state) => ({
+                conversations: state.conversations.map(conv => ({
+                  ...conv,
+                  isActive: conv.id === id,
+                })),
+                currentConversationId: id,
+                error: null,
+              }));
+
+              // If authenticated, trigger lazy load/revalidation of messages for this conversation
+              if (user) {
+                const conv = get().conversations.find(c => c.id === id);
+                // Always call loader: it will either full-load or incrementally revalidate via since_ts
+                if (conv) {
+                  get().loadConversationMessages?.(id).catch((err) => {
+                    logger.warn("Failed to load conversation messages", { id, err });
+                  });
+                }
+              }
+            } else {
+              // Check if it's in searchResults (from server search)
+              const searchResult = state.searchResults.find(c => c.id === id);
+              
+              if (searchResult) {
+                logger.debug("Switching to conversation from search results (not in paginated list)", { id });
+                
+                // Set as current without adding to conversations array (keeps pagination clean)
+                set((state) => ({
+                  conversations: state.conversations,
+                  currentConversationId: id,
+                  error: null,
+                }));
+                
+                // Load messages for this conversation
+                if (user) {
+                  get().loadConversationMessages?.(id).catch((err) => {
+                    logger.warn("Failed to load conversation messages from search result", { id, err });
+                  });
+                }
+              } else {
+                logger.warn("Attempted to switch to unknown conversation", { id });
+                set({ error: null });
               }
             }
           },
@@ -620,7 +721,23 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                           ],
                         })
                       : conv
-                  ),
+                  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+                  // Also update searchResults if current conversation is in search results (non-streaming mode)
+                  searchResults: (state.searchResults || []).map((conv) =>
+                    conv.id === state.currentConversationId
+                      ? updateConversationFromMessages({
+                          ...conv,
+                          messages: [
+                            ...conv.messages.map((msg) =>
+                              msg.id === data.request_id && msg.role === 'user'
+                                ? { ...msg, input_tokens: data.usage?.prompt_tokens ?? 0 }
+                                : msg
+                            ),
+                            assistantMessage
+                          ],
+                        })
+                      : conv
+                  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
                   isLoading: false,
                 };
               });
@@ -992,10 +1109,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             }
           },
 
-          deleteConversation: async (id) => {
+          deleteConversation: async (id: string, options?: { silent?: boolean }) => {
             const { user } = useAuthStore.getState();
+            const silent = options?.silent ?? false;
             
-            logger.debug("Deleting conversation", { id, authenticated: !!user });
+            logger.debug("Deleting conversation", { id, authenticated: !!user, silent });
             
             try {
               // If user is authenticated, delete from backend first
@@ -1013,21 +1131,102 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 logger.debug("Server conversation deleted", result);
               }
 
-              // Delete from local store
+              // Delete from local store with context-aware navigation
               set((state) => {
+                // Remove from both arrays
                 const newConversations = state.conversations.filter(c => c.id !== id);
-                const newCurrentId = state.currentConversationId === id
-                  ? newConversations[0]?.id ?? null
-                  : state.currentConversationId;
-
+                const newSearchResults = state.searchResults.filter(c => c.id !== id);
+                
+                // Smart navigation based on context
+                let newCurrentId: string | null = state.currentConversationId;
+                
+                if (state.currentConversationId === id) {
+                  // Determine which list to navigate within
+                  if (state.searchMode !== 'inactive' && newSearchResults.length > 0) {
+                    // IN SEARCH MODE: Navigate to next search result
+                    const deletedIndex = state.searchResults.findIndex(c => c.id === id);
+                    
+                    logger.debug("Deleting conversation in search mode", { 
+                      deletedIndex, 
+                      totalResults: state.searchResults.length,
+                      remainingResults: newSearchResults.length 
+                    });
+                    
+                    // Priority: next result → previous result → first result
+                    if (deletedIndex !== -1) {
+                      if (deletedIndex < newSearchResults.length) {
+                        // Next result exists (array shifted after filter)
+                        newCurrentId = newSearchResults[deletedIndex]?.id ?? null;
+                        logger.debug("Navigating to next search result", { newCurrentId });
+                      } else if (deletedIndex > 0) {
+                        // Use previous result
+                        newCurrentId = newSearchResults[deletedIndex - 1]?.id ?? null;
+                        logger.debug("Navigating to previous search result", { newCurrentId });
+                      } else {
+                        // Only one result left (now at index 0)
+                        newCurrentId = newSearchResults[0]?.id ?? null;
+                        logger.debug("Navigating to first search result", { newCurrentId });
+                      }
+                    }
+                  } else {
+                    // NOT IN SEARCH MODE: Navigate within paginated conversations
+                    const deletedIndex = state.conversations.findIndex(c => c.id === id);
+                    
+                    logger.debug("Deleting conversation in normal mode", { 
+                      deletedIndex, 
+                      totalConversations: state.conversations.length,
+                      remainingConversations: newConversations.length 
+                    });
+                    
+                    if (deletedIndex !== -1 && newConversations.length > 0) {
+                      // Navigate to next conversation in list (or previous if deleting last)
+                      if (deletedIndex < newConversations.length) {
+                        newCurrentId = newConversations[deletedIndex]?.id ?? null;
+                        logger.debug("Navigating to next conversation", { newCurrentId });
+                      } else if (deletedIndex > 0) {
+                        newCurrentId = newConversations[deletedIndex - 1]?.id ?? null;
+                        logger.debug("Navigating to previous conversation", { newCurrentId });
+                      } else {
+                        newCurrentId = newConversations[0]?.id ?? null;
+                        logger.debug("Navigating to first conversation", { newCurrentId });
+                      }
+                    } else {
+                      newCurrentId = null; // No conversations left
+                      logger.debug("No conversations remaining after delete");
+                    }
+                  }
+                }
+                
                 return {
                   conversations: newConversations,
+                  searchResults: newSearchResults,
                   currentConversationId: newCurrentId,
                   error: null,
                 };
               });
 
-              logger.debug("Conversation deleted successfully", { id });
+              // Check if search results are now empty and clear search state
+              const { searchMode, searchResults } = get();
+              if (searchMode !== 'inactive' && searchResults.length === 0) {
+                logger.debug("Clearing search after deleting last search result");
+                get().clearSearch();
+              }
+
+              // Trigger message loading for the new current conversation
+              const newCurrentId = get().currentConversationId;
+              if (newCurrentId) {
+                if (user) {
+                  logger.debug("Loading messages for new current conversation", { conversationId: newCurrentId });
+                  get().loadConversationMessages?.(newCurrentId).catch((err) => {
+                    logger.warn("Failed to load messages for new conversation after delete", { 
+                      conversationId: newCurrentId, 
+                      error: err instanceof Error ? err.message : String(err)
+                    });
+                  });
+                }
+              }
+
+              logger.debug("Conversation deleted successfully", { id, newCurrentId });
             } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Failed to delete conversation';
               logger.error("Failed to delete conversation", errorMessage);
@@ -1518,7 +1717,37 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                           ],
                         })
                       : conv
-                  ),
+                  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+                  // Also update searchResults if current conversation is in search results (retry path)
+                  searchResults: (state.searchResults || []).map((conv) =>
+                    conv.id === state.currentConversationId
+                      ? updateConversationFromMessages({
+                          ...conv,
+                          messages: [
+                            ...conv.messages.map((msg) => {
+                              if (msg.id === messageId && msg.role === 'user') {
+                                return {
+                                  ...msg,
+                                  error: false,
+                                  error_message: undefined,
+                                  error_code: undefined,
+                                  retry_after: undefined,
+                                  input_tokens: data.usage?.prompt_tokens ?? 0,
+                                };
+                              }
+                              if (msg.id === data.request_id && msg.role === 'user') {
+                                return {
+                                  ...msg,
+                                  input_tokens: data.usage?.prompt_tokens ?? 0,
+                                };
+                              }
+                              return msg;
+                            }),
+                            assistantMessage
+                          ],
+                        })
+                      : conv
+                  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
                   isLoading: false,
                 };
               });
@@ -1903,8 +2132,16 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
 
           // Lazy loader: fetch or revalidate messages for a session and merge into store
           loadConversationMessages: async (id: string) => {
-            const existing = get().conversations.find(c => c.id === id);
-            if (!existing) return;
+            let existing = get().conversations.find(c => c.id === id);
+            
+            // If not in conversations, check searchResults
+            if (!existing) {
+              existing = get().searchResults.find(c => c.id === id);
+              if (!existing) {
+                logger.warn('loadConversationMessages: conversation not found in conversations or searchResults', { id });
+                return;
+              }
+            }
 
             if (messagesInflight.has(id)) {
               logger.debug('Message load already in-flight, skipping', { id });
@@ -1939,27 +2176,61 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
                 }
                 // Append strictly newer messages
                 set((state) => {
-                  const conv = state.conversations.find(c => c.id === id)!;
-                  const combined = [...conv.messages];
-                  for (const m of newMsgs) {
-                    if (!combined.some(x => x.id === m.id)) combined.push(m);
+                  // Check both conversations and searchResults
+                  const convInMain = state.conversations.find(c => c.id === id);
+                  const convInSearch = state.searchResults.find(c => c.id === id);
+                  
+                  if (convInMain) {
+                    const combined = [...convInMain.messages];
+                    for (const m of newMsgs) {
+                      if (!combined.some(x => x.id === m.id)) combined.push(m);
+                    }
+                    const updated = updateConversationFromMessages({ ...convInMain, messages: combined });
+                    return {
+                      conversations: state.conversations.map(c => c.id === id ? updated : c),
+                    };
+                  } else if (convInSearch) {
+                    // Update in searchResults only
+                    const combined = [...convInSearch.messages];
+                    for (const m of newMsgs) {
+                      if (!combined.some(x => x.id === m.id)) combined.push(m);
+                    }
+                    const updated = updateConversationFromMessages({ ...convInSearch, messages: combined });
+                    return {
+                      searchResults: state.searchResults.map(c => c.id === id ? updated : c),
+                    };
                   }
-                  const updated = updateConversationFromMessages({ ...conv, messages: combined });
-                  return {
-                    conversations: state.conversations.map(c => c.id === id ? updated : c),
-                  };
+                  return state;
                 });
               } else {
                 // Initial full load
                 const msgs = newMsgs;
-                set((state) => ({
-                  conversations: state.conversations.map(conv =>
-                    conv.id === id
-                      ? updateConversationFromMessages({ ...conv, messages: msgs })
-                      : conv
-                  ),
-                  isLoading: false,
-                }));
+                set((state) => {
+                  // Check if conversation is in main list or search results
+                  const inMain = state.conversations.some(c => c.id === id);
+                  const inSearch = state.searchResults.some(c => c.id === id);
+                  
+                  if (inMain) {
+                    return {
+                      conversations: state.conversations.map(conv =>
+                        conv.id === id
+                          ? updateConversationFromMessages({ ...conv, messages: msgs })
+                          : conv
+                      ),
+                      isLoading: false,
+                    };
+                  } else if (inSearch) {
+                    return {
+                      searchResults: state.searchResults.map(conv =>
+                        conv.id === id
+                          ? updateConversationFromMessages({ ...conv, messages: msgs })
+                          : conv
+                      ),
+                      isLoading: false,
+                    };
+                  }
+                  return { isLoading: false };
+                });
               }
             } catch (e) {
               const message = e instanceof Error ? e.message : 'Failed to load messages';
@@ -2034,10 +2305,165 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             set({ isHydrated: true });
           },
 
+          // Search actions
+          performLocalSearch: (query: string) => {
+            const normalizedQuery = query.toLowerCase().trim();
+            
+            if (!normalizedQuery) {
+              // Only clear if not already inactive to avoid unnecessary state updates
+              if (get().searchMode !== 'inactive') {
+                get().clearSearch();
+              }
+              return;
+            }
+
+            const { conversations } = get();
+            
+            // Search through conversations
+            const results = conversations.filter((conv) => {
+              // Search in title (always available)
+              if (conv.title.toLowerCase().includes(normalizedQuery)) {
+                return true;
+              }
+
+              // Search in last message preview (always available, ~100 chars)
+              if (conv.lastMessagePreview?.toLowerCase().includes(normalizedQuery)) {
+                return true;
+              }
+
+              // Search in full message content (only if messages have been loaded)
+              if (Array.isArray(conv.messages) && conv.messages.length > 0) {
+                return conv.messages.some((msg) =>
+                  msg.content.toLowerCase().includes(normalizedQuery)
+                );
+              }
+
+              return false;
+            });
+
+            // Sort by timestamp only (consistent with server search and normal mode)
+            // This prevents confusing UX where old conversations jump to top based on title relevance
+            results.sort(sortByLastTimestampDesc);
+
+            set({
+              searchQuery: query,
+              searchMode: 'local',
+              searchResults: results,
+            });
+
+            logger.debug("Local search completed", { 
+              query, 
+              resultsCount: results.length,
+              totalConversations: conversations.length 
+            });
+          },
+
+          clearSearch: () => {
+            set({
+              searchQuery: '',
+              searchMode: 'inactive',
+              searchResults: [],
+              searchLoading: false,
+              searchError: null,
+            });
+            logger.debug("Search cleared");
+          },
+
+          performServerSearch: async (query: string) => {
+            const normalizedQuery = query.trim();
+            
+            if (!normalizedQuery || normalizedQuery.length < 2) {
+              get().clearSearch();
+              logger.warn("Server search requires at least 2 characters");
+              return;
+            }
+
+            set({
+              searchQuery: query,
+              searchMode: 'server',
+              searchLoading: true,
+              searchError: null,
+              searchResults: [],
+            });
+
+            try {
+              logger.debug("Starting server search", { query: normalizedQuery });
+              
+              const params = new URLSearchParams({
+                q: normalizedQuery,
+                limit: '50',
+              });
+
+              const response = await fetch(`/api/chat/search?${params.toString()}`);
+              
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+                throw new Error(errorData.error || `Server search failed: ${response.status}`);
+              }
+
+              const data = await response.json();
+              
+              // Transform API results into Conversation objects
+              // The API returns SearchResult[] with { id, title, lastMessagePreview, messageCount, lastMessageTimestamp, matchType, ... }
+              const results: Conversation[] = (data.results || []).map((result: {
+                id: string;
+                title: string;
+                lastMessagePreview?: string;
+                messageCount: number;
+                lastMessageTimestamp: string;
+                matchType: 'title' | 'preview' | 'content';
+                createdAt?: string;
+                updatedAt?: string;
+                totalTokens?: number;
+                lastModel?: string;
+                userId?: string;
+              }) => ({
+                id: result.id,
+                title: result.title,
+                messages: [], // Server search doesn't return full messages
+                userId: result.userId,
+                createdAt: result.createdAt || result.lastMessageTimestamp,
+                updatedAt: result.updatedAt || result.lastMessageTimestamp,
+                messageCount: result.messageCount,
+                totalTokens: result.totalTokens || 0,
+                lastModel: result.lastModel,
+                isActive: false,
+                lastMessagePreview: result.lastMessagePreview,
+                lastMessageTimestamp: result.lastMessageTimestamp,
+              }));
+
+              set({
+                searchResults: results,
+                searchLoading: false,
+                searchError: null,
+              });
+
+              logger.debug("Server search completed", { 
+                query: normalizedQuery, 
+                resultsCount: results.length,
+                executionTimeMs: data.executionTimeMs 
+              });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Server search failed';
+              logger.error("Server search failed", { error: errorMessage, query: normalizedQuery });
+              
+              set({
+                searchResults: [],
+                searchLoading: false,
+                searchError: errorMessage,
+              });
+
+              toast.error(`Search failed: ${errorMessage}`);
+            }
+          },
+
           // Selectors
           getCurrentConversation: () => {
-            const { conversations, currentConversationId } = get();
-            return conversations.find(c => c.id === currentConversationId) || null;
+            const { conversations, searchResults, currentConversationId } = get();
+            // Check conversations first, then searchResults
+            return conversations.find(c => c.id === currentConversationId) 
+              || searchResults.find(c => c.id === currentConversationId)
+              || null;
           },
 
           getCurrentMessages: () => {
@@ -2046,7 +2472,11 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
           },
 
           getConversationById: (id) => {
-            return get().conversations.find(c => c.id === id) || null;
+            const { conversations, searchResults } = get();
+            // Check conversations first, then searchResults
+            return conversations.find(c => c.id === id) 
+              || searchResults.find(c => c.id === id)
+              || null;
           },
 
           getConversationCount: () => {

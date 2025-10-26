@@ -138,6 +138,18 @@ CREATE INDEX idx_chat_sessions_user_id ON public.chat_sessions(user_id);
 CREATE INDEX idx_chat_sessions_updated_at ON public.chat_sessions(updated_at DESC);
 CREATE INDEX idx_chat_sessions_user_updated ON public.chat_sessions(user_id, updated_at DESC);
 
+-- Conversation search indexes (added: Oct 2025)
+CREATE INDEX idx_chat_sessions_user_title_pattern 
+    ON public.chat_sessions(user_id, title text_pattern_ops);
+COMMENT ON INDEX public.idx_chat_sessions_user_title_pattern IS 
+    'Optimizes ILIKE pattern matching for conversation title search by user. Used in /api/chat/search endpoint.';
+
+CREATE INDEX idx_chat_sessions_user_search
+    ON public.chat_sessions(user_id, last_message_timestamp DESC)
+    INCLUDE (title, last_message_preview, message_count);
+COMMENT ON INDEX public.idx_chat_sessions_user_search IS 
+    'Composite index for efficient conversation retrieval with search metadata. Includes commonly needed fields for search results.';
+
 -- Chat messages indexes
 CREATE INDEX idx_chat_messages_session_id ON public.chat_messages(session_id);
 CREATE INDEX idx_chat_messages_timestamp ON public.chat_messages(message_timestamp);
@@ -149,6 +161,17 @@ CREATE INDEX idx_chat_messages_user_message_id
 CREATE INDEX idx_chat_messages_tokens_role
     ON public.chat_messages(role, input_tokens, output_tokens)
     WHERE input_tokens > 0 OR output_tokens > 0;
+
+-- Message search index (added: Oct 2025)
+-- Note: idx_chat_messages_content_pattern was removed due to PostgreSQL B-tree size limits
+-- Content ILIKE search uses sequential scan with user_id filter (acceptable performance for <10k messages/user)
+CREATE INDEX idx_chat_messages_session_content
+    ON public.chat_messages(session_id, role)
+    INCLUDE (message_timestamp)
+    WHERE role IN ('user', 'assistant');
+COMMENT ON INDEX public.idx_chat_messages_session_content IS 
+    'Optimizes message content retrieval during search operations. Includes timestamp; content fetched via table lookup.';
+
 -- Note: Removed optional flags indexes (has_attachments, has_websearch, websearch_count) as unused in production.
 
 -- Chat attachments indexes

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { ChatMessage } from '../lib/types/chat';
 import { useChatStore, updateConversationFromMessages } from '../stores/useChatStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -661,7 +662,20 @@ export function useChatStreaming(): UseChatStreamingReturn {
                   ],
                 })
               : conv
-          ),
+          ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+          // Also update searchResults if current conversation is in search results (streaming mode)
+          searchResults: (state.searchResults || []).map((conv) =>
+            conv.id === conversationId
+              ? updateConversationFromMessages({
+                  ...conv,
+                  messages: [
+                    ...conv.messages.slice(0, -1),
+                    updatedUserMessage,
+                    assistantMessage
+                  ],
+                })
+              : conv
+          ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
         }));
 
         // Auto-generate title from first user message if it's still "New Chat" (same logic as non-streaming)
@@ -751,6 +765,9 @@ export function useChatStreaming(): UseChatStreamingReturn {
               logger.warn('Failed to sync messages to database:', syncResponse.status);
             } else {
               // logger.debug('Messages synced to database successfully');
+              
+              // Show success toast (consistent with non-streaming mode)
+              toast.success('Message saved successfully!', { id: 'chat-message-saved' });
               
               // Phase 4A: Persist assistant images AFTER database sync (fixes timing race condition)
               if (assistantMessage.output_images && assistantMessage.output_images.length > 0) {
@@ -1368,7 +1385,18 @@ export function useChatStreaming(): UseChatStreamingReturn {
                   ).concat(assistantMessage), // Update existing user message and add assistant
                 })
               : conv
-          ),
+          ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+          // Also update searchResults if current conversation is in search results (streaming retry)
+          searchResults: (state.searchResults || []).map((conv) =>
+            conv.id === conversationId
+              ? updateConversationFromMessages({
+                  ...conv,
+                  messages: conv.messages.map(msg =>
+                    msg.id === messageId ? { ...updatedUserMessage, retry_available: undefined } : msg
+                  ).concat(assistantMessage),
+                })
+              : conv
+          ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
         }));
 
         // Auto-generate title from first user message if it's still "New Chat"
@@ -1415,6 +1443,9 @@ export function useChatStreaming(): UseChatStreamingReturn {
 
             if (!syncResponse.ok) {
               logger.warn('Failed to sync messages to database:', syncResponse.status);
+            } else {
+              // Show success toast (consistent with non-streaming mode retry path)
+              toast.success('Message saved successfully!', { id: 'chat-message-saved' });
             }
           } else {
             logger.debug('Skipping /api/chat/messages persistence for anonymous user (retry)');

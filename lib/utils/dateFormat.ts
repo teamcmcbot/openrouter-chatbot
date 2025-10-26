@@ -31,8 +31,11 @@ export function formatMessageTime(date: Date | string): string {
 }
 
 /**
- * Formats a timestamp for conversation list display (relative time)
- * - Shows "Today", "Yesterday", "X days ago", or full date
+ * Formats a timestamp for conversation list display (relative/absolute time)
+ * - Shows "just now" for < 1 minute
+ * - Shows "X mins ago" for < 60 minutes
+ * - Shows "X hours ago" for < 24 hours
+ * - Shows "DD-MMM-YYYY HH:mm" for ≥ 24 hours (local browser time)
  * - Returns "-" for missing or invalid timestamps
  */
 export function formatConversationTimestamp(timestamp: string): string {
@@ -50,15 +53,37 @@ export function formatConversationTimestamp(timestamp: string): string {
   
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
-  if (diffDays === 0) {
-    return "Today";
-  } else if (diffDays === 1) {
-    return "Yesterday";
-  } else if (diffDays < 7) {
-    return `${diffDays} days ago`;
+  // Handle future timestamps (clock skew)
+  if (diffMs < 0) {
+    return "just now";
+  }
+  
+  const MINUTE = 60 * 1000;
+  const HOUR = 60 * MINUTE;
+  const DAY = 24 * HOUR;
+  
+  if (diffMs < MINUTE) {
+    // Less than 1 minute
+    return "just now";
+  } else if (diffMs < HOUR) {
+    // 1-59 minutes
+    const mins = Math.floor(diffMs / MINUTE);
+    return mins === 1 ? "1 min ago" : `${mins} mins ago`;
+  } else if (diffMs < DAY) {
+    // 1-23 hours
+    const hours = Math.floor(diffMs / HOUR);
+    return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
   } else {
-    return date.toLocaleDateString();
+    // 24+ hours: DD-MMM-YYYY HH:mm (local browser time)
+    const day = String(date.getDate()).padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
   }
 }
