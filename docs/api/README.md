@@ -56,6 +56,7 @@ These endpoints require user authentication and implement full rate limiting:
 - [`/api/chat/messages`](./chat-messages.md) - Chat message operations
 - [`/api/chat/sessions`](./chat-sessions.md) - Chat session management
 - [`/api/chat/session`](./chat-session.md) - Individual session updates
+- [`/api/chat/search`](./chat-search.md) - Server-side conversation search (Phase 2)
 - [`/api/chat/clear-all`](./chat-clear-all.md) - Bulk conversation deletion
 - [`/api/chat/sync`](./chat-sync.md) - Conversation synchronization
 - [`/api/chat/images/store`](./chat-images-store.md) - Store AI-generated images
