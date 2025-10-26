@@ -16,14 +16,10 @@ COMMENT ON INDEX public.idx_chat_sessions_user_title_pattern IS
 'Optimizes ILIKE pattern matching for conversation title search by user. Used in /api/chat/search endpoint.';
 
 -- Index 2: Message content search
--- REMOVED: B-tree index on full content exceeds PostgreSQL size limits (~2700 bytes)
--- for long assistant responses. Sequential scan is fast enough with user_id filtering.
--- See: /database/patches/conversation-search/drop_content_index.sql
--- 
--- Original (REMOVED):
--- CREATE INDEX IF NOT EXISTS idx_chat_messages_content_pattern 
--- ON public.chat_messages(content text_pattern_ops)
--- WHERE role IN ('user', 'assistant');
+-- Note: This index was never created in any migration due to PostgreSQL B-tree size constraints (~2700 bytes).
+-- Text columns with large values (e.g., long assistant responses) exceed the index entry limit.
+-- Sequential scan is fast enough with user_id filtering and conversation-level filtering.
+-- No drop script required as the index was never created.
 
 -- Index 3: Conversation search context (composite)
 -- Optimizes: Retrieval of conversation metadata during search

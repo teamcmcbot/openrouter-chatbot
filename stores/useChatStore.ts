@@ -2310,7 +2310,10 @@ export const useChatStore = create<ChatState & ChatSelectors>()(
             const normalizedQuery = query.toLowerCase().trim();
             
             if (!normalizedQuery) {
-              get().clearSearch();
+              // Only clear if not already inactive to avoid unnecessary state updates
+              if (get().searchMode !== 'inactive') {
+                get().clearSearch();
+              }
               return;
             }
 
