@@ -7,7 +7,9 @@ This guide walks through deploying the OpenRouter Chatbot to Vercel for the firs
 - GitHub repository access with the production branch ready.
 - Supabase production project created and credentials available (see [supabase-production-setup.md](./supabase-production-setup.md)).
 - Provisioned integrations (Upstash Redis, Stripe, OpenRouter, etc.) with production secrets on hand.
-- Upgraded Vercel plan: **Pro** or higher (cron jobs require Pro).
+- Vercel plan selected based on cron needs:
+  - Hobby supports cron jobs that run once per day.
+  - Pro or higher is required for higher-frequency cron schedules (for example hourly).
 
 ## 2. Create the Vercel Project
 
