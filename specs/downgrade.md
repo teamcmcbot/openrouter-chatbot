@@ -46,8 +46,8 @@ All three jobs run once per day in UTC.
 ## Phase 2: Apply Configuration Changes
 - [x] Update vercel.json to make all cron jobs daily.
 - [x] Specifically change /api/cron/models/sync from 0 * * * * to 0 5 * * *.
-- [ ] Re-deploy and ensure deployment succeeds without cron schedule errors.
-- [ ] User verification: approve updated deployment state.
+- [x] Re-deploy and ensure deployment succeeds without cron schedule errors.
+- [x] User verification: approve updated deployment state.
 
 ### User Test Steps (Phase 2)
 1. Review the updated cron block in vercel.json.
@@ -55,14 +55,14 @@ All three jobs run once per day in UTC.
 3. Confirm Vercel deployment finishes successfully.
 
 ## Phase 3: Downgrade and Post-Downgrade Validation
-- [ ] Downgrade Vercel plan from Pro to Hobby.
-- [ ] Verify cron jobs appear as daily schedules in Vercel dashboard.
-- [ ] Validate core user flows:
+- [x] Downgrade Vercel plan from Pro to Hobby.
+- [x] Verify cron jobs appear as daily schedules in Vercel dashboard.
+- [x] Validate core user flows:
   - Chat request and streaming response
   - Authentication sign-in/sign-out
   - Basic data read/write paths
-- [ ] Verify maintenance jobs execute on next daily window and log successful runs.
-- [ ] User verification: approve production stability on Hobby.
+- [x] Verify maintenance jobs execute on next daily window and log successful runs.
+- [x] User verification: approve production stability on Hobby.
 
 ### User Test Steps (Phase 3)
 1. Downgrade the Vercel project/team plan.
