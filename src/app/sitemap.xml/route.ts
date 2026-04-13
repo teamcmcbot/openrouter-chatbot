@@ -1,5 +1,7 @@
 import { getModelCatalog } from "../../../lib/server/modelCatalog";
 
+export const dynamic = "force-dynamic";
+
 const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 
 const staticRoutes = [
